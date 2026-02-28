@@ -168,11 +168,13 @@ func (r *Releaser) analyze(ctx context.Context) (*Result, error) {
 	result.NextTag = r.strategy.prefix + nextVersion
 
 	gen := &changelog.Generator{
-		Sections: r.cfg.Changelog.Sections,
-		Include:  r.cfg.Changelog.Include,
+		Sections:   r.cfg.Changelog.Sections,
+		Include:    r.cfg.Changelog.Include,
+		RepoURL:    r.provider.RepoURL(),
+		PathPrefix: r.provider.PathPrefix(),
 	}
 
-	entry := gen.Generate(result.NextTag, commits)
+	entry := gen.Generate(result.NextTag, ref, commits)
 	result.Changelog = changelog.Render(entry)
 
 	return result, nil

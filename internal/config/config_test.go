@@ -20,7 +20,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, "v", cfg.TagPrefix)
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
-	testastic.Equal(t, 3, len(cfg.Changelog.Include))
+	testastic.Equal(t, 4, len(cfg.Changelog.Include))
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
 }
 

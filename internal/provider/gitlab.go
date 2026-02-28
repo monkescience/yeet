@@ -9,16 +9,28 @@ import (
 )
 
 type GitLab struct {
-	client *gitlab.Client
-	pid    string
+	client  *gitlab.Client
+	pid     string
+	baseURL string
 }
 
 // NewGitLab creates a provider. pid is the project ID or full path (e.g., "owner/repo").
 func NewGitLab(client *gitlab.Client, owner, repo string) *GitLab {
+	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
+
 	return &GitLab{
-		client: client,
-		pid:    owner + "/" + repo,
+		client:  client,
+		pid:     owner + "/" + repo,
+		baseURL: baseURL + "/" + owner + "/" + repo,
 	}
+}
+
+func (g *GitLab) RepoURL() string {
+	return g.baseURL
+}
+
+func (g *GitLab) PathPrefix() string {
+	return "/-"
 }
 
 func (g *GitLab) GetLatestRelease(ctx context.Context) (*Release, error) {

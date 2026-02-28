@@ -37,12 +37,20 @@ tag_prefix = "v"
 
 [changelog]
 file = "CHANGELOG.md"
-include = ["feat", "fix", "perf"]
+include = ["feat", "fix", "perf", "revert"]
 
 [changelog.sections]
 feat = "Features"
 fix = "Bug Fixes"
 perf = "Performance Improvements"
+revert = "Reverts"
+docs = "Documentation"
+style = "Styles"
+refactor = "Code Refactoring"
+test = "Tests"
+build = "Build System"
+ci = "Continuous Integration"
+chore = "Miscellaneous Chores"
 breaking = "Breaking Changes"
 
 [calver]
@@ -58,8 +66,8 @@ format = "YYYY.0M.MICRO"
 | `provider` | auto-detected | VCS provider: `"github"` or `"gitlab"` |
 | `tag_prefix` | `"v"` | Prefix for version tags |
 | `changelog.file` | `"CHANGELOG.md"` | Changelog file path |
-| `changelog.include` | `["feat", "fix", "perf"]` | Commit types to include in the changelog |
-| `changelog.sections` | see above | Mapping of commit types to section headings |
+| `changelog.include` | `["feat", "fix", "perf", "revert"]` | Commit types to include in the changelog |
+| `changelog.sections` | see above | Mapping of commit types to section headings. All conventional types are pre-configured; only types in `include` appear in the changelog |
 | `calver.format` | `"YYYY.0M.MICRO"` | CalVer format string |
 
 ## Commands
@@ -120,6 +128,29 @@ optional footer(s)
 ```
 
 Breaking changes are indicated by a `!` after the type/scope or a `BREAKING CHANGE:` footer.
+
+## Changelog format
+
+yeet generates changelogs that match the [release-please](https://github.com/googleapis/release-please) style:
+
+```markdown
+## [v1.2.0](https://github.com/owner/repo/compare/v1.1.0...v1.2.0) (2026-02-28)
+
+### ⚠ BREAKING CHANGES
+
+- **api:** /v1/users replaced by /v2/users ([pqr1234](https://github.com/owner/repo/commit/pqr1234...))
+
+### Features
+
+- **auth:** add OAuth2 login ([abc1234](https://github.com/owner/repo/commit/abc1234...))
+- add user preferences page ([def5678](https://github.com/owner/repo/commit/def5678...))
+
+### Bug Fixes
+
+- **api:** handle null response body ([ghi9012](https://github.com/owner/repo/commit/ghi9012...))
+```
+
+Version headers link to the compare diff, and commit hashes link to the individual commits. For the initial release (no previous tag), the version header is plain text.
 
 ## License
 

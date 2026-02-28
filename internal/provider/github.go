@@ -21,6 +21,14 @@ func NewGitHub(client *github.Client, owner, repo string) *GitHub {
 	}
 }
 
+func (g *GitHub) RepoURL() string {
+	return fmt.Sprintf("https://github.com/%s/%s", g.repo.Owner, g.repo.Name)
+}
+
+func (g *GitHub) PathPrefix() string {
+	return ""
+}
+
 // GetLatestRelease returns ErrNoRelease if no releases exist.
 func (g *GitHub) GetLatestRelease(ctx context.Context) (*Release, error) {
 	release, resp, err := g.client.Repositories.GetLatestRelease(ctx, g.repo.Owner, g.repo.Name)

@@ -5,22 +5,27 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/commit"
 )
 
 type Generator struct {
-	Sections map[string]string
-	Include  []string
+	Sections   map[string]string
+	Include    []string
+	RepoURL    string
+	PathPrefix string
 }
 
 type Entry struct {
-	Version string
-	Date    time.Time
-	Body    string
+	Version    string
+	Date       time.Time
+	Body       string
+	CompareURL string
 }
 
-func (g *Generator) Generate(version string, commits []commit.Commit) Entry {
+func (g *Generator) Generate(version string, previousTag string, commits []commit.Commit) Entry {
 	relevant := commit.FilterByTypes(commits, g.Include)
 
 	grouped := g.groupBySection(relevant)
@@ -32,7 +37,7 @@ func (g *Generator) Generate(version string, commits []commit.Commit) Entry {
 	for _, commitType := range g.Include {
 		sectionName, ok := g.Sections[commitType]
 		if !ok {
-			sectionName = strings.Title(commitType) //nolint:staticcheck // simple title case is fine here
+			sectionName = capitalizeFirst(commitType)
 		}
 
 		sectionCommits, exists := grouped[commitType]
@@ -43,21 +48,32 @@ func (g *Generator) Generate(version string, commits []commit.Commit) Entry {
 		writeSectionHeader(&sb, sectionName)
 
 		for _, c := range sectionCommits {
-			writeCommitLine(&sb, c)
+			g.writeCommitLine(&sb, c)
 		}
 	}
 
-	return Entry{
+	entry := Entry{
 		Version: version,
 		Date:    time.Now(),
 		Body:    sb.String(),
 	}
+
+	if g.RepoURL != "" && previousTag != "" {
+		entry.CompareURL = fmt.Sprintf("%s%s/compare/%s...%s", g.RepoURL, g.PathPrefix, previousTag, version)
+	}
+
+	return entry
 }
 
 func Render(entry Entry) string {
 	var sb strings.Builder
 
-	fmt.Fprintf(&sb, "## %s (%s)\n\n", entry.Version, entry.Date.Format("2006-01-02"))
+	if entry.CompareURL != "" {
+		fmt.Fprintf(&sb, "## [%s](%s) (%s)\n\n", entry.Version, entry.CompareURL, entry.Date.Format("2006-01-02"))
+	} else {
+		fmt.Fprintf(&sb, "## %s (%s)\n\n", entry.Version, entry.Date.Format("2006-01-02"))
+	}
+
 	sb.WriteString(entry.Body)
 
 	return sb.String()
@@ -108,7 +124,7 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 		return
 	}
 
-	writeSectionHeader(sb, "Breaking Changes")
+	writeSectionHeader(sb, "\u26a0 BREAKING CHANGES")
 
 	for _, c := range breaking {
 		desc := c.Description
@@ -122,7 +138,7 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 			}
 		}
 
-		writeFormattedLine(sb, c, desc)
+		g.writeFormattedLine(sb, c, desc)
 	}
 }
 
@@ -130,19 +146,35 @@ func writeSectionHeader(sb *strings.Builder, name string) {
 	fmt.Fprintf(sb, "### %s\n\n", name)
 }
 
-func writeCommitLine(sb *strings.Builder, c commit.Commit) {
-	writeFormattedLine(sb, c, c.Description)
+func (g *Generator) writeCommitLine(sb *strings.Builder, c commit.Commit) {
+	g.writeFormattedLine(sb, c, c.Description)
 }
 
-func writeFormattedLine(sb *strings.Builder, c commit.Commit, description string) {
+func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, description string) {
 	shortHash := c.Hash
 	if len(shortHash) > 7 { //nolint:mnd // standard short hash length
 		shortHash = shortHash[:7]
 	}
 
-	if c.Scope != "" {
-		fmt.Fprintf(sb, "- **%s**: %s (%s)\n", c.Scope, description, shortHash)
-	} else {
-		fmt.Fprintf(sb, "- %s (%s)\n", description, shortHash)
+	hashRef := shortHash
+
+	if g.RepoURL != "" {
+		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.RepoURL, g.PathPrefix, c.Hash)
 	}
+
+	if c.Scope != "" {
+		fmt.Fprintf(sb, "- **%s:** %s (%s)\n", c.Scope, description, hashRef)
+	} else {
+		fmt.Fprintf(sb, "- %s (%s)\n", description, hashRef)
+	}
+}
+
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return s
+	}
+
+	r, size := utf8.DecodeRuneInString(s)
+
+	return string(unicode.ToUpper(r)) + s[size:]
 }
