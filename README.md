@@ -19,6 +19,9 @@ yeet init
 # Preview what the next release would look like
 yeet release --dry-run
 
+# Preview build version for testing artifacts (for example Helm charts)
+yeet release --preview --dry-run
+
 # Create a release PR/MR
 yeet release
 
@@ -112,6 +115,23 @@ Analyzes conventional commits since the last release, calculates the next versio
 | Flag | Description |
 |---|---|
 | `--dry-run` | Preview the release without creating a PR/MR |
+| `--preview` | Append build metadata with short commit hash (for example `1.2.4+abc1234`) |
+| `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
+
+Preview mode is useful for testing deploy artifacts before a final release tag:
+
+```sh
+# semver example
+yeet release --preview --dry-run
+# Next version: 1.2.4+abc1234
+
+# calver example
+yeet release --preview --dry-run
+# Next version: 2026.03.1+abc1234
+```
+
+When preview mode is enabled, yeet keeps a stable release PR branch based on the base version
+(for example `yeet/release-v1.2.4`) so new commits update the same PR.
 
 ### `yeet tag`
 
@@ -121,6 +141,8 @@ Creates a git tag and VCS release after a release PR/MR has been merged.
 |---|---|
 | `--tag` | The tag to create (required) |
 | `--changelog` | Changelog body for the release |
+
+`yeet tag` rejects preview-style tags (for example `v1.2.4+abc1234` or `v1.2.4-rc.1`) so tags stay reserved for final releases.
 
 ## Authentication
 

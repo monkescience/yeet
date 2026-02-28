@@ -1,8 +1,10 @@
-//nolint:testpackage // This test validates unexported release branch update behavior.
+//nolint:testpackage // This test validates unexported release behavior.
 package release
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -20,10 +22,28 @@ type fileUpdate struct {
 type providerStub struct {
 	files   map[string]string
 	updates []fileUpdate
+
+	latestRelease    *provider.Release
+	latestReleaseErr error
+
+	commits    []provider.CommitEntry
+	commitsErr error
+
+	pullRequests map[string]*provider.PullRequest
+
+	createPRCalls int
+	updatePRCalls int
+
+	createdBranches []string
+
+	createReleaseCalls int
 }
 
 func newProviderStub() *providerStub {
-	return &providerStub{files: make(map[string]string)}
+	return &providerStub{
+		files:        make(map[string]string),
+		pullRequests: make(map[string]*provider.PullRequest),
+	}
 }
 
 func providerFileKey(branch, path string) string {
@@ -31,30 +51,74 @@ func providerFileKey(branch, path string) string {
 }
 
 func (p *providerStub) GetLatestRelease(context.Context) (*provider.Release, error) {
-	return nil, provider.ErrNoRelease
+	if p.latestReleaseErr != nil {
+		return nil, p.latestReleaseErr
+	}
+
+	if p.latestRelease == nil {
+		return nil, provider.ErrNoRelease
+	}
+
+	return p.latestRelease, nil
 }
 
 func (p *providerStub) GetCommitsSince(context.Context, string) ([]provider.CommitEntry, error) {
-	return nil, nil
+	if p.commitsErr != nil {
+		return nil, p.commitsErr
+	}
+
+	if len(p.commits) == 0 {
+		return []provider.CommitEntry{}, nil
+	}
+
+	return p.commits, nil
 }
 
-func (p *providerStub) CreateReleasePR(context.Context, provider.ReleasePROptions) (*provider.PullRequest, error) {
-	return &provider.PullRequest{}, nil
+func (p *providerStub) CreateReleasePR(
+	_ context.Context,
+	opts provider.ReleasePROptions,
+) (*provider.PullRequest, error) {
+	p.createPRCalls++
+
+	number := p.createPRCalls
+
+	pr := &provider.PullRequest{
+		Number: number,
+		Title:  opts.Title,
+		Body:   opts.Body,
+		URL:    fmt.Sprintf("https://example.com/pr/%d", number),
+		Branch: opts.ReleaseBranch,
+	}
+
+	p.pullRequests[opts.ReleaseBranch] = pr
+
+	return pr, nil
 }
 
 func (p *providerStub) UpdateReleasePR(context.Context, int, provider.ReleasePROptions) error {
+	p.updatePRCalls++
+
 	return nil
 }
 
-func (p *providerStub) FindReleasePR(context.Context, string) (*provider.PullRequest, error) {
-	return nil, provider.ErrNoPR
+func (p *providerStub) FindReleasePR(_ context.Context, branch string) (*provider.PullRequest, error) {
+	pr, exists := p.pullRequests[branch]
+	if !exists {
+		return nil, provider.ErrNoPR
+	}
+
+	return pr, nil
 }
 
-func (p *providerStub) CreateRelease(context.Context, provider.ReleaseOptions) (*provider.Release, error) {
+func (p *providerStub) CreateRelease(_ context.Context, _ provider.ReleaseOptions) (*provider.Release, error) {
+	p.createReleaseCalls++
+
 	return &provider.Release{}, nil
 }
 
-func (p *providerStub) CreateBranch(context.Context, string, string) error {
+func (p *providerStub) CreateBranch(_ context.Context, branch, _ string) error {
+	p.createdBranches = append(p.createdBranches, branch)
+
 	return nil
 }
 
@@ -85,6 +149,184 @@ func (p *providerStub) RepoURL() string {
 
 func (p *providerStub) PathPrefix() string {
 	return ""
+}
+
+func TestReleasePreviewBuildMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("semver appends short hash as build metadata", func(t *testing.T) {
+		t.Parallel()
+
+		// given: semver release with one patch commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a preview release
+		result, err := r.Release(context.Background(), true, true, DefaultPreviewHashLength)
+
+		// then: metadata suffix is appended and base version stays stable
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.4", result.BaseVersion)
+		testastic.Equal(t, "1.2.4+abcdef1", result.NextVersion)
+		testastic.Equal(t, "v1.2.4", result.BaseTag)
+		testastic.Equal(t, "v1.2.4+abcdef1", result.NextTag)
+	})
+
+	t.Run("calver appends short hash as build metadata", func(t *testing.T) {
+		t.Parallel()
+
+		// given: calver release with one patch commit
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a preview release
+		result, err := r.Release(context.Background(), true, true, DefaultPreviewHashLength)
+
+		// then: calver version also gets build metadata suffix
+		testastic.NoError(t, err)
+		testastic.True(t, strings.HasPrefix(result.NextVersion, result.BaseVersion+"+"))
+		testastic.True(t, strings.HasSuffix(result.NextVersion, "+abcdef1"))
+		testastic.Equal(t, "v"+result.BaseVersion, result.BaseTag)
+		testastic.Equal(t, "v"+result.NextVersion, result.NextTag)
+	})
+
+	t.Run("preview hash length must be positive", func(t *testing.T) {
+		t.Parallel()
+
+		// given: semver release with one patch commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: preview hash length is invalid
+		_, err := r.Release(context.Background(), true, true, 0)
+
+		// then: validation error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidPreviewHashLength)
+	})
+}
+
+func TestReleasePreviewUsesStableBranch(t *testing.T) {
+	t.Parallel()
+
+	// given: semver release flow with preview enabled
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "fix: patch bug",
+	}}
+
+	r := New(cfg, stub)
+
+	// when: creating the first release PR
+	first, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
+
+	// then: release branch is based on base tag
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, stub.createPRCalls)
+	testastic.Equal(t, 0, stub.updatePRCalls)
+	testastic.Equal(t, 1, len(stub.createdBranches))
+	testastic.Equal(t, "yeet/release-v1.2.4", stub.createdBranches[0])
+
+	// given: a new head commit changes preview hash
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "1234567890abcdef",
+		Message: "fix: patch bug",
+	}}
+
+	// when: running release again
+	second, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
+
+	// then: same release branch/PR is reused
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, stub.createPRCalls)
+	testastic.Equal(t, 1, stub.updatePRCalls)
+	testastic.Equal(t, 1, len(stub.createdBranches))
+	testastic.Equal(t, first.BaseTag, second.BaseTag)
+	testastic.NotEqual(t, first.NextTag, second.NextTag)
+}
+
+func TestTagRejectsPreviewTags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rejects build metadata tags", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a releaser
+		cfg := config.Default()
+		stub := newProviderStub()
+		r := New(cfg, stub)
+
+		// when: trying to create a preview tag
+		_, err := r.Tag(context.Background(), "v1.2.3+abc1234", "")
+
+		// then: tag creation is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrPreviewTagNotAllowed)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+	})
+
+	t.Run("rejects prerelease tags", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a releaser
+		cfg := config.Default()
+		stub := newProviderStub()
+		r := New(cfg, stub)
+
+		// when: trying to create a prerelease tag
+		_, err := r.Tag(context.Background(), "v1.2.3-rc.1", "")
+
+		// then: tag creation is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrPreviewTagNotAllowed)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+	})
+
+	t.Run("allows stable tags with hyphenated prefix", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a releaser with a hyphenated tag prefix
+		cfg := config.Default()
+		cfg.TagPrefix = "release-"
+
+		stub := newProviderStub()
+		r := New(cfg, stub)
+
+		// when: creating a stable tag
+		_, err := r.Tag(context.Background(), "release-1.2.3", "")
+
+		// then: tag is accepted
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+	})
 }
 
 func TestUpdateReleaseBranchFiles(t *testing.T) {
