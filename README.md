@@ -97,7 +97,7 @@ Creates a git tag and VCS release after a release PR/MR has been merged.
 
 yeet needs a token to interact with the VCS provider API.
 
-**GitHub**: Set `GITHUB_TOKEN` or `GH_TOKEN` environment variable.
+**GitHub**: Set `GITHUB_TOKEN` or `GH_TOKEN` environment variable. For GitHub Enterprise, also set `GITHUB_URL`.
 
 **GitLab**: Set `GITLAB_TOKEN` or `GL_TOKEN` environment variable. For self-hosted instances, also set `GITLAB_URL`.
 

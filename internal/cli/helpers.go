@@ -80,6 +80,16 @@ func createGitHubProvider(owner, repo string) (*provider.GitHub, error) {
 
 	client := github.NewClient(nil).WithAuthToken(token)
 
+	baseURL := os.Getenv("GITHUB_URL")
+	if baseURL != "" {
+		var err error
+
+		client, err = client.WithEnterpriseURLs(baseURL, baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("configure github enterprise URL: %w", err)
+		}
+	}
+
 	return provider.NewGitHub(client, owner, repo), nil
 }
 
@@ -93,7 +103,6 @@ func createGitLabProvider(owner, repo string) (*provider.GitLab, error) {
 		return nil, fmt.Errorf("%w: GITLAB_TOKEN or GL_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	// Support custom GitLab instances via GITLAB_URL.
 	baseURL := os.Getenv("GITLAB_URL")
 
 	var opts []gitlab.ClientOptionFunc
