@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -28,12 +29,13 @@ const (
 )
 
 type Config struct {
-	Versioning VersioningStrategy `toml:"versioning"`
-	Branch     string             `toml:"branch"`
-	Provider   ProviderType       `toml:"provider"`
-	TagPrefix  string             `toml:"tag_prefix"`
-	Changelog  ChangelogConfig    `toml:"changelog"`
-	CalVer     CalVerConfig       `toml:"calver"`
+	Versioning   VersioningStrategy `toml:"versioning"`
+	Branch       string             `toml:"branch"`
+	Provider     ProviderType       `toml:"provider"`
+	TagPrefix    string             `toml:"tag_prefix"`
+	VersionFiles []string           `toml:"version_files,omitempty"`
+	Changelog    ChangelogConfig    `toml:"changelog"`
+	CalVer       CalVerConfig       `toml:"calver"`
 }
 
 type ChangelogConfig struct {
@@ -123,6 +125,12 @@ func (c *Config) Validate() error {
 
 	if len(c.Changelog.Include) == 0 {
 		return fmt.Errorf("%w: changelog.include must not be empty", ErrInvalidConfig)
+	}
+
+	for _, path := range c.VersionFiles {
+		if strings.TrimSpace(path) == "" {
+			return fmt.Errorf("%w: version_files must not contain empty paths", ErrInvalidConfig)
+		}
 	}
 
 	return nil

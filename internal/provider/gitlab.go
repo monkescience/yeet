@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -180,6 +181,26 @@ func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
 	}
 
 	return nil
+}
+
+func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, error) {
+	ref := branch
+
+	raw, _, err := g.client.RepositoryFiles.GetRawFile(
+		g.pid,
+		path,
+		&gitlab.GetRawFileOptions{Ref: &ref},
+		gitlab.WithContext(ctx),
+	)
+	if err != nil {
+		if errors.Is(err, gitlab.ErrNotFound) {
+			return "", ErrFileNotFound
+		}
+
+		return "", fmt.Errorf("get file %s on branch %s: %w", path, branch, err)
+	}
+
+	return string(raw), nil
 }
 
 func (g *GitLab) UpdateFile(ctx context.Context, branch, path, content, message string) error {

@@ -198,6 +198,34 @@ func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
 	return nil
 }
 
+func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, error) {
+	content, _, resp, err := g.client.Repositories.GetContents(
+		ctx,
+		g.repo.Owner,
+		g.repo.Name,
+		path,
+		&github.RepositoryContentGetOptions{Ref: branch},
+	)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return "", ErrFileNotFound
+		}
+
+		return "", fmt.Errorf("get file %s on branch %s: %w", path, branch, err)
+	}
+
+	if content == nil {
+		return "", fmt.Errorf("%w: %s", ErrFileNotFound, path)
+	}
+
+	decoded, err := content.GetContent()
+	if err != nil {
+		return "", fmt.Errorf("decode file %s on branch %s: %w", path, branch, err)
+	}
+
+	return decoded, nil
+}
+
 func (g *GitHub) UpdateFile(ctx context.Context, branch, path, content, message string) error {
 	// Try to get existing file to get its SHA.
 	getOpts := &github.RepositoryContentGetOptions{Ref: branch}

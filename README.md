@@ -34,6 +34,7 @@ yeet uses a `.yeet.toml` file in your project root. Run `yeet init` to generate 
 versioning = "semver"
 branch = "main"
 tag_prefix = "v"
+# version_files = ["VERSION.txt"]
 
 [changelog]
 file = "CHANGELOG.md"
@@ -65,10 +66,38 @@ format = "YYYY.0M.MICRO"
 | `branch` | `"main"` | Base branch for releases |
 | `provider` | auto-detected | VCS provider: `"github"` or `"gitlab"` |
 | `tag_prefix` | `"v"` | Prefix for version tags |
+| `version_files` | `[]` | Extra files to update with yeet markers during `yeet release` |
 | `changelog.file` | `"CHANGELOG.md"` | Changelog file path |
 | `changelog.include` | `["feat", "fix", "perf", "revert"]` | Commit types to include in the changelog |
 | `changelog.sections` | see above | Mapping of commit types to section headings. All conventional types are pre-configured; only types in `include` appear in the changelog |
 | `calver.format` | `"YYYY.0M.MICRO"` | CalVer format string |
+
+### Version file markers
+
+`yeet release` updates only files listed in `version_files`. Each file must contain yeet markers.
+
+```txt
+# inline markers
+VERSION = "1.2.3" # x-yeet-version
+MAJOR = 1 # x-yeet-major
+MINOR = 2 # x-yeet-minor
+PATCH = 3 # x-yeet-patch
+
+# block markers
+# x-yeet-start-version
+image: ghcr.io/acme/app:1.2.3
+appVersion: "1.2.3"
+# x-yeet-end
+```
+
+Marker behavior mirrors release-please generic markers, but uses the `x-yeet-*` prefix.
+
+For calver repositories, yeet also supports aliases:
+
+- `x-yeet-year` (alias of `x-yeet-major`)
+- `x-yeet-month` (alias of `x-yeet-minor`)
+- `x-yeet-micro` (alias of `x-yeet-patch`)
+- `x-yeet-start-year|month|micro` ... `x-yeet-end`
 
 ## Commands
 

@@ -14,6 +14,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/version"
+	"github.com/monkescience/yeet/internal/versionfile"
 )
 
 const releaseBranchPrefix = "yeet/release-"
@@ -247,6 +248,31 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 	)
 	if err != nil {
 		return fmt.Errorf("update changelog file: %w", err)
+	}
+
+	for _, path := range r.cfg.VersionFiles {
+		content, fileErr := r.provider.GetFile(ctx, branch, path)
+		if fileErr != nil {
+			return fmt.Errorf("get version file %s: %w", path, fileErr)
+		}
+
+		updatedContent, changed := versionfile.ApplyGenericMarkers(content, result.NextVersion)
+		if !changed {
+			slog.InfoContext(ctx, "skipping version file without yeet markers", "path", path)
+
+			continue
+		}
+
+		updateErr := r.provider.UpdateFile(
+			ctx,
+			branch,
+			path,
+			updatedContent,
+			"chore: update version markers for "+result.NextTag,
+		)
+		if updateErr != nil {
+			return fmt.Errorf("update version file %s: %w", path, updateErr)
+		}
 	}
 
 	return nil

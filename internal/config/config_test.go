@@ -19,6 +19,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, "v", cfg.TagPrefix)
+	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
@@ -55,6 +56,7 @@ versioning = "calver"
 branch = "develop"
 provider = "gitlab"
 tag_prefix = "release-"
+version_files = ["VERSION", "cmd/yeet/version.txt"]
 
 [changelog]
 file = "CHANGES.md"
@@ -77,6 +79,8 @@ format = "YYYY.0M.MICRO"
 		testastic.Equal(t, "develop", cfg.Branch)
 		testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
 		testastic.Equal(t, "release-", cfg.TagPrefix)
+		testastic.Equal(t, 2, len(cfg.VersionFiles))
+		testastic.Equal(t, "VERSION", cfg.VersionFiles[0])
 		testastic.Equal(t, "CHANGES.md", cfg.Changelog.File)
 		testastic.Equal(t, 2, len(cfg.Changelog.Include))
 		testastic.Equal(t, "New Features", cfg.Changelog.Sections["feat"])
@@ -185,6 +189,21 @@ func TestValidate(t *testing.T) {
 		// given: config with empty changelog file
 		cfg := config.Default()
 		cfg.Changelog.File = ""
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+	})
+
+	t.Run("empty version file path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with an empty version file path
+		cfg := config.Default()
+		cfg.VersionFiles = []string{"  "}
 
 		// when: validating
 		err := cfg.Validate()

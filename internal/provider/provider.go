@@ -46,6 +46,7 @@ type CommitEntry struct {
 	Message string
 }
 
+//nolint:interfacebloat // Provider aggregates VCS operations required by the release flow.
 type Provider interface {
 	// GetLatestRelease returns the latest release/tag.
 	GetLatestRelease(ctx context.Context) (*Release, error)
@@ -61,6 +62,8 @@ type Provider interface {
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 	// CreateBranch creates a new branch from the base branch.
 	CreateBranch(ctx context.Context, name, base string) error
+	// GetFile reads a file content from a branch.
+	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFile creates or updates a file on a branch.
 	UpdateFile(ctx context.Context, branch, path, content, message string) error
 	// RepoURL returns the HTTPS base URL for the repository.
@@ -89,6 +92,8 @@ var ErrUnknownRemote = errors.New("unable to parse remote URL")
 var ErrNoRelease = errors.New("no release found")
 
 var ErrNoPR = errors.New("no release PR found")
+
+var ErrFileNotFound = errors.New("file not found")
 
 var remotePatterns = []*regexp.Regexp{
 	// SSH format: git@github.com:owner/repo.git
