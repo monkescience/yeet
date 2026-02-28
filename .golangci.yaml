@@ -1,0 +1,149 @@
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  settings:
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+          xml: snake
+          bson: snake
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+          - dupl
+          - goconst
+          - mnd
+          - wrapcheck
+          - err113
+          - gocognit
+          - gosec
+
+  default: none
+  enable:
+    # Core (must have)
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+
+    # Bug detection
+    - bodyclose
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - durationcheck
+    - errchkjson
+    - contextcheck
+    - noctx
+    - makezero
+    - reassign
+    - wastedassign
+    - forcetypeassert
+    - noinlineerr
+    - iotamixing
+    - gochecksumtype
+    - musttag
+
+    # Security
+    - gosec
+
+    # Code quality
+    - gocognit
+    - goconst
+    - gocritic
+    - unconvert
+    - unparam
+    - prealloc
+    - perfsprint
+    - usestdlibvars
+    - intrange
+    - copyloopvar
+    - nestif
+    - decorder
+    - grouper
+    - importas
+    - modernize
+    - iface
+
+    # Style
+    - misspell
+    - dupword
+    - asciicheck
+    - bidichk
+    - whitespace
+    - dogsled
+    - nakedret
+    - predeclared
+    - errname
+    - errorlint
+    - funlen
+    - lll
+    - nonamedreturns
+    - godot
+    - tagliatelle
+    - tagalign
+    - nlreturn
+    - wsl_v5
+    - godoclint
+    - godox
+    - funcorder
+
+    # Strict error handling
+    - err113
+    - wrapcheck
+
+    # Magic numbers
+    - mnd
+
+    # Testing
+    - thelper
+    - testpackage
+    - testableexamples
+    - tparallel
+    - usetesting
+
+    # Logging
+    - sloglint
+
+    # HTTP
+    - canonicalheader
+
+    # Observability
+    - spancheck
+    - promlinter
+
+    # Lint hygiene
+    - nolintlint
+
+    # Other useful
+    - asasalint
+    - containedctx
+    - fatcontext
+    - mirror
+    - nosprintfhostport
+    - gomoddirectives
+    - goprintffuncname
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - exhaustive
+    - interfacebloat
+    - inamedparam
+    - dupl
+    - recvcheck
+    - exptostd
+    - forbidigo
+    - protogetter
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
