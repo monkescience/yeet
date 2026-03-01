@@ -1358,6 +1358,54 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.Equal(t, "version=1.2.3", stub.files[providerFileKey(branch, "VERSION.txt")])
 	})
 
+	t.Run("prepends changelog entry and preserves existing history style", func(t *testing.T) {
+		t.Parallel()
+
+		// given: existing changelog without top header and a new release entry
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		branch := "yeet/release-v0.1.1"
+		changelogPath := providerFileKey(cfg.Branch, cfg.Changelog.File)
+		stub.files[changelogPath] = strings.TrimSpace(`## [v0.1.0](https://example.com/compare/v0.0.9...v0.1.0) (2026-03-01)
+
+### Features
+
+- first release entry (abc1234)
+`)
+
+		r := New(cfg, stub)
+
+		result := &Result{
+			NextVersion: "0.1.1",
+			NextTag:     "v0.1.1",
+			Changelog: strings.TrimSpace(`## [v0.1.1](https://example.com/compare/v0.1.0...v0.1.1) (2026-03-02)
+
+### Bug Fixes
+
+- follow-up fix (def5678)
+`),
+		}
+
+		// when: updating release branch files
+		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+
+		// then: new entry is prepended without replacing old release content
+		testastic.NoError(t, err)
+
+		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
+		testastic.False(t, strings.HasPrefix(updated, "# Changelog"))
+		testastic.True(t, strings.Contains(updated, "## [v0.1.1]"))
+		testastic.True(t, strings.Contains(updated, "## [v0.1.0]"))
+
+		newEntryIndex := strings.Index(updated, "## [v0.1.1]")
+		oldEntryIndex := strings.Index(updated, "## [v0.1.0]")
+
+		testastic.True(t, newEntryIndex >= 0)
+		testastic.True(t, oldEntryIndex >= 0)
+		testastic.True(t, newEntryIndex < oldEntryIndex)
+	})
+
 	t.Run("fails when configured version file is missing", func(t *testing.T) {
 		t.Parallel()
 

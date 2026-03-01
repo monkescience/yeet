@@ -452,8 +452,13 @@ func (r *Releaser) createNewReleasePR(
 }
 
 func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, result *Result) error {
+	changelogContent, err := r.releaseChangelogFileContent(ctx, result.Changelog)
+	if err != nil {
+		return err
+	}
+
 	files := map[string]string{
-		r.cfg.Changelog.File: result.Changelog,
+		r.cfg.Changelog.File: changelogContent,
 	}
 
 	for _, path := range r.cfg.VersionFiles {
@@ -472,12 +477,37 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 		files[path] = updatedContent
 	}
 
-	err := r.provider.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
+	err = r.provider.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
 	}
 
 	return nil
+}
+
+func (r *Releaser) releaseChangelogFileContent(ctx context.Context, changelogEntry string) (string, error) {
+	existing, err := r.provider.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
+	if err != nil {
+		if errors.Is(err, provider.ErrFileNotFound) {
+			return changelogEntry, nil
+		}
+
+		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
+	}
+
+	return prependChangelogEntryPreservingStyle(existing, changelogEntry), nil
+}
+
+func prependChangelogEntryPreservingStyle(existing, changelogEntry string) string {
+	if strings.TrimSpace(existing) == "" {
+		return changelogEntry
+	}
+
+	if strings.HasPrefix(existing, "# ") {
+		return changelog.Prepend(existing, changelogEntry)
+	}
+
+	return strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
 }
 
 func (r *Releaser) releaseSubject(result *Result) string {
