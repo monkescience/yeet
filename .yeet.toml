@@ -1,0 +1,28 @@
+versioning = 'semver'
+branch = 'main'
+provider = ''
+tag_prefix = 'v'
+
+[release]
+subject_include_branch = false
+
+[changelog]
+file = 'CHANGELOG.md'
+include = ['feat', 'fix', 'perf', 'revert']
+
+[changelog.sections]
+breaking = 'Breaking Changes'
+build = 'Build System'
+chore = 'Miscellaneous Chores'
+ci = 'Continuous Integration'
+docs = 'Documentation'
+feat = 'Features'
+fix = 'Bug Fixes'
+perf = 'Performance Improvements'
+refactor = 'Code Refactoring'
+revert = 'Reverts'
+style = 'Styles'
+test = 'Tests'
+
+[calver]
+format = 'YYYY.0M.MICRO'
