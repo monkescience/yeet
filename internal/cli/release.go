@@ -69,10 +69,6 @@ func runRelease(ctx context.Context, dryRun, preview bool, previewHashLength int
 		return nil
 	}
 
-	if result.PullRequest != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "Release PR: %s\n", result.PullRequest.URL)
-	}
-
 	return nil
 }
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/monkescience/yeet/internal/release"
@@ -55,7 +56,7 @@ func runTag(ctx context.Context, tag, changelogBody string) error {
 	}
 
 	if result.Release != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "Release created: %s\n", result.Release.URL)
+		slog.InfoContext(ctx, "created release", "url", result.Release.URL)
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/monkescience/yeet/internal/config"
@@ -43,7 +44,7 @@ func runInit() error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "Created %s\n", path)
+	slog.Info("created config file", "path", path)
 
 	return nil
 }
