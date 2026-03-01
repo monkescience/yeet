@@ -59,6 +59,9 @@ breaking = "Breaking Changes"
 
 [calver]
 format = "YYYY.0M.MICRO"
+
+[release]
+subject_include_branch = false
 ```
 
 ### Options
@@ -70,6 +73,7 @@ format = "YYYY.0M.MICRO"
 | `provider` | auto-detected | VCS provider: `"github"` or `"gitlab"` |
 | `tag_prefix` | `"v"` | Prefix for version tags |
 | `version_files` | `[]` | Extra files to update with yeet markers during `yeet release` |
+| `release.subject_include_branch` | `false` | Include the target branch in generated release subjects (for example `chore(main): release 0.1.0`) used for PR/MR titles and release branch commits |
 | `changelog.file` | `"CHANGELOG.md"` | Changelog file path |
 | `changelog.include` | `["feat", "fix", "perf", "revert"]` | Commit types to include in the changelog |
 | `changelog.sections` | see above | Mapping of commit types to section headings. All conventional types are pre-configured; only types in `include` appear in the changelog |

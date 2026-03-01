@@ -19,6 +19,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, "v", cfg.TagPrefix)
+	testastic.False(t, cfg.Release.SubjectIncludeBranch)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))
@@ -68,6 +69,9 @@ fix = "Bug Fixes"
 
 [calver]
 format = "YYYY.0M.MICRO"
+
+[release]
+subject_include_branch = true
 `)
 
 		// when: parsing the config
@@ -79,6 +83,7 @@ format = "YYYY.0M.MICRO"
 		testastic.Equal(t, "develop", cfg.Branch)
 		testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
 		testastic.Equal(t, "release-", cfg.TagPrefix)
+		testastic.True(t, cfg.Release.SubjectIncludeBranch)
 		testastic.Equal(t, 2, len(cfg.VersionFiles))
 		testastic.Equal(t, "VERSION", cfg.VersionFiles[0])
 		testastic.Equal(t, "CHANGES.md", cfg.Changelog.File)

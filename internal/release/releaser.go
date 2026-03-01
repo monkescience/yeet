@@ -271,7 +271,7 @@ func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provi
 	releaseBranch := releaseBranchPrefix + releaseBranchTag
 
 	prOpts := provider.ReleasePROptions{
-		Title:         "chore: release " + result.NextTag,
+		Title:         r.releaseSubject(result),
 		Body:          result.Changelog,
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
@@ -325,19 +325,12 @@ func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provi
 }
 
 func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, result *Result) error {
-	err := r.provider.UpdateFile(
-		ctx,
-		branch,
-		r.cfg.Changelog.File,
-		result.Changelog,
-		"chore: update changelog for "+result.NextTag,
-	)
-	if err != nil {
-		return fmt.Errorf("update changelog file: %w", err)
+	files := map[string]string{
+		r.cfg.Changelog.File: result.Changelog,
 	}
 
 	for _, path := range r.cfg.VersionFiles {
-		content, fileErr := r.provider.GetFile(ctx, branch, path)
+		content, fileErr := r.provider.GetFile(ctx, r.cfg.Branch, path)
 		if fileErr != nil {
 			return fmt.Errorf("get version file %s: %w", path, fileErr)
 		}
@@ -349,19 +342,28 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 			continue
 		}
 
-		updateErr := r.provider.UpdateFile(
-			ctx,
-			branch,
-			path,
-			updatedContent,
-			"chore: update version markers for "+result.NextTag,
-		)
-		if updateErr != nil {
-			return fmt.Errorf("update version file %s: %w", path, updateErr)
-		}
+		files[path] = updatedContent
+	}
+
+	err := r.provider.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
+	if err != nil {
+		return fmt.Errorf("update release branch files: %w", err)
 	}
 
 	return nil
+}
+
+func (r *Releaser) releaseSubject(result *Result) string {
+	version := result.BaseVersion
+	if version == "" {
+		version = result.NextVersion
+	}
+
+	if r.cfg.Release.SubjectIncludeBranch {
+		return fmt.Sprintf("chore(%s): release %s", r.cfg.Branch, version)
+	}
+
+	return "chore: release " + version
 }
 
 func shortHash(hash string, length int) (string, error) {

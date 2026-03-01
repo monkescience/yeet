@@ -24,6 +24,9 @@ type providerStub struct {
 	files   map[string]string
 	updates []fileUpdate
 
+	updateFilesCalls    int
+	updateFilesMessages []string
+
 	latestRelease    *provider.Release
 	latestReleaseErr error
 
@@ -140,6 +143,47 @@ func (p *providerStub) UpdateFile(_ context.Context, branch, path, content, mess
 		content: content,
 		message: message,
 	})
+
+	return nil
+}
+
+func (p *providerStub) UpdateFiles(
+	_ context.Context,
+	branch, base string,
+	files map[string]string,
+	message string,
+) error {
+	p.updateFilesCalls++
+	p.updateFilesMessages = append(p.updateFilesMessages, message)
+
+	branchPrefix := branch + ":"
+
+	for key := range p.files {
+		if strings.HasPrefix(key, branchPrefix) {
+			delete(p.files, key)
+		}
+	}
+
+	basePrefix := base + ":"
+
+	for key, content := range p.files {
+		if !strings.HasPrefix(key, basePrefix) {
+			continue
+		}
+
+		path := strings.TrimPrefix(key, basePrefix)
+		p.files[providerFileKey(branch, path)] = content
+	}
+
+	for path, content := range files {
+		p.files[providerFileKey(branch, path)] = content
+		p.updates = append(p.updates, fileUpdate{
+			branch:  branch,
+			path:    path,
+			content: content,
+			message: message,
+		})
+	}
 
 	return nil
 }
@@ -553,6 +597,62 @@ func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	testastic.NotEqual(t, first.NextTag, second.NextTag)
 }
 
+func TestReleaseSubjectFormatting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default subject omits branch and tag prefix", func(t *testing.T) {
+		t.Parallel()
+
+		// given: default config and one releasable commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: creating a release PR
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: PR title and commit subject use unscoped release subject
+		testastic.NoError(t, err)
+		testastic.Equal(t, "chore: release "+result.BaseVersion, result.PullRequest.Title)
+		testastic.Equal(t, 1, stub.updateFilesCalls)
+		testastic.Equal(t, "chore: release "+result.BaseVersion, stub.updateFilesMessages[0])
+	})
+
+	t.Run("optional branch scope uses stable base version in preview", func(t *testing.T) {
+		t.Parallel()
+
+		// given: branch scope enabled and preview release
+		cfg := config.Default()
+		cfg.Release.SubjectIncludeBranch = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: creating a preview release PR
+		result, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
+
+		// then: PR title and commit subject include branch and stable base version
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.4", result.BaseVersion)
+		testastic.Equal(t, "1.2.4+abcdef1", result.NextVersion)
+		testastic.Equal(t, "chore(main): release 1.2.4", result.PullRequest.Title)
+		testastic.Equal(t, 1, stub.updateFilesCalls)
+		testastic.Equal(t, "chore(main): release 1.2.4", stub.updateFilesMessages[0])
+	})
+}
+
 func TestTagRejectsPreviewTags(t *testing.T) {
 	t.Parallel()
 
@@ -621,7 +721,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		stub := newProviderStub()
 		branch := "yeet/release-v1.2.4"
-		stub.files[providerFileKey(branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
+		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
 
 		r := New(cfg, stub)
 
@@ -649,7 +749,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		stub := newProviderStub()
 		branch := "yeet/release-v1.2.4"
-		stub.files[providerFileKey(branch, "VERSION.txt")] = "version=1.2.3"
+		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3"
 
 		r := New(cfg, stub)
 

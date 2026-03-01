@@ -34,8 +34,13 @@ type Config struct {
 	Provider     ProviderType       `toml:"provider"`
 	TagPrefix    string             `toml:"tag_prefix"`
 	VersionFiles []string           `toml:"version_files,omitempty"`
+	Release      ReleaseConfig      `toml:"release"`
 	Changelog    ChangelogConfig    `toml:"changelog"`
 	CalVer       CalVerConfig       `toml:"calver"`
+}
+
+type ReleaseConfig struct {
+	SubjectIncludeBranch bool `toml:"subject_include_branch"`
 }
 
 type ChangelogConfig struct {
@@ -80,6 +85,9 @@ func Default() *Config {
 		Versioning: VersioningSemver,
 		Branch:     "main",
 		TagPrefix:  "v",
+		Release: ReleaseConfig{
+			SubjectIncludeBranch: false,
+		},
 		Changelog: ChangelogConfig{
 			File:    "CHANGELOG.md",
 			Include: []string{"feat", "fix", "perf", "revert"},

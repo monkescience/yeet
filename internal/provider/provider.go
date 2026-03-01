@@ -66,6 +66,8 @@ type Provider interface {
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFile creates or updates a file on a branch.
 	UpdateFile(ctx context.Context, branch, path, content, message string) error
+	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
+	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
 	// RepoURL returns the HTTPS base URL for the repository.
 	RepoURL() string
 	// PathPrefix returns the path prefix for commit/compare URLs (empty for GitHub, "/-" for GitLab).
