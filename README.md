@@ -156,11 +156,21 @@ yeet needs a token to interact with the VCS provider API.
 
 ### Semantic Versioning (semver)
 
-Follows [semver](https://semver.org/). Bump type is determined from commits:
+Follows [semver](https://semver.org/) with pre-1.0 scaling.
+
+For versions `>= 1.0.0`:
 
 - `feat` -> minor
 - `fix`, `perf` -> patch
 - Breaking changes (`!` or `BREAKING CHANGE` footer) -> major
+
+For versions `< 1.0.0`:
+
+- `feat` -> patch
+- `fix`, `perf` -> patch
+- Breaking changes (`!` or `BREAKING CHANGE` footer) -> minor
+
+This keeps pre-1.0 breaking changes from automatically jumping to `1.0.0`.
 
 ### Calendar Versioning (calver)
 

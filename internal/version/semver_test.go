@@ -73,6 +73,18 @@ func TestSemVerNext(t *testing.T) {
 		testastic.Equal(t, "2.0.0", next)
 	})
 
+	t.Run("major bump before 1.0.0 becomes minor", func(t *testing.T) {
+		t.Parallel()
+
+		// given: current version 0.4.2
+		// when: applying a major bump
+		next, err := sv.Next("0.4.2", commit.BumpMajor)
+
+		// then: minor version increments, patch resets
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.5.0", next)
+	})
+
 	t.Run("minor bump", func(t *testing.T) {
 		t.Parallel()
 
@@ -85,6 +97,18 @@ func TestSemVerNext(t *testing.T) {
 		testastic.Equal(t, "1.3.0", next)
 	})
 
+	t.Run("minor bump before 1.0.0 becomes patch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: current version 0.4.2
+		// when: applying a minor bump
+		next, err := sv.Next("0.4.2", commit.BumpMinor)
+
+		// then: patch version increments
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.3", next)
+	})
+
 	t.Run("patch bump", func(t *testing.T) {
 		t.Parallel()
 
@@ -95,6 +119,18 @@ func TestSemVerNext(t *testing.T) {
 		// then: patch version increments
 		testastic.NoError(t, err)
 		testastic.Equal(t, "1.2.4", next)
+	})
+
+	t.Run("patch bump before 1.0.0 stays patch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: current version 0.4.2
+		// when: applying a patch bump
+		next, err := sv.Next("0.4.2", commit.BumpPatch)
+
+		// then: patch version increments
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.3", next)
 	})
 
 	t.Run("no bump returns same", func(t *testing.T) {
@@ -116,9 +152,9 @@ func TestSemVerNext(t *testing.T) {
 		// when: applying a minor bump
 		next, err := sv.Next("0.0.0", commit.BumpMinor)
 
-		// then: version becomes 0.1.0
+		// then: version becomes 0.0.1
 		testastic.NoError(t, err)
-		testastic.Equal(t, "0.1.0", next)
+		testastic.Equal(t, "0.0.1", next)
 	})
 
 	t.Run("invalid version", func(t *testing.T) {

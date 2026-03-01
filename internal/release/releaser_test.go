@@ -230,6 +230,60 @@ func TestReleasePreviewBuildMetadata(t *testing.T) {
 	})
 }
 
+func TestReleaseSemVerPreMajorBumps(t *testing.T) {
+	t.Parallel()
+
+	t.Run("breaking changes do not jump to 1.0.0", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a pre-1.0.0 semver release with one breaking commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat(api)!: remove deprecated endpoint",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: version bumps to next minor instead of 1.0.0
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.2", result.CurrentVersion)
+		testastic.Equal(t, "0.5.0", result.NextVersion)
+		testastic.Equal(t, "v0.5.0", result.NextTag)
+	})
+
+	t.Run("feature commits bump patch before 1.0.0", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a pre-1.0.0 semver release with one feature commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: version bumps patch instead of minor
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.2", result.CurrentVersion)
+		testastic.Equal(t, "0.4.3", result.NextVersion)
+		testastic.Equal(t, "v0.4.3", result.NextTag)
+	})
+}
+
 func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	t.Parallel()
 
