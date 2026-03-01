@@ -1,6 +1,6 @@
 # yeet
 
-Automate releases based on [conventional commits](https://www.conventionalcommits.org/). Analyzes commit history, calculates the next version, generates changelogs, and creates release PRs/MRs on GitHub or GitLab.
+Automate releases based on [conventional commits](https://www.conventionalcommits.org/). Analyzes commit history, calculates the next version, generates changelogs, creates release PRs/MRs, and finalizes merged releases on GitHub or GitLab.
 
 Inspired by [release-please](https://github.com/googleapis/release-please).
 
@@ -25,8 +25,9 @@ yeet release --preview --dry-run
 # Create a release PR/MR
 yeet release
 
-# After the PR/MR is merged, tag the release
-yeet tag --tag v1.2.0
+# After the PR/MR is merged, run the same command on main
+# (usually from CI) to create the tag/release automatically
+yeet release
 ```
 
 ## Configuration
@@ -120,6 +121,10 @@ Creates a `.yeet.toml` with sensible defaults.
 
 Analyzes conventional commits since the last release, calculates the next version, generates a changelog entry, and creates (or updates) a release PR/MR.
 
+Before creating/updating PRs, `yeet release` also checks for merged release PRs/MRs labeled
+`autorelease: pending`, creates the corresponding tag/release from the latest changelog entry,
+and flips the label to `autorelease: tagged`.
+
 | Flag | Description |
 |---|---|
 | `--dry-run` | Preview the release without creating a PR/MR |
@@ -150,16 +155,10 @@ Release-As: 1.0.0
 When present in commits since the last release, `Release-As` overrides calculated semver bumps.
 If multiple different `Release-As` values are present, yeet fails and asks you to resolve the conflict.
 
-### `yeet tag`
+Release PR/MR labels follow release-please style:
 
-Creates a git tag and VCS release after a release PR/MR has been merged.
-
-| Flag | Description |
-|---|---|
-| `--tag` | The tag to create (required) |
-| `--changelog` | Changelog body for the release |
-
-`yeet tag` rejects preview-style tags (for example `v1.2.4+abc1234` or `v1.2.4-rc.1`) so tags stay reserved for final releases.
+- `autorelease: pending` while a release PR/MR is open or updated
+- `autorelease: tagged` after merge + successful tag/release creation
 
 ## Authentication
 

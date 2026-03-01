@@ -16,6 +16,12 @@ type GitHub struct {
 	baseURL string
 }
 
+const releaseBranchPrefix = "yeet/release-"
+
+const releasePendingLabelColor = "FBCA04"
+
+const releaseTaggedLabelColor = "0E8A16"
+
 func NewGitHub(client *github.Client, owner, repo string) *GitHub {
 	baseURL := strings.TrimSuffix(client.BaseURL.String(), "/")
 
@@ -155,6 +161,94 @@ func (g *GitHub) FindReleasePR(ctx context.Context, branch string) (*PullRequest
 		URL:    pr.GetHTMLURL(),
 		Branch: branch,
 	}, nil
+}
+
+func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+	options := &github.PullRequestListOptions{
+		State:     "closed",
+		Base:      baseBranch,
+		Sort:      "updated",
+		Direction: "desc",
+		ListOptions: github.ListOptions{
+			PerPage: 100, //nolint:mnd // reasonable API page size
+		},
+	}
+
+	for {
+		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+		if err != nil {
+			return nil, fmt.Errorf("list pull requests: %w", err)
+		}
+
+		for _, pr := range prs {
+			if pr.GetMergedAt().IsZero() {
+				continue
+			}
+
+			branch := pr.GetHead().GetRef()
+			if !strings.HasPrefix(branch, releaseBranchPrefix) {
+				continue
+			}
+
+			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
+				continue
+			}
+
+			return &PullRequest{
+				Number: pr.GetNumber(),
+				Title:  pr.GetTitle(),
+				Body:   pr.GetBody(),
+				URL:    pr.GetHTMLURL(),
+				Branch: branch,
+			}, nil
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return nil, ErrNoPR
+}
+
+func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
+	err := g.ensureReleaseLabels(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = g.addIssueLabels(ctx, number, []string{ReleaseLabelPending})
+	if err != nil {
+		return err
+	}
+
+	err = g.removeIssueLabel(ctx, number, ReleaseLabelTagged)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
+	err := g.ensureReleaseLabels(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = g.addIssueLabels(ctx, number, []string{ReleaseLabelTagged})
+	if err != nil {
+		return err
+	}
+
+	err = g.removeIssueLabel(ctx, number, ReleaseLabelPending)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
@@ -379,4 +473,72 @@ func (g *GitHub) upsertBranchRef(ctx context.Context, branch string, sha *string
 	}
 
 	return nil
+}
+
+func (g *GitHub) ensureReleaseLabels(ctx context.Context) error {
+	err := g.ensureLabel(ctx, ReleaseLabelPending, releasePendingLabelColor, "release PR is pending tagging")
+	if err != nil {
+		return err
+	}
+
+	err = g.ensureLabel(ctx, ReleaseLabelTagged, releaseTaggedLabelColor, "release PR already tagged")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *GitHub) ensureLabel(ctx context.Context, name, color, description string) error {
+	_, resp, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
+	if err == nil {
+		return nil
+	}
+
+	if resp == nil || resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("get label %q: %w", name, err)
+	}
+
+	_, _, err = g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, &github.Label{
+		Name:        github.Ptr(name),
+		Color:       github.Ptr(color),
+		Description: github.Ptr(description),
+	})
+	if err != nil {
+		return fmt.Errorf("create label %q: %w", name, err)
+	}
+
+	return nil
+}
+
+func (g *GitHub) addIssueLabels(ctx context.Context, number int, labels []string) error {
+	_, _, err := g.client.Issues.AddLabelsToIssue(ctx, g.repo.Owner, g.repo.Name, number, labels)
+	if err != nil {
+		return fmt.Errorf("add labels to pull request #%d: %w", number, err)
+	}
+
+	return nil
+}
+
+func (g *GitHub) removeIssueLabel(ctx context.Context, number int, label string) error {
+	resp, err := g.client.Issues.RemoveLabelForIssue(ctx, g.repo.Owner, g.repo.Name, number, label)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil
+		}
+
+		return fmt.Errorf("remove label %q from pull request #%d: %w", label, number, err)
+	}
+
+	return nil
+}
+
+func hasGitHubLabel(labels []*github.Label, target string) bool {
+	for _, label := range labels {
+		if label.GetName() == target {
+			return true
+		}
+	}
+
+	return false
 }

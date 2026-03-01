@@ -34,9 +34,13 @@ type providerStub struct {
 	commitsErr error
 
 	pullRequests map[string]*provider.PullRequest
+	mergedPR     *provider.PullRequest
 
 	createPRCalls int
 	updatePRCalls int
+
+	markPendingCalls []int
+	markTaggedCalls  []int
 
 	createdBranches []string
 
@@ -114,10 +118,35 @@ func (p *providerStub) FindReleasePR(_ context.Context, branch string) (*provide
 	return pr, nil
 }
 
-func (p *providerStub) CreateRelease(_ context.Context, _ provider.ReleaseOptions) (*provider.Release, error) {
+func (p *providerStub) FindMergedReleasePR(context.Context, string) (*provider.PullRequest, error) {
+	if p.mergedPR == nil {
+		return nil, provider.ErrNoPR
+	}
+
+	return p.mergedPR, nil
+}
+
+func (p *providerStub) CreateRelease(_ context.Context, opts provider.ReleaseOptions) (*provider.Release, error) {
 	p.createReleaseCalls++
 
-	return &provider.Release{}, nil
+	return &provider.Release{
+		TagName: opts.TagName,
+		Name:    opts.Name,
+		Body:    opts.Body,
+		URL:     "https://example.com/releases/" + opts.TagName,
+	}, nil
+}
+
+func (p *providerStub) MarkReleasePRPending(_ context.Context, number int) error {
+	p.markPendingCalls = append(p.markPendingCalls, number)
+
+	return nil
+}
+
+func (p *providerStub) MarkReleasePRTagged(_ context.Context, number int) error {
+	p.markTaggedCalls = append(p.markTaggedCalls, number)
+
+	return nil
 }
 
 func (p *providerStub) CreateBranch(_ context.Context, branch, _ string) error {
@@ -592,6 +621,7 @@ func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, 1, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
+	testastic.Equal(t, 2, len(stub.markPendingCalls))
 	testastic.Equal(t, 1, len(stub.createdBranches))
 	testastic.Equal(t, first.BaseTag, second.BaseTag)
 	testastic.NotEqual(t, first.NextTag, second.NextTag)
@@ -622,6 +652,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, "chore: release "+result.BaseVersion, result.PullRequest.Title)
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore: release "+result.BaseVersion, stub.updateFilesMessages[0])
+		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.True(t, strings.HasPrefix(result.PullRequest.Body, "## ٩(^ᴗ^)۶ release created\n\n"))
 		testastic.True(
 			t,
@@ -760,6 +791,210 @@ func TestReleasePRBody(t *testing.T) {
 
 		// then: body is the changelog without extra sections
 		testastic.Equal(t, "## v1.2.4", body)
+	})
+}
+
+func TestFinalizeMergedReleasePR(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates release from latest changelog entry and marks PR tagged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR and changelog entry on main
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 42,
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-v1.2.3",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+
+## [v1.2.2](https://example.com/compare/v1.2.1...v1.2.2) (2026-02-20)
+
+### Bug Fixes
+
+- fix bug (def5678)
+`)
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: release is created from matching changelog entry and PR is marked tagged
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, 42, stub.markTaggedCalls[0])
+		testastic.True(t, strings.Contains(release.Body, "## [v1.2.3]"))
+		testastic.False(t, strings.Contains(release.Body, "## [v1.2.2]"))
+	})
+
+	t.Run("skips creation when latest release already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR already tagged in provider releases
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
+		stub.mergedPR = &provider.PullRequest{
+			Number: 9,
+			URL:    "https://example.com/pr/9",
+			Branch: "yeet/release-v1.2.3",
+		}
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: existing release is reused and PR is still marked tagged
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, 9, stub.markTaggedCalls[0])
+	})
+
+	t.Run("returns no-pr error when no merged pending release PR exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: no merged pending release PR
+		r := New(config.Default(), newProviderStub())
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: nothing is finalized
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrNoPR)
+		testastic.Equal(t, (*provider.Release)(nil), release)
+	})
+
+	t.Run("fails when matching changelog entry is missing", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR but changelog lacks target tag entry
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 12,
+			URL:    "https://example.com/pr/12",
+			Branch: "yeet/release-v1.2.3",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.2 (2026-02-20)"
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		_, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: missing entry is reported
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrChangelogEntryNotFound)
+	})
+}
+
+func TestChangelogEntryByTag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts linked heading entry", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog containing linked version headings
+		changelog := strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature
+
+## [v1.2.2](https://example.com/compare/v1.2.1...v1.2.2) (2026-02-20)
+
+### Bug Fixes
+
+- patch
+`)
+
+		// when: extracting entry for v1.2.3
+		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+
+		// then: only matching section is returned
+		testastic.NoError(t, err)
+		testastic.True(t, strings.HasPrefix(entry, "## [v1.2.3]"))
+		testastic.False(t, strings.Contains(entry, "## [v1.2.2]"))
+	})
+
+	t.Run("extracts plain heading entry", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog with plain version heading
+		changelog := "# Changelog\n\n## v1.2.3 (2026-03-01)\n\n### Features\n\n- add feature\n"
+
+		// when: extracting entry for v1.2.3
+		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+
+		// then: plain heading entry is returned
+		testastic.NoError(t, err)
+		testastic.True(t, strings.HasPrefix(entry, "## v1.2.3"))
+	})
+
+	t.Run("returns error for missing tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog without requested tag
+		changelog := "# Changelog\n\n## v1.2.2 (2026-02-20)\n"
+
+		// when: extracting entry for missing tag
+		_, err := changelogEntryByTag(changelog, "v1.2.3")
+
+		// then: not found error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrChangelogEntryNotFound)
+	})
+}
+
+func TestReleaseTagFromBranch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parses tag from release branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid release branch name
+		branch := "yeet/release-v1.2.3"
+
+		// when: parsing tag from branch
+		tag, err := releaseTagFromBranch(branch)
+
+		// then: release tag is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", tag)
+	})
+
+	t.Run("rejects invalid release branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a non-release branch name
+		branch := "feature/something"
+
+		// when: parsing tag from branch
+		_, err := releaseTagFromBranch(branch)
+
+		// then: branch format error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseBranch)
 	})
 }
 

@@ -27,6 +27,10 @@ type PullRequest struct {
 	Branch string
 }
 
+const ReleaseLabelPending = "autorelease: pending"
+
+const ReleaseLabelTagged = "autorelease: tagged"
+
 type ReleasePROptions struct {
 	Title         string
 	Body          string
@@ -58,8 +62,14 @@ type Provider interface {
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
 	// FindReleasePR finds an existing open release PR/MR.
 	FindReleasePR(ctx context.Context, branch string) (*PullRequest, error)
+	// FindMergedReleasePR finds the latest merged release PR/MR waiting for tagging.
+	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
 	// CreateRelease creates a release with a tag.
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
+	// MarkReleasePRPending marks a release PR/MR as waiting for tagging.
+	MarkReleasePRPending(ctx context.Context, number int) error
+	// MarkReleasePRTagged marks a release PR/MR as tagged.
+	MarkReleasePRTagged(ctx context.Context, number int) error
 	// CreateBranch creates a new branch from the base branch.
 	CreateBranch(ctx context.Context, name, base string) error
 	// GetFile reads a file content from a branch.

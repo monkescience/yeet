@@ -19,9 +19,13 @@ func releaseCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "release",
-		Short: "Analyze commits and create a release PR/MR",
+		Short: "Finalize merged releases and manage release PRs/MRs",
 		Long: `Analyzes conventional commits since the last release to determine the next
-version, generate a changelog, and create or update a release PR/MR.`,
+version, generate a changelog, and create or update a release PR/MR.
+
+When a merged release PR/MR is waiting with the pending autorelease label,
+this command first creates the tag/release from the latest changelog entry and
+marks the PR/MR as tagged.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(cmd.Context(), dryRun, preview, previewHashLength)
 		},
@@ -58,6 +62,12 @@ func runRelease(ctx context.Context, dryRun, preview bool, previewHashLength int
 	}
 
 	if result.BumpType == "none" {
+		if result.Release != nil {
+			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Release.TagName)
+
+			return nil
+		}
+
 		slog.InfoContext(ctx, "no release needed")
 
 		return nil

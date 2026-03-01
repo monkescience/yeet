@@ -32,7 +32,6 @@ version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.`,
 
 	cmd.AddCommand(
 		releaseCmd(),
-		tagCmd(),
 		initCmd(),
 	)
 

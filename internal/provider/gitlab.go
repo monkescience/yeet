@@ -16,6 +16,10 @@ type GitLab struct {
 	baseURL string
 }
 
+const gitlabReleasePendingLabelColor = "#FBCA04"
+
+const gitlabReleaseTaggedLabelColor = "#0E8A16"
+
 // NewGitLab creates a provider. pid is the project ID or full path (e.g., "owner/repo").
 func NewGitLab(client *gitlab.Client, owner, repo string) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
@@ -149,6 +153,91 @@ func (g *GitLab) FindReleasePR(ctx context.Context, branch string) (*PullRequest
 	}, nil
 }
 
+func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+	state := "merged"
+	orderBy := "updated_at"
+	sortDirection := "desc"
+	labels := gitlab.LabelOptions{ReleaseLabelPending}
+
+	options := &gitlab.ListProjectMergeRequestsOptions{
+		State:        gitlab.Ptr(state),
+		TargetBranch: gitlab.Ptr(baseBranch),
+		OrderBy:      gitlab.Ptr(orderBy),
+		Sort:         gitlab.Ptr(sortDirection),
+		Labels:       &labels,
+		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+	}
+
+	for {
+		mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list merge requests: %w", err)
+		}
+
+		for _, mr := range mrs {
+			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
+				continue
+			}
+
+			return &PullRequest{
+				Number: int(mr.IID),
+				Title:  mr.Title,
+				Body:   mr.Description,
+				URL:    mr.WebURL,
+				Branch: mr.SourceBranch,
+			}, nil
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return nil, ErrNoPR
+}
+
+func (g *GitLab) MarkReleasePRPending(ctx context.Context, number int) error {
+	err := g.ensureReleaseLabels(ctx)
+	if err != nil {
+		return err
+	}
+
+	addLabels := gitlab.LabelOptions{ReleaseLabelPending}
+	removeLabels := gitlab.LabelOptions{ReleaseLabelTagged}
+
+	_, _, err = g.client.MergeRequests.UpdateMergeRequest(g.pid, int64(number), &gitlab.UpdateMergeRequestOptions{
+		AddLabels:    &addLabels,
+		RemoveLabels: &removeLabels,
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("mark merge request !%d pending: %w", number, err)
+	}
+
+	return nil
+}
+
+func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int) error {
+	err := g.ensureReleaseLabels(ctx)
+	if err != nil {
+		return err
+	}
+
+	addLabels := gitlab.LabelOptions{ReleaseLabelTagged}
+	removeLabels := gitlab.LabelOptions{ReleaseLabelPending}
+
+	_, _, err = g.client.MergeRequests.UpdateMergeRequest(g.pid, int64(number), &gitlab.UpdateMergeRequestOptions{
+		AddLabels:    &addLabels,
+		RemoveLabels: &removeLabels,
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("mark merge request !%d tagged: %w", number, err)
+	}
+
+	return nil
+}
+
 func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	release, _, err := g.client.Releases.CreateRelease(g.pid, &gitlab.CreateReleaseOptions{
 		TagName:     gitlab.Ptr(opts.TagName),
@@ -273,6 +362,42 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("force update branch %s: %w", branch, err)
+	}
+
+	return nil
+}
+
+func (g *GitLab) ensureReleaseLabels(ctx context.Context) error {
+	err := g.ensureLabel(ctx, ReleaseLabelPending, gitlabReleasePendingLabelColor, "release PR is pending tagging")
+	if err != nil {
+		return err
+	}
+
+	err = g.ensureLabel(ctx, ReleaseLabelTagged, gitlabReleaseTaggedLabelColor, "release PR already tagged")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *GitLab) ensureLabel(ctx context.Context, name, color, description string) error {
+	_, _, err := g.client.Labels.GetLabel(g.pid, name, gitlab.WithContext(ctx))
+	if err == nil {
+		return nil
+	}
+
+	if !errors.Is(err, gitlab.ErrNotFound) {
+		return fmt.Errorf("get label %q: %w", name, err)
+	}
+
+	_, _, err = g.client.Labels.CreateLabel(g.pid, &gitlab.CreateLabelOptions{
+		Name:        gitlab.Ptr(name),
+		Color:       gitlab.Ptr(color),
+		Description: gitlab.Ptr(description),
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("create label %q: %w", name, err)
 	}
 
 	return nil
