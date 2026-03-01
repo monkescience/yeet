@@ -67,11 +67,22 @@ func (g *GitHub) GetLatestRelease(ctx context.Context) (*Release, error) {
 }
 
 func (g *GitHub) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry, error) {
+	stopSHA := strings.TrimSpace(ref)
+
+	if stopSHA != "" {
+		resolvedSHA, err := g.resolveCommitSHA(ctx, stopSHA)
+		if err != nil {
+			return nil, fmt.Errorf("resolve ref %q: %w", stopSHA, err)
+		}
+
+		stopSHA = resolvedSHA
+	}
+
 	opts := &github.CommitsListOptions{
 		ListOptions: github.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
 
-	if ref != "" {
+	if stopSHA != "" {
 		opts.SHA = "HEAD"
 	}
 
@@ -86,7 +97,7 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		for _, c := range commits {
 			sha := c.GetSHA()
 
-			if ref != "" && (sha == ref || strings.HasPrefix(sha, ref)) {
+			if stopSHA != "" && (sha == stopSHA || strings.HasPrefix(sha, stopSHA)) {
 				return entries, nil
 			}
 
@@ -417,6 +428,20 @@ func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map
 	}
 
 	return nil
+}
+
+func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {
+	commit, _, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
+	if err != nil {
+		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
+	}
+
+	sha := commit.GetSHA()
+	if sha == "" {
+		return "", fmt.Errorf("%w: ref %q", ErrEmptyCommitSHA, ref)
+	}
+
+	return sha, nil
 }
 
 func (g *GitHub) baseBranchCommit(ctx context.Context, base string) (*github.Commit, error) {

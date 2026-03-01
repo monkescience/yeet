@@ -33,6 +33,9 @@ type providerStub struct {
 	commits    []provider.CommitEntry
 	commitsErr error
 
+	commitsByRef      map[string][]provider.CommitEntry
+	getCommitsSinceOf []string
+
 	pullRequests map[string]*provider.PullRequest
 	mergedPR     *provider.PullRequest
 	openPending  []*provider.PullRequest
@@ -71,9 +74,23 @@ func (p *providerStub) GetLatestRelease(context.Context) (*provider.Release, err
 	return p.latestRelease, nil
 }
 
-func (p *providerStub) GetCommitsSince(context.Context, string) ([]provider.CommitEntry, error) {
+func (p *providerStub) GetCommitsSince(_ context.Context, ref string) ([]provider.CommitEntry, error) {
+	p.getCommitsSinceOf = append(p.getCommitsSinceOf, ref)
+
 	if p.commitsErr != nil {
 		return nil, p.commitsErr
+	}
+
+	if p.commitsByRef != nil {
+		entries, exists := p.commitsByRef[ref]
+		if !exists || len(entries) == 0 {
+			return []provider.CommitEntry{}, nil
+		}
+
+		result := make([]provider.CommitEntry, len(entries))
+		copy(result, entries)
+
+		return result, nil
 	}
 
 	if len(p.commits) == 0 {
@@ -144,12 +161,16 @@ func (p *providerStub) FindMergedReleasePR(context.Context, string) (*provider.P
 func (p *providerStub) CreateRelease(_ context.Context, opts provider.ReleaseOptions) (*provider.Release, error) {
 	p.createReleaseCalls++
 
-	return &provider.Release{
+	release := &provider.Release{
 		TagName: opts.TagName,
 		Name:    opts.Name,
 		Body:    opts.Body,
 		URL:     "https://example.com/releases/" + opts.TagName,
-	}, nil
+	}
+
+	p.latestRelease = release
+
+	return release, nil
 }
 
 func (p *providerStub) MarkReleasePRPending(_ context.Context, number int) error {
@@ -640,6 +661,90 @@ func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	testastic.Equal(t, 1, len(stub.createdBranches))
 	testastic.Equal(t, first.BaseTag, second.BaseTag)
 	testastic.NotEqual(t, first.NextTag, second.NextTag)
+}
+
+func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
+	t.Parallel()
+
+	const changelogBody = `# Changelog
+
+## [v0.1.0](https://example.com/compare/v0.0.9...v0.1.0) (2026-03-01)
+
+### Features
+
+- add release flow (abc1234)
+`
+
+	t.Run("does not create PR when no commits exist after finalized tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR with no commits after its tag
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number: 3,
+			URL:    "https://example.com/pr/3",
+			Body:   "<!-- yeet-release-tag: v0.1.0 -->",
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v0.1.0": {},
+		}
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: merged release is finalized and no new release PR is created
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.Release)(nil), result.Release)
+		testastic.Equal(t, "v0.1.0", result.Release.TagName)
+		testastic.Equal(t, commit.BumpNone, result.BumpType)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
+		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
+	})
+
+	t.Run("creates PR when commits exist after finalized tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR and new commits after its tag
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number: 4,
+			URL:    "https://example.com/pr/4",
+			Body:   "<!-- yeet-release-tag: v0.1.0 -->",
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v0.1.0": {{Hash: "abcdef1234567890", Message: "fix: patch after release"}},
+		}
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: merged release is finalized and a new release PR is created for fresh commits
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.Release)(nil), result.Release)
+		testastic.Equal(t, "v0.1.0", result.Release.TagName)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, stub.createPRCalls)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
+		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
+	})
 }
 
 func TestReleaseReusesSinglePendingPR(t *testing.T) {

@@ -109,6 +109,10 @@ var ErrNoPR = errors.New("no release PR found")
 
 var ErrFileNotFound = errors.New("file not found")
 
+var ErrEmptyCommitSHA = errors.New("empty commit SHA")
+
+var ErrEmptyCommitID = errors.New("empty commit ID")
+
 var remotePatterns = []*regexp.Regexp{
 	// SSH format: git@github.com:owner/repo.git
 	regexp.MustCompile(`^git@([^:]+):([^/]+)/([^/.]+?)(?:\.git)?$`),

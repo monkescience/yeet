@@ -104,6 +104,10 @@ func (r *Releaser) Release(ctx context.Context, dryRun, preview bool, previewHas
 		}
 	}
 
+	if finalizedRelease != nil {
+		slog.InfoContext(ctx, "finalized release", "tag", finalizedRelease.TagName, "url", finalizedRelease.URL)
+	}
+
 	result, err := r.analyze(ctx, preview, previewHashLength)
 	if err != nil {
 		return nil, err

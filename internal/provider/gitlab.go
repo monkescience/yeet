@@ -62,6 +62,17 @@ func (g *GitLab) GetLatestRelease(ctx context.Context) (*Release, error) {
 }
 
 func (g *GitLab) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry, error) {
+	stopID := strings.TrimSpace(ref)
+
+	if stopID != "" {
+		resolvedID, err := g.resolveCommitID(ctx, stopID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve ref %q: %w", stopID, err)
+		}
+
+		stopID = resolvedID
+	}
+
 	opts := &gitlab.ListCommitsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
@@ -75,7 +86,7 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		}
 
 		for _, c := range commits {
-			if ref != "" && (c.ID == ref || strings.HasPrefix(c.ID, ref)) {
+			if stopID != "" && (c.ID == stopID || strings.HasPrefix(c.ID, stopID)) {
 				return entries, nil
 			}
 
@@ -412,6 +423,19 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	}
 
 	return nil
+}
+
+func (g *GitLab) resolveCommitID(ctx context.Context, ref string) (string, error) {
+	commit, _, err := g.client.Commits.GetCommit(g.pid, ref, nil, gitlab.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
+	}
+
+	if commit.ID == "" {
+		return "", fmt.Errorf("%w: ref %q", ErrEmptyCommitID, ref)
+	}
+
+	return commit.ID, nil
 }
 
 func (g *GitLab) ensureReleaseLabels(ctx context.Context) error {
