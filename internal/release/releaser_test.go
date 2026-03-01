@@ -24,6 +24,9 @@ type providerStub struct {
 	files   map[string]string
 	updates []fileUpdate
 
+	repoURL    string
+	pathPrefix string
+
 	updateFilesCalls    int
 	updateFilesMessages []string
 
@@ -254,11 +257,11 @@ func (p *providerStub) UpdateFiles(
 }
 
 func (p *providerStub) RepoURL() string {
-	return ""
+	return p.repoURL
 }
 
 func (p *providerStub) PathPrefix() string {
-	return ""
+	return p.pathPrefix
 }
 
 func TestReleasePreviewBuildMetadata(t *testing.T) {
@@ -917,6 +920,87 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		)
 		testastic.False(t, strings.Contains(result.Changelog, cfg.Release.PRBodyHeader))
 		testastic.False(t, strings.Contains(result.Changelog, cfg.Release.PRBodyFooter))
+	})
+}
+
+func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github compare link uses latest commit sha in PR body", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitHub repo with existing release and one new commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.repoURL = "https://github.example.com/owner/repo"
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+
+		const headSHA = "abcdef1234567890abcdef1234567890abcdef12"
+
+		stub.commits = []provider.CommitEntry{{
+			Hash:    headSHA,
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: creating a release PR
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+
+		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
+		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
+
+		testastic.True(t, strings.Contains(result.Changelog, canonicalCompareURL))
+		testastic.False(t, strings.Contains(result.Changelog, prCompareURL))
+		testastic.True(t, strings.Contains(result.PullRequest.Body, prCompareURL))
+		testastic.False(t, strings.Contains(result.PullRequest.Body, canonicalCompareURL))
+
+		releaseBranch := "yeet/release-main"
+		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
+	})
+
+	t.Run("gitlab compare link uses latest commit sha in PR body", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab repo with existing release and one new commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.repoURL = "https://gitlab.example.com/group/repo"
+		stub.pathPrefix = "/-"
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+
+		const headSHA = "1234567890abcdef1234567890abcdef12345678"
+
+		stub.commits = []provider.CommitEntry{{
+			Hash:    headSHA,
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: creating a release PR
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+
+		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
+		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
+
+		testastic.True(t, strings.Contains(result.Changelog, canonicalCompareURL))
+		testastic.False(t, strings.Contains(result.Changelog, prCompareURL))
+		testastic.True(t, strings.Contains(result.PullRequest.Body, prCompareURL))
+		testastic.False(t, strings.Contains(result.PullRequest.Body, canonicalCompareURL))
+
+		releaseBranch := "yeet/release-main"
+		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
 	})
 }
 

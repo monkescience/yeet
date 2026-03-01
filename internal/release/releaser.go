@@ -48,6 +48,7 @@ type Result struct {
 	NextTag        string
 	BumpType       commit.BumpType
 	Changelog      string
+	prChangelog    string
 	PullRequest    *provider.PullRequest
 	Release        *provider.Release
 	CommitCount    int
@@ -277,12 +278,12 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 		return result, nil
 	}
 
-	setVersionErr := r.setResultVersions(result, nextVersion, entries, preview, previewHashLength)
-	if setVersionErr != nil {
-		return nil, setVersionErr
+	err = r.setResultVersions(result, nextVersion, entries, preview, previewHashLength)
+	if err != nil {
+		return nil, err
 	}
 
-	result.Changelog = r.renderChangelog(result.NextTag, ref, commits)
+	r.setResultChangelogs(result, ref, entries, commits)
 
 	return result, nil
 }
@@ -337,7 +338,21 @@ func (r *Releaser) setResultVersions(
 	return nil
 }
 
-func (r *Releaser) renderChangelog(nextTag, ref string, commits []commit.Commit) string {
+func (r *Releaser) setResultChangelogs(
+	result *Result,
+	ref string,
+	entries []provider.CommitEntry,
+	commits []commit.Commit,
+) {
+	result.Changelog = r.renderChangelog(result.NextTag, ref, result.NextTag, commits)
+	result.prChangelog = result.Changelog
+
+	if ref != "" && len(entries) > 0 {
+		result.prChangelog = r.renderChangelog(result.NextTag, ref, entries[0].Hash, commits)
+	}
+}
+
+func (r *Releaser) renderChangelog(nextTag, ref, compareTarget string, commits []commit.Commit) string {
 	gen := &changelog.Generator{
 		Sections:   r.cfg.Changelog.Sections,
 		Include:    r.cfg.Changelog.Include,
@@ -346,6 +361,9 @@ func (r *Releaser) renderChangelog(nextTag, ref string, commits []commit.Commit)
 	}
 
 	entry := gen.Generate(nextTag, ref, commits)
+	if ref != "" && compareTarget != "" {
+		entry.CompareURL = compareURL(r.provider.RepoURL(), r.provider.PathPrefix(), ref, compareTarget)
+	}
 
 	return changelog.Render(entry)
 }
@@ -379,9 +397,14 @@ func (r *Releaser) releasePROptions(
 	result *Result,
 	releaseBranch, releaseTag string,
 ) provider.ReleasePROptions {
+	prChangelog := result.Changelog
+	if result.prChangelog != "" {
+		prChangelog = result.prChangelog
+	}
+
 	return provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(result.Changelog, releaseTag),
+		Body:          r.releasePRBody(prChangelog, releaseTag),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Files: map[string]string{
@@ -508,6 +531,10 @@ func prependChangelogEntryPreservingStyle(existing, changelogEntry string) strin
 	}
 
 	return strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
+}
+
+func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
+	return fmt.Sprintf("%s%s/compare/%s...%s", repoURL, pathPrefix, fromRef, toRef)
 }
 
 func (r *Releaser) releaseSubject(result *Result) string {
