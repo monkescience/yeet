@@ -26,7 +26,7 @@ type SemVer struct {
 func (s *SemVer) Current(tag string) (string, error) {
 	cleaned := strings.TrimPrefix(tag, s.Prefix)
 
-	v, err := semver.NewVersion(cleaned)
+	v, err := semver.StrictNewVersion(cleaned)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %w", ErrInvalidVersion, tag, err)
 	}
@@ -35,7 +35,7 @@ func (s *SemVer) Current(tag string) (string, error) {
 }
 
 func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
-	v, err := semver.NewVersion(current)
+	v, err := semver.StrictNewVersion(current)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %w", ErrInvalidVersion, current, err)
 	}

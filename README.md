@@ -133,6 +133,15 @@ yeet release --preview --dry-run
 When preview mode is enabled, yeet keeps a stable release PR branch based on the base version
 (for example `yeet/release-v1.2.4`) so new commits update the same PR.
 
+You can also force an explicit semver version using a commit footer:
+
+```text
+Release-As: 1.0.0
+```
+
+When present in commits since the last release, `Release-As` overrides calculated semver bumps.
+If multiple different `Release-As` values are present, yeet fails and asks you to resolve the conflict.
+
 ### `yeet tag`
 
 Creates a git tag and VCS release after a release PR/MR has been merged.
@@ -172,6 +181,9 @@ For versions `< 1.0.0`:
 
 This keeps pre-1.0 breaking changes from automatically jumping to `1.0.0`.
 
+`Release-As` commit footers (for example `Release-As: 1.0.0`) override automatic semver bumping.
+The value must be a stable semver version greater than the current version.
+
 ### Calendar Versioning (calver)
 
 Uses `YYYY.0M.MICRO` format (e.g., `2026.02.1`). The micro counter resets when the year/month changes.
@@ -189,6 +201,14 @@ optional footer(s)
 ```
 
 Breaking changes are indicated by a `!` after the type/scope or a `BREAKING CHANGE:` footer.
+
+You can force a specific semver release version with:
+
+```text
+Release-As: 1.2.0
+```
+
+`Release-As` is case-insensitive and applies only to semver repositories. CalVer repositories ignore it.
 
 ## Changelog format
 

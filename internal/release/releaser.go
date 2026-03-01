@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
@@ -26,6 +27,10 @@ const (
 var ErrInvalidPreviewHashLength = errors.New("invalid preview hash length")
 
 var ErrPreviewTagNotAllowed = errors.New("preview tags are not allowed")
+
+var ErrInvalidReleaseAs = errors.New("invalid release-as footer")
+
+var ErrConflictingReleaseAs = errors.New("conflicting release-as footers")
 
 type Result struct {
 	CurrentVersion string
@@ -140,22 +145,12 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 		return nil, fmt.Errorf("%w: got %d", ErrInvalidPreviewHashLength, previewHashLength)
 	}
 
-	latest, err := r.provider.GetLatestRelease(ctx)
-	if err != nil && !errors.Is(err, provider.ErrNoRelease) {
-		return nil, fmt.Errorf("get latest release: %w", err)
+	currentVersion, ref, err := r.currentVersionFromLatestRelease(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	ref := ""
-
-	if err == nil {
-		currentVersion, verErr := r.strategy.strategy.Current(latest.TagName)
-		if verErr != nil {
-			return nil, fmt.Errorf("parse current version: %w", verErr)
-		}
-
-		result.CurrentVersion = currentVersion
-		ref = latest.TagName
-	}
+	result.CurrentVersion = currentVersion
 
 	entries, err := r.provider.GetCommitsSince(ctx, ref)
 	if err != nil {
@@ -167,8 +162,13 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 
 	result.BumpType = commit.DetermineBump(commits)
 
-	if result.BumpType == commit.BumpNone {
-		return result, nil
+	releaseAsVersion := ""
+
+	if r.cfg.Versioning == config.VersioningSemver {
+		releaseAsVersion, err = detectReleaseAs(commits)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	current := result.CurrentVersion
@@ -178,9 +178,15 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 		}
 	}
 
-	nextVersion, err := r.strategy.strategy.Next(current, result.BumpType)
+	nextVersion, bumpType, shouldRelease, err := r.resolveNextVersion(current, result.BumpType, releaseAsVersion)
 	if err != nil {
-		return nil, fmt.Errorf("calculate next version: %w", err)
+		return nil, err
+	}
+
+	result.BumpType = bumpType
+
+	if !shouldRelease {
+		return result, nil
 	}
 
 	setVersionErr := r.setResultVersions(result, nextVersion, entries, preview, previewHashLength)
@@ -191,6 +197,24 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 	result.Changelog = r.renderChangelog(result.NextTag, ref, commits)
 
 	return result, nil
+}
+
+func (r *Releaser) currentVersionFromLatestRelease(ctx context.Context) (string, string, error) {
+	latest, err := r.provider.GetLatestRelease(ctx)
+	if err != nil {
+		if errors.Is(err, provider.ErrNoRelease) {
+			return "", "", nil
+		}
+
+		return "", "", fmt.Errorf("get latest release: %w", err)
+	}
+
+	currentVersion, err := r.strategy.strategy.Current(latest.TagName)
+	if err != nil {
+		return "", "", fmt.Errorf("parse current version: %w", err)
+	}
+
+	return currentVersion, latest.TagName, nil
 }
 
 func (r *Releaser) setResultVersions(
@@ -355,6 +379,116 @@ func shortHash(hash string, length int) (string, error) {
 	}
 
 	return hash[:length], nil
+}
+
+func (r *Releaser) resolveNextVersion(
+	current string,
+	bump commit.BumpType,
+	releaseAsVersion string,
+) (string, commit.BumpType, bool, error) {
+	if releaseAsVersion != "" && r.cfg.Versioning == config.VersioningSemver {
+		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
+		if err != nil {
+			return "", commit.BumpNone, false, err
+		}
+
+		return nextVersion, overrideBump, true, nil
+	}
+
+	if bump == commit.BumpNone {
+		return "", bump, false, nil
+	}
+
+	nextVersion, err := r.strategy.strategy.Next(current, bump)
+	if err != nil {
+		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
+	}
+
+	return nextVersion, bump, true, nil
+}
+
+func detectReleaseAs(commits []commit.Commit) (string, error) {
+	releaseAsVersion := ""
+
+	for _, c := range commits {
+		for _, footer := range c.Footers {
+			if !strings.EqualFold(strings.TrimSpace(footer.Key), "Release-As") {
+				continue
+			}
+
+			candidate := strings.TrimSpace(footer.Value)
+			if candidate == "" {
+				return "", fmt.Errorf("%w: empty value", ErrInvalidReleaseAs)
+			}
+
+			normalizedCandidate, err := normalizeReleaseAsValue(candidate)
+			if err != nil {
+				return "", err
+			}
+
+			if releaseAsVersion == "" {
+				releaseAsVersion = normalizedCandidate
+
+				continue
+			}
+
+			if releaseAsVersion != normalizedCandidate {
+				return "", fmt.Errorf("%w: %q and %q", ErrConflictingReleaseAs, releaseAsVersion, normalizedCandidate)
+			}
+		}
+	}
+
+	return releaseAsVersion, nil
+}
+
+func normalizeReleaseAsValue(releaseAsVersion string) (string, error) {
+	v, err := semver.StrictNewVersion(releaseAsVersion)
+	if err != nil {
+		return "", fmt.Errorf("%w: invalid version %q: %w", ErrInvalidReleaseAs, releaseAsVersion, err)
+	}
+
+	return v.String(), nil
+}
+
+func applyReleaseAs(current, releaseAsVersion string) (string, commit.BumpType, error) {
+	targetVersion, err := semver.StrictNewVersion(releaseAsVersion)
+	if err != nil {
+		return "", commit.BumpNone, fmt.Errorf("%w: invalid version %q: %w", ErrInvalidReleaseAs, releaseAsVersion, err)
+	}
+
+	if targetVersion.Prerelease() != "" || targetVersion.Metadata() != "" {
+		return "", commit.BumpNone, fmt.Errorf("%w: %q must be a stable version", ErrInvalidReleaseAs, releaseAsVersion)
+	}
+
+	currentVersion, err := semver.StrictNewVersion(current)
+	if err != nil {
+		return "", commit.BumpNone, fmt.Errorf("%w: parse current version %q: %w", ErrInvalidReleaseAs, current, err)
+	}
+
+	if !targetVersion.GreaterThan(currentVersion) {
+		return "", commit.BumpNone, fmt.Errorf(
+			"%w: %s must be greater than current version %s",
+			ErrInvalidReleaseAs,
+			targetVersion.String(),
+			currentVersion.String(),
+		)
+	}
+
+	bump := inferSemverBump(currentVersion, targetVersion)
+
+	return targetVersion.String(), bump, nil
+}
+
+func inferSemverBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
+	if targetVersion.Major() > currentVersion.Major() {
+		return commit.BumpMajor
+	}
+
+	if targetVersion.Minor() > currentVersion.Minor() {
+		return commit.BumpMinor
+	}
+
+	return commit.BumpPatch
 }
 
 func isPreviewTag(tag, prefix string) bool {

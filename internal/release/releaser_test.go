@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
@@ -281,6 +282,231 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 		testastic.Equal(t, "0.4.2", result.CurrentVersion)
 		testastic.Equal(t, "0.4.3", result.NextVersion)
 		testastic.Equal(t, "v0.4.3", result.NextTag)
+	})
+}
+
+func TestReleaseAsFooter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("forces explicit version without releasable commit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver release with only a chore commit and Release-As footer
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: trigger stable release\n\nRelease-As: 1.0.0",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: explicit version override is used
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.2", result.CurrentVersion)
+		testastic.Equal(t, "1.0.0", result.NextVersion)
+		testastic.Equal(t, "v1.0.0", result.NextTag)
+		testastic.Equal(t, commit.BumpMajor, result.BumpType)
+	})
+
+	t.Run("supports arbitrary semver override", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver release with Release-As footer for minor update
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch issue\n\nRelease-As: 1.4.0",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: exact semver override is used
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.4.0", result.NextVersion)
+		testastic.Equal(t, "v1.4.0", result.NextTag)
+		testastic.Equal(t, commit.BumpMinor, result.BumpType)
+	})
+
+	t.Run("footer key matching is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver release with lowercase release-as footer key
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nrelease-as: 1.3.0",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: footer key is recognized regardless of casing
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.3.0", result.NextVersion)
+		testastic.Equal(t, "v1.3.0", result.NextTag)
+	})
+
+	t.Run("rejects non-strict override value", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with semver missing patch segment
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 1.3",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: non-strict semver values are rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+	})
+
+	t.Run("rejects v-prefixed override value", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with v-prefixed release-as value
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: v1.3.0",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: values must be strict semver without v-prefix
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+	})
+
+	t.Run("fails on conflicting override values", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two commits with different Release-As values
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{
+			{
+				Hash:    "abcdef1234567890",
+				Message: "chore: request release\n\nRelease-As: 1.0.0",
+			},
+			{
+				Hash:    "1234567890abcdef",
+				Message: "chore: request different release\n\nRelease-As: 1.1.0",
+			},
+		}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: conflict is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrConflictingReleaseAs)
+	})
+
+	t.Run("fails on invalid override value", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with malformed Release-As value
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: not-a-version",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: invalid value is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+	})
+
+	t.Run("fails when override is not greater than current version", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit requesting the same version as current release
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 1.2.3",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: non-incrementing override is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+	})
+
+	t.Run("ignores override for calver", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with only a Release-As chore commit
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 1.0.0",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+		// then: release-as footer is ignored for calver
+		testastic.NoError(t, err)
+		testastic.Equal(t, commit.BumpNone, result.BumpType)
+		testastic.Equal(t, "", result.NextVersion)
+		testastic.Equal(t, "", result.NextTag)
 	})
 }
 

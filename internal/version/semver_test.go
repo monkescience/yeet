@@ -54,6 +54,20 @@ func TestSemVerCurrent(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
 	})
+
+	t.Run("rejects non-strict tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver tag missing patch segment
+		tag := "v1.2"
+
+		// when: parsing current version
+		_, err := sv.Current(tag)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
 }
 
 func TestSemVerNext(t *testing.T) {
@@ -163,6 +177,18 @@ func TestSemVerNext(t *testing.T) {
 		// given: an invalid version string
 		// when: applying a bump
 		_, err := sv.Next("invalid", commit.BumpPatch)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects non-strict current version", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a version missing patch segment
+		// when: applying a bump
+		_, err := sv.Next("1.2", commit.BumpPatch)
 
 		// then: error is returned
 		testastic.Error(t, err)
