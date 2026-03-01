@@ -35,6 +35,7 @@ type providerStub struct {
 
 	pullRequests map[string]*provider.PullRequest
 	mergedPR     *provider.PullRequest
+	openPending  []*provider.PullRequest
 
 	createPRCalls int
 	updatePRCalls int
@@ -116,6 +117,20 @@ func (p *providerStub) FindReleasePR(_ context.Context, branch string) (*provide
 	}
 
 	return pr, nil
+}
+
+func (p *providerStub) FindOpenPendingReleasePRs(context.Context, string) ([]*provider.PullRequest, error) {
+	if p.openPending != nil {
+		return p.openPending, nil
+	}
+
+	pending := make([]*provider.PullRequest, 0, len(p.pullRequests))
+
+	for _, pullRequest := range p.pullRequests {
+		pending = append(pending, pullRequest)
+	}
+
+	return pending, nil
 }
 
 func (p *providerStub) FindMergedReleasePR(context.Context, string) (*provider.PullRequest, error) {
@@ -601,12 +616,12 @@ func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	// when: creating the first release PR
 	first, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
 
-	// then: release branch is based on base tag
+	// then: release branch is stable and based on the target branch
 	testastic.NoError(t, err)
 	testastic.Equal(t, 1, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.updatePRCalls)
 	testastic.Equal(t, 1, len(stub.createdBranches))
-	testastic.Equal(t, "yeet/release-v1.2.4", stub.createdBranches[0])
+	testastic.Equal(t, "yeet/release-main", stub.createdBranches[0])
 
 	// given: a new head commit changes preview hash
 	stub.commits = []provider.CommitEntry{{
@@ -625,6 +640,68 @@ func TestReleasePreviewUsesStableBranch(t *testing.T) {
 	testastic.Equal(t, 1, len(stub.createdBranches))
 	testastic.Equal(t, first.BaseTag, second.BaseTag)
 	testastic.NotEqual(t, first.NextTag, second.NextTag)
+}
+
+func TestReleaseReusesSinglePendingPR(t *testing.T) {
+	t.Parallel()
+
+	// given: one open pending PR on a legacy release branch
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.openPending = []*provider.PullRequest{{
+		Number: 7,
+		URL:    "https://example.com/pr/7",
+		Branch: "yeet/release-v0.0.1",
+	}}
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "feat!: introduce breaking release flow",
+	}}
+
+	r := New(cfg, stub)
+
+	// when: computing a new version while a pending PR already exists
+	result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+	// then: pending PR is updated instead of creating a second release PR
+	testastic.NoError(t, err)
+	testastic.Equal(t, "0.1.0", result.BaseVersion)
+	testastic.Equal(t, 0, stub.createPRCalls)
+	testastic.Equal(t, 1, stub.updatePRCalls)
+	testastic.Equal(t, 1, len(stub.markPendingCalls))
+	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
+	testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: v0.1.0 -->"))
+}
+
+func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
+	t.Parallel()
+
+	// given: more than one open pending release PR
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.openPending = []*provider.PullRequest{
+		{Number: 1, URL: "https://example.com/pr/1", Branch: "yeet/release-v0.0.1"},
+		{Number: 2, URL: "https://example.com/pr/2", Branch: "yeet/release-v0.1.0"},
+	}
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "fix: patch bug",
+	}}
+
+	r := New(cfg, stub)
+
+	// when: attempting to create or update release PRs
+	_, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+	// then: release fails fast with actionable pending PR details
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, ErrMultiplePendingReleasePRs)
+	testastic.True(t, strings.Contains(err.Error(), "https://example.com/pr/1"))
+	testastic.True(t, strings.Contains(err.Error(), "https://example.com/pr/2"))
+	testastic.Equal(t, 0, stub.createPRCalls)
+	testastic.Equal(t, 0, stub.updatePRCalls)
 }
 
 func TestReleaseSubjectFormatting(t *testing.T) {
@@ -654,6 +731,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, "chore: release "+result.BaseVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.True(t, strings.HasPrefix(result.PullRequest.Body, "## ٩(^ᴗ^)۶ release created\n\n"))
+		testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: "+result.BaseTag+" -->"))
 		testastic.True(
 			t,
 			strings.HasSuffix(
@@ -669,7 +747,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 			),
 		)
 
-		releaseBranch := "yeet/release-" + result.BaseTag
+		releaseBranch := "yeet/release-main"
 		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
 	})
 
@@ -699,6 +777,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, "chore(main): release 1.2.4", result.PullRequest.Title)
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore(main): release 1.2.4", stub.updateFilesMessages[0])
+		testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: v1.2.4 -->"))
 	})
 
 	t.Run("custom header and footer wrap PR body only", func(t *testing.T) {
@@ -747,13 +826,14 @@ func TestReleasePRBody(t *testing.T) {
 		changelogBody := "## v1.2.4 (2026-03-01)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
 
 		// when: building PR body
-		body := r.releasePRBody(changelogBody)
+		body := r.releasePRBody(changelogBody, "v1.2.4")
 
 		// then: changelog is wrapped by default header and footer notes
 		testastic.Equal(
 			t,
 			"## ٩(^ᴗ^)۶ release created\n\n"+
 				strings.TrimSpace(changelogBody)+
+				"\n\n<!-- yeet-release-tag: v1.2.4 -->"+
 				"\n\n_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 			body,
 		)
@@ -770,10 +850,10 @@ func TestReleasePRBody(t *testing.T) {
 		r := New(cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4")
+		body := r.releasePRBody("## v1.2.4", "v1.2.4")
 
 		// then: body contains header, changelog, and footer in order
-		testastic.Equal(t, "Header\n\n## v1.2.4\n\nFooter", body)
+		testastic.Equal(t, "Header\n\n## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->\n\nFooter", body)
 	})
 
 	t.Run("empty wrapper fields keep changelog only", func(t *testing.T) {
@@ -787,10 +867,10 @@ func TestReleasePRBody(t *testing.T) {
 		r := New(cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4\n")
+		body := r.releasePRBody("## v1.2.4\n", "v1.2.4")
 
 		// then: body is the changelog without extra sections
-		testastic.Equal(t, "## v1.2.4", body)
+		testastic.Equal(t, "## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->", body)
 	})
 }
 
@@ -807,7 +887,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub.mergedPR = &provider.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
-			Branch: "yeet/release-v1.2.3",
+			Body:   "<!-- yeet-release-tag: v1.2.3 -->",
+			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
 
@@ -839,6 +920,40 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.False(t, strings.Contains(release.Body, "## [v1.2.2]"))
 	})
 
+	t.Run("falls back to legacy release branch tag without marker", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR from legacy versioned branch naming
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 33,
+			URL:    "https://example.com/pr/33",
+			Branch: "yeet/release-v1.2.3",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: fallback branch tag is used
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, 33, stub.markTaggedCalls[0])
+	})
+
 	t.Run("skips creation when latest release already exists", func(t *testing.T) {
 		t.Parallel()
 
@@ -850,7 +965,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub.mergedPR = &provider.PullRequest{
 			Number: 9,
 			URL:    "https://example.com/pr/9",
-			Branch: "yeet/release-v1.2.3",
+			Body:   "<!-- yeet-release-tag: v1.2.3 -->",
+			Branch: "yeet/release-main",
 		}
 
 		r := New(cfg, stub)
@@ -879,6 +995,30 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrNoPR)
 		testastic.Equal(t, (*provider.Release)(nil), release)
+	})
+
+	t.Run("fails when stable branch PR has no release marker", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR on stable branch without marker
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 25,
+			URL:    "https://example.com/pr/25",
+			Branch: "yeet/release-main",
+		}
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		_, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: marker requirement is enforced for stable branch naming
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseBranch)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
 	})
 
 	t.Run("fails when matching changelog entry is missing", func(t *testing.T) {

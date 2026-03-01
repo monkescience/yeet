@@ -21,6 +21,8 @@ import (
 
 const (
 	releaseBranchPrefix      = "yeet/release-"
+	releaseTagMarkerPrefix   = "<!-- yeet-release-tag:"
+	releaseTagMarkerSuffix   = "-->"
 	DefaultPreviewHashLength = 7
 )
 
@@ -35,6 +37,8 @@ var ErrConflictingReleaseAs = errors.New("conflicting release-as footers")
 var ErrInvalidReleaseBranch = errors.New("invalid release branch")
 
 var ErrChangelogEntryNotFound = errors.New("changelog entry not found")
+
+var ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
 
 type Result struct {
 	CurrentVersion string
@@ -163,7 +167,7 @@ func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Relea
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
 
-	tag, err := releaseTagFromBranch(mergedPR.Branch)
+	tag, err := releaseTagFromPullRequest(mergedPR)
 	if err != nil {
 		return nil, err
 	}
@@ -343,33 +347,43 @@ func (r *Releaser) renderChangelog(nextTag, ref string, commits []commit.Commit)
 }
 
 func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provider.PullRequest, error) {
-	releaseBranchTag := result.BaseTag
-	if releaseBranchTag == "" {
-		releaseBranchTag = result.NextTag
+	pendingPRs, err := r.provider.FindOpenPendingReleasePRs(ctx, r.cfg.Branch)
+	if err != nil {
+		return nil, fmt.Errorf("find pending release PRs: %w", err)
 	}
 
-	releaseBranch := releaseBranchPrefix + releaseBranchTag
+	if len(pendingPRs) > 1 {
+		return nil, multiplePendingReleasePRError(pendingPRs)
+	}
 
-	prOpts := provider.ReleasePROptions{
+	releaseTag := releasePRTag(result)
+
+	if len(pendingPRs) == 1 {
+		existing := pendingPRs[0]
+		prOpts := r.releasePROptions(result, existing.Branch, releaseTag)
+
+		return r.updateExistingReleasePR(ctx, existing, existing.Branch, prOpts, result)
+	}
+
+	releaseBranch := stableReleaseBranch(r.cfg.Branch)
+	prOpts := r.releasePROptions(result, releaseBranch, releaseTag)
+
+	return r.createNewReleasePR(ctx, releaseBranch, prOpts, result)
+}
+
+func (r *Releaser) releasePROptions(
+	result *Result,
+	releaseBranch, releaseTag string,
+) provider.ReleasePROptions {
+	return provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(result.Changelog),
+		Body:          r.releasePRBody(result.Changelog, releaseTag),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Files: map[string]string{
 			r.cfg.Changelog.File: result.Changelog,
 		},
 	}
-
-	existing, err := r.provider.FindReleasePR(ctx, releaseBranch)
-	if err != nil && !errors.Is(err, provider.ErrNoPR) {
-		return nil, fmt.Errorf("find release PR: %w", err)
-	}
-
-	if err == nil {
-		return r.updateExistingReleasePR(ctx, existing, releaseBranch, prOpts, result)
-	}
-
-	return r.createNewReleasePR(ctx, releaseBranch, prOpts, result)
 }
 
 func (r *Releaser) updateExistingReleasePR(
@@ -475,7 +489,7 @@ func (r *Releaser) releaseSubject(result *Result) string {
 	return "chore: release " + version
 }
 
-func (r *Releaser) releasePRBody(changelogBody string) string {
+func (r *Releaser) releasePRBody(changelogBody, releaseTag string) string {
 	parts := make([]string, 0)
 
 	if header := strings.TrimSpace(r.cfg.Release.PRBodyHeader); header != "" {
@@ -486,11 +500,92 @@ func (r *Releaser) releasePRBody(changelogBody string) string {
 		parts = append(parts, body)
 	}
 
+	if marker := releaseTagMarker(releaseTag); marker != "" {
+		parts = append(parts, marker)
+	}
+
 	if footer := strings.TrimSpace(r.cfg.Release.PRBodyFooter); footer != "" {
 		parts = append(parts, footer)
 	}
 
 	return strings.Join(parts, "\n\n")
+}
+
+func multiplePendingReleasePRError(pendingPRs []*provider.PullRequest) error {
+	prReferences := make([]string, 0, len(pendingPRs))
+
+	for _, pendingPR := range pendingPRs {
+		prReferences = append(prReferences, fmt.Sprintf("#%d %s", pendingPR.Number, pendingPR.URL))
+	}
+
+	return fmt.Errorf("%w: %s", ErrMultiplePendingReleasePRs, strings.Join(prReferences, ", "))
+}
+
+func stableReleaseBranch(targetBranch string) string {
+	return releaseBranchPrefix + targetBranch
+}
+
+func releasePRTag(result *Result) string {
+	if result.BaseTag != "" {
+		return result.BaseTag
+	}
+
+	return result.NextTag
+}
+
+func releaseTagMarker(releaseTag string) string {
+	releaseTag = strings.TrimSpace(releaseTag)
+	if releaseTag == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("%s %s %s", releaseTagMarkerPrefix, releaseTag, releaseTagMarkerSuffix)
+}
+
+func releaseTagFromPullRequest(pullRequest *provider.PullRequest) (string, error) {
+	if releaseTag, ok := releaseTagFromBody(pullRequest.Body); ok {
+		return releaseTag, nil
+	}
+
+	releaseTag, err := releaseTagFromBranch(pullRequest.Branch)
+	if err != nil {
+		return "", err
+	}
+
+	if looksLikeReleaseTag(releaseTag) {
+		return releaseTag, nil
+	}
+
+	return "", fmt.Errorf(
+		"%w: missing release tag marker in pull request #%d",
+		ErrInvalidReleaseBranch,
+		pullRequest.Number,
+	)
+}
+
+func releaseTagFromBody(body string) (string, bool) {
+	start := strings.Index(body, releaseTagMarkerPrefix)
+	if start == -1 {
+		return "", false
+	}
+
+	start += len(releaseTagMarkerPrefix)
+
+	end := strings.Index(body[start:], releaseTagMarkerSuffix)
+	if end == -1 {
+		return "", false
+	}
+
+	releaseTag := strings.TrimSpace(body[start : start+end])
+	if releaseTag == "" {
+		return "", false
+	}
+
+	return releaseTag, true
+}
+
+func looksLikeReleaseTag(releaseTag string) bool {
+	return strings.Contains(releaseTag, ".") && strings.ContainsAny(releaseTag, "0123456789")
 }
 
 func (r *Releaser) releaseNotesFromChangelog(ctx context.Context, tag string) (string, error) {

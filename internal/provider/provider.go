@@ -60,6 +60,8 @@ type Provider interface {
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	// UpdateReleasePR updates an existing release PR/MR.
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
+	// FindOpenPendingReleasePRs finds open release PRs/MRs labeled pending for the base branch.
+	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
 	// FindReleasePR finds an existing open release PR/MR.
 	FindReleasePR(ctx context.Context, branch string) (*PullRequest, error)
 	// FindMergedReleasePR finds the latest merged release PR/MR waiting for tagging.

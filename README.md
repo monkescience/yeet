@@ -143,8 +143,8 @@ yeet release --preview --dry-run
 # Next version: 2026.03.1+abc1234
 ```
 
-When preview mode is enabled, yeet keeps a stable release PR branch based on the base version
-(for example `yeet/release-v1.2.4`) so new commits update the same PR.
+When preview mode is enabled, yeet keeps a stable release PR branch based on the target branch
+(for example `yeet/release-main`) so new commits update the same PR.
 
 You can also force an explicit semver version using a commit footer:
 
@@ -159,6 +159,10 @@ Release PR/MR labels follow release-please style:
 
 - `autorelease: pending` while a release PR/MR is open or updated
 - `autorelease: tagged` after merge + successful tag/release creation
+
+yeet expects exactly one open `autorelease: pending` PR/MR per base branch. If multiple
+pending PRs/MRs exist, `yeet release` fails and prints the conflicting PR/MR URLs so you
+can close or relabel stale entries.
 
 ## Authentication
 

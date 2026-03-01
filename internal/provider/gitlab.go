@@ -153,6 +153,53 @@ func (g *GitLab) FindReleasePR(ctx context.Context, branch string) (*PullRequest
 	}, nil
 }
 
+func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+	state := "opened"
+	orderBy := "updated_at"
+	sortDirection := "desc"
+	labels := gitlab.LabelOptions{ReleaseLabelPending}
+
+	options := &gitlab.ListProjectMergeRequestsOptions{
+		State:        gitlab.Ptr(state),
+		TargetBranch: gitlab.Ptr(baseBranch),
+		OrderBy:      gitlab.Ptr(orderBy),
+		Sort:         gitlab.Ptr(sortDirection),
+		Labels:       &labels,
+		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+	}
+
+	pendingMRs := make([]*PullRequest, 0)
+
+	for {
+		mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list merge requests: %w", err)
+		}
+
+		for _, mr := range mrs {
+			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
+				continue
+			}
+
+			pendingMRs = append(pendingMRs, &PullRequest{
+				Number: int(mr.IID),
+				Title:  mr.Title,
+				Body:   mr.Description,
+				URL:    mr.WebURL,
+				Branch: mr.SourceBranch,
+			})
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return pendingMRs, nil
+}
+
 func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
 	state := "merged"
 	orderBy := "updated_at"

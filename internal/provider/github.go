@@ -163,6 +163,54 @@ func (g *GitHub) FindReleasePR(ctx context.Context, branch string) (*PullRequest
 	}, nil
 }
 
+func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+	options := &github.PullRequestListOptions{
+		State:     "open",
+		Base:      baseBranch,
+		Sort:      "updated",
+		Direction: "desc",
+		ListOptions: github.ListOptions{
+			PerPage: 100, //nolint:mnd // reasonable API page size
+		},
+	}
+
+	pendingPRs := make([]*PullRequest, 0)
+
+	for {
+		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+		if err != nil {
+			return nil, fmt.Errorf("list pull requests: %w", err)
+		}
+
+		for _, pr := range prs {
+			branch := pr.GetHead().GetRef()
+			if !strings.HasPrefix(branch, releaseBranchPrefix) {
+				continue
+			}
+
+			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
+				continue
+			}
+
+			pendingPRs = append(pendingPRs, &PullRequest{
+				Number: pr.GetNumber(),
+				Title:  pr.GetTitle(),
+				Body:   pr.GetBody(),
+				URL:    pr.GetHTMLURL(),
+				Branch: branch,
+			})
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return pendingPRs, nil
+}
+
 func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "closed",
