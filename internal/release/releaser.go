@@ -272,7 +272,7 @@ func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provi
 
 	prOpts := provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          result.Changelog,
+		Body:          r.releasePRBody(result.Changelog),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Files: map[string]string{
@@ -364,6 +364,24 @@ func (r *Releaser) releaseSubject(result *Result) string {
 	}
 
 	return "chore: release " + version
+}
+
+func (r *Releaser) releasePRBody(changelogBody string) string {
+	parts := make([]string, 0)
+
+	if header := strings.TrimSpace(r.cfg.Release.PRBodyHeader); header != "" {
+		parts = append(parts, header)
+	}
+
+	if body := strings.TrimSpace(changelogBody); body != "" {
+		parts = append(parts, body)
+	}
+
+	if footer := strings.TrimSpace(r.cfg.Release.PRBodyFooter); footer != "" {
+		parts = append(parts, footer)
+	}
+
+	return strings.Join(parts, "\n\n")
 }
 
 func shortHash(hash string, length int) (string, error) {
