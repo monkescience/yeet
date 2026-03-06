@@ -28,6 +28,15 @@ const (
 	ProviderGitLab ProviderType = "gitlab"
 )
 
+type AutoMergeMethod = string
+
+const (
+	AutoMergeMethodAuto   AutoMergeMethod = "auto"
+	AutoMergeMethodSquash AutoMergeMethod = "squash"
+	AutoMergeMethodRebase AutoMergeMethod = "rebase"
+	AutoMergeMethodMerge  AutoMergeMethod = "merge"
+)
+
 type Config struct {
 	Versioning   VersioningStrategy `toml:"versioning"`
 	Branch       string             `toml:"branch"`
@@ -40,9 +49,12 @@ type Config struct {
 }
 
 type ReleaseConfig struct {
-	SubjectIncludeBranch bool   `toml:"subject_include_branch"`
-	PRBodyHeader         string `toml:"pr_body_header"`
-	PRBodyFooter         string `toml:"pr_body_footer"`
+	SubjectIncludeBranch bool            `toml:"subject_include_branch"`
+	AutoMerge            bool            `toml:"auto_merge"`
+	AutoMergeForce       bool            `toml:"auto_merge_force"`
+	AutoMergeMethod      AutoMergeMethod `toml:"auto_merge_method"`
+	PRBodyHeader         string          `toml:"pr_body_header"`
+	PRBodyFooter         string          `toml:"pr_body_footer"`
 }
 
 type ChangelogConfig struct {
@@ -89,6 +101,9 @@ func Default() *Config {
 		TagPrefix:  "v",
 		Release: ReleaseConfig{
 			SubjectIncludeBranch: false,
+			AutoMerge:            false,
+			AutoMergeForce:       false,
+			AutoMergeMethod:      AutoMergeMethodAuto,
 			PRBodyHeader:         "## ٩(^ᴗ^)۶ release created",
 			PRBodyFooter:         "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		},
@@ -143,6 +158,21 @@ func (c *Config) Validate() error {
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("%w: version_files must not contain empty paths", ErrInvalidConfig)
 		}
+	}
+
+	if c.Release.AutoMergeMethod != AutoMergeMethodAuto &&
+		c.Release.AutoMergeMethod != AutoMergeMethodSquash &&
+		c.Release.AutoMergeMethod != AutoMergeMethodRebase &&
+		c.Release.AutoMergeMethod != AutoMergeMethodMerge {
+		return fmt.Errorf(
+			"%w: release.auto_merge_method must be %q, %q, %q, or %q, got %q",
+			ErrInvalidConfig,
+			AutoMergeMethodAuto,
+			AutoMergeMethodSquash,
+			AutoMergeMethodRebase,
+			AutoMergeMethodMerge,
+			c.Release.AutoMergeMethod,
+		)
 	}
 
 	return nil

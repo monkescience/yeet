@@ -49,6 +49,11 @@ type providerStub struct {
 	markPendingCalls []int
 	markTaggedCalls  []int
 
+	mergePRCalls   int
+	mergePRNumbers []int
+	mergePROptions []provider.MergeReleasePROptions
+	mergePRErr     error
+
 	createdBranches []string
 
 	createReleaseCalls int
@@ -174,6 +179,18 @@ func (p *providerStub) CreateRelease(_ context.Context, opts provider.ReleaseOpt
 	p.latestRelease = release
 
 	return release, nil
+}
+
+func (p *providerStub) MergeReleasePR(_ context.Context, number int, opts provider.MergeReleasePROptions) error {
+	p.mergePRCalls++
+	p.mergePRNumbers = append(p.mergePRNumbers, number)
+	p.mergePROptions = append(p.mergePROptions, opts)
+
+	if p.mergePRErr != nil {
+		return p.mergePRErr
+	}
+
+	return nil
 }
 
 func (p *providerStub) MarkReleasePRPending(_ context.Context, number int) error {
@@ -747,6 +764,164 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
 		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
+	})
+}
+
+func TestReleaseAutoMerge(t *testing.T) {
+	t.Parallel()
+
+	t.Run("merges release PR and finalizes release in same run", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled with one releasable commit
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: release PR is merged, tagged, and release is created immediately
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*provider.Release)(nil), result.Release)
+		testastic.Equal(t, result.NextTag, result.Release.TagName)
+		testastic.Equal(t, 1, stub.createPRCalls)
+		testastic.Equal(t, 1, stub.mergePRCalls)
+		testastic.Equal(t, 1, len(stub.mergePRNumbers))
+		testastic.Equal(t, result.PullRequest.Number, stub.mergePRNumbers[0])
+		testastic.Equal(t, 1, len(stub.mergePROptions))
+		testastic.False(t, stub.mergePROptions[0].Force)
+		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markPendingCalls))
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, result.PullRequest.Number, stub.markTaggedCalls[0])
+	})
+
+	t.Run("force mode forwards force option to provider merge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: force auto-merge enabled
+		cfg := config.Default()
+		cfg.Release.AutoMergeForce = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: merge is attempted in force mode and release is finalized
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*provider.Release)(nil), result.Release)
+		testastic.Equal(t, 1, stub.mergePRCalls)
+		testastic.Equal(t, 1, len(stub.mergePROptions))
+		testastic.True(t, stub.mergePROptions[0].Force)
+		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
+	})
+
+	t.Run("passes configured merge method to provider", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled with explicit merge method
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMethod = config.AutoMergeMethodSquash
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		_, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: configured merge method is forwarded to provider
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, stub.mergePRCalls)
+		testastic.Equal(t, 1, len(stub.mergePROptions))
+		testastic.Equal(t, provider.MergeMethodSquash, stub.mergePROptions[0].Method)
+	})
+
+	t.Run("returns error when auto-merge is blocked", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled but provider refuses merge
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		stub.mergePRErr = fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked)
+
+		r := New(cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+		// then: release fails after PR creation and no tag/release is created
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 1, stub.createPRCalls)
+		testastic.Equal(t, 1, stub.mergePRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markPendingCalls))
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
+
+	t.Run("preview mode skips auto-merge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled during preview release
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := New(cfg, stub)
+
+		// when: running preview release
+		result, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
+
+		// then: preview PR is created but no merge/tagging happens
+		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.Equal(t, (*provider.Release)(nil), result.Release)
+		testastic.Equal(t, 1, stub.createPRCalls)
+		testastic.Equal(t, 0, stub.mergePRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markPendingCalls))
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
 	})
 }
 

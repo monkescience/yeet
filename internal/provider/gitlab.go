@@ -20,6 +20,10 @@ const gitlabReleasePendingLabelColor = "#FBCA04"
 
 const gitlabReleaseTaggedLabelColor = "#0E8A16"
 
+const gitlabMergeRequestOpenedState = "opened"
+
+const gitlabMergeRequestMergedState = "merged"
+
 // NewGitLab creates a provider. pid is the project ID or full path (e.g., "owner/repo").
 func NewGitLab(client *gitlab.Client, owner, repo string) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
@@ -139,7 +143,7 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 }
 
 func (g *GitLab) FindReleasePR(ctx context.Context, branch string) (*PullRequest, error) {
-	state := "opened"
+	state := gitlabMergeRequestOpenedState
 
 	mrs, _, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, &gitlab.ListProjectMergeRequestsOptions{
 		State:        gitlab.Ptr(state),
@@ -165,7 +169,7 @@ func (g *GitLab) FindReleasePR(ctx context.Context, branch string) (*PullRequest
 }
 
 func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
-	state := "opened"
+	state := gitlabMergeRequestOpenedState
 	orderBy := "updated_at"
 	sortDirection := "desc"
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
@@ -212,7 +216,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 }
 
 func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
-	state := "merged"
+	state := gitlabMergeRequestMergedState
 	orderBy := "updated_at"
 	sortDirection := "desc"
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
@@ -312,6 +316,58 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		Body:    release.Description,
 		URL:     release.Links.Self,
 	}, nil
+}
+
+func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+	mr, _, err := g.client.MergeRequests.GetMergeRequest(g.pid, int64(number), nil, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("get merge request !%d: %w", number, err)
+	}
+
+	if mr.State == gitlabMergeRequestMergedState {
+		return nil
+	}
+
+	if mr.State != gitlabMergeRequestOpenedState {
+		return fmt.Errorf("%w: merge request !%d is %s", ErrMergeBlocked, number, mr.State)
+	}
+
+	if mr.Draft {
+		return fmt.Errorf("%w: merge request !%d is draft", ErrMergeBlocked, number)
+	}
+
+	if mr.HasConflicts {
+		return fmt.Errorf("%w: merge request !%d has conflicts", ErrMergeBlocked, number)
+	}
+
+	if !opts.Force {
+		mergeStatus := strings.TrimSpace(mr.DetailedMergeStatus)
+		if !isGitLabMergeStatusMergeable(mergeStatus) {
+			return fmt.Errorf("%w: merge request !%d detailed_merge_status=%s", ErrMergeBlocked, number, mergeStatus)
+		}
+	}
+
+	project, err := g.projectMergeSettings(ctx)
+	if err != nil {
+		return err
+	}
+
+	acceptOptions, err := gitLabAcceptMergeOptions(project, opts.Method)
+	if err != nil {
+		return err
+	}
+
+	sha := strings.TrimSpace(mr.SHA)
+	if sha != "" {
+		acceptOptions.SHA = gitlab.Ptr(sha)
+	}
+
+	_, _, err = g.client.MergeRequests.AcceptMergeRequest(g.pid, int64(number), acceptOptions, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("accept merge request !%d: %w", number, err)
+	}
+
+	return nil
 }
 
 func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
@@ -472,4 +528,79 @@ func (g *GitLab) ensureLabel(ctx context.Context, name, color, description strin
 	}
 
 	return nil
+}
+
+func isGitLabMergeStatusMergeable(status string) bool {
+	switch status {
+	case "", "mergeable", "can_be_merged":
+		return true
+	default:
+		return false
+	}
+}
+
+func (g *GitLab) projectMergeSettings(ctx context.Context) (*gitlab.Project, error) {
+	project, _, err := g.client.Projects.GetProject(g.pid, nil, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("get project merge settings: %w", err)
+	}
+
+	if project == nil {
+		return nil, fmt.Errorf("%w: missing project merge settings", ErrMergeBlocked)
+	}
+
+	return project, nil
+}
+
+func gitLabAcceptMergeOptions(
+	project *gitlab.Project,
+	requested MergeMethod,
+) (*gitlab.AcceptMergeRequestOptions, error) {
+	if requested == "" {
+		requested = MergeMethodAuto
+	}
+
+	options := &gitlab.AcceptMergeRequestOptions{}
+
+	switch requested {
+	case MergeMethodAuto:
+		return options, nil
+	case MergeMethodSquash:
+		if project.SquashOption == gitlab.SquashOptionNever {
+			return nil, fmt.Errorf(
+				"%w: merge method %q disabled by project squash_option=%s",
+				ErrMergeBlocked,
+				requested,
+				project.SquashOption,
+			)
+		}
+
+		options.Squash = gitlab.Ptr(true)
+
+		return options, nil
+	case MergeMethodRebase:
+		if project.MergeMethod != gitlab.RebaseMerge {
+			return nil, fmt.Errorf(
+				"%w: merge method %q incompatible with project merge_method=%s",
+				ErrMergeBlocked,
+				requested,
+				project.MergeMethod,
+			)
+		}
+
+		return options, nil
+	case MergeMethodMerge:
+		if project.MergeMethod != gitlab.NoFastForwardMerge {
+			return nil, fmt.Errorf(
+				"%w: merge method %q incompatible with project merge_method=%s",
+				ErrMergeBlocked,
+				requested,
+				project.MergeMethod,
+			)
+		}
+
+		return options, nil
+	default:
+		return nil, fmt.Errorf("%w: unknown merge method %q", ErrMergeMethodUnsupported, requested)
+	}
 }

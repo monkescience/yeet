@@ -25,6 +25,9 @@ yeet release --preview --dry-run
 # Create a release PR/MR
 yeet release
 
+# Optionally auto-merge and finalize in the same run
+yeet release --auto-merge
+
 # After the PR/MR is merged, run the same command on main
 # (usually from CI) to create the tag/release automatically
 yeet release
@@ -63,6 +66,9 @@ format = "YYYY.0M.MICRO"
 
 [release]
 subject_include_branch = false
+auto_merge = false
+auto_merge_force = false
+auto_merge_method = "auto"
 pr_body_header = "## ٩(^ᴗ^)۶ release created"
 pr_body_footer = "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
 ```
@@ -77,6 +83,9 @@ pr_body_footer = "_Made with [yeet](https://github.com/monkescience/yeet) - yeet
 | `tag_prefix` | `"v"` | Prefix for version tags |
 | `version_files` | `[]` | Extra files to update with yeet markers during `yeet release` |
 | `release.subject_include_branch` | `false` | Include the target branch in generated release subjects (for example `chore(main): release 0.1.0`) used for PR/MR titles and release branch commits |
+| `release.auto_merge` | `false` | Automatically merge the release PR/MR and finalize the release in the same `yeet release` run |
+| `release.auto_merge_force` | `false` | Force auto-merge attempt by skipping yeet readiness gates for checks/approvals while still blocking draft/conflicts (implies `release.auto_merge = true`; provider rules and permissions may still block merge) |
+| `release.auto_merge_method` | `"auto"` | Merge method preference for auto-merge: `auto`, `squash`, `rebase`, or `merge` |
 | `release.pr_body_header` | `"## ٩(^ᴗ^)۶ release created"` | Optional markdown inserted before the changelog in release PR/MR bodies |
 | `release.pr_body_footer` | `"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"` | Optional markdown appended after the changelog in release PR/MR bodies |
 | `changelog.file` | `"CHANGELOG.md"` | Changelog file path |
@@ -125,11 +134,27 @@ Before creating/updating PRs, `yeet release` also checks for merged release PRs/
 `autorelease: pending`, creates the corresponding tag/release from the latest changelog entry,
 and flips the label to `autorelease: tagged`.
 
+When auto-merge is enabled (`release.auto_merge = true` or `--auto-merge`), yeet also merges the
+newly created/updated release PR/MR and finalizes the release in the same run.
+
+Force mode (`release.auto_merge_force = true` or `--auto-merge-force`) skips yeet readiness
+gates for checks/approvals and still attempts the merge, but it still blocks draft PRs/MRs and
+conflicted PRs/MRs. It does not guarantee bypass; GitHub/GitLab branch protections, required
+checks, approvals, and token permissions can still block merge.
+
+Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge-method`.
+
+- GitHub `auto` preference order: `squash` -> `rebase` -> `merge` based on repository settings.
+- GitLab always uses the project merge method; `squash` toggles MR squash when allowed.
+
 | Flag | Description |
 |---|---|
 | `--dry-run` | Preview the release without creating a PR/MR |
 | `--preview` | Append build metadata with short commit hash (for example `1.2.4+abc1234`) |
 | `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
+| `--auto-merge` | Automatically merge the release PR/MR and finalize the release in the same command run |
+| `--auto-merge-force` | Attempt auto-merge while bypassing yeet readiness checks/approvals (still blocks draft/conflicts; implies `--auto-merge`; provider rules and permissions still apply) |
+| `--auto-merge-method` | Merge strategy for auto-merge: `auto`, `squash`, `rebase`, or `merge` |
 
 Preview mode is useful for testing deploy artifacts before a final release tag:
 

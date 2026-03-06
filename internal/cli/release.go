@@ -15,6 +15,9 @@ func releaseCmd() *cobra.Command {
 		dryRun            bool
 		preview           bool
 		previewHashLength int
+		autoMerge         bool
+		autoMergeForce    bool
+		autoMergeMethod   string
 	)
 
 	cmd := &cobra.Command{
@@ -27,7 +30,19 @@ When a merged release PR/MR is waiting with the pending autorelease label,
 this command first creates the tag/release from the latest changelog entry and
 marks the PR/MR as tagged.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRelease(cmd.Context(), dryRun, preview, previewHashLength)
+			options := releaseRunOptions{
+				dryRun:             dryRun,
+				preview:            preview,
+				previewHashLength:  previewHashLength,
+				autoMerge:          autoMerge,
+				autoMergeSet:       cmd.Flags().Changed("auto-merge"),
+				autoMergeForce:     autoMergeForce,
+				autoMergeForceSet:  cmd.Flags().Changed("auto-merge-force"),
+				autoMergeMethod:    autoMergeMethod,
+				autoMergeMethodSet: cmd.Flags().Changed("auto-merge-method"),
+			}
+
+			return runRelease(cmd.Context(), options)
 		},
 	}
 
@@ -39,14 +54,60 @@ marks the PR/MR as tagged.`,
 		release.DefaultPreviewHashLength,
 		"length of short commit hash used for preview metadata",
 	)
+	cmd.Flags().BoolVar(&autoMerge, "auto-merge", false, "automatically merge release PR/MR and finalize release")
+	cmd.Flags().BoolVar(
+		&autoMergeForce,
+		"auto-merge-force",
+		false,
+		"attempt auto-merge while bypassing readiness checks; still blocks draft/conflicts",
+	)
+	cmd.Flags().StringVar(
+		&autoMergeMethod,
+		"auto-merge-method",
+		"",
+		"merge method for auto-merge: auto|squash|rebase|merge",
+	)
 
 	return cmd
 }
 
-func runRelease(ctx context.Context, dryRun, preview bool, previewHashLength int) error {
+type releaseRunOptions struct {
+	dryRun             bool
+	preview            bool
+	previewHashLength  int
+	autoMerge          bool
+	autoMergeSet       bool
+	autoMergeForce     bool
+	autoMergeForceSet  bool
+	autoMergeMethod    string
+	autoMergeMethodSet bool
+}
+
+func runRelease(ctx context.Context, options releaseRunOptions) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
+	}
+
+	if options.autoMergeSet {
+		cfg.Release.AutoMerge = options.autoMerge
+	}
+
+	if options.autoMergeForceSet {
+		cfg.Release.AutoMergeForce = options.autoMergeForce
+	}
+
+	if options.autoMergeMethodSet {
+		cfg.Release.AutoMergeMethod = options.autoMergeMethod
+	}
+
+	if cfg.Release.AutoMergeForce {
+		cfg.Release.AutoMerge = true
+	}
+
+	err = cfg.Validate()
+	if err != nil {
+		return fmt.Errorf("invalid release options: %w", err)
 	}
 
 	p, err := newProvider(ctx, cfg)
@@ -56,7 +117,7 @@ func runRelease(ctx context.Context, dryRun, preview bool, previewHashLength int
 
 	r := release.New(cfg, p)
 
-	result, err := r.Release(ctx, dryRun, preview, previewHashLength)
+	result, err := r.Release(ctx, options.dryRun, options.preview, options.previewHashLength)
 	if err != nil {
 		return fmt.Errorf("release failed: %w", err)
 	}
@@ -73,7 +134,7 @@ func runRelease(ctx context.Context, dryRun, preview bool, previewHashLength int
 		return nil
 	}
 
-	if dryRun {
+	if options.dryRun {
 		printDryRun(os.Stdout, result)
 
 		return nil

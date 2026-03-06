@@ -330,6 +330,65 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 	}, nil
 }
 
+func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+	pr, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
+	if err != nil {
+		return fmt.Errorf("get pull request #%d: %w", number, err)
+	}
+
+	if pr.GetMerged() {
+		return nil
+	}
+
+	if pr.GetState() != "open" {
+		return fmt.Errorf("%w: pull request #%d is %s", ErrMergeBlocked, number, pr.GetState())
+	}
+
+	mergeableState := strings.TrimSpace(pr.GetMergeableState())
+
+	if pr.GetDraft() || mergeableState == "draft" {
+		return fmt.Errorf("%w: pull request #%d is draft", ErrMergeBlocked, number)
+	}
+
+	if isGitHubMergeStateConflicted(mergeableState) {
+		return fmt.Errorf("%w: pull request #%d has conflicts", ErrMergeBlocked, number)
+	}
+
+	if !opts.Force {
+		if isGitHubMergeStateReadinessBlocked(mergeableState) {
+			return fmt.Errorf("%w: pull request #%d mergeable_state=%s", ErrMergeBlocked, number, mergeableState)
+		}
+	}
+
+	mergeMethod, err := g.resolveGitHubMergeMethod(ctx, opts.Method)
+	if err != nil {
+		return err
+	}
+
+	mergeOptions := &github.PullRequestOptions{MergeMethod: mergeMethod}
+
+	headSHA := strings.TrimSpace(pr.GetHead().GetSHA())
+	if headSHA != "" {
+		mergeOptions.SHA = headSHA
+	}
+
+	mergeResult, _, err := g.client.PullRequests.Merge(ctx, g.repo.Owner, g.repo.Name, number, "", mergeOptions)
+	if err != nil {
+		return fmt.Errorf("merge pull request #%d: %w", number, err)
+	}
+
+	if !mergeResult.GetMerged() {
+		message := strings.TrimSpace(mergeResult.GetMessage())
+		if message == "" {
+			message = "merge not completed"
+		}
+
+		return fmt.Errorf("%w: pull request #%d: %s", ErrMergeBlocked, number, message)
+	}
+
+	return nil
+}
+
 func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
 	baseRef, _, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "refs/heads/"+base)
 	if err != nil {
@@ -614,4 +673,65 @@ func hasGitHubLabel(labels []*github.Label, target string) bool {
 	}
 
 	return false
+}
+
+func isGitHubMergeStateReadinessBlocked(state string) bool {
+	switch state {
+	case "blocked":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGitHubMergeStateConflicted(state string) bool {
+	return state == "dirty"
+}
+
+func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested MergeMethod) (string, error) {
+	repo, _, err := g.client.Repositories.Get(ctx, g.repo.Owner, g.repo.Name)
+	if err != nil {
+		return "", fmt.Errorf("get repository merge settings: %w", err)
+	}
+
+	allowSquash := repo.GetAllowSquashMerge()
+	allowRebase := repo.GetAllowRebaseMerge()
+	allowMerge := repo.GetAllowMergeCommit()
+
+	if requested == "" {
+		requested = MergeMethodAuto
+	}
+
+	switch requested {
+	case MergeMethodAuto:
+		if allowSquash {
+			return MergeMethodSquash, nil
+		}
+
+		if allowRebase {
+			return MergeMethodRebase, nil
+		}
+
+		if allowMerge {
+			return MergeMethodMerge, nil
+		}
+
+		return "", fmt.Errorf("%w: no merge methods enabled in repository settings", ErrMergeBlocked)
+	case MergeMethodSquash:
+		if !allowSquash {
+			return "", fmt.Errorf("%w: merge method %q disabled by repository settings", ErrMergeBlocked, requested)
+		}
+	case MergeMethodRebase:
+		if !allowRebase {
+			return "", fmt.Errorf("%w: merge method %q disabled by repository settings", ErrMergeBlocked, requested)
+		}
+	case MergeMethodMerge:
+		if !allowMerge {
+			return "", fmt.Errorf("%w: merge method %q disabled by repository settings", ErrMergeBlocked, requested)
+		}
+	default:
+		return "", fmt.Errorf("%w: unknown merge method %q", ErrMergeMethodUnsupported, requested)
+	}
+
+	return requested, nil
 }

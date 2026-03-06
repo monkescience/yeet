@@ -45,6 +45,20 @@ type ReleaseOptions struct {
 	Body    string
 }
 
+type MergeMethod = string
+
+const (
+	MergeMethodAuto   MergeMethod = "auto"
+	MergeMethodSquash MergeMethod = "squash"
+	MergeMethodRebase MergeMethod = "rebase"
+	MergeMethodMerge  MergeMethod = "merge"
+)
+
+type MergeReleasePROptions struct {
+	Force  bool
+	Method MergeMethod
+}
+
 type CommitEntry struct {
 	Hash    string
 	Message string
@@ -68,6 +82,8 @@ type Provider interface {
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
 	// CreateRelease creates a release with a tag.
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
+	// MergeReleasePR merges an existing release PR/MR.
+	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
 	// MarkReleasePRPending marks a release PR/MR as waiting for tagging.
 	MarkReleasePRPending(ctx context.Context, number int) error
 	// MarkReleasePRTagged marks a release PR/MR as tagged.
@@ -112,6 +128,10 @@ var ErrFileNotFound = errors.New("file not found")
 var ErrEmptyCommitSHA = errors.New("empty commit SHA")
 
 var ErrEmptyCommitID = errors.New("empty commit ID")
+
+var ErrMergeBlocked = errors.New("release PR merge blocked")
+
+var ErrMergeMethodUnsupported = errors.New("merge method unsupported")
 
 var remotePatterns = []*regexp.Regexp{
 	// SSH format: git@github.com:owner/repo.git

@@ -5,6 +5,9 @@ tag_prefix = 'v'
 
 [release]
 subject_include_branch = false
+auto_merge = false
+auto_merge_force = false
+auto_merge_method = 'auto'
 pr_body_header = '## ٩(^ᴗ^)۶ release created'
 pr_body_footer = '_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._'
 

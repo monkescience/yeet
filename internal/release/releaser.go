@@ -140,6 +140,11 @@ func (r *Releaser) Release(ctx context.Context, dryRun, preview bool, previewHas
 
 	result.PullRequest = pr
 
+	err = r.autoMergeReleasePR(ctx, result, preview)
+	if err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 
@@ -186,26 +191,22 @@ func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Relea
 		return nil, err
 	}
 
-	err = r.provider.MarkReleasePRTagged(ctx, mergedPR.Number)
+	err = r.markReleasePRTagged(ctx, mergedPR)
 	if err != nil {
-		return nil, fmt.Errorf("mark release PR tagged: %w", err)
+		return nil, err
 	}
-
-	slog.InfoContext(ctx, "marked release PR tagged", "url", mergedPR.URL)
 
 	return releaseInfo, nil
 }
 
 func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Release, error) {
-	latest, latestErr := r.provider.GetLatestRelease(ctx)
-	if latestErr != nil {
-		if !errors.Is(latestErr, provider.ErrNoRelease) {
-			return nil, fmt.Errorf("get latest release: %w", latestErr)
-		}
-	} else if latest.TagName == tag {
-		slog.InfoContext(ctx, "release already exists", "tag", tag)
+	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
+	if err != nil {
+		return nil, err
+	}
 
-		return latest, nil
+	if exists {
+		return existingRelease, nil
 	}
 
 	releaseBody, err := r.releaseNotesFromChangelog(ctx, tag)
@@ -213,6 +214,10 @@ func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Rel
 		return nil, err
 	}
 
+	return r.createReleaseForTag(ctx, tag, releaseBody)
+}
+
+func (r *Releaser) createReleaseForTag(ctx context.Context, tag, releaseBody string) (*provider.Release, error) {
 	releaseInfo, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
 		TagName: tag,
 		Name:    tag,
@@ -225,6 +230,49 @@ func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Rel
 	slog.InfoContext(ctx, "created release", "tag", tag, "url", releaseInfo.URL)
 
 	return releaseInfo, nil
+}
+
+func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, releaseBody string) (*provider.Release, error) {
+	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
+	if err != nil {
+		return nil, err
+	}
+
+	if exists {
+		return existingRelease, nil
+	}
+
+	return r.createReleaseForTag(ctx, tag, releaseBody)
+}
+
+func (r *Releaser) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {
+	latest, latestErr := r.provider.GetLatestRelease(ctx)
+	if latestErr != nil {
+		if !errors.Is(latestErr, provider.ErrNoRelease) {
+			return nil, false, fmt.Errorf("get latest release: %w", latestErr)
+		}
+
+		return nil, false, nil
+	}
+
+	if latest.TagName == tag {
+		slog.InfoContext(ctx, "release already exists", "tag", tag)
+
+		return latest, true, nil
+	}
+
+	return nil, false, nil
+}
+
+func (r *Releaser) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
+	err := r.provider.MarkReleasePRTagged(ctx, pullRequest.Number)
+	if err != nil {
+		return fmt.Errorf("mark release PR tagged: %w", err)
+	}
+
+	slog.InfoContext(ctx, "marked release PR tagged", "url", pullRequest.URL)
+
+	return nil
 }
 
 func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength int) (*Result, error) {
@@ -391,6 +439,54 @@ func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provi
 	prOpts := r.releasePROptions(result, releaseBranch, releaseTag)
 
 	return r.createNewReleasePR(ctx, releaseBranch, prOpts, result)
+}
+
+func (r *Releaser) autoMergeReleasePR(ctx context.Context, result *Result, preview bool) error {
+	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
+	if preview || !autoMergeEnabled || result.PullRequest == nil {
+		return nil
+	}
+
+	mergeOptions := provider.MergeReleasePROptions{
+		Force:  r.cfg.Release.AutoMergeForce,
+		Method: r.cfg.Release.AutoMergeMethod,
+	}
+
+	err := r.provider.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
+	if err != nil {
+		if mergeOptions.Force {
+			return fmt.Errorf("force merge release PR: %w", err)
+		}
+
+		return fmt.Errorf("merge release PR: %w", err)
+	}
+
+	slog.InfoContext(
+		ctx,
+		"merged release PR",
+		"url",
+		result.PullRequest.URL,
+		"force",
+		mergeOptions.Force,
+		"method",
+		mergeOptions.Method,
+	)
+
+	releaseTag := releasePRTag(result)
+
+	releaseInfo, err := r.ensureReleaseForTag(ctx, releaseTag, result.Changelog)
+	if err != nil {
+		return err
+	}
+
+	err = r.markReleasePRTagged(ctx, result.PullRequest)
+	if err != nil {
+		return err
+	}
+
+	result.Release = releaseInfo
+
+	return nil
 }
 
 func (r *Releaser) releasePROptions(
