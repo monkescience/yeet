@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/google/go-github/v68/github"
+	"github.com/google/go-github/v84/github"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlab "gitlab.com/gitlab-org/api/client-go"

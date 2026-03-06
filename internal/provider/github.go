@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/go-github/v68/github"
+	"github.com/google/go-github/v84/github"
 )
 
 type GitHub struct {
@@ -395,9 +395,9 @@ func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
 		return fmt.Errorf("get base ref %s: %w", base, err)
 	}
 
-	_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, &github.Reference{
-		Ref:    github.Ptr("refs/heads/" + name),
-		Object: baseRef.Object,
+	_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, github.CreateRef{
+		Ref: "refs/heads/" + name,
+		SHA: baseRef.GetObject().GetSHA(),
 	})
 	if err != nil {
 		// Branch might already exist, try to update it.
@@ -481,7 +481,7 @@ func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map
 		return fmt.Errorf("create commit for branch %s: %w", branch, err)
 	}
 
-	err = g.upsertBranchRef(ctx, branch, newCommit.SHA)
+	err = g.upsertBranchRef(ctx, branch, newCommit.GetSHA())
 	if err != nil {
 		return err
 	}
@@ -564,7 +564,7 @@ func (g *GitHub) createCommitFromBase(
 ) (*github.Commit, error) {
 	commitMessage := message
 
-	newCommit, _, err := g.client.Git.CreateCommit(ctx, g.repo.Owner, g.repo.Name, &github.Commit{
+	newCommit, _, err := g.client.Git.CreateCommit(ctx, g.repo.Owner, g.repo.Name, github.Commit{
 		Message: &commitMessage,
 		Tree:    &github.Tree{SHA: tree.SHA},
 		Parents: []*github.Commit{{SHA: baseCommit.SHA}},
@@ -576,19 +576,21 @@ func (g *GitHub) createCommitFromBase(
 	return newCommit, nil
 }
 
-func (g *GitHub) upsertBranchRef(ctx context.Context, branch string, sha *string) error {
+func (g *GitHub) upsertBranchRef(ctx context.Context, branch, sha string) error {
+	if sha == "" {
+		return fmt.Errorf("%w: branch %q", ErrEmptyCommitSHA, branch)
+	}
+
 	refName := "refs/heads/" + branch
-	ref := &github.Reference{
-		Ref: github.Ptr(refName),
-		Object: &github.GitObject{
-			SHA: sha,
-		},
+	createRef := github.CreateRef{
+		Ref: refName,
+		SHA: sha,
 	}
 
 	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, refName)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, ref)
+			_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, createRef)
 			if err != nil {
 				return fmt.Errorf("create branch %s: %w", branch, err)
 			}
@@ -599,7 +601,10 @@ func (g *GitHub) upsertBranchRef(ctx context.Context, branch string, sha *string
 		return fmt.Errorf("get ref %s: %w", branch, err)
 	}
 
-	_, _, err = g.client.Git.UpdateRef(ctx, g.repo.Owner, g.repo.Name, ref, true)
+	_, _, err = g.client.Git.UpdateRef(ctx, g.repo.Owner, g.repo.Name, refName, github.UpdateRef{
+		SHA:   sha,
+		Force: github.Ptr(true),
+	})
 	if err != nil {
 		return fmt.Errorf("force update branch %s: %w", branch, err)
 	}
