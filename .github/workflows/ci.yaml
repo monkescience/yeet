@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yeet-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOLANGCI_LINT_VERSION: v2.11.1 # renovate: datasource=github-releases depName=golangci/golangci-lint
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: make test
+
+  coverage:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Checkout base
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          path: base
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Measure head coverage
+        id: head_coverage
+        run: |
+          set -euo pipefail
+          go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')
+          echo "total=${total}" >> "$GITHUB_OUTPUT"
+
+      - name: Measure base coverage
+        id: base_coverage
+        working-directory: base
+        run: |
+          set -euo pipefail
+          go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')
+          echo "total=${total}" >> "$GITHUB_OUTPUT"
+
+      - name: Check coverage regression
+        env:
+          BASE_COVERAGE: ${{ steps.base_coverage.outputs.total }}
+          HEAD_COVERAGE: ${{ steps.head_coverage.outputs.total }}
+        run: |
+          python3 - <<'PY'
+          from decimal import Decimal
+          import os
+
+          base = Decimal(os.environ["BASE_COVERAGE"])
+          head = Decimal(os.environ["HEAD_COVERAGE"])
+          delta = head - base
+          delta_sign = "+" if delta >= 0 else ""
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Coverage\n\n")
+              summary.write(f"- Base: {base}%\n")
+              summary.write(f"- Head: {head}%\n")
+              summary.write(f"- Delta: {delta_sign}{delta}%\n")
+
+          if head < base:
+              raise SystemExit(f"coverage decreased from {base}% to {head}%")
+          PY
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: ./...
