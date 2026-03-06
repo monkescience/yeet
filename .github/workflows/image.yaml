@@ -50,10 +50,19 @@ jobs:
             --image-label "org.opencontainers.image.version=${RELEASE_TAG}" \
             --image-label "org.opencontainers.image.revision=${IMAGE_REVISION}" \
             --image-label "org.opencontainers.image.created=${IMAGE_CREATED}" \
+            --image-annotation "org.opencontainers.image.title=${IMAGE_TITLE}" \
+            --image-annotation "org.opencontainers.image.description=${IMAGE_DESCRIPTION}" \
+            --image-annotation "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+            --image-annotation "org.opencontainers.image.url=${IMAGE_SOURCE}" \
+            --image-annotation "org.opencontainers.image.documentation=${IMAGE_DOCUMENTATION}" \
+            --image-annotation "org.opencontainers.image.licenses=${IMAGE_LICENSE}" \
+            --image-annotation "org.opencontainers.image.version=${RELEASE_TAG}" \
+            --image-annotation "org.opencontainers.image.revision=${IMAGE_REVISION}" \
+            --image-annotation "org.opencontainers.image.created=${IMAGE_CREATED}" \
             ./cmd/yeet
         env:
           IMAGE_CREATED: ${{ github.event.release.published_at }}
-          IMAGE_DESCRIPTION: "Container image for yeet, a CLI that automates releases from conventional commits."
+          IMAGE_DESCRIPTION: "Yeet CLI for automated releases from conventional commits"
           IMAGE_DOCUMENTATION: "${{ github.server_url }}/${{ github.repository }}#readme"
           IMAGE_LICENSE: MIT
           IMAGE_REVISION: ${{ github.sha }}
