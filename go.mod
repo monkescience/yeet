@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/google/go-github/v68 v68.0.0
+	github.com/google/go-github/v83 v83.0.0
 	github.com/monkescience/testastic v0.1.2
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.10.2
