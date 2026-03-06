@@ -1,4 +1,4 @@
-defaultBaseImage: gcr.io/distroless/static-debian13:nonroot
+defaultBaseImage: gcr.io/distroless/static-debian13:nonroot@sha256:f512d819b8f109f2375e8b51d8cfd8aafe81034bc3e319740128b7d7f70d5036
 defaultPlatforms:
   - linux/amd64
   - linux/arm64
