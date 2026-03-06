@@ -12,6 +12,10 @@ import (
 
 const DefaultFile = ".yeet.toml"
 
+const DefaultSchemaURL = "https://raw.githubusercontent.com/monkescience/yeet/main/schema/yeet.schema.json"
+
+const SchemaDirective = "#:schema " + DefaultSchemaURL
+
 type VersioningStrategy = string
 
 const (

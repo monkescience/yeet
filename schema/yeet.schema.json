@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/monkescience/yeet/main/schema/yeet.schema.json",
+  "title": "yeet configuration",
+  "description": "Schema for .yeet.toml",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "versioning": {
+      "type": "string",
+      "description": "Versioning strategy.",
+      "enum": [
+        "semver",
+        "calver"
+      ],
+      "default": "semver"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Base branch for releases.",
+      "minLength": 1,
+      "default": "main"
+    },
+    "provider": {
+      "type": "string",
+      "description": "VCS provider. Empty string enables auto-detection.",
+      "enum": [
+        "",
+        "github",
+        "gitlab"
+      ],
+      "default": ""
+    },
+    "tag_prefix": {
+      "type": "string",
+      "description": "Prefix added to release tags.",
+      "default": "v"
+    },
+    "version_files": {
+      "type": "array",
+      "description": "Additional files updated via yeet version markers during release.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "release": {
+      "$ref": "#/$defs/release"
+    },
+    "changelog": {
+      "$ref": "#/$defs/changelog"
+    },
+    "calver": {
+      "$ref": "#/$defs/calver"
+    }
+  },
+  "$defs": {
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subject_include_branch": {
+          "type": "boolean",
+          "description": "Include target branch in generated release subjects.",
+          "default": false
+        },
+        "auto_merge": {
+          "type": "boolean",
+          "description": "Automatically merge release PR/MR and finalize release in the same run.",
+          "default": false
+        },
+        "auto_merge_force": {
+          "type": "boolean",
+          "description": "Bypass yeet readiness checks for auto-merge attempts. Provider branch rules still apply.",
+          "default": false
+        },
+        "auto_merge_method": {
+          "type": "string",
+          "description": "Preferred merge method for auto-merge.",
+          "enum": [
+            "auto",
+            "squash",
+            "rebase",
+            "merge"
+          ],
+          "default": "auto"
+        },
+        "pr_body_header": {
+          "type": "string",
+          "description": "Optional markdown inserted before changelog in release PR/MR body."
+        },
+        "pr_body_footer": {
+          "type": "string",
+          "description": "Optional markdown appended after changelog in release PR/MR body."
+        }
+      }
+    },
+    "changelog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to changelog file.",
+          "minLength": 1,
+          "default": "CHANGELOG.md"
+        },
+        "include": {
+          "type": "array",
+          "description": "Conventional commit types to include in changelog.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [
+            "feat",
+            "fix",
+            "perf",
+            "revert"
+          ]
+        },
+        "sections": {
+          "type": "object",
+          "description": "Mapping of commit types to section headings.",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "calver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "CalVer format string.",
+          "minLength": 1,
+          "default": "YYYY.0M.MICRO"
+        }
+      }
+    }
+  }
+}

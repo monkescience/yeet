@@ -39,7 +39,9 @@ func runInit() error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	err = os.WriteFile(path, data, 0o600) //nolint:mnd // secure file permissions
+	content := append([]byte(config.SchemaDirective+"\n\n"), data...)
+
+	err = os.WriteFile(path, content, 0o600) //nolint:mnd // secure file permissions
 	if err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}

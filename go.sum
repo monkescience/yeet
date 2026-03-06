@@ -29,6 +29,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/monkescience/testastic v0.1.1 h1:CkxXKjdiOYudYUtnUfJnLSLsyiw2tmRP2FzHSd4OOQo=
 github.com/monkescience/testastic v0.1.1/go.mod h1:2aeJhpEUa2A6DhbK16SZNsCHh/sqlomrCq8pEMAjYYw=
+github.com/monkescience/testastic v0.1.2 h1:jsLFNBq88X3kQ6ZJthQOiWTNoEIRaH70UctanOtMy/4=
+github.com/monkescience/testastic v0.1.2/go.mod h1:2aeJhpEUa2A6DhbK16SZNsCHh/sqlomrCq8pEMAjYYw=
 github.com/pelletier/go-toml/v2 v2.2.4 h1:mye9XuhQ6gvn5h28+VilKrrPoQVanw5PMw/TB0t5Ec4=
 github.com/pelletier/go-toml/v2 v2.2.4/go.mod h1:2gIqNv+qfxSVS7cM2xJQKtLSTLUE9V8t9Stt+h56mCY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

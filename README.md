@@ -38,6 +38,8 @@ yeet release
 yeet uses a `.yeet.toml` file in your project root. Run `yeet init` to generate one with defaults:
 
 ```toml
+#:schema https://raw.githubusercontent.com/monkescience/yeet/main/schema/yeet.schema.json
+
 versioning = "semver"
 branch = "main"
 tag_prefix = "v"
@@ -72,6 +74,15 @@ auto_merge_method = "auto"
 pr_body_header = "## ٩(^ᴗ^)۶ release created"
 pr_body_footer = "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
 ```
+
+`yeet init` includes a TOML schema directive for editor validation and autocomplete.
+
+### Editor schema
+
+yeet publishes a JSON schema at `schema/yeet.schema.json` for TOML-aware editors.
+
+- Taplo/Even Better TOML reads the `#:schema ...` directive automatically.
+- You can pin the schema URL to a release tag for stricter reproducibility.
 
 ### Options
 

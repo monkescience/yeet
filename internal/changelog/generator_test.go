@@ -35,11 +35,11 @@ func TestGenerate(t *testing.T) {
 
 		// then: sections are present with correct commits
 		testastic.Equal(t, "v1.2.0", entry.Version)
-		testastic.True(t, strings.Contains(entry.Body, "### Features"))
-		testastic.True(t, strings.Contains(entry.Body, "### Bug Fixes"))
-		testastic.True(t, strings.Contains(entry.Body, "**auth:** add OAuth2 support"))
-		testastic.True(t, strings.Contains(entry.Body, "resolve null pointer"))
-		testastic.False(t, strings.Contains(entry.Body, "update deps"))
+		testastic.Contains(t, entry.Body, "### Features")
+		testastic.Contains(t, entry.Body, "### Bug Fixes")
+		testastic.Contains(t, entry.Body, "**auth:** add OAuth2 support")
+		testastic.Contains(t, entry.Body, "resolve null pointer")
+		testastic.NotContains(t, entry.Body, "update deps")
 	})
 
 	t.Run("includes breaking changes section", func(t *testing.T) {
@@ -62,8 +62,8 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v2.0.0", "", commits)
 
 		// then: breaking changes section uses release-please style header
-		testastic.True(t, strings.Contains(entry.Body, "### ⚠ BREAKING CHANGES"))
-		testastic.True(t, strings.Contains(entry.Body, "old endpoints removed"))
+		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
+		testastic.Contains(t, entry.Body, "old endpoints removed")
 	})
 
 	t.Run("short hash in output", func(t *testing.T) {
@@ -83,8 +83,8 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v1.0.0", "", commits)
 
 		// then: hash is truncated to 7 chars
-		testastic.True(t, strings.Contains(entry.Body, "abc1234"))
-		testastic.False(t, strings.Contains(entry.Body, "abc1234567890def)"))
+		testastic.Contains(t, entry.Body, "abc1234")
+		testastic.NotContains(t, entry.Body, "abc1234567890def)")
 	})
 
 	t.Run("includes revert section", func(t *testing.T) {
@@ -108,10 +108,10 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v1.3.0", "", commits)
 
 		// then: both sections are present
-		testastic.True(t, strings.Contains(entry.Body, "### Features"))
-		testastic.True(t, strings.Contains(entry.Body, "### Reverts"))
-		testastic.True(t, strings.Contains(entry.Body, "add new endpoint"))
-		testastic.True(t, strings.Contains(entry.Body, "revert add new endpoint"))
+		testastic.Contains(t, entry.Body, "### Features")
+		testastic.Contains(t, entry.Body, "### Reverts")
+		testastic.Contains(t, entry.Body, "add new endpoint")
+		testastic.Contains(t, entry.Body, "revert add new endpoint")
 	})
 
 	t.Run("empty commits", func(t *testing.T) {
@@ -149,9 +149,9 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v1.0.0", "", commits)
 
 		// then: hashes are linked to commit URLs
-		testastic.True(t, strings.Contains(entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)"))
-		testastic.True(t, strings.Contains(entry.Body, "[def5678](https://github.com/owner/repo/commit/def5678901234abc)"))
-		testastic.True(t, strings.Contains(entry.Body, "**auth:** add login"))
+		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
+		testastic.Contains(t, entry.Body, "[def5678](https://github.com/owner/repo/commit/def5678901234abc)")
+		testastic.Contains(t, entry.Body, "**auth:** add login")
 	})
 
 	t.Run("linked commit hashes with gitlab path prefix", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v1.0.1", "", commits)
 
 		// then: hashes use GitLab URL format
-		testastic.True(t, strings.Contains(entry.Body, "[abc1234](https://gitlab.com/owner/repo/-/commit/abc1234567890def)"))
+		testastic.Contains(t, entry.Body, "[abc1234](https://gitlab.com/owner/repo/-/commit/abc1234567890def)")
 	})
 
 	t.Run("compare URL with previous tag", func(t *testing.T) {
@@ -255,8 +255,8 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate("v1.0.0", "", commits)
 
 		// then: hash is plain text, not linked
-		testastic.True(t, strings.Contains(entry.Body, "(abc1234)"))
-		testastic.False(t, strings.Contains(entry.Body, "[abc1234]"))
+		testastic.Contains(t, entry.Body, "(abc1234)")
+		testastic.NotContains(t, entry.Body, "[abc1234]")
 	})
 }
 
@@ -276,8 +276,8 @@ func TestRender(t *testing.T) {
 		output := changelog.Render(entry)
 
 		// then: output has plain version header and body
-		testastic.True(t, strings.HasPrefix(output, "## v1.2.0"))
-		testastic.True(t, strings.Contains(output, "### Features"))
+		testastic.HasPrefix(t, output, "## v1.2.0")
+		testastic.Contains(t, output, "### Features")
 	})
 
 	t.Run("renders linked version header with compare URL", func(t *testing.T) {
@@ -294,7 +294,7 @@ func TestRender(t *testing.T) {
 		output := changelog.Render(entry)
 
 		// then: version header is linked
-		testastic.True(t, strings.Contains(output, "## [v1.2.0](https://github.com/owner/repo/compare/v1.1.0...v1.2.0)"))
+		testastic.Contains(t, output, "## [v1.2.0](https://github.com/owner/repo/compare/v1.1.0...v1.2.0)")
 	})
 }
 
@@ -311,8 +311,8 @@ func TestPrepend(t *testing.T) {
 		result := changelog.Prepend("", newEntry)
 
 		// then: header is added
-		testastic.True(t, strings.HasPrefix(result, "# Changelog"))
-		testastic.True(t, strings.Contains(result, newEntry))
+		testastic.HasPrefix(t, result, "# Changelog")
+		testastic.Contains(t, result, newEntry)
 	})
 
 	t.Run("prepend to existing changelog", func(t *testing.T) {
@@ -329,6 +329,6 @@ func TestPrepend(t *testing.T) {
 		newIdx := strings.Index(result, "v1.1.0")
 		oldIdx := strings.Index(result, "v1.0.0")
 
-		testastic.True(t, newIdx < oldIdx)
+		testastic.Less(t, newIdx, oldIdx)
 	})
 }

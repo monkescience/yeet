@@ -330,8 +330,8 @@ func TestReleasePreviewBuildMetadata(t *testing.T) {
 
 		// then: calver version also gets build metadata suffix
 		testastic.NoError(t, err)
-		testastic.True(t, strings.HasPrefix(result.NextVersion, result.BaseVersion+"+"))
-		testastic.True(t, strings.HasSuffix(result.NextVersion, "+abcdef1"))
+		testastic.HasPrefix(t, result.NextVersion, result.BaseVersion+"+")
+		testastic.HasSuffix(t, result.NextVersion, "+abcdef1")
 		testastic.Equal(t, "v"+result.BaseVersion, result.BaseTag)
 		testastic.Equal(t, "v"+result.NextVersion, result.NextTag)
 	})
@@ -954,7 +954,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.Equal(t, 1, len(stub.markPendingCalls))
 	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
-	testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: v0.1.0 -->"))
+	testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-tag: v0.1.0 -->")
 }
 
 func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
@@ -981,8 +981,8 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 	// then: release fails fast with actionable pending PR details
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, ErrMultiplePendingReleasePRs)
-	testastic.True(t, strings.Contains(err.Error(), "https://example.com/pr/1"))
-	testastic.True(t, strings.Contains(err.Error(), "https://example.com/pr/2"))
+	testastic.ErrorContains(t, err, "https://example.com/pr/1")
+	testastic.ErrorContains(t, err, "https://example.com/pr/2")
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.updatePRCalls)
 }
@@ -1013,22 +1013,14 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore: release "+result.BaseVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.True(t, strings.HasPrefix(result.PullRequest.Body, "## ٩(^ᴗ^)۶ release created\n\n"))
-		testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: "+result.BaseTag+" -->"))
-		testastic.True(
+		testastic.HasPrefix(t, result.PullRequest.Body, "## ٩(^ᴗ^)۶ release created\n\n")
+		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-tag: "+result.BaseTag+" -->")
+		testastic.HasSuffix(
 			t,
-			strings.HasSuffix(
-				strings.TrimSpace(result.PullRequest.Body),
-				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
-			),
+			strings.TrimSpace(result.PullRequest.Body),
+			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		)
-		testastic.False(
-			t,
-			strings.Contains(
-				result.Changelog,
-				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
-			),
-		)
+		testastic.NotContains(t, result.Changelog, "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._")
 
 		releaseBranch := "yeet/release-main"
 		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
@@ -1060,7 +1052,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, "chore(main): release 1.2.4", result.PullRequest.Title)
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore(main): release 1.2.4", stub.updateFilesMessages[0])
-		testastic.True(t, strings.Contains(result.PullRequest.Body, "<!-- yeet-release-tag: v1.2.4 -->"))
+		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-tag: v1.2.4 -->")
 	})
 
 	t.Run("custom header and footer wrap PR body only", func(t *testing.T) {
@@ -1084,17 +1076,15 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 
 		// then: PR body includes custom wrapper text while changelog content stays clean
 		testastic.NoError(t, err)
-		testastic.True(t, strings.HasPrefix(result.PullRequest.Body, cfg.Release.PRBodyHeader+"\n\n"))
-		testastic.True(t, strings.HasSuffix(strings.TrimSpace(result.PullRequest.Body), cfg.Release.PRBodyFooter))
-		testastic.False(
+		testastic.HasPrefix(t, result.PullRequest.Body, cfg.Release.PRBodyHeader+"\n\n")
+		testastic.HasSuffix(t, strings.TrimSpace(result.PullRequest.Body), cfg.Release.PRBodyFooter)
+		testastic.NotContains(
 			t,
-			strings.Contains(
-				result.PullRequest.Body,
-				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
-			),
+			result.PullRequest.Body,
+			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		)
-		testastic.False(t, strings.Contains(result.Changelog, cfg.Release.PRBodyHeader))
-		testastic.False(t, strings.Contains(result.Changelog, cfg.Release.PRBodyFooter))
+		testastic.NotContains(t, result.Changelog, cfg.Release.PRBodyHeader)
+		testastic.NotContains(t, result.Changelog, cfg.Release.PRBodyFooter)
 	})
 }
 
@@ -1130,10 +1120,10 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
 		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
 
-		testastic.True(t, strings.Contains(result.Changelog, canonicalCompareURL))
-		testastic.False(t, strings.Contains(result.Changelog, prCompareURL))
-		testastic.True(t, strings.Contains(result.PullRequest.Body, prCompareURL))
-		testastic.False(t, strings.Contains(result.PullRequest.Body, canonicalCompareURL))
+		testastic.Contains(t, result.Changelog, canonicalCompareURL)
+		testastic.NotContains(t, result.Changelog, prCompareURL)
+		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
+		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
 
 		releaseBranch := "yeet/release-main"
 		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
@@ -1169,10 +1159,10 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
 		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
 
-		testastic.True(t, strings.Contains(result.Changelog, canonicalCompareURL))
-		testastic.False(t, strings.Contains(result.Changelog, prCompareURL))
-		testastic.True(t, strings.Contains(result.PullRequest.Body, prCompareURL))
-		testastic.False(t, strings.Contains(result.PullRequest.Body, canonicalCompareURL))
+		testastic.Contains(t, result.Changelog, canonicalCompareURL)
+		testastic.NotContains(t, result.Changelog, prCompareURL)
+		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
+		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
 
 		releaseBranch := "yeet/release-main"
 		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
@@ -1280,8 +1270,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
-		testastic.True(t, strings.Contains(release.Body, "## [v1.2.3]"))
-		testastic.False(t, strings.Contains(release.Body, "## [v1.2.2]"))
+		testastic.Contains(t, release.Body, "## [v1.2.3]")
+		testastic.NotContains(t, release.Body, "## [v1.2.2]")
 	})
 
 	t.Run("falls back to legacy release branch tag without marker", func(t *testing.T) {
@@ -1437,8 +1427,8 @@ func TestChangelogEntryByTag(t *testing.T) {
 
 		// then: only matching section is returned
 		testastic.NoError(t, err)
-		testastic.True(t, strings.HasPrefix(entry, "## [v1.2.3]"))
-		testastic.False(t, strings.Contains(entry, "## [v1.2.2]"))
+		testastic.HasPrefix(t, entry, "## [v1.2.3]")
+		testastic.NotContains(t, entry, "## [v1.2.2]")
 	})
 
 	t.Run("extracts plain heading entry", func(t *testing.T) {
@@ -1452,7 +1442,7 @@ func TestChangelogEntryByTag(t *testing.T) {
 
 		// then: plain heading entry is returned
 		testastic.NoError(t, err)
-		testastic.True(t, strings.HasPrefix(entry, "## v1.2.3"))
+		testastic.HasPrefix(t, entry, "## v1.2.3")
 	})
 
 	t.Run("returns error for missing tag", func(t *testing.T) {
@@ -1653,16 +1643,16 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.NoError(t, err)
 
 		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.False(t, strings.HasPrefix(updated, "# Changelog"))
-		testastic.True(t, strings.Contains(updated, "## [v0.1.1]"))
-		testastic.True(t, strings.Contains(updated, "## [v0.1.0]"))
+		testastic.NotHasPrefix(t, updated, "# Changelog")
+		testastic.Contains(t, updated, "## [v0.1.1]")
+		testastic.Contains(t, updated, "## [v0.1.0]")
 
 		newEntryIndex := strings.Index(updated, "## [v0.1.1]")
 		oldEntryIndex := strings.Index(updated, "## [v0.1.0]")
 
-		testastic.True(t, newEntryIndex >= 0)
-		testastic.True(t, oldEntryIndex >= 0)
-		testastic.True(t, newEntryIndex < oldEntryIndex)
+		testastic.GreaterOrEqual(t, newEntryIndex, 0)
+		testastic.GreaterOrEqual(t, oldEntryIndex, 0)
+		testastic.Less(t, newEntryIndex, oldEntryIndex)
 	})
 
 	t.Run("fails when configured version file is missing", func(t *testing.T) {
