@@ -1,10 +1,13 @@
-.PHONY: help build test lint fmt clean
+.PHONY: help build image test lint fmt clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 build: ## Build the yeet binary
 	go build -o yeet ./cmd/yeet
+
+image: ## Build the yeet container image locally with ko
+	ko build --local --platform=linux/$$(go env GOARCH) ./cmd/yeet
 
 test: ## Run tests
 	go test ./...

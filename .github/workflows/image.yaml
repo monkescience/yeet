@@ -1,0 +1,39 @@
+name: Publish Image
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: yeet-image-${{ github.event.release.tag_name }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up ko
+        uses: ko-build/setup-ko@v0.9
+        with:
+          version: v0.18.1
+
+      - name: Publish image to GHCR
+        run: ko build --bare --tags "${RELEASE_TAG}" --tags latest ./cmd/yeet
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}

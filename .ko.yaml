@@ -1,0 +1,10 @@
+defaultBaseImage: gcr.io/distroless/static-debian13:nonroot
+defaultPlatforms:
+  - linux/amd64
+  - linux/arm64
+defaultEnv:
+  - CGO_ENABLED=0
+builds:
+  - id: yeet
+    dir: .
+    main: ./cmd/yeet
