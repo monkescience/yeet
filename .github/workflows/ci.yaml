@@ -82,9 +82,11 @@ jobs:
 
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
               summary.write("## Coverage\n\n")
-              summary.write(f"- Base: {base}%\n")
-              summary.write(f"- Head: {head}%\n")
-              summary.write(f"- Delta: {delta_sign}{delta}%\n")
+              summary.write("| Metric | Value |\n")
+              summary.write("| --- | ---: |\n")
+              summary.write(f"| Base | {base}% |\n")
+              summary.write(f"| Head | {head}% |\n")
+              summary.write(f"| Delta | {delta_sign}{delta}% |\n")
 
           if head < base:
               raise SystemExit(f"coverage decreased from {base}% to {head}%")
