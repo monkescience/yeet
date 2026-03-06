@@ -34,6 +34,26 @@ jobs:
           version: v0.18.1
 
       - name: Publish image to GHCR
-        run: ko build --bare --tags "${RELEASE_TAG}" --tags latest ./cmd/yeet
+        run: |
+          ko build --bare \
+            --tags "${RELEASE_TAG}" \
+            --tags latest \
+            --image-label "org.opencontainers.image.title=${IMAGE_TITLE}" \
+            --image-label "org.opencontainers.image.description=${IMAGE_DESCRIPTION}" \
+            --image-label "org.opencontainers.image.source=${IMAGE_SOURCE}" \
+            --image-label "org.opencontainers.image.url=${IMAGE_SOURCE}" \
+            --image-label "org.opencontainers.image.documentation=${IMAGE_DOCUMENTATION}" \
+            --image-label "org.opencontainers.image.licenses=${IMAGE_LICENSE}" \
+            --image-label "org.opencontainers.image.version=${RELEASE_TAG}" \
+            --image-label "org.opencontainers.image.revision=${IMAGE_REVISION}" \
+            --image-label "org.opencontainers.image.created=${IMAGE_CREATED}" \
+            ./cmd/yeet
         env:
+          IMAGE_CREATED: ${{ github.event.release.published_at }}
+          IMAGE_DESCRIPTION: "Container image for yeet, a CLI that automates releases from conventional commits."
+          IMAGE_DOCUMENTATION: "${{ github.server_url }}/${{ github.repository }}#readme"
+          IMAGE_LICENSE: MIT
+          IMAGE_REVISION: ${{ github.sha }}
+          IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          IMAGE_TITLE: yeet
           RELEASE_TAG: ${{ github.event.release.tag_name }}
