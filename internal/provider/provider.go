@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -107,6 +108,10 @@ type RepoInfo struct {
 	Name  string
 }
 
+const DefaultGitHubHost = "github.com"
+
+const DefaultGitLabHost = "gitlab.com"
+
 func ParseCommits(entries []CommitEntry) []commit.Commit {
 	commits := make([]commit.Commit, 0, len(entries))
 
@@ -162,48 +167,110 @@ func (e *CommitBoundaryNotFoundError) Unwrap() error {
 	return ErrCommitBoundaryNotFound
 }
 
-var remotePatterns = []*regexp.Regexp{
-	// SSH format: git@github.com:owner/repo.git
-	regexp.MustCompile(`^git@([^:]+):([^/]+)/([^/.]+?)(?:\.git)?$`),
-	// HTTPS format: https://github.com/owner/repo.git
-	regexp.MustCompile(`^https?://([^/]+)/([^/]+)/([^/.]+?)(?:\.git)?$`),
+var scpLikeRemotePattern = regexp.MustCompile(`^(?:[^@]+@)?([^:]+):(.+)$`)
+
+const minimumProjectSegments = 2
+
+type RepositoryDescriptor struct {
+	Provider string
+	Host     string
+	Owner    string
+	Repo     string
+	Project  string
+	Remote   string
 }
 
-type ProviderFromRemote struct {
-	Host  string
-	Owner string
-	Repo  string
-}
+var ErrUnsupportedHost = errors.New("unsupported remote host")
 
-func DetectFromRemote(remoteURL string) (*ProviderFromRemote, error) {
+func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
 	remoteURL = strings.TrimSpace(remoteURL)
+	if remoteURL == "" {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
+	}
 
-	for _, pattern := range remotePatterns {
-		matches := pattern.FindStringSubmatch(remoteURL)
-		if matches != nil {
-			return &ProviderFromRemote{
-				Host:  matches[1],
-				Owner: matches[2],
-				Repo:  matches[3],
-			}, nil
-		}
+	parsed, err := parseRemoteURL(remoteURL)
+	if err == nil {
+		return parsed, nil
+	}
+
+	parsed, err = parseSCPRemote(remoteURL)
+	if err == nil {
+		return parsed, nil
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
 }
 
-// ProviderType returns "github" or "gitlab" based on the host.
-func (p *ProviderFromRemote) ProviderType() string {
-	host := strings.ToLower(p.Host)
+func DetectProviderType(host string) (string, error) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return "", fmt.Errorf("%w: empty host", ErrUnsupportedHost)
+	}
 
 	if strings.Contains(host, "github") {
-		return "github"
+		return "github", nil
 	}
 
 	if strings.Contains(host, "gitlab") {
-		return "gitlab"
+		return "gitlab", nil
 	}
 
-	// Default to gitlab for self-hosted instances.
-	return "gitlab"
+	return "", fmt.Errorf("%w: %s", ErrUnsupportedHost, host)
+}
+
+func parseRemoteURL(remoteURL string) (*RepositoryDescriptor, error) {
+	parsedURL, err := url.Parse(remoteURL)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	return newRepositoryDescriptor(parsedURL.Host, parsedURL.Path)
+}
+
+func parseSCPRemote(remoteURL string) (*RepositoryDescriptor, error) {
+	matches := scpLikeRemotePattern.FindStringSubmatch(remoteURL)
+	if matches == nil {
+		return nil, ErrUnknownRemote
+	}
+
+	return newRepositoryDescriptor(matches[1], matches[2])
+}
+
+func newRepositoryDescriptor(host, rawPath string) (*RepositoryDescriptor, error) {
+	host = strings.TrimSpace(host)
+
+	project := normalizeRemotePath(rawPath)
+	if host == "" || project == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	owner, repo := splitProjectPath(project)
+	if owner == "" || repo == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	return &RepositoryDescriptor{
+		Host:    host,
+		Owner:   owner,
+		Repo:    repo,
+		Project: project,
+	}, nil
+}
+
+func normalizeRemotePath(rawPath string) string {
+	path := strings.TrimSpace(rawPath)
+	path = strings.Trim(path, "/")
+	path = strings.TrimSuffix(path, ".git")
+	path = strings.Trim(path, "/")
+
+	return path
+}
+
+func splitProjectPath(project string) (string, string) {
+	parts := strings.Split(project, "/")
+	if len(parts) < minimumProjectSegments {
+		return "", ""
+	}
+
+	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1]
 }

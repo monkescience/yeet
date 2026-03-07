@@ -36,6 +36,9 @@
       "description": "Prefix added to release tags.",
       "default": "v"
     },
+    "repository": {
+      "$ref": "#/$defs/repository"
+    },
     "version_files": {
       "type": "array",
       "description": "Additional files updated via yeet version markers during release.",
@@ -56,6 +59,38 @@
     }
   },
   "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "remote": {
+          "type": "string",
+          "description": "Git remote name used for repository auto-detection when explicit coordinates are incomplete.",
+          "minLength": 1,
+          "default": "origin"
+        },
+        "host": {
+          "type": "string",
+          "description": "Repository host name, such as github.com or gitlab.company.com.",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "description": "Repository owner or namespace for GitHub-style repositories.",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "description": "Repository name for GitHub-style repositories.",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "description": "Full GitLab project path, including any subgroups.",
+          "minLength": 1
+        }
+      }
+    },
     "release": {
       "type": "object",
       "additionalProperties": false,

@@ -17,7 +17,14 @@ import (
 var (
 	ErrUnsupportedProvider = errors.New("unsupported provider")
 	ErrMissingToken        = errors.New("missing auth token")
+	ErrGitHubRepoRequired  = errors.New("resolve github repository: owner and repo are required")
+	ErrGitHubOwnerInvalid  = errors.New("resolve github repository: owner must not contain '/'")
+	ErrGitLabProjectNeeded = errors.New("resolve gitlab repository: project or owner/repo are required")
 )
+
+const minimumProjectSegments = 2
+
+type gitRemoteURLGetter func(context.Context, string) (string, error)
 
 func loadConfig() (*config.Config, error) {
 	path := cfgFile
@@ -34,41 +41,28 @@ func loadConfig() (*config.Config, error) {
 }
 
 func newProvider(ctx context.Context, cfg *config.Config) (provider.Provider, error) {
-	providerType := cfg.Provider
-
-	if providerType == "" {
-		detected, err := detectProvider(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("auto-detect provider: %w", err)
-		}
-
-		providerType = detected.ProviderType()
-		cfg.Provider = providerType
-
-		return createProvider(ctx, providerType, detected.Owner, detected.Repo)
-	}
-
-	// Need to detect owner/repo from remote even if provider is explicitly set.
-	detected, err := detectProvider(ctx)
+	repository, err := resolveRepository(ctx, cfg, getGitRemoteURL)
 	if err != nil {
-		return nil, fmt.Errorf("detect repo info: %w", err)
+		return nil, err
 	}
 
-	return createProvider(ctx, providerType, detected.Owner, detected.Repo)
+	cfg.Provider = repository.Provider
+
+	return createProvider(repository)
 }
 
-func createProvider(_ context.Context, providerType, owner, repo string) (provider.Provider, error) {
-	switch providerType {
+func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
+	switch repository.Provider {
 	case config.ProviderGitHub:
-		return createGitHubProvider(owner, repo)
+		return createGitHubProvider(repository)
 	case config.ProviderGitLab:
-		return createGitLabProvider(owner, repo)
+		return createGitLabProvider(repository)
 	default:
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, providerType)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
 	}
 }
 
-func createGitHubProvider(owner, repo string) (*provider.GitHub, error) {
+func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.GitHub, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GH_TOKEN")
@@ -80,7 +74,17 @@ func createGitHubProvider(owner, repo string) (*provider.GitHub, error) {
 
 	client := github.NewClient(nil).WithAuthToken(token)
 
-	baseURL := os.Getenv("GITHUB_URL")
+	baseURL := strings.TrimSpace(os.Getenv("GITHUB_URL"))
+
+	host := strings.TrimSpace(repository.Host)
+	if host != "" {
+		if strings.EqualFold(host, provider.DefaultGitHubHost) {
+			baseURL = ""
+		} else {
+			baseURL = fmt.Sprintf("https://%s/api/v3/", host)
+		}
+	}
+
 	if baseURL != "" {
 		var err error
 
@@ -90,10 +94,10 @@ func createGitHubProvider(owner, repo string) (*provider.GitHub, error) {
 		}
 	}
 
-	return provider.NewGitHub(client, owner, repo), nil
+	return provider.NewGitHub(client, repository.Owner, repository.Repo), nil
 }
 
-func createGitLabProvider(owner, repo string) (*provider.GitLab, error) {
+func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.GitLab, error) {
 	token := os.Getenv("GITLAB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GL_TOKEN")
@@ -103,7 +107,16 @@ func createGitLabProvider(owner, repo string) (*provider.GitLab, error) {
 		return nil, fmt.Errorf("%w: GITLAB_TOKEN or GL_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	baseURL := os.Getenv("GITLAB_URL")
+	baseURL := strings.TrimSpace(os.Getenv("GITLAB_URL"))
+
+	host := strings.TrimSpace(repository.Host)
+	if host != "" {
+		if strings.EqualFold(host, provider.DefaultGitLabHost) {
+			baseURL = ""
+		} else {
+			baseURL = fmt.Sprintf("https://%s/api/v4", host)
+		}
+	}
 
 	var opts []gitlab.ClientOptionFunc
 
@@ -116,25 +129,192 @@ func createGitLabProvider(owner, repo string) (*provider.GitLab, error) {
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	return provider.NewGitLab(client, owner, repo), nil
+	return provider.NewGitLab(client, repository.Project), nil
 }
 
-func detectProvider(ctx context.Context) (*provider.ProviderFromRemote, error) {
-	remoteURL, err := getGitRemoteURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("detect provider: %w", err)
+func resolveRepository(
+	ctx context.Context,
+	cfg *config.Config,
+	getRemoteURL gitRemoteURLGetter,
+) (*provider.RepositoryDescriptor, error) {
+	repository := repositoryFromConfig(cfg)
+	if repository.Remote == "" {
+		repository.Remote = "origin"
 	}
 
-	detected, err := provider.DetectFromRemote(remoteURL)
-	if err != nil {
-		return nil, fmt.Errorf("detect provider from remote: %w", err)
+	if needsRemoteLookup(repository) {
+		remoteURL, err := getRemoteURL(ctx, repository.Remote)
+		if err != nil {
+			return nil, fmt.Errorf("get git remote %q url: %w", repository.Remote, err)
+		}
+
+		detected, err := provider.ParseRemote(remoteURL)
+		if err != nil {
+			return nil, fmt.Errorf("parse git remote %q url: %w", repository.Remote, err)
+		}
+
+		detected.Remote = repository.Remote
+		repository = mergeRepositoryDescriptor(detected, repository)
 	}
 
-	return detected, nil
+	normalizeRepositoryDescriptor(repository)
+
+	if repository.Provider == "" {
+		providerType, err := provider.DetectProviderType(repository.Host)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"resolve repository provider for host %q: %w; set provider, [repository], or pass explicit flags",
+				repository.Host,
+				err,
+			)
+		}
+
+		repository.Provider = providerType
+	}
+
+	switch repository.Provider {
+	case config.ProviderGitHub:
+		if repository.Host == "" {
+			repository.Host = provider.DefaultGitHubHost
+		}
+	case config.ProviderGitLab:
+		if repository.Host == "" {
+			repository.Host = provider.DefaultGitLabHost
+		}
+	}
+
+	normalizeRepositoryDescriptor(repository)
+
+	err := validateRepositoryDescriptor(repository)
+	if err != nil {
+		return nil, err
+	}
+
+	return repository, nil
 }
 
-func getGitRemoteURL(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "git", "remote", "get-url", "origin").Output()
+func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
+	return &provider.RepositoryDescriptor{
+		Provider: strings.TrimSpace(cfg.Provider),
+		Host:     strings.TrimSpace(cfg.Repository.Host),
+		Owner:    strings.TrimSpace(cfg.Repository.Owner),
+		Repo:     strings.TrimSpace(cfg.Repository.Repo),
+		Project:  strings.TrimSpace(cfg.Repository.Project),
+		Remote:   strings.TrimSpace(cfg.Repository.Remote),
+	}
+}
+
+func needsRemoteLookup(repository *provider.RepositoryDescriptor) bool {
+	if !hasRepositoryCoordinates(repository) {
+		return true
+	}
+
+	return repository.Provider == "" && repository.Host == ""
+}
+
+func hasRepositoryCoordinates(repository *provider.RepositoryDescriptor) bool {
+	return repository.Project != "" || (repository.Owner != "" && repository.Repo != "")
+}
+
+func mergeRepositoryDescriptor(
+	base *provider.RepositoryDescriptor,
+	override *provider.RepositoryDescriptor,
+) *provider.RepositoryDescriptor {
+	if override.Provider != "" {
+		base.Provider = override.Provider
+	}
+
+	if override.Host != "" {
+		base.Host = override.Host
+	}
+
+	mergeRepositoryCoordinates(base, override)
+
+	if override.Remote != "" {
+		base.Remote = override.Remote
+	}
+
+	return base
+}
+
+func mergeRepositoryCoordinates(base *provider.RepositoryDescriptor, override *provider.RepositoryDescriptor) {
+	switch {
+	case override.Project != "":
+		base.Project = override.Project
+		base.Owner = override.Owner
+		base.Repo = override.Repo
+	case override.Owner != "" && override.Repo != "":
+		base.Owner = override.Owner
+		base.Repo = override.Repo
+		base.Project = ""
+	default:
+		if override.Owner != "" {
+			base.Owner = override.Owner
+		}
+
+		if override.Repo != "" {
+			base.Repo = override.Repo
+		}
+	}
+}
+
+func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
+	repository.Provider = strings.TrimSpace(repository.Provider)
+	repository.Host = strings.TrimSpace(repository.Host)
+	repository.Owner = strings.TrimSpace(repository.Owner)
+	repository.Repo = strings.TrimSpace(repository.Repo)
+	repository.Project = strings.Trim(strings.TrimSpace(repository.Project), "/")
+	repository.Remote = strings.TrimSpace(repository.Remote)
+
+	if repository.Project == "" && repository.Owner != "" && repository.Repo != "" {
+		repository.Project = repository.Owner + "/" + repository.Repo
+	}
+
+	if repository.Project != "" && (repository.Owner == "" || repository.Repo == "") {
+		owner, repo := splitProjectPath(repository.Project)
+		if repository.Owner == "" {
+			repository.Owner = owner
+		}
+
+		if repository.Repo == "" {
+			repository.Repo = repo
+		}
+	}
+}
+
+func splitProjectPath(project string) (string, string) {
+	parts := strings.Split(project, "/")
+	if len(parts) < minimumProjectSegments {
+		return "", ""
+	}
+
+	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1]
+}
+
+func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) error {
+	switch repository.Provider {
+	case config.ProviderGitHub:
+		if repository.Owner == "" || repository.Repo == "" {
+			return ErrGitHubRepoRequired
+		}
+
+		if strings.Contains(repository.Owner, "/") {
+			return fmt.Errorf("%w: %q", ErrGitHubOwnerInvalid, repository.Owner)
+		}
+	case config.ProviderGitLab:
+		if repository.Project == "" {
+			return ErrGitLabProjectNeeded
+		}
+	default:
+		return fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
+	}
+
+	return nil
+}
+
+func getGitRemoteURL(ctx context.Context, remote string) (string, error) {
+	//nolint:gosec // remote is passed as a git argument, not executed by a shell
+	out, err := exec.CommandContext(ctx, "git", "remote", "get-url", remote).Output()
 	if err != nil {
 		return "", fmt.Errorf("get git remote url: %w", err)
 	}

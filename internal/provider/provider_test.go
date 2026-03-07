@@ -18,7 +18,7 @@ import (
 	gitlabapi "gitlab.com/gitlab-org/api/client-go"
 )
 
-func TestDetectFromRemote(t *testing.T) {
+func TestParseRemote(t *testing.T) {
 	t.Parallel()
 
 	t.Run("github ssh", func(t *testing.T) {
@@ -27,15 +27,15 @@ func TestDetectFromRemote(t *testing.T) {
 		// given: a GitHub SSH remote URL
 		url := "git@github.com:owner/repo.git"
 
-		// when: detecting provider
-		info, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
 
-		// then: GitHub is detected
+		// then: repository coordinates are extracted
 		testastic.NoError(t, err)
 		testastic.Equal(t, "github.com", info.Host)
 		testastic.Equal(t, "owner", info.Owner)
 		testastic.Equal(t, "repo", info.Repo)
-		testastic.Equal(t, "github", info.ProviderType())
+		testastic.Equal(t, "owner/repo", info.Project)
 	})
 
 	t.Run("github https", func(t *testing.T) {
@@ -44,64 +44,64 @@ func TestDetectFromRemote(t *testing.T) {
 		// given: a GitHub HTTPS remote URL
 		url := "https://github.com/owner/repo.git"
 
-		// when: detecting provider
-		info, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
 
-		// then: GitHub is detected
+		// then: repository coordinates are extracted
 		testastic.NoError(t, err)
 		testastic.Equal(t, "github.com", info.Host)
 		testastic.Equal(t, "owner", info.Owner)
 		testastic.Equal(t, "repo", info.Repo)
-		testastic.Equal(t, "github", info.ProviderType())
+		testastic.Equal(t, "owner/repo", info.Project)
 	})
 
-	t.Run("github https without .git", func(t *testing.T) {
+	t.Run("github enterprise https", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a GitHub HTTPS remote URL without .git suffix
-		url := "https://github.com/owner/repo"
+		// given: a GitHub Enterprise remote URL
+		url := "https://github.company.com/platform/yeet.git"
 
-		// when: detecting provider
-		info, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
 
-		// then: GitHub is detected
+		// then: host and repository are preserved
 		testastic.NoError(t, err)
-		testastic.Equal(t, "owner", info.Owner)
-		testastic.Equal(t, "repo", info.Repo)
+		testastic.Equal(t, "github.company.com", info.Host)
+		testastic.Equal(t, "platform", info.Owner)
+		testastic.Equal(t, "yeet", info.Repo)
 	})
 
-	t.Run("gitlab ssh", func(t *testing.T) {
+	t.Run("gitlab subgroup ssh", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a GitLab SSH remote URL
-		url := "git@gitlab.com:group/project.git"
+		// given: a GitLab subgroup SSH remote URL
+		url := "git@gitlab.com:group/subgroup/service.git"
 
-		// when: detecting provider
-		info, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
 
-		// then: GitLab is detected
+		// then: the full project path is preserved
 		testastic.NoError(t, err)
 		testastic.Equal(t, "gitlab.com", info.Host)
-		testastic.Equal(t, "group", info.Owner)
-		testastic.Equal(t, "project", info.Repo)
-		testastic.Equal(t, "gitlab", info.ProviderType())
+		testastic.Equal(t, "group/subgroup", info.Owner)
+		testastic.Equal(t, "service", info.Repo)
+		testastic.Equal(t, "group/subgroup/service", info.Project)
 	})
 
-	t.Run("self-hosted gitlab", func(t *testing.T) {
+	t.Run("repo names with dots", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a self-hosted GitLab SSH remote URL
-		url := "git@git.company.com:team/service.git"
+		// given: a remote with a dotted repository name
+		url := "https://gitlab.com/group/service.api.git"
 
-		// when: detecting provider
-		info, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
 
-		// then: defaults to GitLab for unknown hosts
+		// then: the dotted name is preserved
 		testastic.NoError(t, err)
-		testastic.Equal(t, "git.company.com", info.Host)
-		testastic.Equal(t, "team", info.Owner)
-		testastic.Equal(t, "service", info.Repo)
-		testastic.Equal(t, "gitlab", info.ProviderType())
+		testastic.Equal(t, "group", info.Owner)
+		testastic.Equal(t, "service.api", info.Repo)
+		testastic.Equal(t, "group/service.api", info.Project)
 	})
 
 	t.Run("invalid url", func(t *testing.T) {
@@ -110,11 +110,43 @@ func TestDetectFromRemote(t *testing.T) {
 		// given: an unparseable URL
 		url := "not-a-valid-url"
 
-		// when: detecting provider
-		_, err := provider.DetectFromRemote(url)
+		// when: parsing the remote
+		_, err := provider.ParseRemote(url)
 
 		// then: error is returned
 		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
+	})
+}
+
+func TestDetectProviderType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("detects github hosts", func(t *testing.T) {
+		t.Parallel()
+
+		providerType, err := provider.DetectProviderType("github.company.com")
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "github", providerType)
+	})
+
+	t.Run("detects gitlab hosts", func(t *testing.T) {
+		t.Parallel()
+
+		providerType, err := provider.DetectProviderType("gitlab.company.com")
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "gitlab", providerType)
+	})
+
+	t.Run("fails on unsupported hosts", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := provider.DetectProviderType("code.company.com")
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 	})
 }
 
@@ -361,7 +393,7 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 		)
 		testastic.NoError(t, err)
 
-		gl := provider.NewGitLab(client, "o", "r")
+		gl := provider.NewGitLab(client, "o/r")
 
 		entries, err := gl.GetCommitsSince(context.Background(), ref, branch)
 
@@ -406,7 +438,7 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 		)
 		testastic.NoError(t, err)
 
-		gl := provider.NewGitLab(client, "o", "r")
+		gl := provider.NewGitLab(client, "o/r")
 
 		entries, err := gl.GetCommitsSince(context.Background(), ref, branch)
 
@@ -449,7 +481,7 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 		)
 		testastic.NoError(t, err)
 
-		gl := provider.NewGitLab(client, "o", "r")
+		gl := provider.NewGitLab(client, "o/r")
 
 		entries, err := gl.GetCommitsSince(context.Background(), "", branch)
 

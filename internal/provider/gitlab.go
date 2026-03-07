@@ -25,13 +25,13 @@ const gitlabMergeRequestOpenedState = "opened"
 const gitlabMergeRequestMergedState = "merged"
 
 // NewGitLab creates a provider. pid is the project ID or full path (e.g., "owner/repo").
-func NewGitLab(client *gitlab.Client, owner, repo string) *GitLab {
+func NewGitLab(client *gitlab.Client, project string) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
 
 	return &GitLab{
 		client:  client,
-		pid:     owner + "/" + repo,
-		baseURL: baseURL + "/" + owner + "/" + repo,
+		pid:     project,
+		baseURL: baseURL + "/" + project,
 	}
 }
 

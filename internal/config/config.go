@@ -46,10 +46,19 @@ type Config struct {
 	Branch       string             `toml:"branch"`
 	Provider     ProviderType       `toml:"provider"`
 	TagPrefix    string             `toml:"tag_prefix"`
+	Repository   RepositoryConfig   `toml:"repository"`
 	VersionFiles []string           `toml:"version_files,omitempty"`
 	Release      ReleaseConfig      `toml:"release"`
 	Changelog    ChangelogConfig    `toml:"changelog"`
 	CalVer       CalVerConfig       `toml:"calver"`
+}
+
+type RepositoryConfig struct {
+	Remote  string `toml:"remote"`
+	Host    string `toml:"host"`
+	Owner   string `toml:"owner"`
+	Repo    string `toml:"repo"`
+	Project string `toml:"project"`
 }
 
 type ReleaseConfig struct {
@@ -103,6 +112,9 @@ func Default() *Config {
 		Versioning: VersioningSemver,
 		Branch:     "main",
 		TagPrefix:  "v",
+		Repository: RepositoryConfig{
+			Remote: "origin",
+		},
 		Release: ReleaseConfig{
 			SubjectIncludeBranch: false,
 			AutoMerge:            false,
@@ -150,6 +162,11 @@ func (c *Config) Validate() error {
 			ErrInvalidConfig, ProviderGitHub, ProviderGitLab, c.Provider)
 	}
 
+	err := validateRepositoryConfig(c.Repository)
+	if err != nil {
+		return err
+	}
+
 	if c.Changelog.File == "" {
 		return fmt.Errorf("%w: changelog.file must not be empty", ErrInvalidConfig)
 	}
@@ -164,10 +181,49 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.Release.AutoMergeMethod != AutoMergeMethodAuto &&
-		c.Release.AutoMergeMethod != AutoMergeMethodSquash &&
-		c.Release.AutoMergeMethod != AutoMergeMethodRebase &&
-		c.Release.AutoMergeMethod != AutoMergeMethodMerge {
+	err = validateReleaseConfig(c.Release)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateRepositoryConfig(repository RepositoryConfig) error {
+	if strings.TrimSpace(repository.Remote) == "" {
+		return fmt.Errorf("%w: repository.remote must not be empty", ErrInvalidConfig)
+	}
+
+	if repository.Host != "" && strings.TrimSpace(repository.Host) == "" {
+		return fmt.Errorf("%w: repository.host must not be blank", ErrInvalidConfig)
+	}
+
+	if repository.Owner != "" && strings.TrimSpace(repository.Owner) == "" {
+		return fmt.Errorf("%w: repository.owner must not be blank", ErrInvalidConfig)
+	}
+
+	if repository.Repo != "" && strings.TrimSpace(repository.Repo) == "" {
+		return fmt.Errorf("%w: repository.repo must not be blank", ErrInvalidConfig)
+	}
+
+	if repository.Project != "" && strings.TrimSpace(repository.Project) == "" {
+		return fmt.Errorf("%w: repository.project must not be blank", ErrInvalidConfig)
+	}
+
+	hasOwnerRepoMismatch := (strings.TrimSpace(repository.Owner) == "") !=
+		(strings.TrimSpace(repository.Repo) == "")
+	if hasOwnerRepoMismatch {
+		return fmt.Errorf("%w: repository.owner and repository.repo must be set together", ErrInvalidConfig)
+	}
+
+	return nil
+}
+
+func validateReleaseConfig(release ReleaseConfig) error {
+	if release.AutoMergeMethod != AutoMergeMethodAuto &&
+		release.AutoMergeMethod != AutoMergeMethodSquash &&
+		release.AutoMergeMethod != AutoMergeMethodRebase &&
+		release.AutoMergeMethod != AutoMergeMethodMerge {
 		return fmt.Errorf(
 			"%w: release.auto_merge_method must be %q, %q, %q, or %q, got %q",
 			ErrInvalidConfig,
@@ -175,7 +231,7 @@ func (c *Config) Validate() error {
 			AutoMergeMethodSquash,
 			AutoMergeMethodRebase,
 			AutoMergeMethodMerge,
-			c.Release.AutoMergeMethod,
+			release.AutoMergeMethod,
 		)
 	}
 
