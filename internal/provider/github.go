@@ -66,23 +66,27 @@ func (g *GitHub) GetLatestRelease(ctx context.Context) (*Release, error) {
 	}, nil
 }
 
-func (g *GitHub) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry, error) {
-	stopSHA := strings.TrimSpace(ref)
+func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
+	boundaryRef := strings.TrimSpace(ref)
+	resolvedBoundarySHA := boundaryRef
+	branch = strings.TrimSpace(branch)
 
-	if stopSHA != "" {
-		resolvedSHA, err := g.resolveCommitSHA(ctx, stopSHA)
+	if resolvedBoundarySHA != "" {
+		resolvedSHA, err := g.resolveCommitSHA(ctx, resolvedBoundarySHA)
 		if err != nil {
-			return nil, fmt.Errorf("resolve ref %q: %w", stopSHA, err)
+			return nil, fmt.Errorf("resolve ref %q: %w", boundaryRef, err)
 		}
 
-		stopSHA = resolvedSHA
+		resolvedBoundarySHA = resolvedSHA
 	}
 
 	opts := &github.CommitsListOptions{
 		ListOptions: github.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
 
-	if stopSHA != "" {
+	if branch != "" {
+		opts.SHA = branch
+	} else if resolvedBoundarySHA != "" {
 		opts.SHA = "HEAD"
 	}
 
@@ -97,7 +101,7 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		for _, c := range commits {
 			sha := c.GetSHA()
 
-			if stopSHA != "" && (sha == stopSHA || strings.HasPrefix(sha, stopSHA)) {
+			if resolvedBoundarySHA != "" && sha == resolvedBoundarySHA {
 				return entries, nil
 			}
 
@@ -112,6 +116,10 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		}
 
 		opts.Page = resp.NextPage
+	}
+
+	if resolvedBoundarySHA != "" {
+		return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
 	}
 
 	return entries, nil

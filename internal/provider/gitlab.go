@@ -65,20 +65,26 @@ func (g *GitLab) GetLatestRelease(ctx context.Context) (*Release, error) {
 	}, nil
 }
 
-func (g *GitLab) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry, error) {
-	stopID := strings.TrimSpace(ref)
+func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
+	boundaryRef := strings.TrimSpace(ref)
+	resolvedBoundaryID := boundaryRef
+	branch = strings.TrimSpace(branch)
 
-	if stopID != "" {
-		resolvedID, err := g.resolveCommitID(ctx, stopID)
+	if resolvedBoundaryID != "" {
+		resolvedID, err := g.resolveCommitID(ctx, resolvedBoundaryID)
 		if err != nil {
-			return nil, fmt.Errorf("resolve ref %q: %w", stopID, err)
+			return nil, fmt.Errorf("resolve ref %q: %w", boundaryRef, err)
 		}
 
-		stopID = resolvedID
+		resolvedBoundaryID = resolvedID
 	}
 
 	opts := &gitlab.ListCommitsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
+	}
+
+	if branch != "" {
+		opts.RefName = gitlab.Ptr(branch)
 	}
 
 	var entries []CommitEntry
@@ -90,7 +96,7 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		}
 
 		for _, c := range commits {
-			if stopID != "" && (c.ID == stopID || strings.HasPrefix(c.ID, stopID)) {
+			if resolvedBoundaryID != "" && c.ID == resolvedBoundaryID {
 				return entries, nil
 			}
 
@@ -105,6 +111,10 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry
 		}
 
 		opts.Page = resp.NextPage
+	}
+
+	if resolvedBoundaryID != "" {
+		return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
 	}
 
 	return entries, nil

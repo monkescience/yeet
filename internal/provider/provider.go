@@ -68,8 +68,8 @@ type CommitEntry struct {
 type Provider interface {
 	// GetLatestRelease returns the latest release/tag.
 	GetLatestRelease(ctx context.Context) (*Release, error)
-	// GetCommitsSince returns commits since the given ref (tag or SHA).
-	GetCommitsSince(ctx context.Context, ref string) ([]CommitEntry, error)
+	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
+	GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error)
 	// CreateReleasePR creates a release PR/MR.
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	// UpdateReleasePR updates an existing release PR/MR.
@@ -121,6 +121,9 @@ var ErrUnknownRemote = errors.New("unable to parse remote URL")
 
 var ErrNoRelease = errors.New("no release found")
 
+// ErrCommitBoundaryNotFound reports that the requested base ref is not reachable from the target branch history.
+var ErrCommitBoundaryNotFound = errors.New("commit boundary not found")
+
 var ErrNoPR = errors.New("no release PR found")
 
 var ErrFileNotFound = errors.New("file not found")
@@ -132,6 +135,32 @@ var ErrEmptyCommitID = errors.New("empty commit ID")
 var ErrMergeBlocked = errors.New("release PR merge blocked")
 
 var ErrMergeMethodUnsupported = errors.New("merge method unsupported")
+
+// CommitBoundaryNotFoundError includes the missing boundary ref and the branch being analyzed.
+type CommitBoundaryNotFoundError struct {
+	Ref    string
+	Branch string
+}
+
+func (e *CommitBoundaryNotFoundError) Error() string {
+	ref := strings.TrimSpace(e.Ref)
+	branch := strings.TrimSpace(e.Branch)
+
+	switch {
+	case ref == "" && branch == "":
+		return ErrCommitBoundaryNotFound.Error()
+	case branch == "":
+		return fmt.Sprintf("%s: ref %q", ErrCommitBoundaryNotFound, ref)
+	case ref == "":
+		return fmt.Sprintf("%s: branch %q", ErrCommitBoundaryNotFound, branch)
+	default:
+		return fmt.Sprintf("%s: ref %q is not reachable from branch %q", ErrCommitBoundaryNotFound, ref, branch)
+	}
+}
+
+func (e *CommitBoundaryNotFoundError) Unwrap() error {
+	return ErrCommitBoundaryNotFound
+}
 
 var remotePatterns = []*regexp.Regexp{
 	// SSH format: git@github.com:owner/repo.git

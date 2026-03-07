@@ -36,8 +36,9 @@ type providerStub struct {
 	commits    []provider.CommitEntry
 	commitsErr error
 
-	commitsByRef      map[string][]provider.CommitEntry
-	getCommitsSinceOf []string
+	commitsByRef            map[string][]provider.CommitEntry
+	getCommitsSinceOf       []string
+	getCommitsSinceBranches []string
 
 	pullRequests map[string]*provider.PullRequest
 	mergedPR     *provider.PullRequest
@@ -82,8 +83,9 @@ func (p *providerStub) GetLatestRelease(context.Context) (*provider.Release, err
 	return p.latestRelease, nil
 }
 
-func (p *providerStub) GetCommitsSince(_ context.Context, ref string) ([]provider.CommitEntry, error) {
+func (p *providerStub) GetCommitsSince(_ context.Context, ref, branch string) ([]provider.CommitEntry, error) {
 	p.getCommitsSinceOf = append(p.getCommitsSinceOf, ref)
+	p.getCommitsSinceBranches = append(p.getCommitsSinceBranches, branch)
 
 	if p.commitsErr != nil {
 		return nil, p.commitsErr
@@ -765,6 +767,37 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
 		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
 	})
+}
+
+func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
+	t.Parallel()
+
+	// given: the latest release ref exists but is not on the configured release branch
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+	stub.commitsErr = &provider.CommitBoundaryNotFoundError{Ref: "v1.2.3", Branch: cfg.Branch}
+
+	r := New(cfg, stub)
+
+	// when: running release end-to-end
+	result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+
+	// then: release stops before creating a PR, tag, or release
+	testastic.Error(t, err)
+	testastic.Equal(t, (*Result)(nil), result)
+	testastic.ErrorIs(t, err, provider.ErrCommitBoundaryNotFound)
+	testastic.ErrorContains(t, err, "v1.2.3")
+	testastic.ErrorContains(t, err, cfg.Branch)
+	testastic.ErrorContains(t, err, "verify the latest tag/release and branch ancestry")
+	testastic.Equal(t, 0, stub.createPRCalls)
+	testastic.Equal(t, 0, stub.createReleaseCalls)
+	testastic.Equal(t, 0, len(stub.markPendingCalls))
+	testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
+	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, 1, len(stub.getCommitsSinceBranches))
+	testastic.Equal(t, cfg.Branch, stub.getCommitsSinceBranches[0])
 }
 
 func TestReleaseAutoMerge(t *testing.T) {

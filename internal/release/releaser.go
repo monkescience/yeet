@@ -289,9 +289,9 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 
 	result.CurrentVersion = currentVersion
 
-	entries, err := r.provider.GetCommitsSince(ctx, ref)
+	entries, err := r.commitsSince(ctx, ref)
 	if err != nil {
-		return nil, fmt.Errorf("get commits: %w", err)
+		return nil, err
 	}
 
 	commits := provider.ParseCommits(entries)
@@ -352,6 +352,25 @@ func (r *Releaser) currentVersionFromLatestRelease(ctx context.Context) (string,
 	}
 
 	return currentVersion, latest.TagName, nil
+}
+
+func (r *Releaser) commitsSince(ctx context.Context, ref string) ([]provider.CommitEntry, error) {
+	entries, err := r.provider.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	if err == nil {
+		return entries, nil
+	}
+
+	if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
+		return nil, fmt.Errorf(
+			"previous release ref %q is not reachable from release branch %q; "+
+				"verify the latest tag/release and branch ancestry: %w",
+			ref,
+			r.cfg.Branch,
+			err,
+		)
+	}
+
+	return nil, fmt.Errorf("get commits from branch %q: %w", r.cfg.Branch, err)
 }
 
 func (r *Releaser) setResultVersions(
