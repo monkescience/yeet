@@ -1,3 +1,9 @@
+## [v0.2.0](https://github.com/monkescience/yeet/compare/v0.1.4...v0.2.0) (2026-03-10)
+
+### ⚠ BREAKING CHANGES
+
+- move config schema to project root ([9b18638](https://github.com/monkescience/yeet/commit/9b186382aaa66d74db42ccf6058c5d2d6318681e))
+
 ## [v0.1.4](https://github.com/monkescience/yeet/compare/v0.1.3...v0.1.4) (2026-03-10)
 
 ### Bug Fixes
