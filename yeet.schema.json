@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/monkescience/yeet/main/schema/yeet.schema.json",
+  "$id": "https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json",
   "title": "yeet configuration",
   "description": "Schema for .yeet.toml",
   "type": "object",

@@ -85,5 +85,5 @@ func schemaFilePath(t *testing.T) string {
 	_, currentFile, _, ok := runtime.Caller(0)
 	testastic.True(t, ok)
 
-	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "schema", "yeet.schema.json"))
+	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "yeet.schema.json"))
 }

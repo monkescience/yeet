@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/monkescience/yeet/main/schema/yeet.schema.json
+#:schema https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
 
 versioning = 'semver'
 branch = 'main'
