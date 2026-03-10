@@ -3,8 +3,12 @@ package cli //nolint:testpackage // validates unexported repository helpers dire
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
+	git "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -156,4 +160,97 @@ func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
 
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
+}
+
+func TestGetGitRemoteURL(t *testing.T) {
+	t.Run("reads origin url from repository root", func(t *testing.T) {
+		// given: a repository with an origin remote
+		repositoryPath := t.TempDir()
+		initializeRepositoryWithRemote(t, repositoryPath, "origin", "git@github.com:platform/yeet.git")
+		t.Chdir(repositoryPath)
+
+		// when: reading the remote URL
+		remoteURL, err := getGitRemoteURL(context.Background(), "origin")
+
+		// then: the configured URL is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "git@github.com:platform/yeet.git", remoteURL)
+	})
+
+	t.Run("detects repository from nested directory", func(t *testing.T) {
+		// given: a nested directory inside a repository with a custom remote
+		repositoryPath := t.TempDir()
+		initializeRepositoryWithRemote(t, repositoryPath, "upstream", "git@gitlab.com:group/subgroup/service.git")
+
+		nestedPath := filepath.Join(repositoryPath, "internal", "cli")
+		err := os.MkdirAll(nestedPath, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(nestedPath)
+
+		// when: reading the custom remote URL
+		remoteURL, getErr := getGitRemoteURL(context.Background(), "upstream")
+
+		// then: the repository is discovered automatically
+		testastic.NoError(t, getErr)
+		testastic.Equal(t, "git@gitlab.com:group/subgroup/service.git", remoteURL)
+	})
+
+	t.Run("applies insteadOf rewrite rules", func(t *testing.T) {
+		// given: a repository with a remote URL rewritten by git config
+		repositoryPath := t.TempDir()
+		repository := initializeRepositoryWithRemote(t, repositoryPath, "origin", "https://example.com/platform/yeet.git")
+
+		repositoryConfig, err := repository.Config()
+		testastic.NoError(t, err)
+
+		repositoryConfig.URLs = map[string]*gitconfig.URL{
+			"ssh://git@example.com/": {
+				Name:      "ssh://git@example.com/",
+				InsteadOf: "https://example.com/",
+			},
+		}
+
+		err = repository.SetConfig(repositoryConfig)
+		testastic.NoError(t, err)
+		t.Chdir(repositoryPath)
+
+		// when: reading the remote URL
+		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+
+		// then: the rewritten URL matches git behavior
+		testastic.NoError(t, getErr)
+		testastic.Equal(t, "ssh://git@example.com/platform/yeet.git", remoteURL)
+	})
+
+	t.Run("fails when remote is missing", func(t *testing.T) {
+		// given: a repository without the requested remote
+		repositoryPath := t.TempDir()
+		_, err := git.PlainInit(repositoryPath, false)
+		testastic.NoError(t, err)
+		t.Chdir(repositoryPath)
+
+		// when: reading an unknown remote
+		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+
+		// then: a clear error is returned
+		testastic.Equal(t, "", remoteURL)
+		testastic.Error(t, getErr)
+		testastic.ErrorIs(t, getErr, ErrGitRemoteNotFound)
+		testastic.ErrorContains(t, getErr, `"origin"`)
+	})
+}
+
+func initializeRepositoryWithRemote(t *testing.T, path, remoteName, remoteURL string) *git.Repository {
+	t.Helper()
+
+	repository, err := git.PlainInit(path, false)
+	testastic.NoError(t, err)
+
+	_, err = repository.CreateRemote(&gitconfig.RemoteConfig{
+		Name: remoteName,
+		URLs: []string{remoteURL},
+	})
+	testastic.NoError(t, err)
+
+	return repository
 }

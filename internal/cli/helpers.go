@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
+	git "github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/google/go-github/v84/github"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -20,6 +21,9 @@ var (
 	ErrGitHubRepoRequired  = errors.New("resolve github repository: owner and repo are required")
 	ErrGitHubOwnerInvalid  = errors.New("resolve github repository: owner must not contain '/'")
 	ErrGitLabProjectNeeded = errors.New("resolve gitlab repository: project or owner/repo are required")
+	ErrGitRemoteNotFound   = errors.New("git remote not found")
+	ErrGitRemoteHasNoURL   = errors.New("git remote has no url")
+	ErrGitRemoteURLBlank   = errors.New("git remote url is blank")
 )
 
 const minimumProjectSegments = 2
@@ -313,11 +317,59 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 }
 
 func getGitRemoteURL(ctx context.Context, remote string) (string, error) {
-	//nolint:gosec // remote is passed as a git argument, not executed by a shell
-	out, err := exec.CommandContext(ctx, "git", "remote", "get-url", remote).Output()
+	_ = ctx
+
+	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
+	})
 	if err != nil {
-		return "", fmt.Errorf("get git remote url: %w", err)
+		return "", fmt.Errorf("open git repository: %w", err)
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	repositoryConfig, err := repository.Config()
+	if err != nil {
+		return "", fmt.Errorf("read git config: %w", err)
+	}
+
+	remoteConfig, exists := repositoryConfig.Remotes[remote]
+	if !exists {
+		return "", fmt.Errorf("%w: %q", ErrGitRemoteNotFound, remote)
+	}
+
+	if len(remoteConfig.URLs) == 0 {
+		return "", fmt.Errorf("%w: %q", ErrGitRemoteHasNoURL, remote)
+	}
+
+	remoteURL := strings.TrimSpace(remoteConfig.URLs[0])
+	if remoteURL == "" {
+		return "", fmt.Errorf("%w: %q", ErrGitRemoteURLBlank, remote)
+	}
+
+	return rewriteGitRemoteURL(remoteURL, repositoryConfig), nil
+}
+
+func rewriteGitRemoteURL(remoteURL string, repositoryConfig *gitconfig.Config) string {
+	if repositoryConfig == nil {
+		return remoteURL
+	}
+
+	rewrittenURL := remoteURL
+	longestMatchLength := 0
+
+	for _, rule := range repositoryConfig.URLs {
+		insteadOf := strings.TrimSpace(rule.InsteadOf)
+		if insteadOf == "" || !strings.HasPrefix(remoteURL, insteadOf) {
+			continue
+		}
+
+		if len(insteadOf) <= longestMatchLength {
+			continue
+		}
+
+		rewrittenURL = rule.ApplyInsteadOf(remoteURL)
+		longestMatchLength = len(insteadOf)
+	}
+
+	return rewrittenURL
 }
