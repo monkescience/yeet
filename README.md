@@ -10,6 +10,14 @@ Inspired by [release-please](https://github.com/googleapis/release-please).
 go install github.com/monkescience/yeet/cmd/yeet@latest
 ```
 
+Or use the published container image:
+
+```sh
+docker run --rm ghcr.io/monkescience/yeet:vX.Y.Z --help
+```
+
+For CI, prefer pinning a specific release tag or digest instead of `latest`.
+
 ## Quick start
 
 ```sh
@@ -207,6 +215,61 @@ yeet needs a token to interact with the VCS provider API.
 **GitHub**: Set `GITHUB_TOKEN` or `GH_TOKEN` environment variable. For GitHub Enterprise, also set `GITHUB_URL`.
 
 **GitLab**: Set `GITLAB_TOKEN` or `GL_TOKEN` environment variable. For self-hosted instances, also set `GITLAB_URL`.
+
+## CI examples
+
+The published image includes `sh` and puts `yeet` on `PATH`, so CI jobs can run `yeet` directly.
+
+### GitHub Actions
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/monkescience/yeet:vX.Y.Z
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run yeet
+        run: yeet release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### GitLab CI
+
+```yaml
+release:
+  stage: release
+  image:
+    name: ghcr.io/monkescience/yeet:vX.Y.Z
+    entrypoint: [""]
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "0"
+  script:
+    - yeet release
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+```
+
+For GitLab, set `GITLAB_TOKEN` as a masked CI/CD variable. The `entrypoint: [""]` override is required so GitLab runs the job script with `sh` instead of the image's default `yeet` entrypoint.
 
 ## Versioning strategies
 
