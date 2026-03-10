@@ -58,6 +58,7 @@ type providerStub struct {
 	createdBranches []string
 
 	createReleaseCalls int
+	createReleaseOpts  []provider.ReleaseOptions
 }
 
 func newProviderStub() *providerStub {
@@ -170,6 +171,7 @@ func (p *providerStub) FindMergedReleasePR(context.Context, string) (*provider.P
 
 func (p *providerStub) CreateRelease(_ context.Context, opts provider.ReleaseOptions) (*provider.Release, error) {
 	p.createReleaseCalls++
+	p.createReleaseOpts = append(p.createReleaseOpts, opts)
 
 	release := &provider.Release{
 		TagName: opts.TagName,
@@ -1301,6 +1303,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "v1.2.3", release.TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
 		testastic.Contains(t, release.Body, "## [v1.2.3]")
@@ -1578,6 +1582,8 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 		// then: tag is accepted
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
 	})
 }
 

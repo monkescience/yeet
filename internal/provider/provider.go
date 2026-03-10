@@ -42,6 +42,7 @@ type ReleasePROptions struct {
 
 type ReleaseOptions struct {
 	TagName string
+	Ref     string
 	Name    string
 	Body    string
 }

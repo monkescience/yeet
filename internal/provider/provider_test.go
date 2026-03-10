@@ -492,6 +492,120 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 	})
 }
 
+func TestGitHubCreateRelease(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub provider backed by a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isGitHubCreateReleaseRequest(r):
+			var request struct {
+				TagName         string `json:"tag_name"`
+				TargetCommitish string `json:"target_commitish"`
+				Name            string `json:"name"`
+				Body            string `json:"body"`
+			}
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			testastic.NoError(t, err)
+			testastic.Equal(t, "v1.2.3", request.TagName)
+			testastic.Equal(t, "main", request.TargetCommitish)
+			testastic.Equal(t, "v1.2.3", request.Name)
+			testastic.Equal(t, "release notes", request.Body)
+
+			writeJSON(t, w, map[string]any{
+				"tag_name":         request.TagName,
+				"target_commitish": request.TargetCommitish,
+				"name":             request.Name,
+				"body":             request.Body,
+				"html_url":         "https://example.com/releases/v1.2.3",
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: creating a release with an explicit ref
+	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+		TagName: "v1.2.3",
+		Ref:     "main",
+		Name:    "v1.2.3",
+		Body:    "release notes",
+	})
+
+	// then: target_commitish is forwarded to GitHub
+	testastic.NoError(t, err)
+	testastic.Equal(t, "v1.2.3", release.TagName)
+	testastic.Equal(t, "release notes", release.Body)
+	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+}
+
+func TestGitLabCreateRelease(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab provider backed by a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isGitLabCreateReleaseRequest(r):
+			var request struct {
+				TagName     string `json:"tag_name"`
+				Ref         string `json:"ref"`
+				Name        string `json:"name"`
+				Description string `json:"description"`
+			}
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			testastic.NoError(t, err)
+			testastic.Equal(t, "v1.2.3", request.TagName)
+			testastic.Equal(t, "main", request.Ref)
+			testastic.Equal(t, "v1.2.3", request.Name)
+			testastic.Equal(t, "release notes", request.Description)
+
+			writeJSON(t, w, map[string]any{
+				"tag_name":    request.TagName,
+				"name":        request.Name,
+				"description": request.Description,
+				"_links": map[string]any{
+					"self": "https://example.com/releases/v1.2.3",
+				},
+			})
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: creating a release with an explicit ref
+	release, err := gl.CreateRelease(context.Background(), provider.ReleaseOptions{
+		TagName: "v1.2.3",
+		Ref:     "main",
+		Name:    "v1.2.3",
+		Body:    "release notes",
+	})
+
+	// then: ref is forwarded to GitLab
+	testastic.NoError(t, err)
+	testastic.Equal(t, "v1.2.3", release.TagName)
+	testastic.Equal(t, "release notes", release.Body)
+	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+}
+
 func mustParseURL(t *testing.T, raw string) *url.URL {
 	t.Helper()
 
@@ -517,6 +631,16 @@ func isGitLabCommitResolveRequest(r *http.Request) bool {
 func isGitLabCommitsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits"
+}
+
+func isGitHubCreateReleaseRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		r.URL.Path == "/repos/o/r/releases"
+}
+
+func isGitLabCreateReleaseRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases"
 }
 
 // Compile-time interface checks.

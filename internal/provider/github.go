@@ -319,12 +319,19 @@ func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
 }
 
 func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
+	targetCommitish := strings.TrimSpace(opts.Ref)
+	releaseRequest := &github.RepositoryRelease{
+		TagName: github.Ptr(opts.TagName),
+		Name:    github.Ptr(opts.Name),
+		Body:    github.Ptr(opts.Body),
+	}
+
+	if targetCommitish != "" {
+		releaseRequest.TargetCommitish = github.Ptr(targetCommitish)
+	}
+
 	rel, _, err := g.client.Repositories.CreateRelease(
-		ctx, g.repo.Owner, g.repo.Name, &github.RepositoryRelease{
-			TagName: github.Ptr(opts.TagName),
-			Name:    github.Ptr(opts.Name),
-			Body:    github.Ptr(opts.Body),
-		},
+		ctx, g.repo.Owner, g.repo.Name, releaseRequest,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create release: %w", err)

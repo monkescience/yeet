@@ -158,6 +158,7 @@ func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result,
 
 	release, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
 		TagName: tag,
+		Ref:     r.cfg.Branch,
 		Name:    name,
 		Body:    changelogBody,
 	})
@@ -220,6 +221,7 @@ func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Rel
 func (r *Releaser) createReleaseForTag(ctx context.Context, tag, releaseBody string) (*provider.Release, error) {
 	releaseInfo, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
 		TagName: tag,
+		Ref:     r.cfg.Branch,
 		Name:    tag,
 		Body:    releaseBody,
 	})

@@ -311,11 +311,18 @@ func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int) error {
 }
 
 func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
-	release, _, err := g.client.Releases.CreateRelease(g.pid, &gitlab.CreateReleaseOptions{
+	ref := strings.TrimSpace(opts.Ref)
+	releaseOptions := &gitlab.CreateReleaseOptions{
 		TagName:     gitlab.Ptr(opts.TagName),
 		Name:        gitlab.Ptr(opts.Name),
 		Description: gitlab.Ptr(opts.Body),
-	}, gitlab.WithContext(ctx))
+	}
+
+	if ref != "" {
+		releaseOptions.Ref = gitlab.Ptr(ref)
+	}
+
+	release, _, err := g.client.Releases.CreateRelease(g.pid, releaseOptions, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("create release: %w", err)
 	}
