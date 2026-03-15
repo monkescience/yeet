@@ -1,3 +1,11 @@
+# Changelog
+
+## [v0.2.1](https://github.com/monkescience/yeet/compare/v0.2.0...v0.2.1) (2026-03-15)
+
+### Bug Fixes
+
+- **changelog:** normalize generated changelog header ([cdb3312](https://github.com/monkescience/yeet/commit/cdb33127fae590a841fcdb35e2f6476af23bb14a))
+
 ## [v0.2.0](https://github.com/monkescience/yeet/compare/v0.1.4...v0.2.0) (2026-03-10)
 
 ### ⚠ BREAKING CHANGES
