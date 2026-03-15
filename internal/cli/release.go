@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/spf13/cobra"
 )
@@ -122,7 +123,7 @@ func runRelease(ctx context.Context, options releaseRunOptions) error {
 		return fmt.Errorf("release failed: %w", err)
 	}
 
-	if result.BumpType == "none" {
+	if result.BumpType == commit.BumpNone {
 		if result.Release != nil {
 			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Release.TagName)
 
