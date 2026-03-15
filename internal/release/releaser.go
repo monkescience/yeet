@@ -629,25 +629,27 @@ func (r *Releaser) releaseChangelogFileContent(ctx context.Context, changelogEnt
 	existing, err := r.provider.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
 	if err != nil {
 		if errors.Is(err, provider.ErrFileNotFound) {
-			return changelogEntry, nil
+			return changelog.Prepend("", changelogEntry), nil
 		}
 
 		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
 	}
 
-	return prependChangelogEntryPreservingStyle(existing, changelogEntry), nil
+	return prependChangelogEntry(existing, changelogEntry), nil
 }
 
-func prependChangelogEntryPreservingStyle(existing, changelogEntry string) string {
+func prependChangelogEntry(existing, changelogEntry string) string {
 	if strings.TrimSpace(existing) == "" {
-		return changelogEntry
+		return changelog.Prepend("", changelogEntry)
 	}
 
 	if strings.HasPrefix(existing, "# ") {
 		return changelog.Prepend(existing, changelogEntry)
 	}
 
-	return strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
+	combined := strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
+
+	return changelog.Prepend("", combined)
 }
 
 func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {

@@ -1058,7 +1058,8 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.NotContains(t, result.Changelog, "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._")
 
 		releaseBranch := "yeet/release-main"
-		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
+		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
+		testastic.Equal(t, prependChangelogEntry("", result.Changelog), updatedChangelog)
 	})
 
 	t.Run("optional branch scope uses stable base version in preview", func(t *testing.T) {
@@ -1161,7 +1162,8 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
 
 		releaseBranch := "yeet/release-main"
-		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
+		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
+		testastic.Equal(t, prependChangelogEntry("", result.Changelog), updatedChangelog)
 	})
 
 	t.Run("gitlab compare link uses latest commit sha in PR body", func(t *testing.T) {
@@ -1200,7 +1202,8 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
 
 		releaseBranch := "yeet/release-main"
-		testastic.Equal(t, result.Changelog, stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)])
+		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
+		testastic.Equal(t, prependChangelogEntry("", result.Changelog), updatedChangelog)
 	})
 }
 
@@ -1590,6 +1593,45 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 func TestUpdateReleaseBranchFiles(t *testing.T) {
 	t.Parallel()
 
+	t.Run("creates missing changelog with top-level header", func(t *testing.T) {
+		t.Parallel()
+
+		// given: releaser without an existing changelog file
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		branch := "yeet/release-v0.1.0"
+
+		r := New(cfg, stub)
+
+		result := &Result{
+			NextVersion: "0.1.0",
+			NextTag:     "v0.1.0",
+			Changelog: strings.TrimSpace(`## v0.1.0 (2026-03-01)
+
+### Features
+
+- initial release (abc1234)
+`),
+		}
+
+		// when: updating release branch files
+		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+
+		// then: changelog is created with the release-please style header
+		testastic.NoError(t, err)
+
+		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
+		testastic.Equal(t, strings.TrimSpace(`# Changelog
+
+## v0.1.0 (2026-03-01)
+
+### Features
+
+- initial release (abc1234)
+`), strings.TrimSpace(updated))
+	})
+
 	t.Run("updates configured version files", func(t *testing.T) {
 		t.Parallel()
 
@@ -1646,7 +1688,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.Equal(t, "version=1.2.3", stub.files[providerFileKey(branch, "VERSION.txt")])
 	})
 
-	t.Run("prepends changelog entry and preserves existing history style", func(t *testing.T) {
+	t.Run("prepends changelog entry and normalizes headerless history", func(t *testing.T) {
 		t.Parallel()
 
 		// given: existing changelog without top header and a new release entry
@@ -1678,13 +1720,14 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		// when: updating release branch files
 		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
 
-		// then: new entry is prepended without replacing old release content
+		// then: new entry is prepended and the changelog gains a top-level header
 		testastic.NoError(t, err)
 
 		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.NotHasPrefix(t, updated, "# Changelog")
+		testastic.HasPrefix(t, updated, "# Changelog")
 		testastic.Contains(t, updated, "## [v0.1.1]")
 		testastic.Contains(t, updated, "## [v0.1.0]")
+		testastic.Contains(t, updated, "def5678)\n\n## [v0.1.0]")
 
 		newEntryIndex := strings.Index(updated, "## [v0.1.1]")
 		oldEntryIndex := strings.Index(updated, "## [v0.1.0]")

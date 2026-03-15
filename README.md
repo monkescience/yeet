@@ -325,6 +325,8 @@ Release-As: 1.2.0
 yeet generates changelogs that match the [release-please](https://github.com/googleapis/release-please) style:
 
 ```markdown
+# Changelog
+
 ## [v1.2.0](https://github.com/owner/repo/compare/v1.1.0...v1.2.0) (2026-02-28)
 
 ### ⚠ BREAKING CHANGES
@@ -341,7 +343,7 @@ yeet generates changelogs that match the [release-please](https://github.com/goo
 - **api:** handle null response body ([ghi9012](https://github.com/owner/repo/commit/ghi9012...))
 ```
 
-Version headers link to the compare diff, and commit hashes link to the individual commits. For the initial release (no previous tag), the version header is plain text.
+yeet creates or normalizes `CHANGELOG.md` with a top-level `# Changelog` header. Version headers link to the compare diff, and commit hashes link to the individual commits. For the initial release (no previous tag), the version header is plain text.
 
 ## License
 
