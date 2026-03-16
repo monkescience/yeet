@@ -226,7 +226,9 @@ yeet needs a token to interact with the VCS provider API.
 
 ## CI examples
 
-The published image includes `sh` and puts `yeet` on `PATH`, so CI jobs can run `yeet` directly.
+The published image is suitable for running `yeet` directly in CI. On GitHub Actions,
+prefer using it as a Docker action step instead of a job-level container so JavaScript
+actions like `actions/checkout` can still run on the host runner.
 
 ### GitHub Actions
 
@@ -246,8 +248,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/monkescience/yeet:vX.Y.Z
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -255,7 +255,9 @@ jobs:
           fetch-depth: 0
 
       - name: Run yeet
-        run: yeet release
+        uses: docker://ghcr.io/monkescience/yeet:vX.Y.Z
+        with:
+          args: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
