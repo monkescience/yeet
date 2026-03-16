@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.2.2](https://github.com/monkescience/yeet/compare/v0.2.1...v0.2.2) (2026-03-16)
+
+### Bug Fixes
+
+- **cli:** honor custom config path during init ([5327c35](https://github.com/monkescience/yeet/commit/5327c35cd098c77366bf45dd65711b51005d1824))
+- **release:** reuse exact releases and pick reachable baselines ([75df5e9](https://github.com/monkescience/yeet/commit/75df5e959836af7d86bc75c37147587ff423dbee))
+
 ## [v0.2.1](https://github.com/monkescience/yeet/compare/v0.2.0...v0.2.1) (2026-03-15)
 
 ### Bug Fixes
