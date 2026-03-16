@@ -21,11 +21,12 @@ type Release struct {
 }
 
 type PullRequest struct {
-	Number int
-	Title  string
-	Body   string
-	URL    string
-	Branch string
+	Number         int
+	Title          string
+	Body           string
+	URL            string
+	Branch         string
+	MergeCommitSHA string
 }
 
 const ReleaseLabelPending = "autorelease: pending"
@@ -68,8 +69,14 @@ type CommitEntry struct {
 
 //nolint:interfacebloat // Provider aggregates VCS operations required by the release flow.
 type Provider interface {
-	// GetLatestRelease returns the latest release/tag.
-	GetLatestRelease(ctx context.Context) (*Release, error)
+	// GetLatestVersionRef returns the preferred release/tag baseline candidate.
+	GetLatestVersionRef(ctx context.Context) (string, error)
+	// ListTags returns repository tags.
+	ListTags(ctx context.Context) ([]string, error)
+	// GetReleaseByTag returns the release for the exact tag.
+	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
+	// TagExists reports whether the exact tag already exists.
+	TagExists(ctx context.Context, tag string) (bool, error)
 	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
 	GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error)
 	// CreateReleasePR creates a release PR/MR.
@@ -126,6 +133,8 @@ func ParseCommits(entries []CommitEntry) []commit.Commit {
 var ErrUnknownRemote = errors.New("unable to parse remote URL")
 
 var ErrNoRelease = errors.New("no release found")
+
+var ErrNoVersionRef = errors.New("no version ref found")
 
 // ErrCommitBoundaryNotFound reports that the requested base ref is not reachable from the target branch history.
 var ErrCommitBoundaryNotFound = errors.New("commit boundary not found")

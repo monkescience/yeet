@@ -188,6 +188,347 @@ func TestParseCommitsEmpty(t *testing.T) {
 	testastic.Equal(t, 0, len(commits))
 }
 
+func TestGitHubVersionLookup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns latest version ref from latest release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository with a published release
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest":
+				writeJSON(t, w, map[string]any{
+					"tag_name": "v1.2.4",
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: resolving the latest version ref
+		ref, err := gh.GetLatestVersionRef(context.Background())
+
+		// then: the latest published release tag is preferred
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.4", ref)
+	})
+
+	t.Run("falls back to tags when no release exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository with tags but no published release
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest":
+				http.NotFound(w, r)
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/tags":
+				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
+				writeJSON(t, w, []map[string]any{{
+					"name":   "v1.2.3",
+					"commit": map[string]any{"sha": "abc123"},
+				}})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: resolving the latest version ref
+		ref, err := gh.GetLatestVersionRef(context.Background())
+
+		// then: the latest tag is returned when no release exists
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", ref)
+	})
+
+	t.Run("returns release by exact tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository with a release for the requested tag
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/tags/v1.2.3":
+				writeJSON(t, w, map[string]any{
+					"tag_name": "v1.2.3",
+					"name":     "v1.2.3",
+					"body":     "release notes",
+					"html_url": "https://example.com/releases/v1.2.3",
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: looking up the release by tag
+		release, err := gh.GetReleaseByTag(context.Background(), "v1.2.3")
+
+		// then: the exact release is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, "release notes", release.Body)
+	})
+
+	t.Run("reports whether exact tag exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository with one existing tag
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+				writeJSON(t, w, map[string]any{
+					"ref": "refs/tags/v1.2.3",
+					"object": map[string]any{
+						"sha":  "abc123",
+						"type": "commit",
+					},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v9.9.9":
+				http.NotFound(w, r)
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: checking existing and missing tags
+		exists, err := gh.TagExists(context.Background(), "v1.2.3")
+		testastic.NoError(t, err)
+		testastic.True(t, exists)
+
+		missing, err := gh.TagExists(context.Background(), "v9.9.9")
+
+		// then: the exact tag existence is reported without treating missing tags as errors
+		testastic.NoError(t, err)
+		testastic.False(t, missing)
+	})
+}
+
+func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	// given: a merged pending release pull request on GitHub
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
+			writeJSON(t, w, []map[string]any{{
+				"number":    42,
+				"title":     "chore: release 1.2.3",
+				"body":      "<!-- yeet-release-tag: v1.2.3 -->",
+				"html_url":  "https://example.com/pr/42",
+				"merged_at": "2026-03-01T00:00:00Z",
+				"labels": []map[string]any{{
+					"name": provider.ReleaseLabelPending,
+				}},
+				"head": map[string]any{
+					"ref": "yeet/release-main",
+				},
+			}})
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+			writeJSON(t, w, map[string]any{
+				"number":           42,
+				"merge_commit_sha": "merge-sha",
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: finding the merged pending release PR
+	pullRequest, err := gh.FindMergedReleasePR(context.Background(), "main")
+
+	// then: the merged commit SHA is populated for stale-release finalization
+	testastic.NoError(t, err)
+	testastic.Equal(t, 42, pullRequest.Number)
+	testastic.Equal(t, "merge-sha", pullRequest.MergeCommitSHA)
+}
+
+func TestGitLabVersionLookup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns latest version ref from latest release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab repository with a published release
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases":
+				testastic.Equal(t, "1", r.URL.Query().Get("per_page"))
+				writeJSON(t, w, []map[string]any{{
+					"tag_name": "v1.2.4",
+				}})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: resolving the latest version ref
+		ref, err := gl.GetLatestVersionRef(context.Background())
+
+		// then: the latest published release tag is preferred
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.4", ref)
+	})
+
+	t.Run("falls back to tags when no release exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab repository with tags but no published release
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases":
+				writeJSON(t, w, []map[string]any{})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/tags":
+				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
+				writeJSON(t, w, []map[string]any{{
+					"name":   "v1.2.3",
+					"target": "abc123",
+				}})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: resolving the latest version ref
+		ref, err := gl.GetLatestVersionRef(context.Background())
+
+		// then: the latest tag is returned when no release exists
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", ref)
+	})
+
+	t.Run("returns release by exact tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab repository with a release for the requested tag
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/releases/"):
+				writeJSON(t, w, map[string]any{
+					"tag_name":    "v1.2.3",
+					"name":        "v1.2.3",
+					"description": "release notes",
+					"_links": map[string]any{
+						"self": "https://example.com/releases/v1.2.3",
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: looking up the release by tag
+		release, err := gl.GetReleaseByTag(context.Background(), "v1.2.3")
+
+		// then: the exact release is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, "release notes", release.Body)
+	})
+
+	t.Run("reports whether exact tag exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab repository with one existing tag
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.EscapedPath(), "/repository/tags/v1%2E2%2E3"):
+				writeJSON(t, w, map[string]any{
+					"name":   "v1.2.3",
+					"target": "abc123",
+				})
+			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.EscapedPath(), "/repository/tags/v9%2E9%2E9"):
+				http.NotFound(w, r)
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: checking existing and missing tags
+		exists, err := gl.TagExists(context.Background(), "v1.2.3")
+		testastic.NoError(t, err)
+		testastic.True(t, exists)
+
+		missing, err := gl.TagExists(context.Background(), "v9.9.9")
+
+		// then: the exact tag existence is reported without treating missing tags as errors
+		testastic.NoError(t, err)
+		testastic.False(t, missing)
+	})
+}
+
 func TestGitHubGetCommitsSince(t *testing.T) {
 	t.Parallel()
 

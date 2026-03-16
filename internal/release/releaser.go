@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -154,16 +156,9 @@ func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result,
 		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
 	}
 
-	name := tag
-
-	release, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
-		TagName: tag,
-		Ref:     r.cfg.Branch,
-		Name:    name,
-		Body:    changelogBody,
-	})
+	release, err := r.ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody)
 	if err != nil {
-		return nil, fmt.Errorf("create release: %w", err)
+		return nil, err
 	}
 
 	return &Result{
@@ -187,7 +182,7 @@ func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Relea
 		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
 	}
 
-	releaseInfo, err := r.releaseForTag(ctx, tag)
+	releaseInfo, err := r.releaseForTag(ctx, tag, releaseRefForPullRequest(mergedPR, r.cfg.Branch))
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +195,7 @@ func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Relea
 	return releaseInfo, nil
 }
 
-func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Release, error) {
+func (r *Releaser) releaseForTag(ctx context.Context, tag, ref string) (*provider.Release, error) {
 	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -215,13 +210,13 @@ func (r *Releaser) releaseForTag(ctx context.Context, tag string) (*provider.Rel
 		return nil, err
 	}
 
-	return r.createReleaseForTag(ctx, tag, releaseBody)
+	return r.ensureReleaseForTag(ctx, tag, ref, releaseBody)
 }
 
-func (r *Releaser) createReleaseForTag(ctx context.Context, tag, releaseBody string) (*provider.Release, error) {
+func (r *Releaser) createReleaseForTag(ctx context.Context, tag, ref, releaseBody string) (*provider.Release, error) {
 	releaseInfo, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
 		TagName: tag,
-		Ref:     r.cfg.Branch,
+		Ref:     ref,
 		Name:    tag,
 		Body:    releaseBody,
 	})
@@ -234,7 +229,7 @@ func (r *Releaser) createReleaseForTag(ctx context.Context, tag, releaseBody str
 	return releaseInfo, nil
 }
 
-func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, releaseBody string) (*provider.Release, error) {
+func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, ref, releaseBody string) (*provider.Release, error) {
 	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -244,26 +239,36 @@ func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, releaseBody str
 		return existingRelease, nil
 	}
 
-	return r.createReleaseForTag(ctx, tag, releaseBody)
+	tagExists, err := r.provider.TagExists(ctx, tag)
+	if err != nil {
+		return nil, fmt.Errorf("check tag %q: %w", tag, err)
+	}
+
+	if tagExists {
+		return r.createReleaseForTag(ctx, tag, "", releaseBody)
+	}
+
+	creationRef := strings.TrimSpace(ref)
+	if creationRef == "" {
+		creationRef = r.cfg.Branch
+	}
+
+	return r.createReleaseForTag(ctx, tag, creationRef, releaseBody)
 }
 
 func (r *Releaser) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {
-	latest, latestErr := r.provider.GetLatestRelease(ctx)
-	if latestErr != nil {
-		if !errors.Is(latestErr, provider.ErrNoRelease) {
-			return nil, false, fmt.Errorf("get latest release: %w", latestErr)
+	releaseInfo, err := r.provider.GetReleaseByTag(ctx, tag)
+	if err != nil {
+		if !errors.Is(err, provider.ErrNoRelease) {
+			return nil, false, fmt.Errorf("get release by tag %q: %w", tag, err)
 		}
 
 		return nil, false, nil
 	}
 
-	if latest.TagName == tag {
-		slog.InfoContext(ctx, "release already exists", "tag", tag)
+	slog.InfoContext(ctx, "release already exists", "tag", tag)
 
-		return latest, true, nil
-	}
-
-	return nil, false, nil
+	return releaseInfo, true, nil
 }
 
 func (r *Releaser) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
@@ -284,7 +289,7 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 		return nil, fmt.Errorf("%w: got %d", ErrInvalidPreviewHashLength, previewHashLength)
 	}
 
-	currentVersion, ref, err := r.currentVersionFromLatestRelease(ctx)
+	currentVersion, ref, err := r.currentVersionFromReleaseHistory(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -338,22 +343,217 @@ func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength 
 	return result, nil
 }
 
-func (r *Releaser) currentVersionFromLatestRelease(ctx context.Context) (string, string, error) {
-	latest, err := r.provider.GetLatestRelease(ctx)
+func (r *Releaser) currentVersionFromReleaseHistory(ctx context.Context) (string, string, error) {
+	refs, err := r.versionHistoryRefs(ctx)
 	if err != nil {
-		if errors.Is(err, provider.ErrNoRelease) {
-			return "", "", nil
+		return "", "", err
+	}
+
+	for _, ref := range refs {
+		currentVersion, usable, useErr := r.currentVersionFromReachableRef(ctx, ref)
+		if useErr != nil {
+			return "", "", useErr
 		}
 
-		return "", "", fmt.Errorf("get latest release: %w", err)
+		if usable {
+			return currentVersion, ref, nil
+		}
 	}
 
-	currentVersion, err := r.strategy.strategy.Current(latest.TagName)
+	if len(refs) > 0 {
+		return "", "", r.branchAncestryError(refs[0])
+	}
+
+	return "", "", nil
+}
+
+func (r *Releaser) versionHistoryRefs(ctx context.Context) ([]string, error) {
+	refs := make([]string, 0)
+
+	preferredRef, err := r.provider.GetLatestVersionRef(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("parse current version: %w", err)
+		if !errors.Is(err, provider.ErrNoVersionRef) {
+			return nil, fmt.Errorf("get latest version ref: %w", err)
+		}
+	} else {
+		refs = append(refs, preferredRef)
 	}
 
-	return currentVersion, latest.TagName, nil
+	tags, err := r.provider.ListTags(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list tags: %w", err)
+	}
+
+	refs = append(refs, tags...)
+
+	return r.orderedVersionRefs(refs, ""), nil
+}
+
+func (r *Releaser) currentVersionFromReachableRef(ctx context.Context, ref string) (string, bool, error) {
+	currentVersion, ok := r.currentVersionFromRef(ref)
+	if !ok {
+		return "", false, nil
+	}
+
+	reachable, err := r.refReachableFromBranch(ctx, ref)
+	if err != nil {
+		return "", false, err
+	}
+
+	if !reachable {
+		return "", false, nil
+	}
+
+	return currentVersion, true, nil
+}
+
+func (r *Releaser) currentVersionFromRef(ref string) (string, bool) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || isPreviewTag(ref, r.strategy.prefix) {
+		return "", false
+	}
+
+	currentVersion, err := r.strategy.strategy.Current(ref)
+	if err != nil {
+		return "", false
+	}
+
+	return currentVersion, true
+}
+
+func (r *Releaser) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
+	_, err := r.provider.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	if err != nil {
+		if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("validate version ref %q: %w", ref, err)
+	}
+
+	return true, nil
+}
+
+func (r *Releaser) orderedVersionRefs(refs []string, excludeRef string) []string {
+	orderedRefs := make([]string, 0, len(refs))
+	seen := make(map[string]struct{}, len(refs))
+	excludeRef = strings.TrimSpace(excludeRef)
+
+	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
+		if ref == "" || ref == excludeRef {
+			continue
+		}
+
+		if _, exists := seen[ref]; exists {
+			continue
+		}
+
+		if _, ok := r.currentVersionFromRef(ref); !ok {
+			continue
+		}
+
+		orderedRefs = append(orderedRefs, ref)
+		seen[ref] = struct{}{}
+	}
+
+	sort.SliceStable(orderedRefs, func(i, j int) bool {
+		return r.versionRefLess(orderedRefs[j], orderedRefs[i])
+	})
+
+	return orderedRefs
+}
+
+func (r *Releaser) versionRefLess(leftRef, rightRef string) bool {
+	leftVersion, ok := r.currentVersionFromRef(leftRef)
+	if !ok {
+		return false
+	}
+
+	rightVersion, ok := r.currentVersionFromRef(rightRef)
+	if !ok {
+		return false
+	}
+
+	if r.cfg.Versioning == config.VersioningCalVer {
+		return calVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
+	}
+
+	return semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
+}
+
+func semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {
+	leftSemver, err := semver.StrictNewVersion(leftVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	rightSemver, err := semver.StrictNewVersion(rightVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	if !leftSemver.Equal(rightSemver) {
+		return leftSemver.LessThan(rightSemver)
+	}
+
+	return leftRef < rightRef
+}
+
+func calVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {
+	leftParts, err := parseCalVerVersion(leftVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	rightParts, err := parseCalVerVersion(rightVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	if leftParts[0] != rightParts[0] {
+		return leftParts[0] < rightParts[0]
+	}
+
+	if leftParts[1] != rightParts[1] {
+		return leftParts[1] < rightParts[1]
+	}
+
+	if leftParts[2] != rightParts[2] {
+		return leftParts[2] < rightParts[2]
+	}
+
+	return leftRef < rightRef
+}
+
+func parseCalVerVersion(rawVersion string) ([3]int, error) {
+	parts := strings.SplitN(strings.TrimSpace(rawVersion), ".", 3) //nolint:mnd // calver has 3 segments
+	if len(parts) != 3 {                                           //nolint:mnd // calver has 3 segments
+		return [3]int{}, fmt.Errorf("%w: %q", version.ErrInvalidVersion, rawVersion)
+	}
+
+	values := [3]int{}
+
+	for idx, part := range parts {
+		value, err := strconv.Atoi(part)
+		if err != nil {
+			return [3]int{}, fmt.Errorf("%w: %q: %w", version.ErrInvalidVersion, rawVersion, err)
+		}
+
+		values[idx] = value
+	}
+
+	return values, nil
+}
+
+func (r *Releaser) branchAncestryError(ref string) error {
+	return fmt.Errorf(
+		"previous release ref %q is not reachable from release branch %q; "+
+			"verify the latest tag/release and branch ancestry: %w",
+		ref,
+		r.cfg.Branch,
+		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: r.cfg.Branch},
+	)
 }
 
 func (r *Releaser) commitsSince(ctx context.Context, ref string) ([]provider.CommitEntry, error) {
@@ -363,13 +563,7 @@ func (r *Releaser) commitsSince(ctx context.Context, ref string) ([]provider.Com
 	}
 
 	if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
-		return nil, fmt.Errorf(
-			"previous release ref %q is not reachable from release branch %q; "+
-				"verify the latest tag/release and branch ancestry: %w",
-			ref,
-			r.cfg.Branch,
-			err,
-		)
+		return nil, r.branchAncestryError(ref)
 	}
 
 	return nil, fmt.Errorf("get commits from branch %q: %w", r.cfg.Branch, err)
@@ -495,7 +689,7 @@ func (r *Releaser) autoMergeReleasePR(ctx context.Context, result *Result, previ
 
 	releaseTag := releasePRTag(result)
 
-	releaseInfo, err := r.ensureReleaseForTag(ctx, releaseTag, result.Changelog)
+	releaseInfo, err := r.ensureReleaseForTag(ctx, releaseTag, r.cfg.Branch, result.Changelog)
 	if err != nil {
 		return err
 	}
@@ -689,6 +883,15 @@ func (r *Releaser) releasePRBody(changelogBody, releaseTag string) string {
 	}
 
 	return strings.Join(parts, "\n\n")
+}
+
+func releaseRefForPullRequest(pullRequest *provider.PullRequest, defaultRef string) string {
+	mergeCommitSHA := strings.TrimSpace(pullRequest.MergeCommitSHA)
+	if mergeCommitSHA != "" {
+		return mergeCommitSHA
+	}
+
+	return strings.TrimSpace(defaultRef)
 }
 
 func multiplePendingReleasePRError(pendingPRs []*provider.PullRequest) error {

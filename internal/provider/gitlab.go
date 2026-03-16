@@ -43,26 +43,83 @@ func (g *GitLab) PathPrefix() string {
 	return "/-"
 }
 
-func (g *GitLab) GetLatestRelease(ctx context.Context) (*Release, error) {
-	releases, _, err := g.client.Releases.ListReleases(g.pid, &gitlab.ListReleasesOptions{
-		ListOptions: gitlab.ListOptions{PerPage: 1},
-	}, gitlab.WithContext(ctx))
+func (g *GitLab) GetLatestVersionRef(ctx context.Context) (string, error) {
+	release, err := g.latestRelease(ctx)
+	if err == nil {
+		return release.TagName, nil
+	}
+
+	if !errors.Is(err, ErrNoRelease) {
+		return "", err
+	}
+
+	tags, err := g.ListTags(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list releases: %w", err)
+		return "", err
 	}
 
-	if len(releases) == 0 {
-		return nil, ErrNoRelease
+	if len(tags) == 0 {
+		return "", ErrNoVersionRef
 	}
 
-	r := releases[0]
+	return tags[0], nil
+}
 
-	return &Release{
-		TagName: r.TagName,
-		Name:    r.Name,
-		Body:    r.Description,
-		URL:     r.Links.Self,
-	}, nil
+func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
+	options := &gitlab.ListTagsOptions{
+		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+	}
+	tags := make([]string, 0)
+
+	for {
+		pageTags, resp, err := g.client.Tags.ListTags(g.pid, options, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list tags: %w", err)
+		}
+
+		for _, tag := range pageTags {
+			name := strings.TrimSpace(tag.Name)
+			if name == "" {
+				continue
+			}
+
+			tags = append(tags, name)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return tags, nil
+}
+
+func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+	release, _, err := g.client.Releases.GetRelease(g.pid, tag, gitlab.WithContext(ctx))
+	if err != nil {
+		if errors.Is(err, gitlab.ErrNotFound) {
+			return nil, ErrNoRelease
+		}
+
+		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
+	}
+
+	return gitLabRelease(release), nil
+}
+
+func (g *GitLab) TagExists(ctx context.Context, tag string) (bool, error) {
+	_, _, err := g.client.Tags.GetTag(g.pid, tag, gitlab.WithContext(ctx))
+	if err != nil {
+		if errors.Is(err, gitlab.ErrNotFound) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("get tag %q: %w", tag, err)
+	}
+
+	return true, nil
 }
 
 func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
@@ -252,11 +309,12 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 			}
 
 			return &PullRequest{
-				Number: int(mr.IID),
-				Title:  mr.Title,
-				Body:   mr.Description,
-				URL:    mr.WebURL,
-				Branch: mr.SourceBranch,
+				Number:         int(mr.IID),
+				Title:          mr.Title,
+				Body:           mr.Description,
+				URL:            mr.WebURL,
+				Branch:         mr.SourceBranch,
+				MergeCommitSHA: gitLabMergeCommitSHA(mr),
 			}, nil
 		}
 
@@ -327,12 +385,25 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
+	return gitLabRelease(release), nil
+}
+
+func gitLabRelease(release *gitlab.Release) *Release {
 	return &Release{
 		TagName: release.TagName,
 		Name:    release.Name,
 		Body:    release.Description,
 		URL:     release.Links.Self,
-	}, nil
+	}
+}
+
+func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
+	mergeCommitSHA := strings.TrimSpace(mergeRequest.MergeCommitSHA)
+	if mergeCommitSHA != "" {
+		return mergeCommitSHA
+	}
+
+	return strings.TrimSpace(mergeRequest.SquashCommitSHA)
 }
 
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
@@ -496,6 +567,21 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	}
 
 	return nil
+}
+
+func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
+	releases, _, err := g.client.Releases.ListReleases(g.pid, &gitlab.ListReleasesOptions{
+		ListOptions: gitlab.ListOptions{PerPage: 1},
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("list releases: %w", err)
+	}
+
+	if len(releases) == 0 {
+		return nil, ErrNoRelease
+	}
+
+	return releases[0], nil
 }
 
 func (g *GitLab) resolveCommitID(ctx context.Context, ref string) (string, error) {

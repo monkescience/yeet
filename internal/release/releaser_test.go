@@ -4,6 +4,7 @@ package release
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -30,11 +31,16 @@ type providerStub struct {
 	updateFilesCalls    int
 	updateFilesMessages []string
 
-	latestRelease    *provider.Release
-	latestReleaseErr error
+	latestVersionRef    string
+	latestVersionRefErr error
+	latestRelease       *provider.Release
+	releasesByTag       map[string]*provider.Release
+	tagList             []string
+	tags                map[string]bool
 
-	commits    []provider.CommitEntry
-	commitsErr error
+	commits         []provider.CommitEntry
+	commitsErr      error
+	commitsErrByRef map[string]error
 
 	commitsByRef            map[string][]provider.CommitEntry
 	getCommitsSinceOf       []string
@@ -63,8 +69,11 @@ type providerStub struct {
 
 func newProviderStub() *providerStub {
 	return &providerStub{
-		files:        make(map[string]string),
-		pullRequests: make(map[string]*provider.PullRequest),
+		files:           make(map[string]string),
+		pullRequests:    make(map[string]*provider.PullRequest),
+		releasesByTag:   make(map[string]*provider.Release),
+		tags:            make(map[string]bool),
+		commitsErrByRef: make(map[string]error),
 	}
 }
 
@@ -72,21 +81,68 @@ func providerFileKey(branch, path string) string {
 	return branch + ":" + path
 }
 
-func (p *providerStub) GetLatestRelease(context.Context) (*provider.Release, error) {
-	if p.latestReleaseErr != nil {
-		return nil, p.latestReleaseErr
+func (p *providerStub) GetLatestVersionRef(context.Context) (string, error) {
+	if p.latestVersionRefErr != nil {
+		return "", p.latestVersionRefErr
+	}
+
+	if p.latestVersionRef != "" {
+		return p.latestVersionRef, nil
 	}
 
 	if p.latestRelease == nil {
-		return nil, provider.ErrNoRelease
+		return "", provider.ErrNoVersionRef
 	}
 
-	return p.latestRelease, nil
+	return p.latestRelease.TagName, nil
+}
+
+func (p *providerStub) ListTags(context.Context) ([]string, error) {
+	if len(p.tagList) == 0 {
+		return nil, nil
+	}
+
+	refs := make([]string, len(p.tagList))
+	copy(refs, p.tagList)
+
+	return refs, nil
+}
+
+func (p *providerStub) GetReleaseByTag(_ context.Context, tag string) (*provider.Release, error) {
+	if releaseInfo, exists := p.releasesByTag[tag]; exists {
+		return releaseInfo, nil
+	}
+
+	if p.latestRelease != nil && p.latestRelease.TagName == tag {
+		return p.latestRelease, nil
+	}
+
+	return nil, provider.ErrNoRelease
+}
+
+func (p *providerStub) TagExists(_ context.Context, tag string) (bool, error) {
+	if p.tags[tag] {
+		return true, nil
+	}
+
+	if _, exists := p.releasesByTag[tag]; exists {
+		return true, nil
+	}
+
+	if p.latestRelease != nil && p.latestRelease.TagName == tag {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (p *providerStub) GetCommitsSince(_ context.Context, ref, branch string) ([]provider.CommitEntry, error) {
 	p.getCommitsSinceOf = append(p.getCommitsSinceOf, ref)
 	p.getCommitsSinceBranches = append(p.getCommitsSinceBranches, branch)
+
+	if err, exists := p.commitsErrByRef[ref]; exists {
+		return nil, err
+	}
 
 	if p.commitsErr != nil {
 		return nil, p.commitsErr
@@ -181,6 +237,12 @@ func (p *providerStub) CreateRelease(_ context.Context, opts provider.ReleaseOpt
 	}
 
 	p.latestRelease = release
+	p.releasesByTag[opts.TagName] = release
+	p.tags[opts.TagName] = true
+
+	if !slices.Contains(p.tagList, opts.TagName) {
+		p.tagList = append(p.tagList, opts.TagName)
+	}
 
 	return release, nil
 }
@@ -416,6 +478,126 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 		testastic.Equal(t, "0.4.3", result.NextVersion)
 		testastic.Equal(t, "v0.4.3", result.NextTag)
 	})
+}
+
+func TestReleaseUsesLatestVersionRef(t *testing.T) {
+	t.Parallel()
+
+	// given: a repository with tags but no provider release objects
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestVersionRef = "v1.2.3"
+	stub.commitsByRef = map[string][]provider.CommitEntry{
+		"v1.2.3": {{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}},
+	}
+
+	r := New(cfg, stub)
+
+	// when: calculating a release
+	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+	// then: the latest version tag is used as the baseline and commit boundary
+	testastic.NoError(t, err)
+	testastic.Equal(t, "1.2.3", result.CurrentVersion)
+	testastic.Equal(t, "1.2.4", result.NextVersion)
+	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
+	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[1])
+}
+
+func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T) {
+	t.Parallel()
+
+	// given: a preferred release ref that is not reachable from the configured branch
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestVersionRef = "v2.0.0"
+	stub.tagList = []string{"v1.2.3", "v2.0.0"}
+	stub.commitsErrByRef["v2.0.0"] = &provider.CommitBoundaryNotFoundError{Ref: "v2.0.0", Branch: cfg.Branch}
+	stub.commitsByRef = map[string][]provider.CommitEntry{
+		"v1.2.3": {{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}},
+	}
+
+	r := New(cfg, stub)
+
+	// when: calculating a release
+	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+	// then: the latest reachable stable tag on the branch is used instead
+	testastic.NoError(t, err)
+	testastic.Equal(t, "1.2.3", result.CurrentVersion)
+	testastic.Equal(t, "1.2.4", result.NextVersion)
+	testastic.Equal(t, 3, len(stub.getCommitsSinceOf))
+	testastic.Equal(t, "v2.0.0", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[1])
+	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[2])
+}
+
+func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) {
+	t.Parallel()
+
+	// given: the latest published release is older than a newer stable tag on the release branch
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestVersionRef = "v1.2.3"
+	stub.tagList = []string{"v1.2.4", "v1.2.3"}
+	stub.commitsByRef = map[string][]provider.CommitEntry{
+		"v1.2.4": {{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}},
+	}
+
+	r := New(cfg, stub)
+
+	// when: calculating a release
+	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+	// then: the newer reachable tag becomes the baseline even without a matching release object
+	testastic.NoError(t, err)
+	testastic.Equal(t, "1.2.4", result.CurrentVersion)
+	testastic.Equal(t, "1.2.5", result.NextVersion)
+	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
+	testastic.Equal(t, "v1.2.4", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, "v1.2.4", stub.getCommitsSinceOf[1])
+}
+
+func TestReleaseChoosesHighestStableTagFromFallbackList(t *testing.T) {
+	t.Parallel()
+
+	// given: no published release and an unsorted provider tag list
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.tagList = []string{"v1.2.3", "v1.10.0", "preview-build", "v1.9.9"}
+	stub.commitsByRef = map[string][]provider.CommitEntry{
+		"v1.10.0": {{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}},
+	}
+
+	r := New(cfg, stub)
+
+	// when: calculating a release
+	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+
+	// then: the highest stable semver tag is used instead of trusting provider order
+	testastic.NoError(t, err)
+	testastic.Equal(t, "1.10.0", result.CurrentVersion)
+	testastic.Equal(t, "1.10.1", result.NextVersion)
+	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
+	testastic.Equal(t, "v1.10.0", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, "v1.10.0", stub.getCommitsSinceOf[1])
 }
 
 func TestReleaseAsFooter(t *testing.T) {
@@ -731,8 +913,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
-		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
+		testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
 		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
+		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[1])
 	})
 
 	t.Run("creates PR when commits exist after finalized tag", func(t *testing.T) {
@@ -766,8 +949,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
-		testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
+		testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
 		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
+		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[1])
 	})
 }
 
@@ -1376,6 +1560,111 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 9, stub.markTaggedCalls[0])
 	})
 
+	t.Run("reuses exact release for non-latest tag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR for an older tag that already has a release
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.4", URL: "https://example.com/releases/v1.2.4"}
+		stub.releasesByTag["v1.2.3"] = &provider.Release{
+			TagName: "v1.2.3",
+			URL:     "https://example.com/releases/v1.2.3",
+		}
+		stub.mergedPR = &provider.PullRequest{
+			Number: 10,
+			URL:    "https://example.com/pr/10",
+			Body:   "<!-- yeet-release-tag: v1.2.3 -->",
+			Branch: "yeet/release-main",
+		}
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: the exact existing release is reused instead of checking only the latest release
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+		testastic.Equal(t, 10, stub.markTaggedCalls[0])
+	})
+
+	t.Run("creates missing release when tag already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR whose tag already exists without a release object
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.tags["v1.2.3"] = true
+		stub.mergedPR = &provider.PullRequest{
+			Number: 11,
+			URL:    "https://example.com/pr/11",
+			Body:   "<!-- yeet-release-tag: v1.2.3 -->",
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: only the missing release object is created and no branch ref is forced
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.Equal(t, "", stub.createReleaseOpts[0].Ref)
+	})
+
+	t.Run("creates missing tag from merged commit ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: merged pending release PR with a known merged commit SHA and no existing tag
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number:         13,
+			URL:            "https://example.com/pr/13",
+			Body:           "<!-- yeet-release-tag: v1.2.3 -->",
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+
+		r := New(cfg, stub)
+
+		// when: finalizing merged release PR
+		release, err := r.finalizeMergedReleasePR(context.Background())
+
+		// then: tag creation uses the merged commit ref instead of the current branch head
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
+	})
+
 	t.Run("returns no-pr error when no merged pending release PR exists", func(t *testing.T) {
 		t.Parallel()
 
@@ -1588,6 +1877,31 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
 	})
+}
+
+func TestTagReusesExistingRelease(t *testing.T) {
+	t.Parallel()
+
+	// given: a stable tag that already has a release object
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
+	stub.releasesByTag["v1.2.3"] = &provider.Release{
+		TagName: "v1.2.3",
+		URL:     "https://example.com/releases/v1.2.3",
+	}
+
+	r := New(cfg, stub)
+
+	// when: creating the same stable tag again
+	result, err := r.Tag(context.Background(), "v1.2.3", "release notes")
+
+	// then: the existing release is reused without another create call
+	testastic.NoError(t, err)
+	testastic.NotEqual(t, (*Result)(nil), result)
+	testastic.Equal(t, "v1.2.3", result.Release.TagName)
+	testastic.Equal(t, 0, stub.createReleaseCalls)
 }
 
 func TestUpdateReleaseBranchFiles(t *testing.T) {

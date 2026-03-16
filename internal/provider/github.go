@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -47,23 +48,81 @@ func (g *GitHub) PathPrefix() string {
 	return ""
 }
 
-// GetLatestRelease returns ErrNoRelease if no releases exist.
-func (g *GitHub) GetLatestRelease(ctx context.Context) (*Release, error) {
-	release, resp, err := g.client.Repositories.GetLatestRelease(ctx, g.repo.Owner, g.repo.Name)
+func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
+	release, err := g.latestRelease(ctx)
+	if err == nil {
+		return release.GetTagName(), nil
+	}
+
+	if !errors.Is(err, ErrNoRelease) {
+		return "", err
+	}
+
+	tags, err := g.ListTags(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if len(tags) == 0 {
+		return "", ErrNoVersionRef
+	}
+
+	return tags[0], nil
+}
+
+func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
+	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
+	tags := make([]string, 0)
+
+	for {
+		pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
+		if err != nil {
+			return nil, fmt.Errorf("list tags: %w", err)
+		}
+
+		for _, tag := range pageTags {
+			name := strings.TrimSpace(tag.GetName())
+			if name == "" {
+				continue
+			}
+
+			tags = append(tags, name)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return tags, nil
+}
+
+func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+	release, resp, err := g.client.Repositories.GetReleaseByTag(ctx, g.repo.Owner, g.repo.Name, tag)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, ErrNoRelease
 		}
 
-		return nil, fmt.Errorf("get latest release: %w", err)
+		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
 	}
 
-	return &Release{
-		TagName: release.GetTagName(),
-		Name:    release.GetName(),
-		Body:    release.GetBody(),
-		URL:     release.GetHTMLURL(),
-	}, nil
+	return gitHubRelease(release), nil
+}
+
+func (g *GitHub) TagExists(ctx context.Context, tag string) (bool, error) {
+	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("get tag ref %q: %w", tag, err)
+	}
+
+	return true, nil
 }
 
 func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
@@ -261,12 +320,18 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 				continue
 			}
 
+			fullPR, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, pr.GetNumber())
+			if err != nil {
+				return nil, fmt.Errorf("get pull request #%d: %w", pr.GetNumber(), err)
+			}
+
 			return &PullRequest{
-				Number: pr.GetNumber(),
-				Title:  pr.GetTitle(),
-				Body:   pr.GetBody(),
-				URL:    pr.GetHTMLURL(),
-				Branch: branch,
+				Number:         pr.GetNumber(),
+				Title:          pr.GetTitle(),
+				Body:           pr.GetBody(),
+				URL:            pr.GetHTMLURL(),
+				Branch:         branch,
+				MergeCommitSHA: fullPR.GetMergeCommitSHA(),
 			}, nil
 		}
 
@@ -337,12 +402,16 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
+	return gitHubRelease(rel), nil
+}
+
+func gitHubRelease(release *github.RepositoryRelease) *Release {
 	return &Release{
-		TagName: rel.GetTagName(),
-		Name:    rel.GetName(),
-		Body:    rel.GetBody(),
-		URL:     rel.GetHTMLURL(),
-	}, nil
+		TagName: release.GetTagName(),
+		Name:    release.GetName(),
+		Body:    release.GetBody(),
+		URL:     release.GetHTMLURL(),
+	}
 }
 
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
@@ -502,6 +571,19 @@ func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map
 	}
 
 	return nil
+}
+
+func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, error) {
+	release, resp, err := g.client.Repositories.GetLatestRelease(ctx, g.repo.Owner, g.repo.Name)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, ErrNoRelease
+		}
+
+		return nil, fmt.Errorf("get latest release: %w", err)
+	}
+
+	return release, nil
 }
 
 func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {
