@@ -24,6 +24,9 @@ For CI, prefer pinning a specific release tag or digest instead of `latest`.
 # Initialize config in your repo
 yeet init
 
+# Or write the config to a custom path
+yeet init --config .yeet.release.toml
+
 # Preview what the next release would look like
 yeet release --dry-run
 
@@ -43,7 +46,7 @@ yeet release
 
 ## Configuration
 
-yeet uses a `.yeet.toml` file in your project root. Run `yeet init` to generate one with defaults:
+yeet uses a `.yeet.toml` file in your project root by default. Run `yeet init` to generate one with defaults, or pass `--config` to write a different path:
 
 ```toml
 #:schema https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
@@ -143,7 +146,12 @@ For calver repositories, yeet also supports aliases:
 
 ### `yeet init`
 
-Creates a `.yeet.toml` with sensible defaults.
+Creates a `.yeet.toml` with sensible defaults by default.
+
+```sh
+yeet init
+yeet init --config .yeet.release.toml
+```
 
 ### `yeet release`
 

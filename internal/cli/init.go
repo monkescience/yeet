@@ -17,16 +17,18 @@ func initCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a .yeet.toml configuration file",
-		Long:  `Creates a .yeet.toml configuration file with sensible defaults in the current directory.`,
+		Long: `Creates a yeet configuration file with sensible defaults.
+
+By default this writes .yeet.toml in the current directory. Use --config to write a different path.`,
+		Example: `  yeet init
+  yeet init --config .yeet.release.toml`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runInit()
+			return runInit(resolveConfigPath())
 		},
 	}
 }
 
-func runInit() error {
-	path := config.DefaultFile
-
+func runInit(path string) error {
 	_, statErr := os.Stat(path)
 	if statErr == nil {
 		return fmt.Errorf("%w: %s", ErrConfigExists, path)
