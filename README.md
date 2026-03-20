@@ -33,6 +33,9 @@ yeet init --config .yeet.release.toml
 # Generate shell completion for your environment
 yeet completion zsh
 
+# Emit structured logs for CI or local debugging
+yeet --log-format json --verbose release --dry-run
+
 # Preview what the next release would look like
 yeet --verbose release --dry-run
 
@@ -188,6 +191,7 @@ yeet init --config .yeet.release.toml
 | Flag | Description |
 |---|---|
 | `--config` | Use a custom config file path instead of `.yeet.toml` |
+| `--log-format` | Set log output format to `text` or `json` |
 | `--verbose` | Enable debug logging |
 | `--quiet` | Show warnings and errors only |
 
