@@ -25,6 +25,22 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Contains(t, stdout, "defaults to config value; built-in default: auto")
 	})
 
+	t.Run("help includes the main release examples", func(t *testing.T) {
+		// given: the release command help is requested
+
+		// when: rendering help output
+		stdout, stderr, err := executeCommand(t, "release", "--help")
+
+		// then: the help text shows dry-run, preview, and auto-merge entry points
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stderr)
+		testastic.Contains(t, stdout, "Examples:")
+		testastic.Contains(t, stdout, "yeet release --dry-run")
+		testastic.Contains(t, stdout, "yeet release --preview --dry-run")
+		testastic.Contains(t, stdout, "yeet release --auto-merge")
+		testastic.Contains(t, stdout, "provider rules may still apply")
+	})
+
 	t.Run("reports missing config file with next step", func(t *testing.T) {
 		// given: an empty workspace without a default config file
 		tempDir := t.TempDir()

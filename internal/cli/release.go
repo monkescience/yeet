@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	releaseHelpExample = `  yeet release --dry-run
+  yeet release --preview --dry-run
+  yeet release --auto-merge`
+	releasePreviewHelp        = "append preview build metadata with a short commit hash (for example 1.2.3+abc1234)"
+	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
+	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks; " +
+		"still blocks draft/conflicts; provider rules may still apply"
+)
+
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	var (
 		dryRun            bool
@@ -34,6 +44,7 @@ version, generate a changelog, and create or update a release PR/MR.
 When a merged release PR/MR is waiting with the pending autorelease label,
 this command first creates the tag/release from the latest changelog entry and
 marks the PR/MR as tagged.`,
+		Example: releaseHelpExample,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
 				cmd.Context(),
@@ -45,19 +56,19 @@ marks the PR/MR as tagged.`,
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview the release without creating a PR/MR")
-	cmd.Flags().BoolVar(&preview, "preview", false, "append build metadata with commit hash (e.g. 1.2.3+abc1234)")
+	cmd.Flags().BoolVar(&preview, "preview", false, releasePreviewHelp)
 	cmd.Flags().IntVar(
 		&previewHashLength,
 		"preview-hash-length",
 		release.DefaultPreviewHashLength,
-		"length of short commit hash used for preview metadata",
+		"length of the short commit hash used for preview build metadata",
 	)
-	cmd.Flags().BoolVar(&autoMerge, "auto-merge", false, "automatically merge release PR/MR and finalize release")
+	cmd.Flags().BoolVar(&autoMerge, "auto-merge", false, releaseAutoMergeHelp)
 	cmd.Flags().BoolVar(
 		&autoMergeForce,
 		"auto-merge-force",
 		false,
-		"attempt auto-merge while bypassing readiness checks; still blocks draft/conflicts",
+		releaseAutoMergeForceHelp,
 	)
 	cmd.Flags().StringVar(
 		&autoMergeMethod,

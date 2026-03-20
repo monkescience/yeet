@@ -47,7 +47,15 @@ func rootCmd() *cobra.Command {
 		Use:   "yeet",
 		Short: "Automate releases based on conventional commits",
 		Long: `yeet analyzes conventional commits to automatically determine the next
-version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.`,
+version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.
+
+On the default branch it also finalizes merged release PRs/MRs labeled
+autorelease: pending by creating the provider release and relabeling them as
+autorelease: tagged.`,
+		Example: `  yeet init
+  yeet release --dry-run
+  yeet release --preview --dry-run
+  yeet release --auto-merge`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -55,7 +63,7 @@ version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.`,
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&options.configFile, "config", "", "config file (default is .yeet.toml)")
+	cmd.PersistentFlags().StringVar(&options.configFile, "config", "", "path to config file (default .yeet.toml)")
 	cmd.PersistentFlags().BoolVarP(&options.verbose, "verbose", "v", false, "enable debug logging")
 	cmd.PersistentFlags().BoolVar(&options.quiet, "quiet", false, "show warnings and errors only")
 
@@ -66,8 +74,20 @@ version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.`,
 	)
 
 	cmd.InitDefaultCompletionCmd()
+	setExampleForSubcommand(cmd, "completion", `  yeet completion zsh
+  yeet completion bash > /usr/local/etc/bash_completion.d/yeet`)
 
 	return cmd
+}
+
+func setExampleForSubcommand(root *cobra.Command, name string, example string) {
+	for _, command := range root.Commands() {
+		if command.Name() == name {
+			command.Example = example
+
+			return
+		}
+	}
 }
 
 func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
@@ -111,8 +131,9 @@ func (options *bootstrapOptions) configPath() string {
 
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print build information",
+		Use:     "version",
+		Short:   "Print build information",
+		Example: `  yeet version`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return printVersion(cmd.OutOrStdout(), currentBuildInfo())
 		},

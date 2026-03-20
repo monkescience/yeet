@@ -233,6 +233,9 @@ yeet release --preview --dry-run
 When preview mode is enabled, yeet keeps a stable release PR branch based on the target branch
 (for example `yeet/release-main`) so new commits update the same PR.
 
+Preview runs create or update the release PR/MR, but they do not auto-merge or create a provider
+release even when `release.auto_merge = true`.
+
 You can also force an explicit semver version using a commit footer:
 
 ```text
@@ -251,31 +254,91 @@ yeet expects exactly one open `autorelease: pending` PR/MR per base branch. If m
 pending PRs/MRs exist, `yeet release` fails and prints the conflicting PR/MR URLs so you
 can close or relabel stale entries.
 
+## Release workflow
+
+`yeet release` does slightly different work depending on repository state:
+
+1. Before a release PR/MR exists, it scans conventional commits, calculates the next version,
+   updates the changelog/version files, and opens a release PR/MR labeled `autorelease: pending`.
+2. While that PR/MR is open, rerunning `yeet release` updates the same release branch instead of
+   creating a second pending release.
+3. After the release PR/MR is merged, the next non-preview `yeet release` run on the base branch
+   creates the tag/provider release from the latest changelog entry and flips the label to
+   `autorelease: tagged`.
+
+That label lifecycle is operational, not decorative: yeet uses `autorelease: pending` to discover
+merged releases that still need tagging, and it expects only one open pending release PR/MR per
+base branch.
+
+### Preview mode vs stable release mode
+
+- Stable mode (`yeet release`) prepares the real next release and is the only mode that finalizes
+  merged release PRs/MRs into provider tags/releases.
+- Preview mode (`yeet release --preview`) appends `+<shortsha>` build metadata so you can test
+  artifacts before cutting the stable tag.
+- Preview mode keeps a stable release branch per target branch (for example `yeet/release-main`) so
+  new commits update the same PR/MR.
+- Preview mode never auto-merges or publishes a provider release, even if auto-merge is enabled.
+
+### Auto-merge caveats
+
+- `--auto-merge` or `release.auto_merge = true` merges the release PR/MR and finalizes the release
+  in the same non-preview run when provider rules allow it.
+- `--auto-merge-force` only skips yeet's own readiness gates; it does not bypass GitHub/GitLab
+  branch protections, required checks, approvals, or missing permissions.
+- On GitHub, `auto` tries `squash`, then `rebase`, then `merge`, based on which merge methods the
+  repository has enabled.
+- On GitLab, the project merge method still wins; requesting `squash` only toggles squash when the
+  project allows it.
+
 ## Authentication
 
-yeet needs a token to interact with the VCS provider API.
+yeet needs a provider API token whenever it creates or updates PRs/MRs, applies release labels, or
+publishes releases.
 
-**GitHub**: Set `GITHUB_TOKEN` or `GH_TOKEN` environment variable. For GitHub Enterprise, also set `GITHUB_URL`.
+### GitHub local development or PAT-based CI
 
-**GitLab**: Set `GITLAB_TOKEN` or `GL_TOKEN` environment variable. For self-hosted instances, also set `GITLAB_URL`.
+Export either `GITHUB_TOKEN` or `GH_TOKEN`:
 
-## Common release errors
+```sh
+export GITHUB_TOKEN=ghp_xxx
+yeet release --dry-run
+```
 
-`yeet release` keeps wrapped errors for debugging, but the top-level wording points to the failure category:
+For GitHub Enterprise, also set `GITHUB_URL` to the API base URL or let yeet derive it from the
+configured repository host:
 
-- `configuration file not found`: create `.yeet.toml` with `yeet init` or pass `--config`
-- `invalid configuration`: fix the values in `.yeet.toml`
-- `repository resolution failed`: set `provider` and/or `[repository]` explicitly when auto-detection cannot classify the remote host
-- `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or `GITLAB_TOKEN`/`GL_TOKEN`)
-- `release execution failed`: inspect the wrapped cause for the specific release problem; for example, merge-blocked errors tell you to resolve PR/MR readiness or use `--auto-merge-force` when appropriate
+```sh
+export GITHUB_TOKEN=ghp_xxx
+export GITHUB_URL=https://github.example.com/api/v3/
+yeet release
+```
 
-## CI examples
+Use a token with enough repository access to:
 
-The published image is suitable for running `yeet` directly in CI. On GitHub Actions,
-prefer using it as a Docker action step instead of a job-level container so JavaScript
-actions like `actions/checkout` can still run on the host runner.
+- create and update pull requests
+- create releases and tags
+- apply labels to release PRs
 
-### GitHub Actions
+On GitHub that maps to `contents: write`, `pull-requests: write`, and `issues: write`.
+
+### GitHub Actions with a GitHub App
+
+This repository does not use the default `GITHUB_TOKEN` for releases. The workflow in
+`.github/workflows/release.yaml` does three key things:
+
+1. checks out the repository with full history
+2. generates a short-lived GitHub App installation token
+3. runs `go run ./cmd/yeet release` with that token in `GITHUB_TOKEN`
+
+The workflow-level permissions are:
+
+- `contents: write`
+- `pull-requests: write`
+- `issues: write`
+
+The GitHub App installation needs equivalent repository permissions because yeet creates release
+PRs, labels them, and publishes releases.
 
 ```yaml
 name: Release
@@ -284,6 +347,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -299,13 +363,69 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run yeet
-        uses: docker://ghcr.io/monkescience/yeet:vX.Y.Z
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
         with:
-          args: release
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Run yeet release
+        run: go run ./cmd/yeet release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 ```
+
+If you copy this pattern, store the app ID as a repository variable and the private key as a
+repository secret.
+
+### GitLab local development or CI
+
+Export either `GITLAB_TOKEN` or `GL_TOKEN`:
+
+```sh
+export GITLAB_TOKEN=glpat-xxx
+yeet release --dry-run
+```
+
+For self-hosted GitLab, also set `GITLAB_URL`:
+
+```sh
+export GITLAB_TOKEN=glpat-xxx
+export GITLAB_URL=https://gitlab.example.com/api/v4
+yeet release
+```
+
+The token must be able to create merge requests, manage labels, and publish releases.
+
+## Troubleshooting
+
+`yeet release` keeps wrapped errors for debugging, but the top-level message points at the failure
+category so you can pick the next fix quickly:
+
+- `configuration file not found`: create `.yeet.toml` with `yeet init` or pass `--config`.
+- `invalid configuration`: fix invalid values in `.yeet.toml` before rerunning.
+- `repository resolution failed`: set `provider` and/or `[repository]` explicitly when the remote
+  host is unsupported or auto-detection cannot classify it.
+- `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or
+  `GITLAB_TOKEN`/`GL_TOKEN`) and, for self-hosted providers, verify `GITHUB_URL` or `GITLAB_URL`.
+- `release execution failed: merge blocked`: the release PR/MR is still draft, has conflicts,
+  lacks required approvals/checks, or requests a merge method the provider settings do not allow.
+- `release execution failed: multiple pending release PRs/MRs found`: close or relabel stale
+  `autorelease: pending` entries until only one open release PR/MR remains for the base branch.
+
+If a GitHub App workflow fails before yeet starts, verify `RELEASE_PLEASE_APP_ID`,
+`RELEASE_PLEASE_APP_PRIVATE_KEY`, and the app's repository permissions.
+
+## CI examples
+
+The published image is suitable for CI, but this repository's own release workflow runs the Go
+entrypoint directly so it can generate a fresh GitHub App token first.
+
+After yeet publishes a stable provider release, `.github/workflows/image.yaml` builds and pushes the
+container image for that release tag. Preview runs and open release PRs do not trigger image
+publishing because the image workflow only runs for published, non-prerelease provider releases.
 
 ### GitLab CI
 
@@ -324,7 +444,8 @@ release:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 ```
 
-For GitLab, set `GITLAB_TOKEN` as a masked CI/CD variable. The `entrypoint: [""]` override is required so GitLab runs the job script with `sh` instead of the image's default `yeet` entrypoint.
+For GitLab, set `GITLAB_TOKEN` as a masked CI/CD variable. The `entrypoint: [""]` override is
+required so GitLab runs the job script with `sh` instead of the image's default `yeet` entrypoint.
 
 ## Versioning strategies
 

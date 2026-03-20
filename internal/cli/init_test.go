@@ -138,6 +138,38 @@ func TestRunInit(t *testing.T) {
 }
 
 func TestRootCommand(t *testing.T) {
+	t.Run("root help includes getting started examples", func(t *testing.T) {
+		// given: the root command help is requested
+
+		// when: rendering the top-level help output
+		stdout, stderr, err := executeCommand(t, "--help")
+
+		// then: the help text teaches the main release workflow entry points
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stderr)
+		testastic.Contains(t, stdout, "Examples:")
+		testastic.Contains(t, stdout, "yeet init")
+		testastic.Contains(t, stdout, "yeet release --dry-run")
+		testastic.Contains(t, stdout, "yeet release --preview --dry-run")
+		testastic.Contains(t, stdout, "yeet release --auto-merge")
+		testastic.Contains(t, stdout, "autorelease: pending")
+		testastic.Contains(t, stdout, "autorelease: tagged")
+	})
+
+	t.Run("init help includes default and custom config examples", func(t *testing.T) {
+		// given: the init command help is requested
+
+		// when: rendering init help output
+		stdout, stderr, err := executeCommand(t, "init", "--help")
+
+		// then: both common init entry points are documented
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stderr)
+		testastic.Contains(t, stdout, "Examples:")
+		testastic.Contains(t, stdout, "yeet init")
+		testastic.Contains(t, stdout, "yeet init --config .yeet.release.toml")
+	})
+
 	t.Run("version prints build information", func(t *testing.T) {
 		// given: build metadata injected for the command
 		previousVersion := buildVersion
