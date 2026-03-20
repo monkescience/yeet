@@ -3,15 +3,16 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
-	"os"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/spf13/cobra"
 )
 
-func releaseCmd() *cobra.Command {
+func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	var (
 		dryRun            bool
 		preview           bool
@@ -31,7 +32,7 @@ When a merged release PR/MR is waiting with the pending autorelease label,
 this command first creates the tag/release from the latest changelog entry and
 marks the PR/MR as tagged.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			options := releaseRunOptions{
+			runOptions := releaseRunOptions{
 				dryRun:             dryRun,
 				preview:            preview,
 				previewHashLength:  previewHashLength,
@@ -43,7 +44,7 @@ marks the PR/MR as tagged.`,
 				autoMergeMethodSet: cmd.Flags().Changed("auto-merge-method"),
 			}
 
-			return runRelease(cmd.Context(), options)
+			return runRelease(cmd.Context(), cmd.OutOrStdout(), bootstrap.configPath(), runOptions)
 		},
 	}
 
@@ -84,27 +85,15 @@ type releaseRunOptions struct {
 	autoMergeMethodSet bool
 }
 
-func runRelease(ctx context.Context, options releaseRunOptions) error {
-	cfg, err := loadConfig()
+func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
+	logReleaseCommand(ctx, configPath, options)
+
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return err
 	}
 
-	if options.autoMergeSet {
-		cfg.Release.AutoMerge = options.autoMerge
-	}
-
-	if options.autoMergeForceSet {
-		cfg.Release.AutoMergeForce = options.autoMergeForce
-	}
-
-	if options.autoMergeMethodSet {
-		cfg.Release.AutoMergeMethod = options.autoMergeMethod
-	}
-
-	if cfg.Release.AutoMergeForce {
-		cfg.Release.AutoMerge = true
-	}
+	applyReleaseOptions(cfg, options)
 
 	err = cfg.Validate()
 	if err != nil {
@@ -136,7 +125,7 @@ func runRelease(ctx context.Context, options releaseRunOptions) error {
 	}
 
 	if options.dryRun {
-		printDryRun(os.Stdout, result)
+		printDryRun(output, result)
 
 		return nil
 	}
@@ -144,7 +133,39 @@ func runRelease(ctx context.Context, options releaseRunOptions) error {
 	return nil
 }
 
-func printDryRun(w *os.File, result *release.Result) {
+func logReleaseCommand(ctx context.Context, configPath string, options releaseRunOptions) {
+	slog.DebugContext(ctx,
+		"running release command",
+		"config",
+		configPath,
+		"dry_run",
+		options.dryRun,
+		"preview",
+		options.preview,
+		"preview_hash_length",
+		options.previewHashLength,
+	)
+}
+
+func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) {
+	if options.autoMergeSet {
+		cfg.Release.AutoMerge = options.autoMerge
+	}
+
+	if options.autoMergeForceSet {
+		cfg.Release.AutoMergeForce = options.autoMergeForce
+	}
+
+	if options.autoMergeMethodSet {
+		cfg.Release.AutoMergeMethod = options.autoMergeMethod
+	}
+
+	if cfg.Release.AutoMergeForce {
+		cfg.Release.AutoMerge = true
+	}
+}
+
+func printDryRun(w io.Writer, result *release.Result) {
 	_, _ = fmt.Fprintln(w, "--- Dry Run ---")
 	_, _ = fmt.Fprintf(w, "Current version: %s\n", result.CurrentVersion)
 	_, _ = fmt.Fprintf(w, "Next version:    %s\n", result.NextVersion)

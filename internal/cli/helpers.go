@@ -30,24 +30,13 @@ const minimumProjectSegments = 2
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
-func loadConfig() (*config.Config, error) {
-	path := resolveConfigPath()
-
+func loadConfig(path string) (*config.Config, error) {
 	cfg, err := config.Load(path)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	return cfg, nil
-}
-
-func resolveConfigPath() string {
-	path := strings.TrimSpace(cfgFile)
-	if path == "" {
-		return config.DefaultFile
-	}
-
-	return path
 }
 
 func newProvider(ctx context.Context, cfg *config.Config) (provider.Provider, error) {

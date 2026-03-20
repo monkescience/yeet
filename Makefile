@@ -1,10 +1,15 @@
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf 'none')
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -X github.com/monkescience/yeet/internal/cli.buildVersion=$(VERSION) -X github.com/monkescience/yeet/internal/cli.buildCommit=$(COMMIT) -X github.com/monkescience/yeet/internal/cli.buildDate=$(BUILD_DATE)
+
 .PHONY: help build image test coverage lint fmt clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 build: ## Build the yeet binary
-	go build -o yeet ./cmd/yeet
+	go build -ldflags "$(LDFLAGS)" -o yeet ./cmd/yeet
 
 image: ## Build the yeet container image locally with ko
 	ko build --local --platform=linux/$$(go env GOARCH) ./cmd/yeet

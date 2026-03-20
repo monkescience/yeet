@@ -13,7 +13,7 @@ import (
 
 var ErrConfigExists = errors.New("config file already exists")
 
-func initCmd() *cobra.Command {
+func initCmd(options *bootstrapOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a .yeet.toml configuration file",
@@ -23,12 +23,14 @@ By default this writes .yeet.toml in the current directory. Use --config to writ
 		Example: `  yeet init
   yeet init --config .yeet.release.toml`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runInit(resolveConfigPath())
+			return runInit(options.configPath())
 		},
 	}
 }
 
 func runInit(path string) error {
+	slog.Debug("initializing config file", "path", path)
+
 	_, statErr := os.Stat(path)
 	if statErr == nil {
 		return fmt.Errorf("%w: %s", ErrConfigExists, path)

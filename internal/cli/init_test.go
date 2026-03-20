@@ -1,7 +1,9 @@
 package cli //nolint:testpackage // validates unexported runInit behavior directly
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/spf13/cobra"
 )
 
 func TestRunInit(t *testing.T) {
@@ -17,17 +20,8 @@ func TestRunInit(t *testing.T) {
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 
-		cfgFile = ""
-
-		t.Cleanup(func() {
-			cfgFile = ""
-		})
-
-		command := rootCmd()
-		command.SetArgs([]string{"--config", "custom.toml", "init"})
-
 		// when: executing init through the root command with --config
-		err := command.Execute()
+		_, _, err := executeCommand(t, "--config", "custom.toml", "init")
 
 		// then: the custom path is written instead of the default path
 		testastic.NoError(t, err)
@@ -48,18 +42,10 @@ func TestRunInit(t *testing.T) {
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 
-		cfgFile = ""
-
-		t.Cleanup(func() {
-			cfgFile = ""
-		})
-
 		path := filepath.Join("missing", "custom.toml")
-		command := rootCmd()
-		command.SetArgs([]string{"--config", path, "init"})
 
 		// when: executing init through the root command with a missing parent directory
-		err := command.Execute()
+		_, _, err := executeCommand(t, "--config", path, "init")
 
 		// then: command fails with a not-exist error that mentions the requested path
 		testastic.Error(t, err)
@@ -149,4 +135,117 @@ func TestRunInit(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, ErrConfigExists)
 	})
+}
+
+func TestRootCommand(t *testing.T) {
+	t.Run("version prints build information", func(t *testing.T) {
+		// given: build metadata injected for the command
+		previousVersion := buildVersion
+		previousCommit := buildCommit
+		previousDate := buildDate
+		buildVersion = "v1.2.3"
+		buildCommit = "abc1234"
+		buildDate = "2026-03-20T12:34:56Z"
+
+		t.Cleanup(func() {
+			buildVersion = previousVersion
+			buildCommit = previousCommit
+			buildDate = previousDate
+		})
+
+		// when: printing the CLI version
+		stdout, stderr, err := executeCommand(t, "version")
+
+		// then: the human-readable build metadata is written to stdout
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stderr)
+		testastic.Equal(t, "version: v1.2.3\ncommit: abc1234\nbuilt: 2026-03-20T12:34:56Z\n", stdout)
+	})
+
+	t.Run("completion command is available for bash", func(t *testing.T) {
+		// given: the root command tree
+		command := rootCmd()
+
+		// when: resolving the bash completion subcommand
+		completionCommand, _, err := command.Find([]string{"completion", "bash"})
+
+		// then: cobra exposes the bash completion command
+		testastic.NoError(t, err)
+		testastic.Equal(t, "bash", completionCommand.Name())
+		testastic.Equal(t, "yeet completion bash", completionCommand.CommandPath())
+	})
+
+	t.Run("quiet suppresses init info logs", func(t *testing.T) {
+		// given: an empty temporary workspace
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
+
+		// when: initializing config with quiet logging
+		stdout, stderr, err := executeCommand(t, "--quiet", "init")
+
+		// then: config is created without emitting info logs
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stdout)
+		testastic.Equal(t, "", stderr)
+
+		_, statErr := os.Stat(config.DefaultFile)
+		testastic.NoError(t, statErr)
+	})
+
+	t.Run("verbose emits debug logs for init", func(t *testing.T) {
+		// given: an empty temporary workspace
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
+
+		// when: initializing config with verbose logging
+		stdout, stderr, err := executeCommand(t, "--verbose", "init")
+
+		// then: debug logs are emitted to stderr
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stdout)
+		testastic.Contains(t, stderr, "level=DEBUG")
+		testastic.Contains(t, stderr, "msg=\"initializing config file\"")
+	})
+
+	t.Run("verbose and quiet flags conflict", func(t *testing.T) {
+		// given: conflicting root logging flags
+
+		// when: executing any command with both flags enabled
+		_, _, err := executeCommand(t, "--verbose", "--quiet", "version")
+
+		// then: the command fails before running the subcommand
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "--verbose and --quiet cannot be used together")
+	})
+}
+
+func executeCommand(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+
+	var stderr bytes.Buffer
+
+	command := rootCmd()
+	setCommandWriters(command, &stdout, &stderr)
+	command.SetArgs(args)
+
+	previousLogger := slog.Default()
+
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	err := command.Execute()
+
+	return stdout.String(), stderr.String(), err
+}
+
+func setCommandWriters(command *cobra.Command, stdout *bytes.Buffer, stderr *bytes.Buffer) {
+	command.SetOut(stdout)
+	command.SetErr(stderr)
+
+	for _, subcommand := range command.Commands() {
+		setCommandWriters(subcommand, stdout, stderr)
+	}
 }

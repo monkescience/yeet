@@ -21,14 +21,20 @@ For CI, prefer pinning a specific release tag or digest instead of `latest`.
 ## Quick start
 
 ```sh
+# Show the current build metadata
+yeet version
+
 # Initialize config in your repo
 yeet init
 
 # Or write the config to a custom path
 yeet init --config .yeet.release.toml
 
+# Generate shell completion for your environment
+yeet completion zsh
+
 # Preview what the next release would look like
-yeet release --dry-run
+yeet --verbose release --dry-run
 
 # Preview build version for testing artifacts (for example Helm charts)
 yeet release --preview --dry-run
@@ -144,6 +150,25 @@ For calver repositories, yeet also supports aliases:
 
 ## Commands
 
+### `yeet version`
+
+Prints the CLI build metadata.
+
+```sh
+yeet version
+```
+
+### `yeet completion`
+
+Generates shell completion using Cobra's built-in completion support.
+
+```sh
+yeet completion bash
+yeet completion zsh
+yeet completion fish
+yeet completion powershell
+```
+
 ### `yeet init`
 
 Creates a `.yeet.toml` with sensible defaults by default.
@@ -152,6 +177,16 @@ Creates a `.yeet.toml` with sensible defaults by default.
 yeet init
 yeet init --config .yeet.release.toml
 ```
+
+### Global flags
+
+| Flag | Description |
+|---|---|
+| `--config` | Use a custom config file path instead of `.yeet.toml` |
+| `--verbose` | Enable debug logging |
+| `--quiet` | Show warnings and errors only |
+
+`--verbose` and `--quiet` cannot be used together.
 
 ### `yeet release`
 
