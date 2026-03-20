@@ -178,6 +178,7 @@ branch = ""
 
 		// then: parsing fails
 		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 }
 

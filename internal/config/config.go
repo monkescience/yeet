@@ -96,7 +96,7 @@ func Parse(data []byte) (*Config, error) {
 
 	err := toml.Unmarshal(data, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return nil, fmt.Errorf("%w: parse config: %w", ErrInvalidConfig, err)
 	}
 
 	err = cfg.Validate()

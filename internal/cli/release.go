@@ -2,12 +2,15 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/spf13/cobra"
 )
@@ -32,19 +35,12 @@ When a merged release PR/MR is waiting with the pending autorelease label,
 this command first creates the tag/release from the latest changelog entry and
 marks the PR/MR as tagged.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runOptions := releaseRunOptions{
-				dryRun:             dryRun,
-				preview:            preview,
-				previewHashLength:  previewHashLength,
-				autoMerge:          autoMerge,
-				autoMergeSet:       cmd.Flags().Changed("auto-merge"),
-				autoMergeForce:     autoMergeForce,
-				autoMergeForceSet:  cmd.Flags().Changed("auto-merge-force"),
-				autoMergeMethod:    autoMergeMethod,
-				autoMergeMethodSet: cmd.Flags().Changed("auto-merge-method"),
-			}
-
-			return runRelease(cmd.Context(), cmd.OutOrStdout(), bootstrap.configPath(), runOptions)
+			return runRelease(
+				cmd.Context(),
+				cmd.OutOrStdout(),
+				bootstrap.configPath(),
+				releaseOptionsFromCommand(cmd, dryRun, preview, previewHashLength, autoMerge, autoMergeForce, autoMergeMethod),
+			)
 		},
 	}
 
@@ -67,10 +63,35 @@ marks the PR/MR as tagged.`,
 		&autoMergeMethod,
 		"auto-merge-method",
 		"",
-		"merge method for auto-merge: auto|squash|rebase|merge",
+		fmt.Sprintf(
+			"merge method for auto-merge: auto|squash|rebase|merge (defaults to config value; built-in default: %s)",
+			config.AutoMergeMethodAuto,
+		),
 	)
 
 	return cmd
+}
+
+func releaseOptionsFromCommand(
+	cmd *cobra.Command,
+	dryRun bool,
+	preview bool,
+	previewHashLength int,
+	autoMerge bool,
+	autoMergeForce bool,
+	autoMergeMethod string,
+) releaseRunOptions {
+	return releaseRunOptions{
+		dryRun:             dryRun,
+		preview:            preview,
+		previewHashLength:  previewHashLength,
+		autoMerge:          autoMerge,
+		autoMergeSet:       cmd.Flags().Changed("auto-merge"),
+		autoMergeForce:     autoMergeForce,
+		autoMergeForceSet:  cmd.Flags().Changed("auto-merge-force"),
+		autoMergeMethod:    autoMergeMethod,
+		autoMergeMethodSet: cmd.Flags().Changed("auto-merge-method"),
+	}
 }
 
 type releaseRunOptions struct {
@@ -90,7 +111,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 
 	cfg, err := loadConfig(configPath)
 	if err != nil {
-		return err
+		return wrapReleaseConfigError(configPath, err)
 	}
 
 	applyReleaseOptions(cfg, options)
@@ -100,16 +121,23 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("invalid release options: %w", err)
 	}
 
-	p, err := newProvider(ctx, cfg)
+	repository, err := resolveRepository(ctx, cfg, getGitRemoteURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("repository resolution failed: %w", err)
+	}
+
+	cfg.Provider = repository.Provider
+
+	p, err := createProvider(repository)
+	if err != nil {
+		return fmt.Errorf("provider setup failed: %w", err)
 	}
 
 	r := release.New(cfg, p)
 
 	result, err := r.Release(ctx, options.dryRun, options.preview, options.previewHashLength)
 	if err != nil {
-		return fmt.Errorf("release failed: %w", err)
+		return wrapReleaseExecutionError(err)
 	}
 
 	if result.BumpType == commit.BumpNone {
@@ -131,6 +159,44 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 	}
 
 	return nil
+}
+
+func wrapReleaseConfigError(configPath string, err error) error {
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf(
+			"configuration file not found: %s; run `yeet init` or pass --config: %w",
+			configPath,
+			err,
+		)
+	}
+
+	if errors.Is(err, config.ErrInvalidConfig) {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return fmt.Errorf("configuration failed: %w", err)
+}
+
+func wrapReleaseExecutionError(err error) error {
+	if errors.Is(err, release.ErrInvalidPreviewHashLength) {
+		return fmt.Errorf("invalid release options: %w", err)
+	}
+
+	if errors.Is(err, provider.ErrMergeBlocked) {
+		return fmt.Errorf(
+			"release execution failed: merge blocked; resolve PR/MR readiness or use --auto-merge-force when appropriate: %w",
+			err,
+		)
+	}
+
+	if errors.Is(err, release.ErrMultiplePendingReleasePRs) {
+		return fmt.Errorf(
+			"release execution failed: multiple pending release PRs/MRs found; close or relabel stale entries: %w",
+			err,
+		)
+	}
+
+	return fmt.Errorf("release execution failed: %w", err)
 }
 
 func logReleaseCommand(ctx context.Context, configPath string, options releaseRunOptions) {

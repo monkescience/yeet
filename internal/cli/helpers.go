@@ -39,17 +39,6 @@ func loadConfig(path string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func newProvider(ctx context.Context, cfg *config.Config) (provider.Provider, error) {
-	repository, err := resolveRepository(ctx, cfg, getGitRemoteURL)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.Provider = repository.Provider
-
-	return createProvider(repository)
-}
-
 func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
 	switch repository.Provider {
 	case config.ProviderGitHub:

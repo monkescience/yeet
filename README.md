@@ -216,7 +216,7 @@ Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge
 | `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
 | `--auto-merge` | Automatically merge the release PR/MR and finalize the release in the same command run |
 | `--auto-merge-force` | Attempt auto-merge while bypassing yeet readiness checks/approvals (still blocks draft/conflicts; implies `--auto-merge`; provider rules and permissions still apply) |
-| `--auto-merge-method` | Merge strategy for auto-merge: `auto`, `squash`, `rebase`, or `merge` |
+| `--auto-merge-method` | Merge strategy for auto-merge: `auto`, `squash`, `rebase`, or `merge` (defaults to the configured `release.auto_merge_method`; built-in default: `auto`) |
 
 Preview mode is useful for testing deploy artifacts before a final release tag:
 
@@ -258,6 +258,16 @@ yeet needs a token to interact with the VCS provider API.
 **GitHub**: Set `GITHUB_TOKEN` or `GH_TOKEN` environment variable. For GitHub Enterprise, also set `GITHUB_URL`.
 
 **GitLab**: Set `GITLAB_TOKEN` or `GL_TOKEN` environment variable. For self-hosted instances, also set `GITLAB_URL`.
+
+## Common release errors
+
+`yeet release` keeps wrapped errors for debugging, but the top-level wording points to the failure category:
+
+- `configuration file not found`: create `.yeet.toml` with `yeet init` or pass `--config`
+- `invalid configuration`: fix the values in `.yeet.toml`
+- `repository resolution failed`: set `provider` and/or `[repository]` explicitly when auto-detection cannot classify the remote host
+- `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or `GITLAB_TOKEN`/`GL_TOKEN`)
+- `release execution failed`: inspect the wrapped cause for the specific release problem; for example, merge-blocked errors tell you to resolve PR/MR readiness or use `--auto-merge-force` when appropriate
 
 ## CI examples
 
