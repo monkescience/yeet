@@ -21,6 +21,7 @@ var (
 	ErrGitHubRepoRequired  = errors.New("resolve github repository: owner and repo are required")
 	ErrGitHubOwnerInvalid  = errors.New("resolve github repository: owner must not contain '/'")
 	ErrGitLabProjectNeeded = errors.New("resolve gitlab repository: project or owner/repo are required")
+	ErrRepositoryConflict  = errors.New("resolve repository: project does not match owner/repo")
 	ErrGitRemoteNotFound   = errors.New("git remote not found")
 	ErrGitRemoteHasNoURL   = errors.New("git remote has no url")
 	ErrGitRemoteURLBlank   = errors.New("git remote url is blank")
@@ -280,6 +281,11 @@ func splitProjectPath(project string) (string, string) {
 }
 
 func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) error {
+	err := validateRepositoryCoordinates(repository)
+	if err != nil {
+		return err
+	}
+
 	switch repository.Provider {
 	case config.ProviderGitHub:
 		if repository.Owner == "" || repository.Repo == "" {
@@ -298,6 +304,24 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 	}
 
 	return nil
+}
+
+func validateRepositoryCoordinates(repository *provider.RepositoryDescriptor) error {
+	if repository.Project == "" || repository.Owner == "" || repository.Repo == "" {
+		return nil
+	}
+
+	expectedProject := repository.Owner + "/" + repository.Repo
+	if repository.Project == expectedProject {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%w: project %q does not match owner/repo %q",
+		ErrRepositoryConflict,
+		repository.Project,
+		expectedProject,
+	)
 }
 
 func getGitRemoteURL(ctx context.Context, remote string) (string, error) {

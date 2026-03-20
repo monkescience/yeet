@@ -88,6 +88,23 @@ func TestParseRemote(t *testing.T) {
 		testastic.Equal(t, "group/subgroup/service", info.Project)
 	})
 
+	t.Run("gitlab subgroup ssh url", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab SSH URL remote with a subgroup path
+		url := "ssh://git@gitlab.company.com/group/subgroup/service.git"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
+
+		// then: the host and full project path are preserved
+		testastic.NoError(t, err)
+		testastic.Equal(t, "gitlab.company.com", info.Host)
+		testastic.Equal(t, "group/subgroup", info.Owner)
+		testastic.Equal(t, "service", info.Repo)
+		testastic.Equal(t, "group/subgroup/service", info.Project)
+	})
+
 	t.Run("repo names with dots", func(t *testing.T) {
 		t.Parallel()
 

@@ -16,6 +16,8 @@ const DefaultSchemaURL = "https://raw.githubusercontent.com/monkescience/yeet/ma
 
 const SchemaDirective = "#:schema " + DefaultSchemaURL
 
+const githubProjectSegments = 2
+
 type VersioningStrategy = string
 
 const (
@@ -162,7 +164,7 @@ func (c *Config) Validate() error {
 			ErrInvalidConfig, ProviderGitHub, ProviderGitLab, c.Provider)
 	}
 
-	err := validateRepositoryConfig(c.Repository)
+	err := validateRepositoryConfig(c.Provider, c.Repository)
 	if err != nil {
 		return err
 	}
@@ -189,34 +191,76 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func validateRepositoryConfig(repository RepositoryConfig) error {
-	if strings.TrimSpace(repository.Remote) == "" {
+func validateRepositoryConfig(provider ProviderType, repository RepositoryConfig) error {
+	remote := strings.TrimSpace(repository.Remote)
+	host := strings.TrimSpace(repository.Host)
+	owner := strings.TrimSpace(repository.Owner)
+	repo := strings.TrimSpace(repository.Repo)
+	project := normalizeRepositoryProjectPath(repository.Project)
+
+	if remote == "" {
 		return fmt.Errorf("%w: repository.remote must not be empty", ErrInvalidConfig)
 	}
 
-	if repository.Host != "" && strings.TrimSpace(repository.Host) == "" {
+	if repository.Host != "" && host == "" {
 		return fmt.Errorf("%w: repository.host must not be blank", ErrInvalidConfig)
 	}
 
-	if repository.Owner != "" && strings.TrimSpace(repository.Owner) == "" {
+	if repository.Owner != "" && owner == "" {
 		return fmt.Errorf("%w: repository.owner must not be blank", ErrInvalidConfig)
 	}
 
-	if repository.Repo != "" && strings.TrimSpace(repository.Repo) == "" {
+	if repository.Repo != "" && repo == "" {
 		return fmt.Errorf("%w: repository.repo must not be blank", ErrInvalidConfig)
 	}
 
-	if repository.Project != "" && strings.TrimSpace(repository.Project) == "" {
+	if repository.Project != "" && project == "" {
 		return fmt.Errorf("%w: repository.project must not be blank", ErrInvalidConfig)
 	}
 
-	hasOwnerRepoMismatch := (strings.TrimSpace(repository.Owner) == "") !=
-		(strings.TrimSpace(repository.Repo) == "")
+	hasOwnerRepoMismatch := (owner == "") != (repo == "")
 	if hasOwnerRepoMismatch {
 		return fmt.Errorf("%w: repository.owner and repository.repo must be set together", ErrInvalidConfig)
 	}
 
+	if project != "" && owner != "" && repo != "" && project != owner+"/"+repo {
+		return fmt.Errorf("%w: repository.project must match repository.owner/repo", ErrInvalidConfig)
+	}
+
+	if provider == ProviderGitHub {
+		if strings.Contains(owner, "/") {
+			return fmt.Errorf("%w: repository.owner must not contain '/' for github", ErrInvalidConfig)
+		}
+
+		if project != "" {
+			projectOwner, _, ok := splitGitHubProjectPath(project)
+			if !ok || strings.Contains(projectOwner, "/") {
+				return fmt.Errorf("%w: repository.project must be in owner/repo form for github", ErrInvalidConfig)
+			}
+		}
+	}
+
 	return nil
+}
+
+func normalizeRepositoryProjectPath(project string) string {
+	return strings.Trim(strings.TrimSpace(project), "/")
+}
+
+func splitGitHubProjectPath(project string) (string, string, bool) {
+	parts := strings.Split(project, "/")
+	if len(parts) != githubProjectSegments {
+		return "", "", false
+	}
+
+	owner := strings.TrimSpace(parts[0])
+	repo := strings.TrimSpace(parts[1])
+
+	if owner == "" || repo == "" {
+		return "", "", false
+	}
+
+	return owner, repo, true
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {

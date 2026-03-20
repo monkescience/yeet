@@ -109,6 +109,11 @@ yeet publishes a JSON schema at `yeet.schema.json` for TOML-aware editors.
 | `branch` | `"main"` | Base branch for releases |
 | `provider` | auto-detected | VCS provider: `"github"` or `"gitlab"` |
 | `tag_prefix` | `"v"` | Prefix for version tags |
+| `repository.remote` | `"origin"` | Git remote name used for repository auto-detection |
+| `repository.host` | unset | Explicit repository host, such as `github.com` or `gitlab.company.com` |
+| `repository.owner` | unset | Explicit owner or namespace for GitHub-style repositories |
+| `repository.repo` | unset | Explicit repository name for GitHub-style repositories |
+| `repository.project` | unset | Explicit full GitLab project path, including subgroups |
 | `version_files` | `[]` | Extra files to update with yeet markers during `yeet release` |
 | `release.subject_include_branch` | `false` | Include the target branch in generated release subjects (for example `chore(main): release 0.1.0`) used for PR/MR titles and release branch commits |
 | `release.auto_merge` | `false` | Automatically merge the release PR/MR and finalize the release in the same `yeet release` run |
@@ -214,9 +219,57 @@ Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge
 | `--dry-run` | Preview the release without creating a PR/MR |
 | `--preview` | Append build metadata with short commit hash (for example `1.2.4+abc1234`) |
 | `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
+| `--provider` | Override provider detection with `github` or `gitlab` |
+| `--remote` | Override the git remote used for repository auto-detection |
+| `--host` | Override the repository host |
+| `--owner` | Override the owner or namespace for GitHub-style repositories |
+| `--repo` | Override the repository name for GitHub-style repositories |
+| `--project` | Override the full GitLab project path, including subgroups |
 | `--auto-merge` | Automatically merge the release PR/MR and finalize the release in the same command run |
 | `--auto-merge-force` | Attempt auto-merge while bypassing yeet readiness checks/approvals (still blocks draft/conflicts; implies `--auto-merge`; provider rules and permissions still apply) |
 | `--auto-merge-method` | Merge strategy for auto-merge: `auto`, `squash`, `rebase`, or `merge` (defaults to the configured `release.auto_merge_method`; built-in default: `auto`) |
+
+### Repository targeting
+
+yeet resolves the target repository in this order:
+
+1. `yeet release` flags such as `--provider`, `--host`, `--owner`, `--repo`, and `--project`
+2. explicit `.yeet.toml` values
+3. the configured `repository.remote`
+4. the `origin` remote
+
+When yeet cannot classify a remote host automatically, set the provider and repository explicitly.
+
+GitHub Enterprise config example:
+
+```toml
+provider = "github"
+
+[repository]
+host = "github.company.com"
+owner = "platform"
+repo = "yeet"
+```
+
+GitLab subgroup config example:
+
+```toml
+provider = "gitlab"
+
+[repository]
+host = "gitlab.company.com"
+project = "group/subgroup/service"
+```
+
+Equivalent one-off CLI overrides:
+
+```sh
+# GitHub Enterprise
+yeet release --provider github --host github.company.com --owner platform --repo yeet --dry-run
+
+# GitLab subgroup project
+yeet release --provider gitlab --host gitlab.company.com --project group/subgroup/service --dry-run
+```
 
 Preview mode is useful for testing deploy artifacts before a final release tag:
 

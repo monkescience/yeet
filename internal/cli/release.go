@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
@@ -17,8 +18,9 @@ import (
 
 const (
 	releaseHelpExample = `  yeet release --dry-run
-  yeet release --preview --dry-run
-  yeet release --auto-merge`
+	  yeet release --preview --dry-run
+	  yeet release --auto-merge
+	  yeet release --provider github --owner platform --repo yeet --dry-run`
 	releasePreviewHelp        = "append preview build metadata with a short commit hash (for example 1.2.3+abc1234)"
 	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
 	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks; " +
@@ -26,14 +28,7 @@ const (
 )
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
-	var (
-		dryRun            bool
-		preview           bool
-		previewHashLength int
-		autoMerge         bool
-		autoMergeForce    bool
-		autoMergeMethod   string
-	)
+	flags := &releaseFlagValues{}
 
 	cmd := &cobra.Command{
 		Use:   "release",
@@ -50,28 +45,60 @@ marks the PR/MR as tagged.`,
 				cmd.Context(),
 				cmd.OutOrStdout(),
 				bootstrap.configPath(),
-				releaseOptionsFromCommand(cmd, dryRun, preview, previewHashLength, autoMerge, autoMergeForce, autoMergeMethod),
+				releaseOptionsFromCommand(cmd, *flags),
 			)
 		},
 	}
 
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview the release without creating a PR/MR")
-	cmd.Flags().BoolVar(&preview, "preview", false, releasePreviewHelp)
+	bindReleaseFlags(cmd, flags)
+
+	return cmd
+}
+
+type releaseFlagValues struct {
+	dryRun            bool
+	preview           bool
+	previewHashLength int
+	providerType      string
+	remote            string
+	host              string
+	owner             string
+	repo              string
+	project           string
+	autoMerge         bool
+	autoMergeForce    bool
+	autoMergeMethod   string
+}
+
+func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
+	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "preview the release without creating a PR/MR")
+	cmd.Flags().BoolVar(&flags.preview, "preview", false, releasePreviewHelp)
 	cmd.Flags().IntVar(
-		&previewHashLength,
+		&flags.previewHashLength,
 		"preview-hash-length",
 		release.DefaultPreviewHashLength,
 		"length of the short commit hash used for preview build metadata",
 	)
-	cmd.Flags().BoolVar(&autoMerge, "auto-merge", false, releaseAutoMergeHelp)
+	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: github|gitlab")
+	cmd.Flags().StringVar(&flags.remote, "remote", "", "override git remote used for repository auto-detection")
+	cmd.Flags().StringVar(&flags.host, "host", "", "override repository host, such as github.com or gitlab.company.com")
+	cmd.Flags().StringVar(
+		&flags.owner,
+		"owner",
+		"",
+		"override repository owner or namespace for github-style repositories",
+	)
+	cmd.Flags().StringVar(&flags.repo, "repo", "", "override repository name for github-style repositories")
+	cmd.Flags().StringVar(&flags.project, "project", "", "override full GitLab project path, including subgroups")
+	cmd.Flags().BoolVar(&flags.autoMerge, "auto-merge", false, releaseAutoMergeHelp)
 	cmd.Flags().BoolVar(
-		&autoMergeForce,
+		&flags.autoMergeForce,
 		"auto-merge-force",
 		false,
 		releaseAutoMergeForceHelp,
 	)
 	cmd.Flags().StringVar(
-		&autoMergeMethod,
+		&flags.autoMergeMethod,
 		"auto-merge-method",
 		"",
 		fmt.Sprintf(
@@ -79,42 +106,56 @@ marks the PR/MR as tagged.`,
 			config.AutoMergeMethodAuto,
 		),
 	)
-
-	return cmd
 }
 
-func releaseOptionsFromCommand(
-	cmd *cobra.Command,
-	dryRun bool,
-	preview bool,
-	previewHashLength int,
-	autoMerge bool,
-	autoMergeForce bool,
-	autoMergeMethod string,
-) releaseRunOptions {
+func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) releaseRunOptions {
 	return releaseRunOptions{
-		dryRun:             dryRun,
-		preview:            preview,
-		previewHashLength:  previewHashLength,
-		autoMerge:          autoMerge,
-		autoMergeSet:       cmd.Flags().Changed("auto-merge"),
-		autoMergeForce:     autoMergeForce,
-		autoMergeForceSet:  cmd.Flags().Changed("auto-merge-force"),
-		autoMergeMethod:    autoMergeMethod,
-		autoMergeMethodSet: cmd.Flags().Changed("auto-merge-method"),
+		dryRun:               flags.dryRun,
+		preview:              flags.preview,
+		previewHashLength:    flags.previewHashLength,
+		provider:             flags.providerType,
+		providerSet:          cmd.Flags().Changed("provider"),
+		repositoryRemote:     flags.remote,
+		repositoryRemoteSet:  cmd.Flags().Changed("remote"),
+		repositoryHost:       flags.host,
+		repositoryHostSet:    cmd.Flags().Changed("host"),
+		repositoryOwner:      flags.owner,
+		repositoryOwnerSet:   cmd.Flags().Changed("owner"),
+		repositoryRepo:       flags.repo,
+		repositoryRepoSet:    cmd.Flags().Changed("repo"),
+		repositoryProject:    flags.project,
+		repositoryProjectSet: cmd.Flags().Changed("project"),
+		autoMerge:            flags.autoMerge,
+		autoMergeSet:         cmd.Flags().Changed("auto-merge"),
+		autoMergeForce:       flags.autoMergeForce,
+		autoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
+		autoMergeMethod:      flags.autoMergeMethod,
+		autoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
 	}
 }
 
 type releaseRunOptions struct {
-	dryRun             bool
-	preview            bool
-	previewHashLength  int
-	autoMerge          bool
-	autoMergeSet       bool
-	autoMergeForce     bool
-	autoMergeForceSet  bool
-	autoMergeMethod    string
-	autoMergeMethodSet bool
+	dryRun               bool
+	preview              bool
+	previewHashLength    int
+	provider             string
+	providerSet          bool
+	repositoryRemote     string
+	repositoryRemoteSet  bool
+	repositoryHost       string
+	repositoryHostSet    bool
+	repositoryOwner      string
+	repositoryOwnerSet   bool
+	repositoryRepo       string
+	repositoryRepoSet    bool
+	repositoryProject    string
+	repositoryProjectSet bool
+	autoMerge            bool
+	autoMergeSet         bool
+	autoMergeForce       bool
+	autoMergeForceSet    bool
+	autoMergeMethod      string
+	autoMergeMethodSet   bool
 }
 
 func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
@@ -221,10 +262,88 @@ func logReleaseCommand(ctx context.Context, configPath string, options releaseRu
 		options.preview,
 		"preview_hash_length",
 		options.previewHashLength,
+		"provider_override_set",
+		options.providerSet,
+		"remote_override_set",
+		options.repositoryRemoteSet,
+		"host_override_set",
+		options.repositoryHostSet,
+		"owner_override_set",
+		options.repositoryOwnerSet,
+		"repo_override_set",
+		options.repositoryRepoSet,
+		"project_override_set",
+		options.repositoryProjectSet,
 	)
 }
 
 func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) {
+	applyRepositoryReleaseOptions(cfg, options)
+
+	applyReleaseBehaviorOptions(cfg, options)
+}
+
+func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions) {
+	previousProvider := cfg.Provider
+
+	if options.providerSet {
+		cfg.Provider = options.provider
+	}
+
+	if options.repositoryRemoteSet {
+		cfg.Repository.Remote = options.repositoryRemote
+	}
+
+	if options.repositoryHostSet {
+		cfg.Repository.Host = options.repositoryHost
+	} else if providerChanged(previousProvider, cfg.Provider) {
+		cfg.Repository.Host = ""
+	}
+
+	if options.repositoryOwnerSet {
+		cfg.Repository.Owner = options.repositoryOwner
+	}
+
+	if options.repositoryRepoSet {
+		cfg.Repository.Repo = options.repositoryRepo
+	}
+
+	if options.repositoryProjectSet {
+		cfg.Repository.Project = options.repositoryProject
+
+		clearRepositoryOwnerRepoForProject(cfg, options)
+	}
+
+	if !options.repositoryProjectSet && (options.repositoryOwnerSet || options.repositoryRepoSet) {
+		if strings.TrimSpace(cfg.Repository.Owner) != "" && strings.TrimSpace(cfg.Repository.Repo) != "" {
+			cfg.Repository.Project = ""
+		}
+	}
+}
+
+func providerChanged(previous config.ProviderType, next string) bool {
+	if previous == "" || next == "" {
+		return false
+	}
+
+	return previous != next
+}
+
+func clearRepositoryOwnerRepoForProject(cfg *config.Config, options releaseRunOptions) {
+	if options.repositoryProject == "" {
+		return
+	}
+
+	if !options.repositoryOwnerSet {
+		cfg.Repository.Owner = ""
+	}
+
+	if !options.repositoryRepoSet {
+		cfg.Repository.Repo = ""
+	}
+}
+
+func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) {
 	if options.autoMergeSet {
 		cfg.Release.AutoMerge = options.autoMerge
 	}

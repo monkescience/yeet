@@ -47,6 +47,35 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(t, "origin", repository.Remote)
 	})
 
+	t.Run("uses explicit github coordinates without git remote access", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+
+		remoteLookedUp := false
+
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				remoteLookedUp = true
+
+				return "", errors.New("git remote lookup should not run")
+			},
+		)
+
+		testastic.NoError(t, err)
+		testastic.False(t, remoteLookedUp)
+		testastic.Equal(t, "github", repository.Provider)
+		testastic.Equal(t, "github.com", repository.Host)
+		testastic.Equal(t, "platform", repository.Owner)
+		testastic.Equal(t, "yeet", repository.Repo)
+		testastic.Equal(t, "platform/yeet", repository.Project)
+	})
+
 	t.Run("uses configured remote name", func(t *testing.T) {
 		t.Parallel()
 
@@ -132,6 +161,28 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(t, "platform", repository.Owner)
 		testastic.Equal(t, "yeet", repository.Repo)
 		testastic.Equal(t, "platform/yeet", repository.Project)
+	})
+
+	t.Run("fails when project conflicts with owner and repo", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.Project = "group/subgroup/service"
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", errors.New("git remote lookup should not run")
+			},
+		)
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrRepositoryConflict)
+		testastic.ErrorContains(t, err, "project \"group/subgroup/service\" does not match owner/repo \"platform/yeet\"")
 	})
 }
 

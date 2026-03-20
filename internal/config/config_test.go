@@ -273,6 +273,41 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
+	t.Run("repository project must match owner and repo when both are set", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository config with conflicting explicit coordinates
+		cfg := config.Default()
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+		cfg.Repository.Project = "group/subgroup/service"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project must match repository.owner/repo")
+	})
+
+	t.Run("github project must stay in owner repo form", func(t *testing.T) {
+		t.Parallel()
+
+		// given: explicit github provider with a subgroup-style project path
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Project = "group/subgroup/service"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+	})
+
 	t.Run("empty repository remote fails", func(t *testing.T) {
 		t.Parallel()
 

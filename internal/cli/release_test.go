@@ -1,6 +1,8 @@
 package cli //nolint:testpackage // validates unexported release helpers directly
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -38,7 +40,25 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Contains(t, stdout, "yeet release --dry-run")
 		testastic.Contains(t, stdout, "yeet release --preview --dry-run")
 		testastic.Contains(t, stdout, "yeet release --auto-merge")
+		testastic.Contains(t, stdout, "yeet release --provider github --owner platform --repo yeet --dry-run")
 		testastic.Contains(t, stdout, "provider rules may still apply")
+	})
+
+	t.Run("help includes repository override flags", func(t *testing.T) {
+		// given: the release command help is requested
+
+		// when: rendering help output
+		stdout, stderr, err := executeCommand(t, "release", "--help")
+
+		// then: the repository targeting flags are documented
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", stderr)
+		testastic.Contains(t, stdout, "--provider string")
+		testastic.Contains(t, stdout, "--remote string")
+		testastic.Contains(t, stdout, "--host string")
+		testastic.Contains(t, stdout, "--owner string")
+		testastic.Contains(t, stdout, "--repo string")
+		testastic.Contains(t, stdout, "--project string")
 	})
 
 	t.Run("reports missing config file with next step", func(t *testing.T) {
@@ -60,7 +80,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: a config file with an invalid enum value
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
-		writeTestConfig(t, config.DefaultFile, func(cfg *config.Config) {
+		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Versioning = "broken"
 		})
 
@@ -94,7 +114,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: a repository config that resolves directly to GitHub without auth tokens
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
-		writeTestConfig(t, config.DefaultFile, func(cfg *config.Config) {
+		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Provider = config.ProviderGitHub
 			cfg.Repository.Owner = "platform"
 			cfg.Repository.Repo = "yeet"
@@ -115,7 +135,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: repository coordinates on a host yeet cannot classify automatically
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
-		writeTestConfig(t, config.DefaultFile, func(cfg *config.Config) {
+		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Repository.Host = "code.company.com"
 			cfg.Repository.Owner = "platform"
 			cfg.Repository.Repo = "yeet"
@@ -128,6 +148,200 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "repository resolution failed")
 		testastic.ErrorContains(t, err, "unsupported remote host")
+	})
+
+	t.Run("provider flag overrides unsupported host auto detection", func(t *testing.T) {
+		// given: repository coordinates on an unknown host plus an explicit provider flag
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
+		writeTestConfig(t, func(cfg *config.Config) {
+			cfg.Repository.Host = "code.company.com"
+			cfg.Repository.Owner = "platform"
+			cfg.Repository.Repo = "yeet"
+		})
+		t.Setenv("GITHUB_TOKEN", "")
+		t.Setenv("GH_TOKEN", "")
+
+		// when: running release with an explicit github provider override
+		_, _, err := executeCommand(t, "release", "--provider", "github")
+
+		// then: repository resolution succeeds and provider setup uses the override
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "provider setup failed")
+		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
+	})
+
+	t.Run("repository flags override configured provider and coordinates", func(t *testing.T) {
+		// given: a gitlab config overridden by explicit github flags
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
+		writeTestConfig(t, func(cfg *config.Config) {
+			cfg.Provider = config.ProviderGitLab
+			cfg.Repository.Host = "gitlab.company.com"
+			cfg.Repository.Project = "group/subgroup/service"
+		})
+		t.Setenv("GITHUB_TOKEN", "")
+		t.Setenv("GH_TOKEN", "")
+
+		// when: running release with explicit github targeting flags
+		_, _, err := executeCommand(t, "release", "--provider", "github", "--owner", "platform", "--repo", "yeet")
+
+		// then: the github override wins
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "provider setup failed")
+		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
+	})
+
+	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
+		// given: a valid config file and conflicting explicit repository flags
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
+		writeTestConfig(t, func(cfg *config.Config) {})
+
+		// when: running release with mismatched project and owner repo overrides
+		_, _, err := executeCommand(
+			t,
+			"release",
+			"--provider",
+			"gitlab",
+			"--project",
+			"group/subgroup/service",
+			"--owner",
+			"platform",
+			"--repo",
+			"yeet",
+		)
+
+		// then: the override set is validated before repository resolution
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "invalid release options")
+		testastic.ErrorContains(t, err, "repository.project must match repository.owner/repo")
+	})
+}
+
+func TestApplyReleaseOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("repository overrides update config when set", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with existing repository values
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Remote = "origin"
+		cfg.Repository.Host = "github.com"
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+
+		// when: applying explicit repository overrides
+		applyReleaseOptions(cfg, releaseRunOptions{
+			provider:             config.ProviderGitLab,
+			providerSet:          true,
+			repositoryRemote:     "upstream",
+			repositoryRemoteSet:  true,
+			repositoryHost:       "gitlab.company.com",
+			repositoryHostSet:    true,
+			repositoryOwner:      "group/subgroup",
+			repositoryOwnerSet:   true,
+			repositoryRepo:       "service",
+			repositoryRepoSet:    true,
+			repositoryProject:    "group/subgroup/service",
+			repositoryProjectSet: true,
+		})
+
+		// then: the overrides become the effective release config
+		testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
+		testastic.Equal(t, "upstream", cfg.Repository.Remote)
+		testastic.Equal(t, "gitlab.company.com", cfg.Repository.Host)
+		testastic.Equal(t, "group/subgroup", cfg.Repository.Owner)
+		testastic.Equal(t, "service", cfg.Repository.Repo)
+		testastic.Equal(t, "group/subgroup/service", cfg.Repository.Project)
+	})
+
+	t.Run("owner and repo overrides clear stale project", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a gitlab-style repository config
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.Host = "gitlab.company.com"
+		cfg.Repository.Project = "group/subgroup/service"
+
+		// when: applying github-style owner repo overrides
+		applyReleaseOptions(cfg, releaseRunOptions{
+			provider:           config.ProviderGitHub,
+			providerSet:        true,
+			repositoryOwner:    "platform",
+			repositoryOwnerSet: true,
+			repositoryRepo:     "yeet",
+			repositoryRepoSet:  true,
+		})
+
+		// then: the stale project path is removed
+		testastic.Equal(t, config.ProviderGitHub, cfg.Provider)
+		testastic.Equal(t, "", cfg.Repository.Host)
+		testastic.Equal(t, "platform", cfg.Repository.Owner)
+		testastic.Equal(t, "yeet", cfg.Repository.Repo)
+		testastic.Equal(t, "", cfg.Repository.Project)
+	})
+
+	t.Run("provider override without host falls back to provider default host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: gitlab config overridden to github without an explicit host override
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.Host = "gitlab.company.com"
+		cfg.Repository.Project = "group/subgroup/service"
+
+		applyReleaseOptions(cfg, releaseRunOptions{
+			provider:           config.ProviderGitHub,
+			providerSet:        true,
+			repositoryOwner:    "platform",
+			repositoryOwnerSet: true,
+			repositoryRepo:     "yeet",
+			repositoryRepoSet:  true,
+		})
+
+		// when: resolving the repository after applying overrides
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", errors.New("git remote lookup should not run")
+			},
+		)
+
+		// then: yeet uses the github default host instead of the stale gitlab host
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.ProviderGitHub, repository.Provider)
+		testastic.Equal(t, provider.DefaultGitHubHost, repository.Host)
+		testastic.Equal(t, "platform", repository.Owner)
+		testastic.Equal(t, "yeet", repository.Repo)
+	})
+
+	t.Run("project override clears stale owner and repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a github-style repository config
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+
+		// when: applying a gitlab project override
+		applyReleaseOptions(cfg, releaseRunOptions{
+			provider:             config.ProviderGitLab,
+			providerSet:          true,
+			repositoryProject:    "group/subgroup/service",
+			repositoryProjectSet: true,
+		})
+
+		// then: the stale owner repo pair is removed
+		testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
+		testastic.Equal(t, "", cfg.Repository.Owner)
+		testastic.Equal(t, "", cfg.Repository.Repo)
+		testastic.Equal(t, "group/subgroup/service", cfg.Repository.Project)
 	})
 }
 
@@ -152,7 +366,7 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 	})
 }
 
-func writeTestConfig(t *testing.T, path string, mutate func(*config.Config)) {
+func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 	t.Helper()
 
 	cfg := config.Default()
@@ -161,6 +375,6 @@ func writeTestConfig(t *testing.T, path string, mutate func(*config.Config)) {
 	data, err := toml.Marshal(cfg)
 	testastic.NoError(t, err)
 
-	err = os.WriteFile(path, data, 0o644)
+	err = os.WriteFile(config.DefaultFile, data, 0o644)
 	testastic.NoError(t, err)
 }
