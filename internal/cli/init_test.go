@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	git "github.com/go-git/go-git/v5"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/spf13/cobra"
@@ -64,6 +65,57 @@ func TestRunInit(t *testing.T) {
 		if !os.IsNotExist(statErr) {
 			t.Fatalf("expected %s to be absent, got %v", config.DefaultFile, statErr)
 		}
+	})
+
+	t.Run("root command writes default config at repository root from nested directory", func(t *testing.T) {
+		// given: a nested directory inside a git repository without an existing config file
+		repositoryPath := t.TempDir()
+		_, err := git.PlainInit(repositoryPath, false)
+		testastic.NoError(t, err)
+
+		nestedPath := filepath.Join(repositoryPath, "cmd", "yeet")
+		err = os.MkdirAll(nestedPath, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(nestedPath)
+
+		// when: executing init from the nested directory
+		_, _, err = executeCommand(t, "init")
+
+		// then: the config file is created at the repository root
+		testastic.NoError(t, err)
+
+		_, statErr := os.Stat(filepath.Join(repositoryPath, config.DefaultFile))
+		testastic.NoError(t, statErr)
+
+		_, statErr = os.Stat(filepath.Join(nestedPath, config.DefaultFile))
+		testastic.Error(t, statErr)
+
+		if !os.IsNotExist(statErr) {
+			t.Fatalf("expected %s to be absent in nested directory, got %v", config.DefaultFile, statErr)
+		}
+	})
+
+	t.Run("root command fails when repository root config already exists", func(t *testing.T) {
+		// given: a nested directory below an existing repository root config file
+		repositoryPath := t.TempDir()
+		_, err := git.PlainInit(repositoryPath, false)
+		testastic.NoError(t, err)
+
+		err = os.WriteFile(filepath.Join(repositoryPath, config.DefaultFile), []byte(config.SchemaDirective+"\n"), 0o644)
+		testastic.NoError(t, err)
+
+		nestedPath := filepath.Join(repositoryPath, "internal", "cli")
+		err = os.MkdirAll(nestedPath, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(nestedPath)
+
+		// when: executing init from the nested directory
+		_, _, err = executeCommand(t, "init")
+
+		// then: init reports that the repository root config already exists
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrConfigExists)
+		testastic.ErrorContains(t, err, filepath.Join(repositoryPath, config.DefaultFile))
 	})
 
 	t.Run("writes config with schema directive", func(t *testing.T) {
@@ -168,6 +220,7 @@ func TestRootCommand(t *testing.T) {
 		testastic.Contains(t, stdout, "Examples:")
 		testastic.Contains(t, stdout, "yeet init")
 		testastic.Contains(t, stdout, "yeet init --config .yeet.release.toml")
+		testastic.Contains(t, stdout, "repository root")
 	})
 
 	t.Run("version prints build information", func(t *testing.T) {

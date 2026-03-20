@@ -19,7 +19,9 @@ func initCmd(options *bootstrapOptions) *cobra.Command {
 		Short: "Initialize a .yeet.toml configuration file",
 		Long: `Creates a yeet configuration file with sensible defaults.
 
-By default this writes .yeet.toml in the current directory. Use --config to write a different path.`,
+	By default this writes .yeet.toml at the repository root when inside a git
+	repository, or in the current directory otherwise. Use --config to write a
+	different path.`,
 		Example: `  yeet init
   yeet init --config .yeet.release.toml`,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -29,11 +31,16 @@ By default this writes .yeet.toml in the current directory. Use --config to writ
 }
 
 func runInit(path string) error {
-	slog.Debug("initializing config file", "path", path)
+	resolvedPath, err := resolveInitConfigPath(path)
+	if err != nil {
+		return fmt.Errorf("resolve init config path: %w", err)
+	}
 
-	_, statErr := os.Stat(path)
+	slog.Debug("initializing config file", "path", resolvedPath)
+
+	_, statErr := os.Stat(resolvedPath)
 	if statErr == nil {
-		return fmt.Errorf("%w: %s", ErrConfigExists, path)
+		return fmt.Errorf("%w: %s", ErrConfigExists, resolvedPath)
 	}
 
 	cfg := config.Default()
@@ -45,12 +52,12 @@ func runInit(path string) error {
 
 	content := append([]byte(config.SchemaDirective+"\n\n"), data...)
 
-	err = os.WriteFile(path, content, 0o600) //nolint:mnd // secure file permissions
+	err = os.WriteFile(resolvedPath, content, 0o600) //nolint:mnd // secure file permissions
 	if err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
 
-	slog.Info("created config file", "path", path)
+	slog.Info("created config file", "path", resolvedPath)
 
 	return nil
 }

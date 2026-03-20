@@ -159,12 +159,12 @@ type releaseRunOptions struct {
 }
 
 func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
-	logReleaseCommand(ctx, configPath, options)
-
-	cfg, err := loadConfig(configPath)
+	cfg, resolvedConfigPath, err := loadConfig(configPath)
 	if err != nil {
-		return wrapReleaseConfigError(configPath, err)
+		return wrapReleaseConfigError(resolvedConfigPath, err)
 	}
+
+	logReleaseCommand(ctx, resolvedConfigPath, options)
 
 	applyReleaseOptions(cfg, options)
 

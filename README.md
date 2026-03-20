@@ -55,7 +55,7 @@ yeet release
 
 ## Configuration
 
-yeet uses a `.yeet.toml` file in your project root by default. Run `yeet init` to generate one with defaults, or pass `--config` to write a different path:
+yeet reads the nearest ancestor `.yeet.toml` by default. Run `yeet init` to generate one at the repository root when inside a git repository, or in the current directory otherwise. Pass `--config` to use an explicit path:
 
 ```toml
 #:schema https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
@@ -179,7 +179,7 @@ yeet completion powershell
 
 ### `yeet init`
 
-Creates a `.yeet.toml` with sensible defaults by default.
+Creates a `.yeet.toml` with sensible defaults at the repository root when inside a git repository, or in the current directory otherwise.
 
 ```sh
 yeet init
@@ -190,7 +190,7 @@ yeet init --config .yeet.release.toml
 
 | Flag | Description |
 |---|---|
-| `--config` | Use a custom config file path instead of `.yeet.toml` |
+| `--config` | Use an explicit config file path instead of default discovery/location |
 | `--log-format` | Set log output format to `text` or `json` |
 | `--verbose` | Enable debug logging |
 | `--quiet` | Show warnings and errors only |
@@ -461,7 +461,7 @@ The token must be able to create merge requests, manage labels, and publish rele
 `yeet release` keeps wrapped errors for debugging, but the top-level message points at the failure
 category so you can pick the next fix quickly:
 
-- `configuration file not found`: create `.yeet.toml` with `yeet init` or pass `--config`.
+- `configuration file not found`: create `.yeet.toml` with `yeet init` at the repo root or pass `--config`.
 - `invalid configuration`: fix invalid values in `.yeet.toml` before rerunning.
 - `repository resolution failed`: set `provider` and/or `[repository]` explicitly when the remote
   host is unsupported or auto-detection cannot classify it.

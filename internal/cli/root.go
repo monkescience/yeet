@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/monkescience/yeet/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -70,7 +69,12 @@ autorelease: tagged.`,
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&options.configFile, "config", "", "path to config file (default .yeet.toml)")
+	cmd.PersistentFlags().StringVar(
+		&options.configFile,
+		"config",
+		"",
+		"path to config file (default: nearest ancestor .yeet.toml)",
+	)
 	cmd.PersistentFlags().StringVar(&options.logFormat, "log-format", logFormatText, "set log output format: text|json")
 	cmd.PersistentFlags().BoolVarP(&options.verbose, "verbose", "v", false, "enable debug logging")
 	cmd.PersistentFlags().BoolVar(&options.quiet, "quiet", false, "show warnings and errors only")
@@ -151,12 +155,7 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 }
 
 func (options *bootstrapOptions) configPath() string {
-	path := strings.TrimSpace(options.configFile)
-	if path == "" {
-		return config.DefaultFile
-	}
-
-	return path
+	return strings.TrimSpace(options.configFile)
 }
 
 func versionCmd() *cobra.Command {

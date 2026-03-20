@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -88,6 +89,34 @@ func TestReleaseCommand(t *testing.T) {
 		_, _, err := executeCommand(t, "release")
 
 		// then: the CLI categorizes the failure as configuration-related
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "invalid configuration")
+		testastic.ErrorContains(t, err, "versioning must be")
+	})
+
+	t.Run("loads config from a nested directory", func(t *testing.T) {
+		// given: a root config file and execution from a nested subdirectory
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, config.DefaultFile)
+
+		cfg := config.Default()
+		cfg.Versioning = "broken"
+
+		data, err := toml.Marshal(cfg)
+		testastic.NoError(t, err)
+
+		err = os.WriteFile(configPath, data, 0o644)
+		testastic.NoError(t, err)
+
+		nestedPath := filepath.Join(tempDir, "internal", "cli")
+		err = os.MkdirAll(nestedPath, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(nestedPath)
+
+		// when: running release from the nested directory
+		_, _, err = executeCommand(t, "release")
+
+		// then: the ancestor config is loaded instead of reporting a missing file
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "invalid configuration")
 		testastic.ErrorContains(t, err, "versioning must be")
