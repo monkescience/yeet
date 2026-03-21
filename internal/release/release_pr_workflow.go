@@ -11,12 +11,14 @@ import (
 type releasePRWorkflow struct {
 	releaser      *Releaser
 	branchUpdater *releaseBranchUpdater
+	publisher     *releasePublisher
 }
 
 func newReleasePRWorkflow(releaser *Releaser) *releasePRWorkflow {
 	return &releasePRWorkflow{
 		releaser:      releaser,
 		branchUpdater: newReleaseBranchUpdater(releaser),
+		publisher:     newReleasePublisher(releaser),
 	}
 }
 
@@ -82,12 +84,12 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result, previ
 
 	releaseTag := releasePRTag(result)
 
-	releaseInfo, err := r.ensureReleaseForTag(ctx, releaseTag, r.cfg.Branch, result.Changelog)
+	releaseInfo, err := w.publisher.ensureReleaseForTag(ctx, releaseTag, r.cfg.Branch, result.Changelog)
 	if err != nil {
 		return err
 	}
 
-	err = r.markReleasePRTagged(ctx, result.PullRequest)
+	err = w.publisher.markReleasePRTagged(ctx, result.PullRequest)
 	if err != nil {
 		return err
 	}

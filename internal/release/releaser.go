@@ -178,14 +178,6 @@ func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Relea
 	return newReleasePublisher(r).finalizeMergedReleasePR(ctx)
 }
 
-func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, ref, releaseBody string) (*provider.Release, error) {
-	return newReleasePublisher(r).ensureReleaseForTag(ctx, tag, ref, releaseBody)
-}
-
-func (r *Releaser) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
-	return newReleasePublisher(r).markReleasePRTagged(ctx, pullRequest)
-}
-
 func (r *Releaser) setResultChangelogs(
 	result *Result,
 	ref string,
