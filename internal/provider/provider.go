@@ -67,18 +67,25 @@ type CommitEntry struct {
 	Message string
 }
 
-//nolint:interfacebloat // Provider aggregates VCS operations required by the release flow.
-type Provider interface {
+type versionHistoryProvider interface {
 	// GetLatestVersionRef returns the preferred release/tag baseline candidate.
 	GetLatestVersionRef(ctx context.Context) (string, error)
 	// ListTags returns repository tags.
 	ListTags(ctx context.Context) ([]string, error)
+	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
+	GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error)
+}
+
+type releaseLookupProvider interface {
 	// GetReleaseByTag returns the release for the exact tag.
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
 	// TagExists reports whether the exact tag already exists.
 	TagExists(ctx context.Context, tag string) (bool, error)
-	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
-	GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error)
+	// CreateRelease creates a release with a tag.
+	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
+}
+
+type releasePRProvider interface {
 	// CreateReleasePR creates a release PR/MR.
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	// UpdateReleasePR updates an existing release PR/MR.
@@ -87,24 +94,36 @@ type Provider interface {
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
 	// FindMergedReleasePR finds the latest merged release PR/MR waiting for tagging.
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
-	// CreateRelease creates a release with a tag.
-	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 	// MergeReleasePR merges an existing release PR/MR.
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
 	// MarkReleasePRPending marks a release PR/MR as waiting for tagging.
 	MarkReleasePRPending(ctx context.Context, number int) error
 	// MarkReleasePRTagged marks a release PR/MR as tagged.
 	MarkReleasePRTagged(ctx context.Context, number int) error
+}
+
+type repoContentProvider interface {
 	// CreateBranch creates a new branch from the base branch.
 	CreateBranch(ctx context.Context, name, base string) error
 	// GetFile reads a file content from a branch.
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
+}
+
+type repoMetadataProvider interface {
 	// RepoURL returns the HTTPS base URL for the repository.
 	RepoURL() string
 	// PathPrefix returns the path prefix for commit/compare URLs (empty for GitHub, "/-" for GitLab).
 	PathPrefix() string
+}
+
+type Provider interface {
+	versionHistoryProvider
+	releaseLookupProvider
+	releasePRProvider
+	repoContentProvider
+	repoMetadataProvider
 }
 
 type RepoInfo struct {
