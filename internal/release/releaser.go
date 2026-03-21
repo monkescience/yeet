@@ -18,7 +18,6 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/version"
-	"github.com/monkescience/yeet/internal/versionfile"
 )
 
 const (
@@ -57,9 +56,13 @@ type Result struct {
 }
 
 type Releaser struct {
-	cfg      *config.Config
-	provider provider.Provider
-	strategy versionStrategy
+	cfg       *config.Config
+	history   versionHistoryProvider
+	metadata  repoMetadataProvider
+	prs       releasePRProvider
+	files     releaseFileProvider
+	publisher releasePublishingProvider
+	strategy  versionStrategy
 }
 
 type versionStrategy struct {
@@ -83,8 +86,12 @@ func New(cfg *config.Config, p provider.Provider) *Releaser {
 	}
 
 	return &Releaser{
-		cfg:      cfg,
-		provider: p,
+		cfg:       cfg,
+		history:   p,
+		metadata:  p,
+		prs:       p,
+		files:     p,
+		publisher: p,
 		strategy: versionStrategy{
 			strategy: strategy,
 			prefix:   cfg.TagPrefix,
@@ -135,14 +142,16 @@ func (r *Releaser) Release(ctx context.Context, dryRun, preview bool, previewHas
 		return result, nil
 	}
 
-	pr, err := r.createOrUpdatePR(ctx, result)
+	workflow := newReleasePRWorkflow(r)
+
+	pr, err := workflow.createOrUpdate(ctx, result)
 	if err != nil {
 		return nil, err
 	}
 
 	result.PullRequest = pr
 
-	err = r.autoMergeReleasePR(ctx, result, preview)
+	err = workflow.autoMerge(ctx, result, preview)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +165,7 @@ func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result,
 		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
 	}
 
-	release, err := r.ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody)
+	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody)
 	if err != nil {
 		return nil, err
 	}
@@ -168,118 +177,15 @@ func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result,
 }
 
 func (r *Releaser) finalizeMergedReleasePR(ctx context.Context) (*provider.Release, error) {
-	mergedPR, err := r.provider.FindMergedReleasePR(ctx, r.cfg.Branch)
-	if err != nil {
-		return nil, fmt.Errorf("find merged release PR: %w", err)
-	}
-
-	tag, err := releaseTagFromPullRequest(mergedPR)
-	if err != nil {
-		return nil, err
-	}
-
-	if isPreviewTag(tag, r.strategy.prefix) {
-		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
-	}
-
-	releaseInfo, err := r.releaseForTag(ctx, tag, releaseRefForPullRequest(mergedPR, r.cfg.Branch))
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.markReleasePRTagged(ctx, mergedPR)
-	if err != nil {
-		return nil, err
-	}
-
-	return releaseInfo, nil
-}
-
-func (r *Releaser) releaseForTag(ctx context.Context, tag, ref string) (*provider.Release, error) {
-	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
-	if err != nil {
-		return nil, err
-	}
-
-	if exists {
-		return existingRelease, nil
-	}
-
-	releaseBody, err := r.releaseNotesFromChangelog(ctx, tag)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.ensureReleaseForTag(ctx, tag, ref, releaseBody)
-}
-
-func (r *Releaser) createReleaseForTag(ctx context.Context, tag, ref, releaseBody string) (*provider.Release, error) {
-	releaseInfo, err := r.provider.CreateRelease(ctx, provider.ReleaseOptions{
-		TagName: tag,
-		Ref:     ref,
-		Name:    tag,
-		Body:    releaseBody,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create release: %w", err)
-	}
-
-	slog.InfoContext(ctx, "created release", "tag", tag, "url", releaseInfo.URL)
-
-	return releaseInfo, nil
+	return newReleasePublisher(r).finalizeMergedReleasePR(ctx)
 }
 
 func (r *Releaser) ensureReleaseForTag(ctx context.Context, tag, ref, releaseBody string) (*provider.Release, error) {
-	existingRelease, exists, err := r.existingReleaseForTag(ctx, tag)
-	if err != nil {
-		return nil, err
-	}
-
-	if exists {
-		return existingRelease, nil
-	}
-
-	tagExists, err := r.provider.TagExists(ctx, tag)
-	if err != nil {
-		return nil, fmt.Errorf("check tag %q: %w", tag, err)
-	}
-
-	if tagExists {
-		return r.createReleaseForTag(ctx, tag, "", releaseBody)
-	}
-
-	creationRef := strings.TrimSpace(ref)
-	if creationRef == "" {
-		creationRef = r.cfg.Branch
-	}
-
-	return r.createReleaseForTag(ctx, tag, creationRef, releaseBody)
-}
-
-func (r *Releaser) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {
-	releaseInfo, err := r.provider.GetReleaseByTag(ctx, tag)
-	if err != nil {
-		if !errors.Is(err, provider.ErrNoRelease) {
-			return nil, false, fmt.Errorf("get release by tag %q: %w", tag, err)
-		}
-
-		return nil, false, nil
-	}
-
-	slog.InfoContext(ctx, "release already exists", "tag", tag)
-
-	return releaseInfo, true, nil
+	return newReleasePublisher(r).ensureReleaseForTag(ctx, tag, ref, releaseBody)
 }
 
 func (r *Releaser) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
-	err := r.provider.MarkReleasePRTagged(ctx, pullRequest.Number)
-	if err != nil {
-		return fmt.Errorf("mark release PR tagged: %w", err)
-	}
-
-	slog.InfoContext(ctx, "marked release PR tagged", "url", pullRequest.URL)
-
-	return nil
+	return newReleasePublisher(r).markReleasePRTagged(ctx, pullRequest)
 }
 
 func (r *Releaser) analyze(ctx context.Context, preview bool, previewHashLength int) (*Result, error) {
@@ -370,7 +276,7 @@ func (r *Releaser) currentVersionFromReleaseHistory(ctx context.Context) (string
 func (r *Releaser) versionHistoryRefs(ctx context.Context) ([]string, error) {
 	refs := make([]string, 0)
 
-	preferredRef, err := r.provider.GetLatestVersionRef(ctx)
+	preferredRef, err := r.history.GetLatestVersionRef(ctx)
 	if err != nil {
 		if !errors.Is(err, provider.ErrNoVersionRef) {
 			return nil, fmt.Errorf("get latest version ref: %w", err)
@@ -379,7 +285,7 @@ func (r *Releaser) versionHistoryRefs(ctx context.Context) ([]string, error) {
 		refs = append(refs, preferredRef)
 	}
 
-	tags, err := r.provider.ListTags(ctx)
+	tags, err := r.history.ListTags(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
@@ -422,7 +328,7 @@ func (r *Releaser) currentVersionFromRef(ref string) (string, bool) {
 }
 
 func (r *Releaser) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
-	_, err := r.provider.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	_, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch)
 	if err != nil {
 		if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
 			return false, nil
@@ -557,7 +463,7 @@ func (r *Releaser) branchAncestryError(ref string) error {
 }
 
 func (r *Releaser) commitsSince(ctx context.Context, ref string) ([]provider.CommitEntry, error) {
-	entries, err := r.provider.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	entries, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch)
 	if err == nil {
 		return entries, nil
 	}
@@ -619,89 +525,16 @@ func (r *Releaser) renderChangelog(nextTag, ref, compareTarget string, commits [
 	gen := &changelog.Generator{
 		Sections:   r.cfg.Changelog.Sections,
 		Include:    r.cfg.Changelog.Include,
-		RepoURL:    r.provider.RepoURL(),
-		PathPrefix: r.provider.PathPrefix(),
+		RepoURL:    r.metadata.RepoURL(),
+		PathPrefix: r.metadata.PathPrefix(),
 	}
 
 	entry := gen.Generate(nextTag, ref, commits)
 	if ref != "" && compareTarget != "" {
-		entry.CompareURL = compareURL(r.provider.RepoURL(), r.provider.PathPrefix(), ref, compareTarget)
+		entry.CompareURL = compareURL(r.metadata.RepoURL(), r.metadata.PathPrefix(), ref, compareTarget)
 	}
 
 	return changelog.Render(entry)
-}
-
-func (r *Releaser) createOrUpdatePR(ctx context.Context, result *Result) (*provider.PullRequest, error) {
-	pendingPRs, err := r.provider.FindOpenPendingReleasePRs(ctx, r.cfg.Branch)
-	if err != nil {
-		return nil, fmt.Errorf("find pending release PRs: %w", err)
-	}
-
-	if len(pendingPRs) > 1 {
-		return nil, multiplePendingReleasePRError(pendingPRs)
-	}
-
-	releaseTag := releasePRTag(result)
-
-	if len(pendingPRs) == 1 {
-		existing := pendingPRs[0]
-		prOpts := r.releasePROptions(result, existing.Branch, releaseTag)
-
-		return r.updateExistingReleasePR(ctx, existing, existing.Branch, prOpts, result)
-	}
-
-	releaseBranch := stableReleaseBranch(r.cfg.Branch)
-	prOpts := r.releasePROptions(result, releaseBranch, releaseTag)
-
-	return r.createNewReleasePR(ctx, releaseBranch, prOpts, result)
-}
-
-func (r *Releaser) autoMergeReleasePR(ctx context.Context, result *Result, preview bool) error {
-	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
-	if preview || !autoMergeEnabled || result.PullRequest == nil {
-		return nil
-	}
-
-	mergeOptions := provider.MergeReleasePROptions{
-		Force:  r.cfg.Release.AutoMergeForce,
-		Method: r.cfg.Release.AutoMergeMethod,
-	}
-
-	err := r.provider.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
-	if err != nil {
-		if mergeOptions.Force {
-			return fmt.Errorf("force merge release PR: %w", err)
-		}
-
-		return fmt.Errorf("merge release PR: %w", err)
-	}
-
-	slog.InfoContext(
-		ctx,
-		"merged release PR",
-		"url",
-		result.PullRequest.URL,
-		"force",
-		mergeOptions.Force,
-		"method",
-		mergeOptions.Method,
-	)
-
-	releaseTag := releasePRTag(result)
-
-	releaseInfo, err := r.ensureReleaseForTag(ctx, releaseTag, r.cfg.Branch, result.Changelog)
-	if err != nil {
-		return err
-	}
-
-	err = r.markReleasePRTagged(ctx, result.PullRequest)
-	if err != nil {
-		return err
-	}
-
-	result.Release = releaseInfo
-
-	return nil
 }
 
 func (r *Releaser) releasePROptions(
@@ -724,126 +557,8 @@ func (r *Releaser) releasePROptions(
 	}
 }
 
-func (r *Releaser) updateExistingReleasePR(
-	ctx context.Context,
-	existing *provider.PullRequest,
-	releaseBranch string,
-	prOpts provider.ReleasePROptions,
-	result *Result,
-) (*provider.PullRequest, error) {
-	slog.InfoContext(ctx, "updating existing release PR", "url", existing.URL)
-
-	err := r.provider.UpdateReleasePR(ctx, existing.Number, prOpts)
-	if err != nil {
-		return nil, fmt.Errorf("update release PR: %w", err)
-	}
-
-	err = r.updateReleaseBranchFiles(ctx, releaseBranch, result)
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.provider.MarkReleasePRPending(ctx, existing.Number)
-	if err != nil {
-		return nil, fmt.Errorf("mark release PR pending: %w", err)
-	}
-
-	existing.Title = prOpts.Title
-	existing.Body = prOpts.Body
-
-	return existing, nil
-}
-
-func (r *Releaser) createNewReleasePR(
-	ctx context.Context,
-	releaseBranch string,
-	prOpts provider.ReleasePROptions,
-	result *Result,
-) (*provider.PullRequest, error) {
-	err := r.provider.CreateBranch(ctx, releaseBranch, r.cfg.Branch)
-	if err != nil {
-		return nil, fmt.Errorf("create release branch: %w", err)
-	}
-
-	err = r.updateReleaseBranchFiles(ctx, releaseBranch, result)
-	if err != nil {
-		return nil, err
-	}
-
-	pr, err := r.provider.CreateReleasePR(ctx, prOpts)
-	if err != nil {
-		return nil, fmt.Errorf("create release PR: %w", err)
-	}
-
-	err = r.provider.MarkReleasePRPending(ctx, pr.Number)
-	if err != nil {
-		return nil, fmt.Errorf("mark release PR pending: %w", err)
-	}
-
-	slog.InfoContext(ctx, "created release PR", "url", pr.URL)
-
-	return pr, nil
-}
-
 func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, result *Result) error {
-	changelogContent, err := r.releaseChangelogFileContent(ctx, result.Changelog)
-	if err != nil {
-		return err
-	}
-
-	files := map[string]string{
-		r.cfg.Changelog.File: changelogContent,
-	}
-
-	for _, path := range r.cfg.VersionFiles {
-		content, fileErr := r.provider.GetFile(ctx, r.cfg.Branch, path)
-		if fileErr != nil {
-			return fmt.Errorf("get version file %s: %w", path, fileErr)
-		}
-
-		updatedContent, changed := versionfile.ApplyGenericMarkers(content, result.NextVersion)
-		if !changed {
-			slog.InfoContext(ctx, "skipping version file without yeet markers", "path", path)
-
-			continue
-		}
-
-		files[path] = updatedContent
-	}
-
-	err = r.provider.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
-	if err != nil {
-		return fmt.Errorf("update release branch files: %w", err)
-	}
-
-	return nil
-}
-
-func (r *Releaser) releaseChangelogFileContent(ctx context.Context, changelogEntry string) (string, error) {
-	existing, err := r.provider.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
-	if err != nil {
-		if errors.Is(err, provider.ErrFileNotFound) {
-			return changelog.Prepend("", changelogEntry), nil
-		}
-
-		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
-	}
-
-	return prependChangelogEntry(existing, changelogEntry), nil
-}
-
-func prependChangelogEntry(existing, changelogEntry string) string {
-	if strings.TrimSpace(existing) == "" {
-		return changelog.Prepend("", changelogEntry)
-	}
-
-	if strings.HasPrefix(existing, "# ") {
-		return changelog.Prepend(existing, changelogEntry)
-	}
-
-	combined := strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
-
-	return changelog.Prepend("", combined)
+	return newReleaseBranchUpdater(r).updateFiles(ctx, branch, result)
 }
 
 func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
@@ -969,20 +684,6 @@ func releaseTagFromBody(body string) (string, bool) {
 
 func looksLikeReleaseTag(releaseTag string) bool {
 	return strings.Contains(releaseTag, ".") && strings.ContainsAny(releaseTag, "0123456789")
-}
-
-func (r *Releaser) releaseNotesFromChangelog(ctx context.Context, tag string) (string, error) {
-	changelogBody, err := r.provider.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
-	if err != nil {
-		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
-	}
-
-	entry, err := changelogEntryByTag(changelogBody, tag)
-	if err != nil {
-		return "", err
-	}
-
-	return entry, nil
 }
 
 func releaseTagFromBranch(branch string) (string, error) {
