@@ -315,13 +315,22 @@ func resolveRepository(
 
 func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
 	return &provider.RepositoryDescriptor{
-		Provider: strings.TrimSpace(cfg.Provider),
+		Provider: normalizedRepositoryProvider(cfg.Provider),
 		Host:     strings.TrimSpace(cfg.Repository.Host),
 		Owner:    strings.TrimSpace(cfg.Repository.Owner),
 		Repo:     strings.TrimSpace(cfg.Repository.Repo),
 		Project:  strings.TrimSpace(cfg.Repository.Project),
 		Remote:   strings.TrimSpace(cfg.Repository.Remote),
 	}
+}
+
+func normalizedRepositoryProvider(providerType config.ProviderType) string {
+	provider := strings.TrimSpace(providerType)
+	if provider == config.ProviderAuto {
+		return ""
+	}
+
+	return provider
 }
 
 func needsRemoteLookup(repository *provider.RepositoryDescriptor) bool {

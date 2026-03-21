@@ -79,7 +79,7 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 		release.DefaultPreviewHashLength,
 		"length of the short commit hash used for preview build metadata",
 	)
-	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: github|gitlab")
+	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: auto|github|gitlab")
 	cmd.Flags().StringVar(&flags.remote, "remote", "", "override git remote used for repository auto-detection")
 	cmd.Flags().StringVar(&flags.host, "host", "", "override repository host, such as github.com or gitlab.company.com")
 	cmd.Flags().StringVar(
@@ -322,11 +322,14 @@ func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions
 }
 
 func providerChanged(previous config.ProviderType, next string) bool {
-	if previous == "" || next == "" {
+	previousProvider := normalizedRepositoryProvider(previous)
+	nextProvider := normalizedRepositoryProvider(next)
+
+	if previousProvider == "" || nextProvider == "" {
 		return false
 	}
 
-	return previous != next
+	return previousProvider != nextProvider
 }
 
 func clearRepositoryOwnerRepoForProject(cfg *config.Config, options releaseRunOptions) {

@@ -31,6 +31,7 @@ const (
 type ProviderType = string
 
 const (
+	ProviderAuto   ProviderType = "auto"
 	ProviderGitHub ProviderType = "github"
 	ProviderGitLab ProviderType = "gitlab"
 )
@@ -117,6 +118,7 @@ func Default() *Config {
 	return &Config{
 		Versioning: VersioningSemver,
 		Branch:     "main",
+		Provider:   ProviderAuto,
 		TagPrefix:  "v",
 		Repository: RepositoryConfig{
 			Remote: "origin",
@@ -163,9 +165,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%w: branch must not be empty", ErrInvalidConfig)
 	}
 
-	if c.Provider != "" && c.Provider != ProviderGitHub && c.Provider != ProviderGitLab {
-		return fmt.Errorf("%w: provider must be %q or %q, got %q",
-			ErrInvalidConfig, ProviderGitHub, ProviderGitLab, c.Provider)
+	if c.Provider != ProviderAuto && c.Provider != ProviderGitHub && c.Provider != ProviderGitLab {
+		return fmt.Errorf("%w: provider must be %q, %q, or %q, got %q",
+			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, c.Provider)
 	}
 
 	err := validateRepositoryConfig(c.Provider, c.Repository)

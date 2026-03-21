@@ -62,6 +62,7 @@ yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to gene
 
 versioning: semver
 branch: main
+provider: auto
 tag_prefix: v
 # version_files:
 #   - VERSION.txt
@@ -114,7 +115,7 @@ yeet publishes a JSON schema at `yeet.schema.json` for YAML-aware editors.
 |---|---|---|
 | `versioning` | `"semver"` | Versioning strategy: `"semver"` or `"calver"` |
 | `branch` | `"main"` | Base branch for releases |
-| `provider` | auto-detected | VCS provider: `"github"` or `"gitlab"` |
+| `provider` | `"auto"` | VCS provider: `"auto"`, `"github"`, or `"gitlab"` |
 | `tag_prefix` | `"v"` | Prefix for version tags |
 | `repository.remote` | `"origin"` | Git remote name used for repository auto-detection |
 | `repository.host` | unset | Explicit repository host, such as `github.com` or `gitlab.company.com` |
@@ -227,7 +228,7 @@ Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge
 | `--dry-run` | Preview the release without creating a PR/MR |
 | `--preview` | Append build metadata with short commit hash (for example `1.2.4+abc1234`) |
 | `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
-| `--provider` | Override provider detection with `github` or `gitlab` |
+| `--provider` | Override provider detection with `auto`, `github`, or `gitlab` |
 | `--remote` | Override the git remote used for repository auto-detection |
 | `--host` | Override the repository host |
 | `--owner` | Override the owner or namespace for GitHub-style repositories |

@@ -23,13 +23,13 @@
     },
     "provider": {
       "type": "string",
-      "description": "VCS provider. Empty string enables auto-detection.",
+      "description": "VCS provider. Use \"auto\" to detect from repository host or remote.",
       "enum": [
-        "",
+        "auto",
         "github",
         "gitlab"
       ],
-      "default": ""
+      "default": "auto"
     },
     "tag_prefix": {
       "type": "string",

@@ -18,6 +18,7 @@ func TestDefault(t *testing.T) {
 	// then: sensible defaults are set
 	testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 	testastic.Equal(t, "main", cfg.Branch)
+	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "v", cfg.TagPrefix)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
 	testastic.False(t, cfg.Release.SubjectIncludeBranch)
@@ -141,6 +142,24 @@ branch: main
 versioning: semver
 branch: main
 provider: bitbucket
+`)
+
+		// when: parsing the config
+		_, err := config.Parse(data)
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+	})
+
+	t.Run("empty string provider is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with the legacy empty-string provider value
+		data := []byte(`
+versioning: semver
+branch: main
+provider: ""
 `)
 
 		// when: parsing the config

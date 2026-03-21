@@ -2,7 +2,7 @@
 
 versioning: semver
 branch: main
-provider: ""
+provider: auto
 tag_prefix: v
 
 release:
