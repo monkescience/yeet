@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.3.0](https://github.com/monkescience/yeet/compare/v0.2.2...v0.3.0) (2026-03-21)
+
+### ⚠ BREAKING CHANGES
+
+- **config:** make provider auto-detection explicit ([90aef14](https://github.com/monkescience/yeet/commit/90aef1490fa164f065dc0031b504784f7dfa70fa))
+- **config:** switch config format from toml to yaml ([209ec3a](https://github.com/monkescience/yeet/commit/209ec3acccdb2169fe11ef5f60df494bcc59b45b))
+### Features
+
+- **config:** make provider auto-detection explicit ([90aef14](https://github.com/monkescience/yeet/commit/90aef1490fa164f065dc0031b504784f7dfa70fa))
+- **config:** switch config format from toml to yaml ([209ec3a](https://github.com/monkescience/yeet/commit/209ec3acccdb2169fe11ef5f60df494bcc59b45b))
+- **cli:** discover config from ancestor directories ([2ea9c27](https://github.com/monkescience/yeet/commit/2ea9c271633e4142881e74d5f5d772245e00b3b8))
+- **cli:** add json log format option ([db7e957](https://github.com/monkescience/yeet/commit/db7e957a74f9191f7de94d9cf077eac462efa009))
+- **cli:** support explicit repository targeting ([97722a5](https://github.com/monkescience/yeet/commit/97722a5366f30d58733402d07f14a3972f634baa))
+- **cli:** add version command and log controls ([ebc53bd](https://github.com/monkescience/yeet/commit/ebc53bd5809ed82fbd9e1fed947c55e9ec391006))
+### Bug Fixes
+
+- **cli:** clarify release defaults and errors ([b64a72d](https://github.com/monkescience/yeet/commit/b64a72ddc742f987aada70c7318e6831edbc0647))
+
 ## [v0.2.2](https://github.com/monkescience/yeet/compare/v0.2.1...v0.2.2) (2026-03-16)
 
 ### Bug Fixes
