@@ -63,7 +63,7 @@ type versionStrategy struct {
 	prefix   string
 }
 
-func New(cfg *config.Config, p provider.Provider) *Releaser {
+func New(cfg *config.Config, deps releaserDependencies) *Releaser {
 	var strategy version.Strategy
 
 	switch cfg.Versioning {
@@ -80,11 +80,11 @@ func New(cfg *config.Config, p provider.Provider) *Releaser {
 
 	return &Releaser{
 		cfg:       cfg,
-		history:   p,
-		metadata:  p,
-		prs:       p,
-		files:     p,
-		publisher: p,
+		history:   deps,
+		metadata:  deps,
+		prs:       deps,
+		files:     deps,
+		publisher: deps,
 		strategy: versionStrategy{
 			strategy: strategy,
 			prefix:   cfg.TagPrefix,

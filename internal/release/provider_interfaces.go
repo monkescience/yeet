@@ -39,3 +39,11 @@ type releasePublishingProvider interface {
 	MarkReleasePRTagged(ctx context.Context, number int) error
 	GetFile(ctx context.Context, branch, path string) (string, error)
 }
+
+type releaserDependencies interface {
+	versionHistoryProvider
+	repoMetadataProvider
+	releasePRProvider
+	releaseFileProvider
+	releasePublishingProvider
+}
