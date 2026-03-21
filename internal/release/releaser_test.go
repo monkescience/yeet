@@ -190,15 +190,6 @@ func (s *releasePRWorkflowStub) UpdateReleasePR(context.Context, int, provider.R
 	return nil
 }
 
-func (s *releasePRWorkflowStub) FindReleasePR(_ context.Context, branch string) (*provider.PullRequest, error) {
-	pr, exists := s.pullRequests[branch]
-	if !exists {
-		return nil, provider.ErrNoPR
-	}
-
-	return pr, nil
-}
-
 func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(context.Context, string) ([]*provider.PullRequest, error) {
 	if s.openPending != nil {
 		return s.openPending, nil
@@ -256,18 +247,6 @@ func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (strin
 	}
 
 	return content, nil
-}
-
-func (s *releaseFileStub) UpdateFile(_ context.Context, branch, path, content, message string) error {
-	s.files[providerFileKey(branch, path)] = content
-	s.updates = append(s.updates, fileUpdate{
-		branch:  branch,
-		path:    path,
-		content: content,
-		message: message,
-	})
-
-	return nil
 }
 
 func (s *releaseFileStub) UpdateFiles(

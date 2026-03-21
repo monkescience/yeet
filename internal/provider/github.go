@@ -216,31 +216,6 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	return nil
 }
 
-// FindReleasePR returns ErrNoPR if no open release PR is found.
-func (g *GitHub) FindReleasePR(ctx context.Context, branch string) (*PullRequest, error) {
-	prs, _, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, &github.PullRequestListOptions{
-		State: "open",
-		Head:  g.repo.Owner + ":" + branch,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list pull requests: %w", err)
-	}
-
-	if len(prs) == 0 {
-		return nil, ErrNoPR
-	}
-
-	pr := prs[0]
-
-	return &PullRequest{
-		Number: pr.GetNumber(),
-		Title:  pr.GetTitle(),
-		Body:   pr.GetBody(),
-		URL:    pr.GetHTMLURL(),
-		Branch: branch,
-	}, nil
-}
-
 func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
@@ -521,32 +496,6 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 	}
 
 	return decoded, nil
-}
-
-func (g *GitHub) UpdateFile(ctx context.Context, branch, path, content, message string) error {
-	// Try to get existing file to get its SHA.
-	getOpts := &github.RepositoryContentGetOptions{Ref: branch}
-
-	existing, _, _, err := g.client.Repositories.GetContents(
-		ctx, g.repo.Owner, g.repo.Name, path, getOpts,
-	)
-
-	fileOpts := &github.RepositoryContentFileOptions{
-		Message: github.Ptr(message),
-		Content: []byte(content),
-		Branch:  github.Ptr(branch),
-	}
-
-	if err == nil && existing != nil {
-		fileOpts.SHA = github.Ptr(existing.GetSHA())
-	}
-
-	_, _, err = g.client.Repositories.CreateFile(ctx, g.repo.Owner, g.repo.Name, path, fileOpts)
-	if err != nil {
-		return fmt.Errorf("update file %s on branch %s: %w", path, branch, err)
-	}
-
-	return nil
 }
 
 func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error {

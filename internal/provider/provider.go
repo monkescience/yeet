@@ -85,8 +85,6 @@ type Provider interface {
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
 	// FindOpenPendingReleasePRs finds open release PRs/MRs labeled pending for the base branch.
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
-	// FindReleasePR finds an existing open release PR/MR.
-	FindReleasePR(ctx context.Context, branch string) (*PullRequest, error)
 	// FindMergedReleasePR finds the latest merged release PR/MR waiting for tagging.
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
 	// CreateRelease creates a release with a tag.
@@ -101,8 +99,6 @@ type Provider interface {
 	CreateBranch(ctx context.Context, name, base string) error
 	// GetFile reads a file content from a branch.
 	GetFile(ctx context.Context, branch, path string) (string, error)
-	// UpdateFile creates or updates a file on a branch.
-	UpdateFile(ctx context.Context, branch, path, content, message string) error
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
 	// RepoURL returns the HTTPS base URL for the repository.

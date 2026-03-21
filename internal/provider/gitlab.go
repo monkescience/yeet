@@ -209,32 +209,6 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	return nil
 }
 
-func (g *GitLab) FindReleasePR(ctx context.Context, branch string) (*PullRequest, error) {
-	state := gitlabMergeRequestOpenedState
-
-	mrs, _, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, &gitlab.ListProjectMergeRequestsOptions{
-		State:        gitlab.Ptr(state),
-		SourceBranch: gitlab.Ptr(branch),
-	}, gitlab.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("list merge requests: %w", err)
-	}
-
-	if len(mrs) == 0 {
-		return nil, ErrNoPR
-	}
-
-	mr := mrs[0]
-
-	return &PullRequest{
-		Number: int(mr.IID),
-		Title:  mr.Title,
-		Body:   mr.Description,
-		URL:    mr.WebURL,
-		Branch: branch,
-	}, nil
-}
-
 func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
 	state := gitlabMergeRequestOpenedState
 	orderBy := "updated_at"
@@ -493,30 +467,6 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 	}
 
 	return string(raw), nil
-}
-
-func (g *GitLab) UpdateFile(ctx context.Context, branch, path, content, message string) error {
-	// Try to update first, fall back to create.
-	_, _, err := g.client.RepositoryFiles.UpdateFile(g.pid, path, &gitlab.UpdateFileOptions{
-		Branch:        gitlab.Ptr(branch),
-		Content:       gitlab.Ptr(content),
-		CommitMessage: gitlab.Ptr(message),
-	}, gitlab.WithContext(ctx))
-	if err == nil {
-		return nil
-	}
-
-	// File doesn't exist, create it.
-	_, _, err = g.client.RepositoryFiles.CreateFile(g.pid, path, &gitlab.CreateFileOptions{
-		Branch:        gitlab.Ptr(branch),
-		Content:       gitlab.Ptr(content),
-		CommitMessage: gitlab.Ptr(message),
-	}, gitlab.WithContext(ctx))
-	if err != nil {
-		return fmt.Errorf("create file %s on branch %s: %w", path, branch, err)
-	}
-
-	return nil
 }
 
 func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error {
