@@ -73,7 +73,7 @@ autorelease: tagged.`,
 		&options.configFile,
 		"config",
 		"",
-		"path to config file (default: nearest ancestor .yeet.toml)",
+		"path to config file (default: nearest ancestor .yeet.yaml)",
 	)
 	cmd.PersistentFlags().StringVar(&options.logFormat, "log-format", logFormatText, "set log output format: text|json")
 	cmd.PersistentFlags().BoolVarP(&options.verbose, "verbose", "v", false, "enable debug logging")

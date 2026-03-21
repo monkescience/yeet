@@ -225,11 +225,11 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving an explicit config path
-		resolvedPath, resolveErr := resolveConfigPath(" custom.toml ")
+		resolvedPath, resolveErr := resolveConfigPath(" custom.yaml ")
 
 		// then: the explicit path is used as-is after trimming
 		testastic.NoError(t, resolveErr)
-		testastic.Equal(t, "custom.toml", resolvedPath)
+		testastic.Equal(t, "custom.yaml", resolvedPath)
 	})
 
 	t.Run("missing default config reports the default filename", func(t *testing.T) {

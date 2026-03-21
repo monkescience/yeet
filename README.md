@@ -28,7 +28,7 @@ yeet version
 yeet init
 
 # Or write the config to a custom path
-yeet init --config .yeet.release.toml
+yeet init --config .yeet.release.yaml
 
 # Generate shell completion for your environment
 yeet completion zsh
@@ -55,53 +55,57 @@ yeet release
 
 ## Configuration
 
-yeet reads the nearest ancestor `.yeet.toml` by default. Run `yeet init` to generate one at the repository root when inside a git repository, or in the current directory otherwise. Pass `--config` to use an explicit path:
+yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to generate one at the repository root when inside a git repository, or in the current directory otherwise. Pass `--config` to use an explicit path:
 
-```toml
-#:schema https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
 
-versioning = "semver"
-branch = "main"
-tag_prefix = "v"
-# version_files = ["VERSION.txt"]
+versioning: semver
+branch: main
+tag_prefix: v
+# version_files:
+#   - VERSION.txt
 
-[changelog]
-file = "CHANGELOG.md"
-include = ["feat", "fix", "perf", "revert"]
+changelog:
+  file: CHANGELOG.md
+  include:
+    - feat
+    - fix
+    - perf
+    - revert
+  sections:
+    feat: Features
+    fix: Bug Fixes
+    perf: Performance Improvements
+    revert: Reverts
+    docs: Documentation
+    style: Styles
+    refactor: Code Refactoring
+    test: Tests
+    build: Build System
+    ci: Continuous Integration
+    chore: Miscellaneous Chores
+    breaking: Breaking Changes
 
-[changelog.sections]
-feat = "Features"
-fix = "Bug Fixes"
-perf = "Performance Improvements"
-revert = "Reverts"
-docs = "Documentation"
-style = "Styles"
-refactor = "Code Refactoring"
-test = "Tests"
-build = "Build System"
-ci = "Continuous Integration"
-chore = "Miscellaneous Chores"
-breaking = "Breaking Changes"
+calver:
+  format: YYYY.0M.MICRO
 
-[calver]
-format = "YYYY.0M.MICRO"
-
-[release]
-subject_include_branch = false
-auto_merge = false
-auto_merge_force = false
-auto_merge_method = "auto"
-pr_body_header = "## ٩(^ᴗ^)۶ release created"
-pr_body_footer = "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
+release:
+  subject_include_branch: false
+  auto_merge: false
+  auto_merge_force: false
+  auto_merge_method: auto
+  pr_body_header: "## ٩(^ᴗ^)۶ release created"
+  pr_body_footer: "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
 ```
 
-`yeet init` includes a TOML schema directive for editor validation and autocomplete.
+`yeet init` includes a YAML language server schema modeline for editor validation and autocomplete.
 
 ### Editor schema
 
-yeet publishes a JSON schema at `yeet.schema.json` for TOML-aware editors.
+yeet publishes a JSON schema at `yeet.schema.json` for YAML-aware editors.
 
-- Taplo/Even Better TOML reads the `#:schema ...` directive automatically.
+- YAML language server clients support `# yaml-language-server: $schema=...` modelines.
 - You can pin the schema URL to a release tag for stricter reproducibility.
 
 ### Options
@@ -179,11 +183,11 @@ yeet completion powershell
 
 ### `yeet init`
 
-Creates a `.yeet.toml` with sensible defaults at the repository root when inside a git repository, or in the current directory otherwise.
+Creates a `.yeet.yaml` with sensible defaults at the repository root when inside a git repository, or in the current directory otherwise.
 
 ```sh
 yeet init
-yeet init --config .yeet.release.toml
+yeet init --config .yeet.release.yaml
 ```
 
 ### Global flags
@@ -238,7 +242,7 @@ Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge
 yeet resolves the target repository in this order:
 
 1. `yeet release` flags such as `--provider`, `--host`, `--owner`, `--repo`, and `--project`
-2. explicit `.yeet.toml` values
+2. explicit `.yeet.yaml` values
 3. the configured `repository.remote`
 4. the `origin` remote
 
@@ -246,23 +250,23 @@ When yeet cannot classify a remote host automatically, set the provider and repo
 
 GitHub Enterprise config example:
 
-```toml
-provider = "github"
+```yaml
+provider: github
 
-[repository]
-host = "github.company.com"
-owner = "platform"
-repo = "yeet"
+repository:
+  host: github.company.com
+  owner: platform
+  repo: yeet
 ```
 
 GitLab subgroup config example:
 
-```toml
-provider = "gitlab"
+```yaml
+provider: gitlab
 
-[repository]
-host = "gitlab.company.com"
-project = "group/subgroup/service"
+repository:
+  host: gitlab.company.com
+  project: group/subgroup/service
 ```
 
 Equivalent one-off CLI overrides:
@@ -461,8 +465,8 @@ The token must be able to create merge requests, manage labels, and publish rele
 `yeet release` keeps wrapped errors for debugging, but the top-level message points at the failure
 category so you can pick the next fix quickly:
 
-- `configuration file not found`: create `.yeet.toml` with `yeet init` at the repo root or pass `--config`.
-- `invalid configuration`: fix invalid values in `.yeet.toml` before rerunning.
+- `configuration file not found`: create `.yeet.yaml` with `yeet init` at the repo root or pass `--config`.
+- `invalid configuration`: fix invalid values in `.yeet.yaml` before rerunning.
 - `repository resolution failed`: set `provider` and/or `[repository]` explicitly when the remote
   host is unsupported or auto-detection cannot classify it.
 - `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or

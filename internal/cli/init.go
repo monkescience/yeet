@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
+	"go.yaml.in/yaml/v4"
 )
 
 var ErrConfigExists = errors.New("config file already exists")
@@ -16,14 +16,14 @@ var ErrConfigExists = errors.New("config file already exists")
 func initCmd(options *bootstrapOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: "Initialize a .yeet.toml configuration file",
+		Short: "Initialize a .yeet.yaml configuration file",
 		Long: `Creates a yeet configuration file with sensible defaults.
 
-	By default this writes .yeet.toml at the repository root when inside a git
+	By default this writes .yeet.yaml at the repository root when inside a git
 	repository, or in the current directory otherwise. Use --config to write a
 	different path.`,
 		Example: `  yeet init
-  yeet init --config .yeet.release.toml`,
+  yeet init --config .yeet.release.yaml`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runInit(options.configPath())
 		},
@@ -45,7 +45,7 @@ func runInit(path string) error {
 
 	cfg := config.Default()
 
-	data, err := toml.Marshal(cfg)
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}

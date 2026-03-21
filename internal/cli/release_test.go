@@ -12,7 +12,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
-	"github.com/pelletier/go-toml/v2"
+	"go.yaml.in/yaml/v4"
 )
 
 func TestReleaseCommand(t *testing.T) {
@@ -102,7 +102,7 @@ func TestReleaseCommand(t *testing.T) {
 		cfg := config.Default()
 		cfg.Versioning = "broken"
 
-		data, err := toml.Marshal(cfg)
+		data, err := yaml.Marshal(cfg)
 		testastic.NoError(t, err)
 
 		err = os.WriteFile(configPath, data, 0o644)
@@ -122,15 +122,15 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.ErrorContains(t, err, "versioning must be")
 	})
 
-	t.Run("reports malformed toml as invalid configuration", func(t *testing.T) {
-		// given: a config file with invalid TOML syntax
+	t.Run("reports malformed yaml as invalid configuration", func(t *testing.T) {
+		// given: a config file with invalid YAML syntax
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 
-		err := os.WriteFile(config.DefaultFile, []byte("release = ["), 0o644)
+		err := os.WriteFile(config.DefaultFile, []byte("release: ["), 0o644)
 		testastic.NoError(t, err)
 
-		// when: running release with malformed TOML
+		// when: running release with malformed YAML
 		_, _, err = executeCommand(t, "release")
 
 		// then: the CLI keeps it in the invalid configuration category
@@ -401,7 +401,7 @@ func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 	cfg := config.Default()
 	mutate(cfg)
 
-	data, err := toml.Marshal(cfg)
+	data, err := yaml.Marshal(cfg)
 	testastic.NoError(t, err)
 
 	err = os.WriteFile(config.DefaultFile, data, 0o644)

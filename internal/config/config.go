@@ -1,20 +1,21 @@
-// Package config handles parsing and validation of .yeet.toml configuration files.
+// Package config handles parsing and validation of .yeet.yaml configuration files.
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
+	"go.yaml.in/yaml/v4"
 )
 
-const DefaultFile = ".yeet.toml"
+const DefaultFile = ".yeet.yaml"
 
 const DefaultSchemaURL = "https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json"
 
-const SchemaDirective = "#:schema " + DefaultSchemaURL
+const SchemaDirective = "# yaml-language-server: $schema=" + DefaultSchemaURL
 
 const githubProjectSegments = 2
 
@@ -44,42 +45,42 @@ const (
 )
 
 type Config struct {
-	Versioning   VersioningStrategy `toml:"versioning"`
-	Branch       string             `toml:"branch"`
-	Provider     ProviderType       `toml:"provider"`
-	TagPrefix    string             `toml:"tag_prefix"`
-	Repository   RepositoryConfig   `toml:"repository"`
-	VersionFiles []string           `toml:"version_files,omitempty"`
-	Release      ReleaseConfig      `toml:"release"`
-	Changelog    ChangelogConfig    `toml:"changelog"`
-	CalVer       CalVerConfig       `toml:"calver"`
+	Versioning   VersioningStrategy `yaml:"versioning"`
+	Branch       string             `yaml:"branch"`
+	Provider     ProviderType       `yaml:"provider"`
+	TagPrefix    string             `yaml:"tag_prefix"`
+	Repository   RepositoryConfig   `yaml:"repository"`
+	VersionFiles []string           `yaml:"version_files,omitempty"`
+	Release      ReleaseConfig      `yaml:"release"`
+	Changelog    ChangelogConfig    `yaml:"changelog"`
+	CalVer       CalVerConfig       `yaml:"calver"`
 }
 
 type RepositoryConfig struct {
-	Remote  string `toml:"remote"`
-	Host    string `toml:"host"`
-	Owner   string `toml:"owner"`
-	Repo    string `toml:"repo"`
-	Project string `toml:"project"`
+	Remote  string `yaml:"remote"`
+	Host    string `yaml:"host"`
+	Owner   string `yaml:"owner"`
+	Repo    string `yaml:"repo"`
+	Project string `yaml:"project"`
 }
 
 type ReleaseConfig struct {
-	SubjectIncludeBranch bool            `toml:"subject_include_branch"`
-	AutoMerge            bool            `toml:"auto_merge"`
-	AutoMergeForce       bool            `toml:"auto_merge_force"`
-	AutoMergeMethod      AutoMergeMethod `toml:"auto_merge_method"`
-	PRBodyHeader         string          `toml:"pr_body_header"`
-	PRBodyFooter         string          `toml:"pr_body_footer"`
+	SubjectIncludeBranch bool            `yaml:"subject_include_branch"`
+	AutoMerge            bool            `yaml:"auto_merge"`
+	AutoMergeForce       bool            `yaml:"auto_merge_force"`
+	AutoMergeMethod      AutoMergeMethod `yaml:"auto_merge_method"`
+	PRBodyHeader         string          `yaml:"pr_body_header"`
+	PRBodyFooter         string          `yaml:"pr_body_footer"`
 }
 
 type ChangelogConfig struct {
-	File     string            `toml:"file"`
-	Include  []string          `toml:"include"`
-	Sections map[string]string `toml:"sections"`
+	File     string            `yaml:"file"`
+	Include  []string          `yaml:"include"`
+	Sections map[string]string `yaml:"sections"`
 }
 
 type CalVerConfig struct {
-	Format string `toml:"format"`
+	Format string `yaml:"format"`
 }
 
 var ErrInvalidConfig = errors.New("invalid config")
@@ -96,7 +97,10 @@ func Load(path string) (*Config, error) {
 func Parse(data []byte) (*Config, error) {
 	cfg := Default()
 
-	err := toml.Unmarshal(data, cfg)
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	err := decoder.Decode(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: parse config: %w", ErrInvalidConfig, err)
 	}

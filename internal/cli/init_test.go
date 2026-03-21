@@ -22,12 +22,12 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: executing init through the root command with --config
-		_, _, err := executeCommand(t, "--config", "custom.toml", "init")
+		_, _, err := executeCommand(t, "--config", "custom.yaml", "init")
 
 		// then: the custom path is written instead of the default path
 		testastic.NoError(t, err)
 
-		_, statErr := os.Stat("custom.toml")
+		_, statErr := os.Stat("custom.yaml")
 		testastic.NoError(t, statErr)
 
 		_, statErr = os.Stat(config.DefaultFile)
@@ -43,7 +43,7 @@ func TestRunInit(t *testing.T) {
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 
-		path := filepath.Join("missing", "custom.toml")
+		path := filepath.Join("missing", "custom.yaml")
 
 		// when: executing init through the root command with a missing parent directory
 		_, _, err := executeCommand(t, "--config", path, "init")
@@ -143,12 +143,12 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: initializing config at the custom path
-		err := runInit("custom.toml")
+		err := runInit("custom.yaml")
 
 		// then: config is created at the requested path and can be parsed
 		testastic.NoError(t, err)
 
-		content, readErr := os.ReadFile("custom.toml")
+		content, readErr := os.ReadFile("custom.yaml")
 		testastic.NoError(t, readErr)
 		testastic.HasPrefix(t, string(content), config.SchemaDirective+"\n")
 
@@ -177,11 +177,11 @@ func TestRunInit(t *testing.T) {
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 
-		firstErr := runInit("custom.toml")
+		firstErr := runInit("custom.yaml")
 		testastic.NoError(t, firstErr)
 
 		// when: initializing config again at the same custom path
-		err := runInit("custom.toml")
+		err := runInit("custom.yaml")
 
 		// then: command fails with existing-config error
 		testastic.Error(t, err)
@@ -219,7 +219,7 @@ func TestRootCommand(t *testing.T) {
 		testastic.Equal(t, "", stderr)
 		testastic.Contains(t, stdout, "Examples:")
 		testastic.Contains(t, stdout, "yeet init")
-		testastic.Contains(t, stdout, "yeet init --config .yeet.release.toml")
+		testastic.Contains(t, stdout, "yeet init --config .yeet.release.yaml")
 		testastic.Contains(t, stdout, "repository root")
 	})
 
