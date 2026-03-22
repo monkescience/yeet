@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/google/go-github/v84/github"
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -28,7 +31,14 @@ var (
 	ErrGitRemoteURLBlank   = errors.New("git remote url is blank")
 )
 
-const minimumProjectSegments = 2
+const (
+	minimumProjectSegments = 2
+
+	httpClientTimeout = 30 * time.Second
+	httpRetryMax      = 3
+	httpRetryWaitMin  = 1 * time.Second
+	httpRetryWaitMax  = 10 * time.Second
+)
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
@@ -171,6 +181,18 @@ func missingPathError(path string) error {
 	return &os.PathError{Op: "stat", Path: path, Err: os.ErrNotExist}
 }
 
+func newRetryableHTTPClient() *http.Client {
+	client := retryablehttp.NewClient()
+	client.RetryMax = httpRetryMax
+	client.RetryWaitMin = httpRetryWaitMin
+	client.RetryWaitMax = httpRetryWaitMax
+	client.Logger = nil
+
+	client.HTTPClient.Timeout = httpClientTimeout
+
+	return client.StandardClient()
+}
+
 func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
 	switch repository.Provider {
 	case config.ProviderGitHub:
@@ -192,7 +214,7 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 		return nil, fmt.Errorf("%w: GITHUB_TOKEN or GH_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	client := github.NewClient(nil).WithAuthToken(token)
+	client := github.NewClient(newRetryableHTTPClient()).WithAuthToken(token)
 
 	baseURL := strings.TrimSpace(os.Getenv("GITHUB_URL"))
 

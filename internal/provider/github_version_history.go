@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v84/github"
+	"golang.org/x/sync/errgroup"
 )
 
 func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
@@ -61,7 +62,9 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-//nolint:funlen // Commit pagination and per-commit path fetching are clearer kept together.
+const maxConcurrentPathFetches = 5
+
+//nolint:funlen // Commit pagination and concurrent path fetching are clearer kept together.
 func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error) {
 	boundaryRef := strings.TrimSpace(ref)
 	resolvedBoundarySHA := boundaryRef
@@ -88,6 +91,8 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 	var entries []CommitEntry
 
+	boundaryFound := false
+
 	for {
 		commits, resp, err := g.client.Repositories.ListCommits(ctx, g.repo.Owner, g.repo.Name, opts)
 		if err != nil {
@@ -98,33 +103,49 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 			sha := c.GetSHA()
 
 			if resolvedBoundarySHA != "" && sha == resolvedBoundarySHA {
-				return entries, nil
-			}
+				boundaryFound = true
 
-			var paths []string
-			if includePaths {
-				paths, err = g.commitPaths(ctx, sha)
-				if err != nil {
-					return nil, err
-				}
+				break
 			}
 
 			entries = append(entries, CommitEntry{
 				Hash:    sha,
 				Message: c.GetCommit().GetMessage(),
-				Paths:   paths,
 			})
 		}
 
-		if resp.NextPage == 0 {
+		if boundaryFound || resp.NextPage == 0 {
 			break
 		}
 
 		opts.Page = resp.NextPage
 	}
 
-	if resolvedBoundarySHA != "" {
+	if resolvedBoundarySHA != "" && !boundaryFound {
 		return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
+	}
+
+	if includePaths && len(entries) > 0 {
+		eg, egCtx := errgroup.WithContext(ctx)
+		eg.SetLimit(maxConcurrentPathFetches)
+
+		for idx := range entries {
+			eg.Go(func() error {
+				paths, err := g.commitPaths(egCtx, entries[idx].Hash)
+				if err != nil {
+					return err
+				}
+
+				entries[idx].Paths = paths
+
+				return nil
+			})
+		}
+
+		err := eg.Wait()
+		if err != nil {
+			return nil, fmt.Errorf("fetch commit paths: %w", err)
+		}
 	}
 
 	return entries, nil

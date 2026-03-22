@@ -9,6 +9,7 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	gitconfig "github.com/go-git/go-git/v5/config"
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -356,6 +357,20 @@ func TestResolveInitConfigPath(t *testing.T) {
 		testastic.NoError(t, resolveErr)
 		testastic.Equal(t, filepath.Join(repositoryPath, config.DefaultFile), resolvedPath)
 	})
+}
+
+func TestNewRetryableHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	httpClient := newRetryableHTTPClient()
+
+	roundTripper, ok := httpClient.Transport.(*retryablehttp.RoundTripper)
+	testastic.True(t, ok)
+	testastic.Equal(t, httpRetryMax, roundTripper.Client.RetryMax)
+	testastic.Equal(t, httpRetryWaitMin, roundTripper.Client.RetryWaitMin)
+	testastic.Equal(t, httpRetryWaitMax, roundTripper.Client.RetryWaitMax)
+	testastic.Equal(t, httpClientTimeout, roundTripper.Client.HTTPClient.Timeout)
+	testastic.True(t, roundTripper.Client.Logger == nil)
 }
 
 func TestCreateGitHubProviderUsesRepositoryHost(t *testing.T) {
