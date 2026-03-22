@@ -13,85 +13,6 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func TestReleasePreviewBuildMetadata(t *testing.T) {
-	t.Parallel()
-
-	t.Run("semver appends short hash as build metadata", func(t *testing.T) {
-		t.Parallel()
-
-		// given: semver release with one patch commit
-		cfg := config.Default()
-
-		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := New(cfg, stub)
-
-		// when: calculating a preview release
-		result, err := r.Release(context.Background(), true, true, DefaultPreviewHashLength)
-
-		// then: metadata suffix is appended and base version stays stable
-		testastic.NoError(t, err)
-		testastic.Equal(t, "1.2.4", result.BaseVersion)
-		testastic.Equal(t, "1.2.4+abcdef1", result.NextVersion)
-		testastic.Equal(t, "v1.2.4", result.BaseTag)
-		testastic.Equal(t, "v1.2.4+abcdef1", result.NextTag)
-	})
-
-	t.Run("calver appends short hash as build metadata", func(t *testing.T) {
-		t.Parallel()
-
-		// given: calver release with one patch commit
-		cfg := config.Default()
-		cfg.Versioning = config.VersioningCalVer
-
-		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := New(cfg, stub)
-
-		// when: calculating a preview release
-		result, err := r.Release(context.Background(), true, true, DefaultPreviewHashLength)
-
-		// then: calver version also gets build metadata suffix
-		testastic.NoError(t, err)
-		testastic.HasPrefix(t, result.NextVersion, result.BaseVersion+"+")
-		testastic.HasSuffix(t, result.NextVersion, "+abcdef1")
-		testastic.Equal(t, "v"+result.BaseVersion, result.BaseTag)
-		testastic.Equal(t, "v"+result.NextVersion, result.NextTag)
-	})
-
-	t.Run("preview hash length must be positive", func(t *testing.T) {
-		t.Parallel()
-
-		// given: semver release with one patch commit
-		cfg := config.Default()
-
-		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := New(cfg, stub)
-
-		// when: preview hash length is invalid
-		_, err := r.Release(context.Background(), true, true, 0)
-
-		// then: validation error is returned
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidPreviewHashLength)
-	})
-}
-
 func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 	t.Parallel()
 
@@ -108,10 +29,10 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 			Message: "feat(api)!: remove deprecated endpoint",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: version bumps to next minor instead of 1.0.0
 		testastic.NoError(t, err)
@@ -133,10 +54,10 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 			Message: "feat: add export command",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: version bumps patch instead of minor
 		testastic.NoError(t, err)
@@ -161,10 +82,10 @@ func TestReleaseUsesLatestVersionRef(t *testing.T) {
 		}},
 	}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: calculating a release
-	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), true)
 
 	// then: the latest version tag is used as the baseline and commit boundary
 	testastic.NoError(t, err)
@@ -192,10 +113,10 @@ func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T)
 		}},
 	}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: calculating a release
-	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), true)
 
 	// then: the latest reachable stable tag on the branch is used instead
 	testastic.NoError(t, err)
@@ -223,10 +144,10 @@ func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) 
 		}},
 	}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: calculating a release
-	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), true)
 
 	// then: the newer reachable tag becomes the baseline even without a matching release object
 	testastic.NoError(t, err)
@@ -252,10 +173,10 @@ func TestReleaseChoosesHighestStableTagFromFallbackList(t *testing.T) {
 		}},
 	}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: calculating a release
-	result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), true)
 
 	// then: the highest stable semver tag is used instead of trusting provider order
 	testastic.NoError(t, err)
@@ -282,10 +203,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: trigger stable release\n\nRelease-As: 1.0.0",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: explicit version override is used
 		testastic.NoError(t, err)
@@ -308,10 +229,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "fix: patch issue\n\nRelease-As: 1.4.0",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: exact semver override is used
 		testastic.NoError(t, err)
@@ -333,10 +254,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nrelease-as: 1.3.0",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: footer key is recognized regardless of casing
 		testastic.NoError(t, err)
@@ -357,10 +278,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nRelease-As: 1.3",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), true)
 
 		// then: non-strict semver values are rejected
 		testastic.Error(t, err)
@@ -380,10 +301,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nRelease-As: v1.3.0",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), true)
 
 		// then: values must be strict semver without v-prefix
 		testastic.Error(t, err)
@@ -409,10 +330,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			},
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), true)
 
 		// then: conflict is rejected
 		testastic.Error(t, err)
@@ -432,10 +353,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nRelease-As: not-a-version",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), true)
 
 		// then: invalid value is rejected
 		testastic.Error(t, err)
@@ -455,10 +376,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nRelease-As: 1.2.3",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), true)
 
 		// then: non-incrementing override is rejected
 		testastic.Error(t, err)
@@ -478,10 +399,10 @@ func TestReleaseAsFooter(t *testing.T) {
 			Message: "chore: request release\n\nRelease-As: 1.0.0",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), true)
 
 		// then: release-as footer is ignored for calver
 		testastic.NoError(t, err)
@@ -489,50 +410,6 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.Equal(t, "", result.NextVersion)
 		testastic.Equal(t, "", result.NextTag)
 	})
-}
-
-func TestReleasePreviewUsesStableBranch(t *testing.T) {
-	t.Parallel()
-
-	// given: semver release flow with preview enabled
-	cfg := config.Default()
-
-	stub := newProviderStub()
-	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-	stub.commits = []provider.CommitEntry{{
-		Hash:    "abcdef1234567890",
-		Message: "fix: patch bug",
-	}}
-
-	r := New(cfg, stub)
-
-	// when: creating the first release PR
-	first, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
-
-	// then: release branch is stable and based on the target branch
-	testastic.NoError(t, err)
-	testastic.Equal(t, 1, stub.createPRCalls)
-	testastic.Equal(t, 0, stub.updatePRCalls)
-	testastic.Equal(t, 1, len(stub.createdBranches))
-	testastic.Equal(t, "yeet/release-main", stub.createdBranches[0])
-
-	// given: a new head commit changes preview hash
-	stub.commits = []provider.CommitEntry{{
-		Hash:    "1234567890abcdef",
-		Message: "fix: patch bug",
-	}}
-
-	// when: running release again
-	second, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
-
-	// then: same release branch/PR is reused
-	testastic.NoError(t, err)
-	testastic.Equal(t, 1, stub.createPRCalls)
-	testastic.Equal(t, 1, stub.updatePRCalls)
-	testastic.Equal(t, 2, len(stub.markPendingCalls))
-	testastic.Equal(t, 1, len(stub.createdBranches))
-	testastic.Equal(t, first.BaseTag, second.BaseTag)
-	testastic.NotEqual(t, first.NextTag, second.NextTag)
 }
 
 func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
@@ -566,10 +443,10 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			"v0.1.0": {},
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: merged release is finalized and no new release PR is created
 		testastic.NoError(t, err)
@@ -603,10 +480,10 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			"v0.1.0": {{Hash: "abcdef1234567890", Message: "fix: patch after release"}},
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: merged release is finalized and a new release PR is created for fresh commits
 		testastic.NoError(t, err)
@@ -631,10 +508,10 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
 	stub.commitsErr = &provider.CommitBoundaryNotFoundError{Ref: "v1.2.3", Branch: cfg.Branch}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: running release end-to-end
-	result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), false)
 
 	// then: release stops before creating a PR, tag, or release
 	testastic.Error(t, err)
@@ -669,10 +546,10 @@ func TestReleaseAutoMerge(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: release PR is merged, tagged, and release is created immediately
 		testastic.NoError(t, err)
@@ -706,10 +583,10 @@ func TestReleaseAutoMerge(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: merge is attempted in force mode and release is finalized
 		testastic.NoError(t, err)
@@ -736,10 +613,10 @@ func TestReleaseAutoMerge(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		_, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		_, err := r.Release(context.Background(), false)
 
 		// then: configured merge method is forwarded to provider
 		testastic.NoError(t, err)
@@ -763,10 +640,10 @@ func TestReleaseAutoMerge(t *testing.T) {
 		}}
 		stub.mergePRErr = fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: release fails after PR creation and no tag/release is created
 		testastic.Error(t, err)
@@ -774,36 +651,6 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.Equal(t, 1, stub.mergePRCalls)
-		testastic.Equal(t, 0, stub.createReleaseCalls)
-		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.Equal(t, 0, len(stub.markTaggedCalls))
-	})
-
-	t.Run("preview mode skips auto-merge", func(t *testing.T) {
-		t.Parallel()
-
-		// given: auto-merge enabled during preview release
-		cfg := config.Default()
-		cfg.Release.AutoMerge = true
-
-		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := New(cfg, stub)
-
-		// when: running preview release
-		result, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
-
-		// then: preview PR is created but no merge/tagging happens
-		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
-		testastic.Equal(t, (*provider.Release)(nil), result.Release)
-		testastic.Equal(t, 1, stub.createPRCalls)
-		testastic.Equal(t, 0, stub.mergePRCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 0, len(stub.markTaggedCalls))
@@ -827,14 +674,14 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 		Message: "feat!: introduce breaking release flow",
 	}}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: computing a new version while a pending PR already exists
-	result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+	result, err := r.Release(context.Background(), false)
 
 	// then: pending PR is updated instead of creating a second release PR
 	testastic.NoError(t, err)
-	testastic.Equal(t, "0.1.0", result.BaseVersion)
+	testastic.Equal(t, "0.1.0", result.NextVersion)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.Equal(t, 1, len(stub.markPendingCalls))
@@ -858,10 +705,10 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 		Message: "fix: patch bug",
 	}}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: attempting to create or update release PRs
-	_, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+	_, err := r.Release(context.Background(), false)
 
 	// then: release fails fast with actionable pending PR details
 	testastic.Error(t, err)
@@ -887,58 +734,23 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: PR title and commit subject use unscoped release subject
 		testastic.NoError(t, err)
-		testastic.Equal(t, "chore: release "+result.BaseVersion, result.PullRequest.Title)
+		testastic.Equal(t, "chore: release "+result.NextVersion, result.PullRequest.Title)
 		testastic.Equal(t, 1, stub.updateFilesCalls)
-		testastic.Equal(t, "chore: release "+result.BaseVersion, stub.updateFilesMessages[0])
+		testastic.Equal(t, "chore: release "+result.NextVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.HasPrefix(t, result.PullRequest.Body, "## ٩(^ᴗ^)۶ release created\n\n")
-		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-tag: "+result.BaseTag+" -->")
-		testastic.HasSuffix(
-			t,
-			strings.TrimSpace(result.PullRequest.Body),
-			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
-		)
+		testastic.AssertFile(t, "testdata/release_subject_default_pr_body.expected.md", result.PullRequest.Body)
 		testastic.NotContains(t, result.Changelog, "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._")
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
 		testastic.Equal(t, prependChangelogEntry("", result.Changelog), updatedChangelog)
-	})
-
-	t.Run("optional branch scope uses stable base version in preview", func(t *testing.T) {
-		t.Parallel()
-
-		// given: branch scope enabled and preview release
-		cfg := config.Default()
-		cfg.Release.SubjectIncludeBranch = true
-
-		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := New(cfg, stub)
-
-		// when: creating a preview release PR
-		result, err := r.Release(context.Background(), false, true, DefaultPreviewHashLength)
-
-		// then: PR title and commit subject include branch and stable base version
-		testastic.NoError(t, err)
-		testastic.Equal(t, "1.2.4", result.BaseVersion)
-		testastic.Equal(t, "1.2.4+abcdef1", result.NextVersion)
-		testastic.Equal(t, "chore(main): release 1.2.4", result.PullRequest.Title)
-		testastic.Equal(t, 1, stub.updateFilesCalls)
-		testastic.Equal(t, "chore(main): release 1.2.4", stub.updateFilesMessages[0])
-		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-tag: v1.2.4 -->")
 	})
 
 	t.Run("custom header and footer wrap PR body only", func(t *testing.T) {
@@ -955,10 +767,10 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: PR body includes custom wrapper text while changelog content stays clean
 		testastic.NoError(t, err)
@@ -994,10 +806,10 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
 		testastic.NoError(t, err)
@@ -1034,10 +846,10 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 			Message: "fix: patch bug",
 		}}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR
-		result, err := r.Release(context.Background(), false, false, DefaultPreviewHashLength)
+		result, err := r.Release(context.Background(), false)
 
 		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
 		testastic.NoError(t, err)
@@ -1088,21 +900,22 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 - fix bug (def5678)
 `)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: release is created from matching changelog entry and PR is marked tagged
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
-		testastic.Contains(t, release.Body, "## [v1.2.3]")
-		testastic.NotContains(t, release.Body, "## [v1.2.2]")
+		testastic.Contains(t, releases[0].Body, "## [v1.2.3]")
+		testastic.NotContains(t, releases[0].Body, "## [v1.2.2]")
 	})
 
 	t.Run("falls back to legacy release branch tag without marker", func(t *testing.T) {
@@ -1126,14 +939,15 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 - add feature (abc1234)
 `)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: fallback branch tag is used
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 33, stub.markTaggedCalls[0])
@@ -1154,14 +968,15 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Branch: "yeet/release-main",
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: existing release is reused and PR is still marked tagged
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 9, stub.markTaggedCalls[0])
@@ -1186,15 +1001,16 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Branch: "yeet/release-main",
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: the exact existing release is reused instead of checking only the latest release
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
-		testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, "https://example.com/releases/v1.2.3", releases[0].URL)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 10, stub.markTaggedCalls[0])
@@ -1223,14 +1039,15 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 - add feature (abc1234)
 `)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: only the missing release object is created and no branch ref is forced
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "", stub.createReleaseOpts[0].Ref)
@@ -1259,14 +1076,15 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 - add feature (abc1234)
 `)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: tag creation uses the merged commit ref instead of the current branch head
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", release.TagName)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
@@ -1276,15 +1094,15 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: no merged pending release PR
-		r := New(config.Default(), newProviderStub())
+		r := newTestReleaser(t, config.Default(), newProviderStub())
 
 		// when: finalizing merged release PR
-		release, err := r.finalizeMergedReleasePR(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: nothing is finalized
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrNoPR)
-		testastic.Equal(t, (*provider.Release)(nil), release)
+		testastic.Equal(t, 0, len(releases))
 	})
 
 	t.Run("fails when stable branch PR has no release marker", func(t *testing.T) {
@@ -1300,10 +1118,10 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Branch: "yeet/release-main",
 		}
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		_, err := r.finalizeMergedReleasePR(context.Background())
+		_, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: marker requirement is enforced for stable branch naming
 		testastic.Error(t, err)
@@ -1325,10 +1143,10 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.2 (2026-02-20)"
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		_, err := r.finalizeMergedReleasePR(context.Background())
+		_, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: missing entry is reported
 		testastic.Error(t, err)
@@ -1345,7 +1163,7 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 		// given: a releaser
 		cfg := config.Default()
 		stub := newProviderStub()
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: trying to create a preview tag
 		_, err := r.Tag(context.Background(), "v1.2.3+abc1234", "")
@@ -1362,7 +1180,7 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 		// given: a releaser
 		cfg := config.Default()
 		stub := newProviderStub()
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: trying to create a prerelease tag
 		_, err := r.Tag(context.Background(), "v1.2.3-rc.1", "")
@@ -1381,7 +1199,7 @@ func TestTagRejectsPreviewTags(t *testing.T) {
 		cfg.TagPrefix = "release-"
 
 		stub := newProviderStub()
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a stable tag
 		_, err := r.Tag(context.Background(), "release-1.2.3", "")
@@ -1407,7 +1225,7 @@ func TestTagReusesExistingRelease(t *testing.T) {
 		URL:     "https://example.com/releases/v1.2.3",
 	}
 
-	r := New(cfg, stub)
+	r := newTestReleaser(t, cfg, stub)
 
 	// when: creating the same stable tag again
 	result, err := r.Tag(context.Background(), "v1.2.3", "release notes")
@@ -1431,7 +1249,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		stub := newProviderStub()
 		branch := "yeet/release-v0.1.0"
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		result := &Result{
 			NextVersion: "0.1.0",
@@ -1472,7 +1290,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		branch := "yeet/release-v1.2.4"
 		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		result := &Result{
 			NextVersion: "1.2.4",
@@ -1500,7 +1318,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		branch := "yeet/release-v1.2.4"
 		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3"
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		result := &Result{
 			NextVersion: "1.2.4",
@@ -1533,7 +1351,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 - first release entry (abc1234)
 `)
 
-		r := New(cfg, stub)
+		r := newTestReleaser(t, cfg, stub)
 
 		result := &Result{
 			NextVersion: "0.1.1",
@@ -1553,17 +1371,65 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.NoError(t, err)
 
 		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.HasPrefix(t, updated, "# Changelog")
-		testastic.Contains(t, updated, "## [v0.1.1]")
-		testastic.Contains(t, updated, "## [v0.1.0]")
-		testastic.Contains(t, updated, "def5678)\n\n## [v0.1.0]")
+		testastic.AssertFile(t, "testdata/update_release_branch_files_prepends_header.expected.md", updated)
+	})
 
-		newEntryIndex := strings.Index(updated, "## [v0.1.1]")
-		oldEntryIndex := strings.Index(updated, "## [v0.1.0]")
+	t.Run("merges multiple target entries into a shared changelog file", func(t *testing.T) {
+		t.Parallel()
 
-		testastic.GreaterOrEqual(t, newEntryIndex, 0)
-		testastic.GreaterOrEqual(t, oldEntryIndex, 0)
-		testastic.Less(t, newEntryIndex, oldEntryIndex)
+		// given: two path targets that both write to the default shared changelog file
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+		}
+
+		stub := newProviderStub()
+		branch := "yeet/release-wave"
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result := &Result{
+			Plans: []TargetPlan{
+				{
+					ID: "api",
+					Changelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...api1234) (2026-03-21)
+
+### Features
+
+- add token rotation (api1234)
+`),
+				},
+				{
+					ID: "web",
+					Changelog: strings.TrimSpace(`## [web-v2.1.4](https://example.com/compare/web-v2.1.3...web5678) (2026-03-21)
+
+### Bug Fixes
+
+- fix dashboard filters (web5678)
+`),
+				},
+			},
+		}
+
+		// when: updating release branch files
+		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+
+		// then: the shared changelog contains both new entries instead of conflicting
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(stub.updates))
+
+		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
+		testastic.AssertFile(t, "testdata/update_release_branch_files_shared_changelog.expected.md", updated)
 	})
 
 	t.Run("fails when configured version file is missing", func(t *testing.T) {
@@ -1573,7 +1439,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		cfg := config.Default()
 		cfg.VersionFiles = []string{"VERSION.txt"}
 
-		r := New(cfg, newProviderStub())
+		r := newTestReleaser(t, cfg, newProviderStub())
 
 		result := &Result{
 			NextVersion: "1.2.4",
@@ -1587,5 +1453,332 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		// then: missing file error is returned
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+	})
+}
+
+func TestReleaseTargetsMonorepo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plans path and derived targets from changed paths", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a monorepo config with one path target and one derived root target
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
+		stub.commits = []provider.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{Hash: "1234567890abcdef", Message: "fix: tidy repo metadata", Paths: []string{"README.md"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning a release wave
+		result, err := r.Release(context.Background(), true)
+
+		// then: the path target and derived target are both planned independently
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, 2, result.CommitCount)
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "api-v1.3.0", result.Plans[0].NextTag)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "v3.1.0", result.Plans[1].NextTag)
+	})
+
+	t.Run("selected child targets still compute derived targets without unselected direct commits", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a monorepo config with selected api target and an unselected root direct commit
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api", "apps/web"},
+				Includes:     []string{"api", "web"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
+		stub.commits = []provider.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{Hash: "1234567890abcdef", Message: "feat: refresh landing page", Paths: []string{"README.md"}},
+			{Hash: "fedcba0987654321", Message: "fix: patch dashboard", Paths: []string{"apps/web/src/app.tsx"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning only the api target
+		result, err := r.ReleaseTargets(context.Background(), true, []string{"api"})
+
+		// then: root still derives from the selected child target but ignores unselected direct commits and web changes
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "v3.1.0", result.Plans[1].NextTag)
+		testastic.NotContains(t, result.Plans[1].Changelog, "landing page")
+		testastic.NotContains(t, result.Plans[1].Changelog, "dashboard")
+	})
+
+	t.Run("selected derived target analyzes included child targets without emitting them", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target selected on its own with changes only in an included child target
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api", "apps/web"},
+				Includes:     []string{"api", "web"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
+		stub.commits = []provider.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning only the derived root target
+		result, err := r.ReleaseTargets(context.Background(), true, []string{"root"})
+
+		// then: root still releases based on child changes, but child targets are not emitted as top-level plans
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "root", result.Plans[0].ID)
+		testastic.Equal(t, "v3.1.0", result.Plans[0].NextTag)
+		testastic.Equal(t, 1, result.Plans[0].CommitCount)
+		testastic.SliceEqual(t, []string{"api"}, result.Plans[0].IncludedTargets)
+		testastic.Contains(t, result.Plans[0].Changelog, "token rotation")
+	})
+
+	t.Run("selected derived target PR compare link uses newest child sha", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived root target selected on its own with child commits ordered newest-first on a later include
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api", "apps/web"},
+				Includes:     []string{"api", "web"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.repoURL = "https://github.example.com/owner/repo"
+		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
+
+		const (
+			webSHA = "fedcba0987654321fedcba0987654321fedcba09"
+			apiSHA = "abcdef1234567890abcdef1234567890abcdef12"
+		)
+
+		stub.commits = []provider.CommitEntry{
+			{
+				Hash:    webSHA,
+				Message: "fix: patch dashboard",
+				Paths:   []string{"apps/web/src/app.tsx"},
+			},
+			{
+				Hash:    apiSHA,
+				Message: "feat: add token rotation",
+				Paths:   []string{"services/api/main.go"},
+			},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: creating a release PR for only the derived root target
+		result, err := r.ReleaseTargets(context.Background(), false, []string{"root"})
+
+		// then: the derived target compare link points at the newest included child commit
+		// instead of include order or the unreleased tag
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "root", result.Plans[0].ID)
+		testastic.Equal(t, 2, result.Plans[0].CommitCount)
+
+		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", webSHA)
+		staleChildCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", apiSHA)
+		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", "v3.1.0")
+
+		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
+		testastic.NotContains(t, result.Plans[0].PRChangelog, staleChildCompareURL)
+		testastic.NotContains(t, result.Plans[0].PRChangelog, canonicalCompareURL)
+		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
+		testastic.NotContains(t, result.PullRequest.Body, staleChildCompareURL)
+		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
+	})
+
+	t.Run("selected derived target PR compare link prefers newer child sha over older direct sha", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived root target with both direct commits and newer child commits
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.repoURL = "https://github.example.com/owner/repo"
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
+
+		const (
+			apiSHA  = "abcdef1234567890abcdef1234567890abcdef12"
+			rootSHA = "fedcba0987654321fedcba0987654321fedcba09"
+		)
+
+		stub.commits = []provider.CommitEntry{
+			{
+				Hash:    apiSHA,
+				Message: "feat: add token rotation",
+				Paths:   []string{"services/api/main.go"},
+			},
+			{
+				Hash:    rootSHA,
+				Message: "fix: tidy repo metadata",
+				Paths:   []string{"README.md"},
+			},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: creating a release PR for only the derived root target
+		result, err := r.ReleaseTargets(context.Background(), false, []string{"root"})
+
+		// then: the derived target compare link points at the newest included commit overall
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "root", result.Plans[0].ID)
+		testastic.Equal(t, apiSHA, result.Plans[0].PRCompareRef)
+
+		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", apiSHA)
+		staleDirectCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", rootSHA)
+
+		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
+		testastic.NotContains(t, result.Plans[0].PRChangelog, staleDirectCompareURL)
+		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
+		testastic.NotContains(t, result.PullRequest.Body, staleDirectCompareURL)
+	})
+
+	t.Run("selected derived and child targets emit only explicitly selected path targets", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an explicitly selected child target plus its derived root target
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api", "apps/web"},
+				Includes:     []string{"api", "web"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
+		stub.commits = []provider.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{Hash: "1234567890abcdef", Message: "fix: patch dashboard", Paths: []string{"apps/web/src/app.tsx"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning the selected child target and its derived parent together
+		result, err := r.ReleaseTargets(context.Background(), true, []string{"root", "api"})
+
+		// then: api is emitted explicitly, root is emitted as selected, and unselected web is only used for analysis
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.SliceEqual(t, []string{"api", "web"}, result.Plans[1].IncludedTargets)
+		testastic.Contains(t, result.Plans[1].Changelog, "token rotation")
+		testastic.Contains(t, result.Plans[1].Changelog, "patch dashboard")
 	})
 }

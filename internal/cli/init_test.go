@@ -196,16 +196,10 @@ func TestRootCommand(t *testing.T) {
 		// when: rendering the top-level help output
 		stdout, stderr, err := executeCommand(t, "--help")
 
-		// then: the help text teaches the main release workflow entry points
+		// then: the root help text matches the expected CLI contract
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stderr)
-		testastic.Contains(t, stdout, "Examples:")
-		testastic.Contains(t, stdout, "yeet init")
-		testastic.Contains(t, stdout, "yeet release --dry-run")
-		testastic.Contains(t, stdout, "yeet release --preview --dry-run")
-		testastic.Contains(t, stdout, "yeet release --auto-merge")
-		testastic.Contains(t, stdout, "autorelease: pending")
-		testastic.Contains(t, stdout, "autorelease: tagged")
+		testastic.AssertFile(t, "testdata/root_help.expected.txt", stdout)
 	})
 
 	t.Run("init help includes default and custom config examples", func(t *testing.T) {
@@ -214,13 +208,10 @@ func TestRootCommand(t *testing.T) {
 		// when: rendering init help output
 		stdout, stderr, err := executeCommand(t, "init", "--help")
 
-		// then: both common init entry points are documented
+		// then: the init help text matches the expected CLI contract
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stderr)
-		testastic.Contains(t, stdout, "Examples:")
-		testastic.Contains(t, stdout, "yeet init")
-		testastic.Contains(t, stdout, "yeet init --config .yeet.release.yaml")
-		testastic.Contains(t, stdout, "repository root")
+		testastic.AssertFile(t, "testdata/init_help.expected.txt", stdout)
 	})
 
 	t.Run("version prints build information", func(t *testing.T) {

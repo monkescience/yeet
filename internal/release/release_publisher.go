@@ -18,7 +18,7 @@ func newReleasePublisher(releaser *Releaser) *releasePublisher {
 	return &releasePublisher{releaser: releaser}
 }
 
-func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) (*provider.Release, error) {
+func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*provider.Release, error) {
 	r := p.releaser
 
 	mergedPR, err := r.publisher.FindMergedReleasePR(ctx, r.cfg.Branch)
@@ -26,18 +26,28 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) (*provid
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
 
-	tag, err := releaseTagFromPullRequest(mergedPR)
+	manifest, err := releaseManifestFromPullRequest(mergedPR, r.cfg.Changelog.File)
 	if err != nil {
 		return nil, err
 	}
 
-	if isPreviewTag(tag, r.strategy.prefix) {
-		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
-	}
+	releases := make([]*provider.Release, 0, len(manifest.Targets))
+	for _, targetManifest := range manifest.Targets {
+		if p.releaser.isPreviewTag(targetManifest.Tag) {
+			return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, targetManifest.Tag)
+		}
 
-	releaseInfo, err := p.releaseForTag(ctx, tag, releaseRefForPullRequest(mergedPR, r.cfg.Branch))
-	if err != nil {
-		return nil, err
+		releaseInfo, releaseErr := p.releaseForTag(
+			ctx,
+			targetManifest.Tag,
+			targetManifest.ChangelogFile,
+			releaseRefForPullRequest(mergedPR, r.cfg.Branch),
+		)
+		if releaseErr != nil {
+			return nil, releaseErr
+		}
+
+		releases = append(releases, releaseInfo)
 	}
 
 	err = p.markReleasePRTagged(ctx, mergedPR)
@@ -45,10 +55,34 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) (*provid
 		return nil, err
 	}
 
-	return releaseInfo, nil
+	return releases, nil
 }
 
-func (p *releasePublisher) releaseForTag(ctx context.Context, tag, ref string) (*provider.Release, error) {
+func (p *releasePublisher) ensureReleasesForResult(
+	ctx context.Context,
+	result *Result,
+	ref string,
+) ([]*provider.Release, error) {
+	releases := make([]*provider.Release, 0, len(result.Plans))
+
+	for _, plan := range result.Plans {
+		releaseBody := plan.Changelog
+
+		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody)
+		if err != nil {
+			return nil, err
+		}
+
+		releases = append(releases, releaseInfo)
+	}
+
+	return releases, nil
+}
+
+func (p *releasePublisher) releaseForTag(
+	ctx context.Context,
+	tag, changelogFile, ref string,
+) (*provider.Release, error) {
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -58,7 +92,7 @@ func (p *releasePublisher) releaseForTag(ctx context.Context, tag, ref string) (
 		return existingRelease, nil
 	}
 
-	releaseBody, err := p.releaseNotesFromChangelog(ctx, tag)
+	releaseBody, err := p.releaseNotesFromChangelog(ctx, changelogFile, tag)
 	if err != nil {
 		return nil, err
 	}
@@ -149,12 +183,16 @@ func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest 
 	return nil
 }
 
-func (p *releasePublisher) releaseNotesFromChangelog(ctx context.Context, tag string) (string, error) {
+func (p *releasePublisher) releaseNotesFromChangelog(
+	ctx context.Context,
+	changelogFile string,
+	tag string,
+) (string, error) {
 	r := p.releaser
 
-	changelogBody, err := r.publisher.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
+	changelogBody, err := r.publisher.GetFile(ctx, r.cfg.Branch, changelogFile)
 	if err != nil {
-		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
+		return "", fmt.Errorf("get changelog file %s: %w", changelogFile, err)
 	}
 
 	entry, err := changelogEntryByTag(changelogBody, tag)

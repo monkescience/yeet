@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/google/go-github/v84 v84.0.0
-	github.com/monkescience/testastic v0.1.2
+	github.com/monkescience/testastic v0.1.3
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.4

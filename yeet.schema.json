@@ -8,7 +8,7 @@
   "properties": {
     "versioning": {
       "type": "string",
-      "description": "Versioning strategy.",
+      "description": "Default versioning strategy for targets.",
       "enum": [
         "semver",
         "calver"
@@ -17,7 +17,7 @@
     },
     "branch": {
       "type": "string",
-      "description": "Base branch for releases.",
+      "description": "Default base branch for releases.",
       "minLength": 1,
       "default": "main"
     },
@@ -31,17 +31,12 @@
       ],
       "default": "auto"
     },
-    "tag_prefix": {
-      "type": "string",
-      "description": "Prefix added to release tags.",
-      "default": "v"
-    },
     "repository": {
       "$ref": "#/$defs/repository"
     },
     "version_files": {
       "type": "array",
-      "description": "Additional files updated via yeet version markers during release.",
+      "description": "Default version files for targets that do not override them.",
       "items": {
         "type": "string",
         "minLength": 1
@@ -56,6 +51,14 @@
     },
     "calver": {
       "$ref": "#/$defs/calver"
+    },
+    "tag_prefix": {
+      "type": "string",
+      "description": "Legacy tag prefix. Use targets.<id>.tag_prefix instead.",
+      "default": "v"
+    },
+    "targets": {
+      "$ref": "#/$defs/targets"
     }
   },
   "$defs": {
@@ -180,6 +183,139 @@
           "default": "YYYY.0M.MICRO"
         }
       }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Configured releasable targets in the repository.",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "target": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/path_target"
+        },
+        {
+          "$ref": "#/$defs/derived_target"
+        }
+      ]
+    },
+    "path_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "path"
+        },
+        "path": {
+          "type": "string",
+          "description": "Repo-relative path used for commit filtering.",
+          "minLength": 1
+        },
+        "tag_prefix": {
+          "type": "string",
+          "description": "Stable tag namespace for this target.",
+          "minLength": 1
+        },
+        "versioning": {
+          "type": "string",
+          "enum": [
+            "semver",
+            "calver"
+          ]
+        },
+        "version_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "changelog": {
+          "$ref": "#/$defs/changelog"
+        },
+        "calver": {
+          "$ref": "#/$defs/calver"
+        },
+        "exclude_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "type",
+        "path",
+        "tag_prefix"
+      ]
+    },
+    "derived_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "derived"
+        },
+        "path": {
+          "type": "string",
+          "description": "Repo-relative path used for direct commit filtering.",
+          "minLength": 1
+        },
+        "tag_prefix": {
+          "type": "string",
+          "description": "Stable tag namespace for this target.",
+          "minLength": 1
+        },
+        "versioning": {
+          "type": "string",
+          "enum": [
+            "semver",
+            "calver"
+          ]
+        },
+        "version_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "changelog": {
+          "$ref": "#/$defs/changelog"
+        },
+        "calver": {
+          "$ref": "#/$defs/calver"
+        },
+        "exclude_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "includes": {
+          "type": "array",
+          "description": "Path target IDs included in this derived release.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "type",
+        "includes",
+        "tag_prefix"
+      ]
     }
   }
 }

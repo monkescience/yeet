@@ -62,7 +62,7 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
+func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error) {
 	boundaryRef := strings.TrimSpace(ref)
 	resolvedBoundaryID := boundaryRef
 	branch = strings.TrimSpace(branch)
@@ -97,9 +97,18 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string) ([]Com
 				return entries, nil
 			}
 
+			var paths []string
+			if includePaths {
+				paths, err = g.commitPaths(ctx, c.ID)
+				if err != nil {
+					return nil, err
+				}
+			}
+
 			entries = append(entries, CommitEntry{
 				Hash:    c.ID,
 				Message: c.Message,
+				Paths:   paths,
 			})
 		}
 
@@ -143,4 +152,43 @@ func (g *GitLab) resolveCommitID(ctx context.Context, ref string) (string, error
 	}
 
 	return commit.ID, nil
+}
+
+func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) {
+	options := &gitlab.GetCommitDiffOptions{
+		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+	}
+	paths := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for {
+		diffs, resp, err := g.client.Commits.GetCommitDiff(g.pid, sha, options, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("get changed files for commit %q: %w", sha, err)
+		}
+
+		for _, diff := range diffs {
+			for _, candidatePath := range []string{diff.NewPath, diff.OldPath} {
+				normalizedPath := strings.TrimSpace(candidatePath)
+				if normalizedPath == "" {
+					continue
+				}
+
+				if _, exists := seen[normalizedPath]; exists {
+					continue
+				}
+
+				seen[normalizedPath] = struct{}{}
+				paths = append(paths, normalizedPath)
+			}
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return paths, nil
 }

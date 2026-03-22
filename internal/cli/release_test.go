@@ -11,7 +11,6 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
-	"github.com/monkescience/yeet/internal/release"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -34,15 +33,10 @@ func TestReleaseCommand(t *testing.T) {
 		// when: rendering help output
 		stdout, stderr, err := executeCommand(t, "release", "--help")
 
-		// then: the help text shows dry-run, preview, and auto-merge entry points
+		// then: the release help text matches the expected CLI contract
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stderr)
-		testastic.Contains(t, stdout, "Examples:")
-		testastic.Contains(t, stdout, "yeet release --dry-run")
-		testastic.Contains(t, stdout, "yeet release --preview --dry-run")
-		testastic.Contains(t, stdout, "yeet release --auto-merge")
-		testastic.Contains(t, stdout, "yeet release --provider github --owner platform --repo yeet --dry-run")
-		testastic.Contains(t, stdout, "provider rules may still apply")
+		testastic.AssertFile(t, "testdata/release_help.expected.txt", stdout)
 	})
 
 	t.Run("help includes repository override flags", func(t *testing.T) {
@@ -375,15 +369,6 @@ func TestApplyReleaseOptions(t *testing.T) {
 }
 
 func TestWrapReleaseExecutionError(t *testing.T) {
-	t.Run("invalid preview hash length stays in release options category", func(t *testing.T) {
-		// given: a preview hash validation error from release execution
-		err := wrapReleaseExecutionError(fmt.Errorf("%w: got %d", release.ErrInvalidPreviewHashLength, 0))
-
-		// then: the top-level message stays user-focused while preserving the sentinel
-		testastic.ErrorIs(t, err, release.ErrInvalidPreviewHashLength)
-		testastic.ErrorContains(t, err, "invalid release options")
-	})
-
 	t.Run("merge blocked suggests the next action", func(t *testing.T) {
 		// given: an auto-merge attempt blocked by provider readiness rules
 		err := wrapReleaseExecutionError(fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked))

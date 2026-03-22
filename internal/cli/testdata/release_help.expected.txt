@@ -1,0 +1,35 @@
+Analyzes conventional commits since the last release to determine the next
+version, generate a changelog, and create or update a release PR/MR.
+
+When a merged release PR/MR is waiting with the pending autorelease label,
+this command first creates the tag/release from the latest changelog entry and
+marks the PR/MR as tagged.
+
+Usage:
+  yeet release [flags]
+
+Examples:
+  yeet release --dry-run
+	  yeet release --target api --target web --dry-run
+	  yeet release --auto-merge
+	  yeet release --provider github --owner platform --repo yeet --dry-run
+
+Flags:
+      --auto-merge                 automatically merge the release PR/MR and finalize the release in the same run
+      --auto-merge-force           attempt auto-merge while bypassing yeet readiness checks; still blocks draft/conflicts; provider rules may still apply
+      --auto-merge-method string   merge method for auto-merge: auto|squash|rebase|merge (defaults to config value; built-in default: auto)
+      --dry-run                    show the planned release without creating a PR/MR
+  -h, --help                       help for release
+      --host string                override repository host, such as github.com or gitlab.company.com
+      --owner string               override repository owner or namespace for github-style repositories
+      --project string             override full GitLab project path, including subgroups
+      --provider string            override provider: auto|github|gitlab
+      --remote string              override git remote used for repository auto-detection
+      --repo string                override repository name for github-style repositories
+      --target stringArray         limit analysis to one or more configured targets; repeatable
+
+Global Flags:
+      --config string       path to config file (default: nearest ancestor .yeet.yaml)
+      --log-format string   set log output format: text|json (default "text")
+      --quiet               show warnings and errors only
+  -v, --verbose             enable debug logging

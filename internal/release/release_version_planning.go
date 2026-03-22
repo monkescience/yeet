@@ -6,51 +6,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/commit"
-	"github.com/monkescience/yeet/internal/config"
 )
-
-func shortHash(hash string, length int) (string, error) {
-	hash = strings.TrimSpace(hash)
-	if hash == "" {
-		return "", fmt.Errorf("%w: empty commit hash", ErrInvalidPreviewHashLength)
-	}
-
-	if length <= 0 {
-		return "", fmt.Errorf("%w: got %d", ErrInvalidPreviewHashLength, length)
-	}
-
-	if len(hash) <= length {
-		return hash, nil
-	}
-
-	return hash[:length], nil
-}
-
-func (r *Releaser) resolveNextVersion(
-	current string,
-	bump commit.BumpType,
-	releaseAsVersion string,
-) (string, commit.BumpType, bool, error) {
-	if releaseAsVersion != "" && r.cfg.Versioning == config.VersioningSemver {
-		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
-		if err != nil {
-			return "", commit.BumpNone, false, err
-		}
-
-		return nextVersion, overrideBump, true, nil
-	}
-
-	if bump == commit.BumpNone {
-		return "", bump, false, nil
-	}
-
-	nextVersion, err := r.strategy.strategy.Next(current, bump)
-	if err != nil {
-		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
-	}
-
-	return nextVersion, bump, true, nil
-}
 
 func detectReleaseAs(commits []commit.Commit) (string, error) {
 	releaseAsVersion := ""

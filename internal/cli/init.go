@@ -44,6 +44,14 @@ func runInit(path string) error {
 	}
 
 	cfg := config.Default()
+	cfg.TagPrefix = ""
+	cfg.Targets = map[string]config.Target{
+		"default": {
+			Type:      config.TargetTypePath,
+			Path:      ".",
+			TagPrefix: "v",
+		},
+	}
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {

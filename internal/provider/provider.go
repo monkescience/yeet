@@ -65,6 +65,7 @@ type MergeReleasePROptions struct {
 type CommitEntry struct {
 	Hash    string
 	Message string
+	Paths   []string
 }
 
 type versionHistoryProvider interface {
@@ -73,7 +74,8 @@ type versionHistoryProvider interface {
 	// ListTags returns repository tags.
 	ListTags(ctx context.Context) ([]string, error)
 	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
-	GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error)
+	// When includePaths is true, each entry includes the list of changed file paths.
+	GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error)
 }
 
 type releaseLookupProvider interface {

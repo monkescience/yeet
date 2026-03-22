@@ -61,7 +61,8 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string) ([]CommitEntry, error) {
+//nolint:funlen // Commit pagination and per-commit path fetching are clearer kept together.
+func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error) {
 	boundaryRef := strings.TrimSpace(ref)
 	resolvedBoundarySHA := boundaryRef
 	branch = strings.TrimSpace(branch)
@@ -100,9 +101,18 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string) ([]Com
 				return entries, nil
 			}
 
+			var paths []string
+			if includePaths {
+				paths, err = g.commitPaths(ctx, sha)
+				if err != nil {
+					return nil, err
+				}
+			}
+
 			entries = append(entries, CommitEntry{
 				Hash:    sha,
 				Message: c.GetCommit().GetMessage(),
+				Paths:   paths,
 			})
 		}
 
@@ -145,4 +155,41 @@ func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, erro
 	}
 
 	return sha, nil
+}
+
+func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) {
+	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
+	paths := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for {
+		commitDetails, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, sha, options)
+		if err != nil {
+			return nil, fmt.Errorf("get changed files for commit %q: %w", sha, err)
+		}
+
+		for _, changedFile := range commitDetails.Files {
+			for _, candidatePath := range []string{changedFile.GetFilename(), changedFile.GetPreviousFilename()} {
+				normalizedPath := strings.TrimSpace(candidatePath)
+				if normalizedPath == "" {
+					continue
+				}
+
+				if _, exists := seen[normalizedPath]; exists {
+					continue
+				}
+
+				seen[normalizedPath] = struct{}{}
+				paths = append(paths, normalizedPath)
+			}
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return paths, nil
 }

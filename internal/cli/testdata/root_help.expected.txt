@@ -1,0 +1,30 @@
+yeet analyzes conventional commits to automatically determine the next
+version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.
+
+On the default branch it also finalizes merged release PRs/MRs labeled
+autorelease: pending by creating the provider release and relabeling them as
+autorelease: tagged.
+
+Usage:
+  yeet [command]
+
+Examples:
+  yeet init
+  yeet release --dry-run
+  yeet release --auto-merge
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  init        Initialize a .yeet.yaml configuration file
+  release     Finalize merged releases and manage release PRs/MRs
+  version     Print build information
+
+Flags:
+      --config string       path to config file (default: nearest ancestor .yeet.yaml)
+  -h, --help                help for yeet
+      --log-format string   set log output format: text|json (default "text")
+      --quiet               show warnings and errors only
+  -v, --verbose             enable debug logging
+
+Use "yeet [command] --help" for more information about a command.

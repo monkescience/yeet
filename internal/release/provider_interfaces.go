@@ -9,7 +9,7 @@ import (
 type versionHistoryProvider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
 	ListTags(ctx context.Context) ([]string, error)
-	GetCommitsSince(ctx context.Context, ref, branch string) ([]provider.CommitEntry, error)
+	GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]provider.CommitEntry, error)
 }
 
 type repoMetadataProvider interface {

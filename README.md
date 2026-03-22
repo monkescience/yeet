@@ -39,9 +39,6 @@ yeet --log-format json --verbose release --dry-run
 # Preview what the next release would look like
 yeet --verbose release --dry-run
 
-# Preview build version for testing artifacts (for example Helm charts)
-yeet release --preview --dry-run
-
 # Create a release PR/MR
 yeet release
 
@@ -63,9 +60,6 @@ yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to gene
 versioning: semver
 branch: main
 provider: auto
-tag_prefix: v
-# version_files:
-#   - VERSION.txt
 
 changelog:
   file: CHANGELOG.md
@@ -98,6 +92,12 @@ release:
   auto_merge_method: auto
   pr_body_header: "## ٩(^ᴗ^)۶ release created"
   pr_body_footer: "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
+
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
 ```
 
 `yeet init` includes a YAML language server schema modeline for editor validation and autocomplete.
@@ -116,7 +116,6 @@ yeet publishes a JSON schema at `yeet.schema.json` for YAML-aware editors.
 | `versioning` | `"semver"` | Versioning strategy: `"semver"` or `"calver"` |
 | `branch` | `"main"` | Base branch for releases |
 | `provider` | `"auto"` | VCS provider: `"auto"`, `"github"`, or `"gitlab"` |
-| `tag_prefix` | `"v"` | Prefix for version tags |
 | `repository.remote` | `"origin"` | Git remote name used for repository auto-detection |
 | `repository.host` | unset | Explicit repository host, such as `github.com` or `gitlab.company.com` |
 | `repository.owner` | unset | Explicit owner or namespace for GitHub-style repositories |
@@ -133,6 +132,43 @@ yeet publishes a JSON schema at `yeet.schema.json` for YAML-aware editors.
 | `changelog.include` | `["feat", "fix", "perf", "revert"]` | Commit types to include in the changelog |
 | `changelog.sections` | see above | Mapping of commit types to section headings. All conventional types are pre-configured; only types in `include` appear in the changelog |
 | `calver.format` | `"YYYY.0M.MICRO"` | CalVer format string |
+| `targets.<id>.type` | required | Release target type: `path` or `derived` |
+| `targets.<id>.path` | required for `path` | Repo-relative path used for commit filtering |
+| `targets.<id>.tag_prefix` | required | Tag namespace for that target |
+| `targets.<id>.includes` | required for `derived` | Included path targets for derived releases |
+
+### Monorepo targets
+
+yeet plans releases per target and creates one combined release PR/MR per base branch.
+PR workflow settings remain top-level under `release:` and apply to the combined PR/MR, not individual targets.
+
+```yaml
+targets:
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v
+    changelog:
+      file: services/api/CHANGELOG.md
+
+  web:
+    type: path
+    path: apps/web
+    tag_prefix: web-v
+    changelog:
+      file: apps/web/CHANGELOG.md
+
+  root:
+    type: derived
+    path: .
+    exclude_paths:
+      - services/api
+      - apps/web
+    includes:
+      - api
+      - web
+    tag_prefix: v
+```
 
 ### Version file markers
 
@@ -225,9 +261,8 @@ Merge strategy is configurable with `release.auto_merge_method` or `--auto-merge
 
 | Flag | Description |
 |---|---|
-| `--dry-run` | Preview the release without creating a PR/MR |
-| `--preview` | Append build metadata with short commit hash (for example `1.2.4+abc1234`) |
-| `--preview-hash-length` | Length of the preview hash suffix (default: `7`) |
+| `--dry-run` | Show the planned release without creating a PR/MR |
+| `--target` | Limit analysis to one or more configured targets; repeat the flag to select multiple |
 | `--provider` | Override provider detection with `auto`, `github`, or `gitlab` |
 | `--remote` | Override the git remote used for repository auto-detection |
 | `--host` | Override the repository host |
@@ -280,24 +315,6 @@ yeet release --provider github --host github.company.com --owner platform --repo
 yeet release --provider gitlab --host gitlab.company.com --project group/subgroup/service --dry-run
 ```
 
-Preview mode is useful for testing deploy artifacts before a final release tag:
-
-```sh
-# semver example
-yeet release --preview --dry-run
-# Next version: 1.2.4+abc1234
-
-# calver example
-yeet release --preview --dry-run
-# Next version: 2026.03.1+abc1234
-```
-
-When preview mode is enabled, yeet keeps a stable release PR branch based on the target branch
-(for example `yeet/release-main`) so new commits update the same PR.
-
-Preview runs create or update the release PR/MR, but they do not auto-merge or create a provider
-release even when `release.auto_merge = true`.
-
 You can also force an explicit semver version using a commit footer:
 
 ```text
@@ -324,7 +341,7 @@ can close or relabel stale entries.
    updates the changelog/version files, and opens a release PR/MR labeled `autorelease: pending`.
 2. While that PR/MR is open, rerunning `yeet release` updates the same release branch instead of
    creating a second pending release.
-3. After the release PR/MR is merged, the next non-preview `yeet release` run on the base branch
+3. After the release PR/MR is merged, the next `yeet release` run on the base branch
    creates the tag/provider release from the latest changelog entry and flips the label to
    `autorelease: tagged`.
 
@@ -332,20 +349,10 @@ That label lifecycle is operational, not decorative: yeet uses `autorelease: pen
 merged releases that still need tagging, and it expects only one open pending release PR/MR per
 base branch.
 
-### Preview mode vs stable release mode
-
-- Stable mode (`yeet release`) prepares the real next release and is the only mode that finalizes
-  merged release PRs/MRs into provider tags/releases.
-- Preview mode (`yeet release --preview`) appends `+<shortsha>` build metadata so you can test
-  artifacts before cutting the stable tag.
-- Preview mode keeps a stable release branch per target branch (for example `yeet/release-main`) so
-  new commits update the same PR/MR.
-- Preview mode never auto-merges or publishes a provider release, even if auto-merge is enabled.
-
 ### Auto-merge caveats
 
 - `--auto-merge` or `release.auto_merge = true` merges the release PR/MR and finalizes the release
-  in the same non-preview run when provider rules allow it.
+  in the same run when provider rules allow it.
 - `--auto-merge-force` only skips yeet's own readiness gates; it does not bypass GitHub/GitLab
   branch protections, required checks, approvals, or missing permissions.
 - On GitHub, `auto` tries `squash`, then `rebase`, then `merge`, based on which merge methods the

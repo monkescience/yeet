@@ -200,6 +200,48 @@ branch: ""
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
+
+	t.Run("targets require explicit tag prefix", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target config that only sets the legacy top-level tag prefix
+		data := []byte(`
+versioning: semver
+branch: main
+tag_prefix: v
+targets:
+  api:
+    type: path
+    path: services/api
+`)
+
+		// when: parsing the config
+		_, err := config.Parse(data)
+
+		// then: target validation rejects the missing per-target prefix
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.api.tag_prefix must not be empty")
+	})
+
+	t.Run("explicit empty targets config is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a YAML config that explicitly sets an empty targets map
+		data := []byte(`
+versioning: semver
+branch: main
+targets: {}
+`)
+
+		// when: parsing the config
+		_, err := config.Parse(data)
+
+		// then: validation rejects the empty targets block
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets must not be empty")
+	})
 }
 
 func TestValidate(t *testing.T) {
@@ -341,5 +383,212 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+	})
+
+	t.Run("windows drive letter target path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with an absolute Windows-style path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "C:/repo/app",
+				TagPrefix: "api-v",
+			},
+		}
+
+		// when: validating the config
+		err := cfg.Validate()
+
+		// then: the repo-relative path validation rejects the absolute path
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must be repo-relative")
+	})
+
+	t.Run("windows drive letter exclude path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with an absolute Windows-style exclude path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api", "D:/repo/shared"},
+				Includes:     []string{"api"},
+			},
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+		}
+
+		// when: validating the config
+		err := cfg.Validate()
+
+		// then: the repo-relative path validation rejects the absolute exclude path
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must be repo-relative")
+	})
+
+	t.Run("duplicate inherited version file across targets fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: multiple targets that inherit the same top-level version file path
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.VersionFiles = []string{"VERSION"}
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "apps/web/CHANGELOG.md"},
+			},
+		}
+
+		// when: validating the config
+		err := cfg.Validate()
+
+		// then: validation rejects the shared version file ownership before release time
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "version_files")
+	})
+}
+
+func TestResolvedTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("resolves monorepo targets with inherited defaults", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a monorepo config with path and derived targets
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		// when: resolving targets
+		resolvedTargets, err := cfg.ResolvedTargets()
+
+		// then: target defaults and ownership data are expanded correctly
+		testastic.NoError(t, err)
+		testastic.Equal(t, "api-v", resolvedTargets["api"].TagPrefix)
+		testastic.Equal(t, config.VersioningSemver, resolvedTargets["api"].Versioning)
+		testastic.Equal(t, "CHANGELOG.md", resolvedTargets["root"].Changelog.File)
+		testastic.SliceEqual(t, []string{"api"}, resolvedTargets["root"].Includes)
+	})
+
+	t.Run("normalizes target ids for lookup and includes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: targets whose YAML IDs include surrounding whitespace
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		spacedAPIID := " api "
+		spacedRootID := " root "
+		cfg.Targets = map[string]config.Target{
+			spacedAPIID: {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			spacedRootID: {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{spacedAPIID},
+			},
+		}
+
+		// when: resolving targets
+		resolvedTargets, err := cfg.ResolvedTargets()
+
+		// then: normalized IDs are used consistently
+		testastic.NoError(t, err)
+		testastic.Equal(t, "api", resolvedTargets["api"].ID)
+		testastic.Equal(t, "root", resolvedTargets["root"].ID)
+		testastic.SliceEqual(t, []string{"api"}, resolvedTargets["root"].Includes)
+	})
+
+	t.Run("rejects duplicate normalized target ids", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two target IDs that normalize to the same value
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		spacedAPIID := " api "
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			spacedAPIID: {
+				Type:      config.TargetTypePath,
+				Path:      "services/api-alt",
+				TagPrefix: "api-alt-v",
+			},
+		}
+
+		// when: resolving targets
+		_, err := cfg.ResolvedTargets()
+
+		// then: validation rejects the duplicate logical ID
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "target IDs must be unique and non-empty")
+	})
+
+	t.Run("rejects overlapping direct ownership", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two path targets that directly overlap
+		cfg := config.Default()
+		cfg.TagPrefix = ""
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"services": {
+				Type:      config.TargetTypePath,
+				Path:      "services",
+				TagPrefix: "services-v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: ambiguous ownership is rejected
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "direct path ownership overlaps")
 	})
 }

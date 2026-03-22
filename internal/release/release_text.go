@@ -4,59 +4,38 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/monkescience/yeet/internal/changelog"
-	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func (r *Releaser) setResultChangelogs(
-	result *Result,
-	ref string,
-	entries []provider.CommitEntry,
-	commits []commit.Commit,
-) {
-	result.Changelog = r.renderChangelog(result.NextTag, ref, result.NextTag, commits)
-	result.prChangelog = result.Changelog
-
-	if ref != "" && len(entries) > 0 {
-		result.prChangelog = r.renderChangelog(result.NextTag, ref, entries[0].Hash, commits)
-	}
+type prSection struct {
+	id   string
+	plan *TargetPlan
+	body string
 }
 
-func (r *Releaser) renderChangelog(nextTag, ref, compareTarget string, commits []commit.Commit) string {
-	gen := &changelog.Generator{
-		Sections:   r.cfg.Changelog.Sections,
-		Include:    r.cfg.Changelog.Include,
-		RepoURL:    r.metadata.RepoURL(),
-		PathPrefix: r.metadata.PathPrefix(),
+func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
+	plans := r.resultPlans(result)
+
+	manifestMarker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, plans))
+	if err != nil {
+		return provider.ReleasePROptions{}, err
 	}
 
-	entry := gen.Generate(nextTag, ref, commits)
-	if ref != "" && compareTarget != "" {
-		entry.CompareURL = compareURL(r.metadata.RepoURL(), r.metadata.PathPrefix(), ref, compareTarget)
-	}
-
-	return changelog.Render(entry)
-}
-
-func (r *Releaser) releasePROptions(
-	result *Result,
-	releaseBranch, releaseTag string,
-) provider.ReleasePROptions {
-	prChangelog := result.Changelog
-	if result.prChangelog != "" {
-		prChangelog = result.prChangelog
+	releaseMarker := manifestMarker
+	if len(plans) == 1 {
+		releaseMarker = strings.TrimSpace(strings.Join([]string{
+			fmt.Sprintf("<!-- yeet-release-tag: %s -->", plans[0].NextTag),
+			manifestMarker,
+		}, "\n\n"))
 	}
 
 	return provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(prChangelog, releaseTag),
+		Body:          r.releasePRBody(r.combinedPRChangelog(result), releaseMarker),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
-		Files: map[string]string{
-			r.cfg.Changelog.File: result.Changelog,
-		},
-	}
+		Files:         map[string]string{},
+	}, nil
 }
 
 func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
@@ -64,19 +43,309 @@ func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
 }
 
 func (r *Releaser) releaseSubject(result *Result) string {
-	version := result.BaseVersion
-	if version == "" {
-		version = result.NextVersion
+	plans := r.resultPlans(result)
+	if len(plans) == 1 {
+		version := plans[0].NextVersion
+
+		if r.cfg.Release.SubjectIncludeBranch {
+			return fmt.Sprintf("chore(%s): release %s", r.cfg.Branch, version)
+		}
+
+		return "chore: release " + version
 	}
 
 	if r.cfg.Release.SubjectIncludeBranch {
-		return fmt.Sprintf("chore(%s): release %s", r.cfg.Branch, version)
+		return fmt.Sprintf("chore(%s): release wave", r.cfg.Branch)
 	}
 
-	return "chore: release " + version
+	return "chore: release wave"
 }
 
-func (r *Releaser) releasePRBody(changelogBody, releaseTag string) string {
+func (r *Releaser) combinedPRChangelog(result *Result) string {
+	plans := r.resultPlans(result)
+	if len(plans) == 0 {
+		return ""
+	}
+
+	if len(plans) == 1 {
+		if plans[0].PRChangelog != "" {
+			return plans[0].PRChangelog
+		}
+
+		return plans[0].Changelog
+	}
+
+	sections := buildPRSections(plans)
+
+	var body strings.Builder
+	body.WriteString("## Release wave\n\n")
+	fmt.Fprintf(&body, "Base branch: `%s`\n", result.BaseBranch)
+	fmt.Fprintf(&body, "Targets: %s", formatSectionTargetList(sections))
+
+	for _, section := range sections {
+		body.WriteString("\n\n")
+		body.WriteString(renderFlatPRSection(section))
+	}
+
+	return body.String()
+}
+
+func buildPRSections(plans []TargetPlan) []prSection {
+	sections := make([]prSection, 0, len(plans))
+
+	for _, plan := range plans {
+		if plan.Type != "derived" {
+			continue
+		}
+
+		p := plan
+		parsedChangelog := parseRenderedChangelog(preferredPRChangelog(plan))
+		directBody, _ := splitDerivedChangelogBody(parsedChangelog.Body, plan.IncludedTargets)
+
+		sections = append(sections, prSection{
+			id:   plan.ID,
+			plan: &p,
+			body: directBody,
+		})
+	}
+
+	for _, plan := range plans {
+		if plan.Type == "derived" {
+			continue
+		}
+
+		p := plan
+		parsedChangelog := parseRenderedChangelog(preferredPRChangelog(plan))
+
+		sections = append(sections, prSection{
+			id:   plan.ID,
+			plan: &p,
+			body: parsedChangelog.Body,
+		})
+	}
+
+	return sections
+}
+
+func renderFlatPRSection(section prSection) string {
+	var body strings.Builder
+	fmt.Fprintf(&body, "## %s\n\n", section.id)
+
+	parsedChangelog := parseRenderedChangelog(preferredPRChangelog(*section.plan))
+	body.WriteString(renderPlanMetadata(*section.plan, parsedChangelog))
+	appendMarkdownBlock(&body, section.body)
+
+	return body.String()
+}
+
+func formatSectionTargetList(sections []prSection) string {
+	targetIDs := make([]string, 0, len(sections))
+	for _, section := range sections {
+		targetIDs = append(targetIDs, fmt.Sprintf("`%s`", section.id))
+	}
+
+	return strings.Join(targetIDs, ", ")
+}
+
+func preferredPRChangelog(plan TargetPlan) string {
+	if plan.PRChangelog != "" {
+		return plan.PRChangelog
+	}
+
+	return plan.Changelog
+}
+
+func renderPlanMetadata(plan TargetPlan, parsedChangelog renderedChangelog) string {
+	var body strings.Builder
+
+	previousTag := planPreviousTag(plan)
+
+	nextTag := plan.NextTag
+
+	fmt.Fprintf(&body, "Tag: `%s` -> `%s`\n", previousTag, nextTag)
+	fmt.Fprintf(&body, "Bump: `%s`", plan.BumpType)
+
+	if parsedChangelog.Date != "" {
+		fmt.Fprintf(&body, "\nDate: `%s`", parsedChangelog.Date)
+	}
+
+	if parsedChangelog.CompareURL != "" {
+		fmt.Fprintf(
+			&body,
+			"\nCompare: [%s](%s)",
+			compareRange(parsedChangelog.CompareURL),
+			parsedChangelog.CompareURL,
+		)
+	}
+
+	return body.String()
+}
+
+func planPreviousTag(plan TargetPlan) string {
+	if strings.TrimSpace(plan.CurrentVersion) == "" {
+		return "none"
+	}
+
+	prefix := planTagPrefix(plan)
+	if prefix == "" {
+		return plan.CurrentVersion
+	}
+
+	return prefix + plan.CurrentVersion
+}
+
+func planTagPrefix(plan TargetPlan) string {
+	if plan.NextTag != "" && plan.NextVersion != "" && strings.HasSuffix(plan.NextTag, plan.NextVersion) {
+		return strings.TrimSuffix(plan.NextTag, plan.NextVersion)
+	}
+
+	return ""
+}
+
+func compareRange(compareURL string) string {
+	_, comparePath, found := strings.Cut(compareURL, "/compare/")
+	if !found {
+		return "compare"
+	}
+
+	return comparePath
+}
+
+type renderedChangelog struct {
+	Heading    string
+	Tag        string
+	CompareURL string
+	Date       string
+	Body       string
+}
+
+func parseRenderedChangelog(changelogBody string) renderedChangelog {
+	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
+	for idx, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" {
+			continue
+		}
+
+		parsedChangelog := renderedChangelog{
+			Heading: trimmedLine,
+			Body:    strings.TrimSpace(strings.Join(lines[idx+1:], "\n")),
+		}
+
+		if !strings.HasPrefix(trimmedLine, "## ") {
+			parsedChangelog.Body = strings.TrimSpace(strings.Join(lines[idx:], "\n"))
+
+			return parsedChangelog
+		}
+
+		parseRenderedChangelogHeading(strings.TrimSpace(strings.TrimPrefix(trimmedLine, "## ")), &parsedChangelog)
+
+		return parsedChangelog
+	}
+
+	return renderedChangelog{}
+}
+
+func parseRenderedChangelogHeading(heading string, parsedChangelog *renderedChangelog) {
+	rest := heading
+	if strings.HasPrefix(rest, "[") {
+		tag, compareURL, remainingHeading, ok := parseLinkedChangelogHeading(rest)
+		if ok {
+			parsedChangelog.Tag = tag
+			parsedChangelog.CompareURL = compareURL
+			rest = remainingHeading
+		}
+	} else {
+		fields := strings.Fields(rest)
+		if len(fields) > 0 {
+			parsedChangelog.Tag = fields[0]
+			rest = strings.TrimSpace(strings.TrimPrefix(rest, parsedChangelog.Tag))
+		}
+	}
+
+	if strings.HasPrefix(rest, "(") && strings.HasSuffix(rest, ")") {
+		parsedChangelog.Date = strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(rest, "("), ")"))
+	}
+}
+
+func parseLinkedChangelogHeading(heading string) (string, string, string, bool) {
+	tagEndIdx := strings.Index(heading, "]")
+	if tagEndIdx <= 1 {
+		return "", "", heading, false
+	}
+
+	tag := heading[1:tagEndIdx]
+	linkPortion := heading[tagEndIdx+1:]
+
+	afterOpen, found := strings.CutPrefix(linkPortion, "(")
+	if !found {
+		return "", "", heading, false
+	}
+
+	compareURL, remainingHeading, found := strings.Cut(afterOpen, ")")
+	if !found {
+		return "", "", heading, false
+	}
+
+	return tag, compareURL, strings.TrimSpace(remainingHeading), true
+}
+
+func splitDerivedChangelogBody(changelogBody string, includedTargets []string) (string, map[string]string) {
+	childBodies := make(map[string]string, len(includedTargets))
+	if len(includedTargets) == 0 {
+		return strings.TrimSpace(changelogBody), childBodies
+	}
+
+	childHeaders := make(map[string]string, len(includedTargets))
+	for _, includedTargetID := range includedTargets {
+		childHeaders[includedTargetID] = "### " + includedTargetID
+	}
+
+	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
+	sections := make([]struct {
+		TargetID string
+		Start    int
+	}, 0, len(includedTargets))
+
+	for idx, line := range lines {
+		for includedTargetID, header := range childHeaders {
+			if strings.TrimSpace(line) == header {
+				sections = append(sections, struct {
+					TargetID string
+					Start    int
+				}{TargetID: includedTargetID, Start: idx})
+			}
+		}
+	}
+
+	if len(sections) == 0 {
+		return strings.TrimSpace(changelogBody), childBodies
+	}
+
+	directBody := strings.TrimSpace(strings.Join(lines[:sections[0].Start], "\n"))
+	for idx, section := range sections {
+		end := len(lines)
+		if idx+1 < len(sections) {
+			end = sections[idx+1].Start
+		}
+
+		childBodies[section.TargetID] = strings.TrimSpace(strings.Join(lines[section.Start+1:end], "\n"))
+	}
+
+	return directBody, childBodies
+}
+
+func appendMarkdownBlock(body *strings.Builder, markdown string) {
+	trimmedMarkdown := strings.TrimSpace(markdown)
+	if trimmedMarkdown == "" {
+		return
+	}
+
+	body.WriteString("\n\n")
+	body.WriteString(trimmedMarkdown)
+}
+
+func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {
 	parts := make([]string, 0)
 
 	if header := strings.TrimSpace(r.cfg.Release.PRBodyHeader); header != "" {
@@ -87,7 +356,11 @@ func (r *Releaser) releasePRBody(changelogBody, releaseTag string) string {
 		parts = append(parts, body)
 	}
 
-	if marker := releaseTagMarker(releaseTag); marker != "" {
+	if marker := strings.TrimSpace(manifestMarker); marker != "" {
+		if !strings.HasPrefix(marker, "<!--") {
+			marker = fmt.Sprintf("<!-- yeet-release-tag: %s -->", marker)
+		}
+
 		parts = append(parts, marker)
 	}
 

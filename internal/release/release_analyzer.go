@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -16,102 +17,830 @@ import (
 )
 
 type releaseAnalyzer struct {
-	releaser *Releaser
+	releaser        *Releaser
+	commitCache     map[commitCacheKey][]provider.CommitEntry
+	analyzedTargets map[string]config.ResolvedTarget
+}
+
+type commitCacheKey struct {
+	ref          string
+	branch       string
+	includePaths bool
+}
+
+type releaseSelection struct {
+	explicitTargets     map[string]config.ResolvedTarget
+	analyzedPathTargets map[string]config.ResolvedTarget
+	emitPathTargetIDs   map[string]struct{}
 }
 
 func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
-	return &releaseAnalyzer{releaser: releaser}
+	return &releaseAnalyzer{
+		releaser:    releaser,
+		commitCache: make(map[commitCacheKey][]provider.CommitEntry),
+	}
 }
 
-func (a *releaseAnalyzer) analyze(
-	ctx context.Context,
-	preview bool,
-	previewHashLength int,
-) (*Result, error) {
+// needsPathFiltering returns true when commit paths are required for target filtering.
+// When there is a single root-path target with no excludes, all commits belong to it
+// and path data is unnecessary, avoiding N+1 per-commit API calls.
+func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
+	if len(targets) != 1 {
+		return true
+	}
+
+	for _, target := range targets {
+		if target.Path != "." || len(target.ExcludePaths) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []string) (*Result, error) {
 	r := a.releaser
-	result := &Result{}
+	result := &Result{BaseBranch: r.cfg.Branch}
 
-	if preview && previewHashLength <= 0 {
-		return nil, fmt.Errorf("%w: got %d", ErrInvalidPreviewHashLength, previewHashLength)
-	}
-
-	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx)
+	selection, err := a.selectTargets(selectedTargetIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	result.CurrentVersion = currentVersion
+	a.analyzedTargets = selection.analyzedPathTargets
 
-	entries, err := a.commitsSince(ctx, ref)
+	pathPlans, err := a.planPathTargets(ctx, selection.analyzedPathTargets)
 	if err != nil {
 		return nil, err
 	}
 
-	commits := provider.ParseCommits(entries)
-	result.CommitCount = len(commits)
-	result.BumpType = commit.DetermineBump(commits)
-
-	nextVersion, bumpType, shouldRelease, err := a.nextVersionPlan(commits, result.CurrentVersion, result.BumpType)
+	derivedPlans, err := a.planDerivedTargets(ctx, selection.explicitTargets, pathPlans)
 	if err != nil {
 		return nil, err
 	}
 
-	result.BumpType = bumpType
-
-	if !shouldRelease {
-		return result, nil
-	}
-
-	err = a.setResultVersions(result, nextVersion, entries, preview, previewHashLength)
-	if err != nil {
-		return nil, err
-	}
-
-	r.setResultChangelogs(result, ref, entries, commits)
+	result.Plans = append(result.Plans, orderedPlans(filterPlansByID(pathPlans, selection.emitPathTargetIDs))...)
+	result.Plans = append(result.Plans, orderedPlans(derivedPlans)...)
+	r.setPrimaryPlan(result)
 
 	return result, nil
 }
 
+func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSelection, error) {
+	r := a.releaser
+	if len(selectedTargetIDs) == 0 {
+		return releaseSelection{
+			explicitTargets:     r.targets,
+			analyzedPathTargets: filterTargetsByType(r.targets, config.TargetTypePath),
+			emitPathTargetIDs:   targetIDSet(filterTargetsByType(r.targets, config.TargetTypePath)),
+		}, nil
+	}
+
+	selectedTargets := make(map[string]config.ResolvedTarget, len(selectedTargetIDs))
+	analyzedPathTargets := make(map[string]config.ResolvedTarget)
+	emitPathTargetIDs := make(map[string]struct{})
+
+	for _, selectedTargetID := range selectedTargetIDs {
+		normalizedTargetID := strings.TrimSpace(selectedTargetID)
+
+		target, exists := r.targets[normalizedTargetID]
+		if !exists {
+			return releaseSelection{}, fmt.Errorf("%w: %s", ErrUnknownTarget, normalizedTargetID)
+		}
+
+		selectedTargets[normalizedTargetID] = target
+
+		if target.Type == config.TargetTypePath {
+			analyzedPathTargets[normalizedTargetID] = target
+			emitPathTargetIDs[normalizedTargetID] = struct{}{}
+
+			continue
+		}
+
+		for _, includeID := range target.Includes {
+			includedTarget := r.targets[includeID]
+			analyzedPathTargets[includeID] = includedTarget
+		}
+	}
+
+	return releaseSelection{
+		explicitTargets:     selectedTargets,
+		analyzedPathTargets: analyzedPathTargets,
+		emitPathTargetIDs:   emitPathTargetIDs,
+	}, nil
+}
+
+func (a *releaseAnalyzer) planPathTargets(
+	ctx context.Context,
+	selectedTargets map[string]config.ResolvedTarget,
+) (map[string]TargetPlan, error) {
+	r := a.releaser
+	plans := make(map[string]TargetPlan)
+
+	for _, targetID := range sortedTargetIDs(selectedTargets, config.TargetTypePath) {
+		target := r.targets[targetID]
+
+		plan, shouldRelease, err := a.planDirectTarget(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+
+		if !shouldRelease {
+			continue
+		}
+
+		plans[targetID] = plan
+	}
+
+	return plans, nil
+}
+
+func (a *releaseAnalyzer) planDerivedTargets(
+	ctx context.Context,
+	selectedTargets map[string]config.ResolvedTarget,
+	pathPlans map[string]TargetPlan,
+) (map[string]TargetPlan, error) {
+	r := a.releaser
+	plans := make(map[string]TargetPlan)
+	selectedTargetIDs := make(map[string]struct{}, len(selectedTargets))
+
+	for targetID := range selectedTargets {
+		selectedTargetIDs[targetID] = struct{}{}
+	}
+
+	for _, targetID := range sortedTargetIDs(r.targets, config.TargetTypeDerived) {
+		target := r.targets[targetID]
+
+		if len(selectedTargetIDs) > 0 && !derivedTargetEligible(target, selectedTargetIDs) {
+			continue
+		}
+
+		_, explicitlySelected := selectedTargetIDs[targetID]
+		includeDirectCommits := len(selectedTargetIDs) == 0 || explicitlySelected
+
+		childPlans := make([]TargetPlan, 0, len(target.Includes))
+		for _, includeID := range target.Includes {
+			childPlan, exists := pathPlans[includeID]
+			if !exists {
+				continue
+			}
+
+			childPlans = append(childPlans, childPlan)
+		}
+
+		plan, shouldRelease, err := a.planDerivedTarget(
+			ctx,
+			target,
+			childPlans,
+			includeDirectCommits,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if !shouldRelease {
+			continue
+		}
+
+		plans[targetID] = plan
+	}
+
+	return plans, nil
+}
+
+func derivedTargetEligible(target config.ResolvedTarget, selectedTargetIDs map[string]struct{}) bool {
+	if _, exists := selectedTargetIDs[target.ID]; exists {
+		return true
+	}
+
+	for _, includeID := range target.Includes {
+		if _, exists := selectedTargetIDs[includeID]; exists {
+			return true
+		}
+	}
+
+	return false
+}
+
+func filterTargetsByType(
+	targets map[string]config.ResolvedTarget,
+	targetType config.TargetType,
+) map[string]config.ResolvedTarget {
+	filteredTargets := make(map[string]config.ResolvedTarget)
+
+	for targetID, target := range targets {
+		if target.Type != targetType {
+			continue
+		}
+
+		filteredTargets[targetID] = target
+	}
+
+	return filteredTargets
+}
+
+func targetIDSet(targets map[string]config.ResolvedTarget) map[string]struct{} {
+	targetIDs := make(map[string]struct{}, len(targets))
+
+	for targetID := range targets {
+		targetIDs[targetID] = struct{}{}
+	}
+
+	return targetIDs
+}
+
+func filterPlansByID(plans map[string]TargetPlan, includedIDs map[string]struct{}) map[string]TargetPlan {
+	if len(includedIDs) == 0 {
+		return map[string]TargetPlan{}
+	}
+
+	filteredPlans := make(map[string]TargetPlan)
+
+	for planID, plan := range plans {
+		if _, exists := includedIDs[planID]; !exists {
+			continue
+		}
+
+		filteredPlans[planID] = plan
+	}
+
+	return filteredPlans
+}
+
+func (a *releaseAnalyzer) planDirectTarget(
+	ctx context.Context,
+	target config.ResolvedTarget,
+) (TargetPlan, bool, error) {
+	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	entries, err := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	filteredEntries := filterEntriesForTarget(entries, target)
+	commits := provider.ParseCommits(filteredEntries)
+	bumpType := commit.DetermineBump(commits)
+
+	nextVersion, nextBumpType, shouldRelease, err := a.nextVersionPlan(target, commits, currentVersion, bumpType)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	if !shouldRelease {
+		return TargetPlan{}, false, nil
+	}
+
+	plan := a.newTargetPlan(
+		target,
+		currentVersion,
+		nextVersion,
+		nextBumpType,
+		ref,
+		filteredEntries,
+		commits,
+	)
+
+	return plan, true, nil
+}
+
+//nolint:funlen // Derived target planning keeps child and direct-commit logic together.
+func (a *releaseAnalyzer) planDerivedTarget(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	childPlans []TargetPlan,
+	includeDirectCommits bool,
+) (TargetPlan, bool, error) {
+	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	allEntries := []provider.CommitEntry{}
+
+	if target.Path != "" || len(childPlans) > 0 {
+		entries, commitsErr := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+		if commitsErr != nil {
+			return TargetPlan{}, false, commitsErr
+		}
+
+		allEntries = entries
+	}
+
+	directEntries := []provider.CommitEntry{}
+
+	if includeDirectCommits && target.Path != "" {
+		directEntries = filterEntriesForTarget(allEntries, target)
+	}
+
+	childEntries := filterEntriesForPlans(allEntries, childPlans, a.releaser.targets)
+
+	directCommits := provider.ParseCommits(directEntries)
+	directBumpType := commit.DetermineBump(directCommits)
+
+	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(
+		target,
+		directCommits,
+		currentVersion,
+		directBumpType,
+	)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	finalBumpType := directNextBumpType
+	for _, childPlan := range childPlans {
+		if releaseBumpOrder(childPlan.BumpType) > releaseBumpOrder(finalBumpType) {
+			finalBumpType = childPlan.BumpType
+		}
+	}
+
+	if finalBumpType == commit.BumpNone {
+		return TargetPlan{}, false, nil
+	}
+
+	nextVersion := directNextVersion
+	if !directShouldRelease || releaseBumpOrder(finalBumpType) > releaseBumpOrder(directNextBumpType) {
+		nextVersion, err = a.releaser.strategyForTarget(target).strategy.Next(
+			currentVersionWithInitial(target, currentVersion),
+			finalBumpType,
+		)
+		if err != nil {
+			return TargetPlan{}, false, fmt.Errorf("calculate next version: %w", err)
+		}
+	}
+
+	plan := a.newTargetPlan(
+		target,
+		currentVersion,
+		nextVersion,
+		finalBumpType,
+		ref,
+		directEntries,
+		directCommits,
+	)
+	plan.PRCompareRef = derivedPRCompareRef(
+		allEntries,
+		target,
+		childPlans,
+		includeDirectCommits,
+		a.releaser.targets,
+	)
+	plan.commitHashes = uniqueEntryHashes(directEntries, childEntries)
+
+	plan.CommitCount = len(plan.commitHashes)
+	if plan.CommitCount == 0 {
+		plan.CommitCount = len(directCommits)
+
+		for _, childPlan := range childPlans {
+			plan.CommitCount += childPlan.CommitCount
+		}
+	}
+
+	plan.IncludedTargets = make([]string, 0, len(childPlans))
+	plan.Changelog = renderDerivedChangelog(
+		target,
+		plan.NextTag,
+		ref,
+		directCommits,
+		childPlans,
+		plan.PRCompareRef,
+		false,
+		a.releaser,
+	)
+	plan.PRChangelog = renderDerivedChangelog(
+		target,
+		plan.NextTag,
+		ref,
+		directCommits,
+		childPlans,
+		plan.PRCompareRef,
+		true,
+		a.releaser,
+	)
+
+	for _, childPlan := range childPlans {
+		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
+	}
+
+	return plan, true, nil
+}
+
+func (a *releaseAnalyzer) newTargetPlan(
+	target config.ResolvedTarget,
+	currentVersion string,
+	baseVersion string,
+	bumpType commit.BumpType,
+	ref string,
+	entries []provider.CommitEntry,
+	commits []commit.Commit,
+) TargetPlan {
+	strategy := a.releaser.strategyForTarget(target)
+	plan := TargetPlan{
+		ID:             target.ID,
+		Type:           target.Type,
+		Path:           target.Path,
+		CurrentVersion: currentVersion,
+		BumpType:       bumpType,
+		Files: map[string]string{
+			"changelog_file": target.Changelog.File,
+		},
+		commitHashes: uniqueEntryHashes(entries),
+	}
+
+	plan.CommitCount = len(plan.commitHashes)
+	if plan.CommitCount == 0 {
+		plan.CommitCount = len(commits)
+	}
+
+	setPlanVersions(&plan, strategy, baseVersion)
+
+	plan.Changelog = renderTargetChangelog(target, plan.NextTag, ref, plan.NextTag, commits, a.releaser)
+	plan.PRChangelog = plan.Changelog
+
+	if ref != "" && len(entries) > 0 {
+		plan.PRCompareRef = strings.TrimSpace(entries[0].Hash)
+		plan.PRChangelog = renderTargetChangelog(target, plan.NextTag, ref, entries[0].Hash, commits, a.releaser)
+	}
+
+	return plan
+}
+
+func setPlanVersions(plan *TargetPlan, strategy versionStrategy, nextVersion string) {
+	plan.NextVersion = nextVersion
+	plan.NextTag = strategy.prefix + nextVersion
+}
+
+func renderTargetChangelog(
+	target config.ResolvedTarget,
+	nextTag, ref, compareTarget string,
+	commits []commit.Commit,
+	releaser *Releaser,
+) string {
+	gen := &changelog.Generator{
+		Sections:   target.Changelog.Sections,
+		Include:    target.Changelog.Include,
+		RepoURL:    releaser.metadata.RepoURL(),
+		PathPrefix: releaser.metadata.PathPrefix(),
+	}
+
+	entry := gen.Generate(nextTag, ref, commits)
+	if ref != "" && compareTarget != "" {
+		entry.CompareURL = compareURL(releaser.metadata.RepoURL(), releaser.metadata.PathPrefix(), ref, compareTarget)
+	}
+
+	return changelog.Render(entry)
+}
+
+func renderDerivedChangelog(
+	target config.ResolvedTarget,
+	nextTag string,
+	ref string,
+	directCommits []commit.Commit,
+	childPlans []TargetPlan,
+	prCompareRef string,
+	prMode bool,
+	releaser *Releaser,
+) string {
+	var body strings.Builder
+
+	if len(directCommits) > 0 {
+		directEntry := renderTargetChangelog(target, nextTag, ref, nextTag, directCommits, releaser)
+		body.WriteString(changelogBodyWithoutHeading(directEntry))
+	}
+
+	for _, childPlan := range childPlans {
+		if body.Len() > 0 && !strings.HasSuffix(body.String(), "\n\n") {
+			body.WriteString("\n\n")
+		}
+
+		fmt.Fprintf(&body, "### %s\n\n", childPlan.ID)
+
+		childChangelog := childPlan.Changelog
+		if prMode && childPlan.PRChangelog != "" {
+			childChangelog = childPlan.PRChangelog
+		}
+
+		body.WriteString(strings.TrimSpace(changelogBodyWithoutHeading(childChangelog)))
+		body.WriteString("\n")
+	}
+
+	entry := changelog.Entry{
+		Version: nextTag,
+		Body:    strings.TrimSpace(body.String()) + "\n",
+	}
+
+	if ref != "" {
+		compareTarget := nextTag
+		if prMode {
+			compareTarget = prCompareRef
+		}
+
+		if compareTarget != "" {
+			entry.CompareURL = compareURL(releaser.metadata.RepoURL(), releaser.metadata.PathPrefix(), ref, compareTarget)
+		}
+	}
+
+	return changelog.Render(entry)
+}
+
+func derivedPRCompareRef(
+	entries []provider.CommitEntry,
+	directTarget config.ResolvedTarget,
+	childPlans []TargetPlan,
+	includeDirectCommits bool,
+	targets map[string]config.ResolvedTarget,
+) string {
+	compareTargets := make([]config.ResolvedTarget, 0, len(childPlans)+1)
+
+	if includeDirectCommits && directTarget.Path != "" {
+		compareTargets = append(compareTargets, directTarget)
+	}
+
+	for _, childPlan := range childPlans {
+		childTarget, exists := targets[childPlan.ID]
+		if !exists {
+			continue
+		}
+
+		compareTargets = append(compareTargets, childTarget)
+	}
+
+	for _, entry := range entries {
+		for _, compareTarget := range compareTargets {
+			if !entryBelongsToTarget(entry, compareTarget) {
+				continue
+			}
+
+			return strings.TrimSpace(entry.Hash)
+		}
+	}
+
+	return ""
+}
+
+func filterEntriesForPlans(
+	entries []provider.CommitEntry,
+	plans []TargetPlan,
+	targets map[string]config.ResolvedTarget,
+) []provider.CommitEntry {
+	includedTargets := make([]config.ResolvedTarget, 0, len(plans))
+
+	for _, plan := range plans {
+		target, exists := targets[plan.ID]
+		if !exists {
+			continue
+		}
+
+		includedTargets = append(includedTargets, target)
+	}
+
+	return filterEntriesForTargets(entries, includedTargets)
+}
+
+func filterEntriesForTargets(entries []provider.CommitEntry, targets []config.ResolvedTarget) []provider.CommitEntry {
+	filteredEntries := make([]provider.CommitEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		for _, target := range targets {
+			if !entryBelongsToTarget(entry, target) {
+				continue
+			}
+
+			filteredEntries = append(filteredEntries, entry)
+
+			break
+		}
+	}
+
+	return filteredEntries
+}
+
+func uniqueEntryHashes(entryGroups ...[]provider.CommitEntry) []string {
+	seen := make(map[string]struct{})
+	hashes := make([]string, 0)
+
+	for _, entries := range entryGroups {
+		for _, entry := range entries {
+			hash := strings.TrimSpace(entry.Hash)
+			if hash == "" {
+				continue
+			}
+
+			if _, exists := seen[hash]; exists {
+				continue
+			}
+
+			seen[hash] = struct{}{}
+			hashes = append(hashes, hash)
+		}
+	}
+
+	return hashes
+}
+
+func changelogBodyWithoutHeading(renderedEntry string) string {
+	lines := strings.Split(strings.ReplaceAll(renderedEntry, "\r\n", "\n"), "\n")
+	for idx, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			return strings.TrimSpace(strings.Join(lines[idx+1:], "\n"))
+		}
+	}
+
+	return strings.TrimSpace(renderedEntry)
+}
+
+func filterEntriesForTarget(entries []provider.CommitEntry, target config.ResolvedTarget) []provider.CommitEntry {
+	filteredEntries := make([]provider.CommitEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		if !entryBelongsToTarget(entry, target) {
+			continue
+		}
+
+		filteredEntries = append(filteredEntries, entry)
+	}
+
+	return filteredEntries
+}
+
+func entryBelongsToTarget(entry provider.CommitEntry, target config.ResolvedTarget) bool {
+	if target.Path == "" {
+		return false
+	}
+
+	if len(entry.Paths) == 0 {
+		return target.Path == "."
+	}
+
+	for _, changedPath := range entry.Paths {
+		normalizedPath := strings.TrimSpace(changedPath)
+		if normalizedPath == "" {
+			continue
+		}
+
+		if !config.RepoPathContains(target.Path, normalizedPath) {
+			continue
+		}
+
+		excluded := false
+
+		for _, excludePath := range target.ExcludePaths {
+			if config.RepoPathContains(excludePath, normalizedPath) {
+				excluded = true
+
+				break
+			}
+		}
+
+		if !excluded {
+			return true
+		}
+	}
+
+	return false
+}
+
+func orderedPlans(plans map[string]TargetPlan) []TargetPlan {
+	ordered := make([]TargetPlan, 0, len(plans))
+
+	for _, plan := range plans {
+		ordered = append(ordered, plan)
+	}
+
+	sort.SliceStable(ordered, func(leftIdx, rightIdx int) bool {
+		leftPlan := ordered[leftIdx]
+		rightPlan := ordered[rightIdx]
+
+		if leftPlan.Type != rightPlan.Type {
+			return leftPlan.Type < rightPlan.Type
+		}
+
+		return leftPlan.ID < rightPlan.ID
+	})
+
+	return ordered
+}
+
+func sortedTargetIDs(targets map[string]config.ResolvedTarget, targetType config.TargetType) []string {
+	ids := make([]string, 0, len(targets))
+
+	for targetID, target := range targets {
+		if target.Type != targetType {
+			continue
+		}
+
+		ids = append(ids, targetID)
+	}
+
+	sort.Strings(ids)
+
+	return ids
+}
+
+func currentVersionOrInitial(target config.ResolvedTarget) string {
+	strategy := versionStrategyForResolvedTarget(target)
+	if semverStrategy, ok := strategy.strategy.(*version.SemVer); ok {
+		return semverStrategy.InitialVersion()
+	}
+
+	return ""
+}
+
+func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrategy {
+	var strategy version.Strategy
+
+	switch target.Versioning {
+	case config.VersioningCalVer:
+		strategy = &version.CalVer{
+			Format: target.CalVer.Format,
+			Prefix: target.TagPrefix,
+		}
+	default:
+		strategy = &version.SemVer{
+			Prefix: target.TagPrefix,
+		}
+	}
+
+	return versionStrategy{strategy: strategy, prefix: target.TagPrefix}
+}
+
+func currentVersionWithInitial(target config.ResolvedTarget, currentVersion string) string {
+	if currentVersion != "" {
+		return currentVersion
+	}
+
+	return currentVersionOrInitial(target)
+}
+
 func (a *releaseAnalyzer) nextVersionPlan(
+	target config.ResolvedTarget,
 	commits []commit.Commit,
 	currentVersion string,
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
-	r := a.releaser
+	strategy := a.releaser.strategyForTarget(target)
 
-	releaseAsVersion, err := a.releaseAsVersion(commits)
+	releaseAsVersion, err := a.releaseAsVersion(target, commits)
 	if err != nil {
 		return "", commit.BumpNone, false, err
 	}
 
-	current := currentVersion
-	if current == "" {
-		if sv, ok := r.strategy.strategy.(*version.SemVer); ok {
-			current = sv.InitialVersion()
-		}
-	}
+	current := currentVersionWithInitial(target, currentVersion)
 
-	return r.resolveNextVersion(current, bumpType, releaseAsVersion)
+	return resolveNextVersion(strategy, target.Versioning, current, bumpType, releaseAsVersion)
 }
 
-func (a *releaseAnalyzer) releaseAsVersion(commits []commit.Commit) (string, error) {
-	r := a.releaser
+func resolveNextVersion(
+	strategy versionStrategy,
+	versioning config.VersioningStrategy,
+	current string,
+	bump commit.BumpType,
+	releaseAsVersion string,
+) (string, commit.BumpType, bool, error) {
+	if releaseAsVersion != "" && versioning == config.VersioningSemver {
+		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
+		if err != nil {
+			return "", commit.BumpNone, false, err
+		}
 
-	if r.cfg.Versioning != config.VersioningSemver {
+		return nextVersion, overrideBump, true, nil
+	}
+
+	if bump == commit.BumpNone {
+		return "", bump, false, nil
+	}
+
+	nextVersion, err := strategy.strategy.Next(current, bump)
+	if err != nil {
+		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
+	}
+
+	return nextVersion, bump, true, nil
+}
+
+func (a *releaseAnalyzer) releaseAsVersion(target config.ResolvedTarget, commits []commit.Commit) (string, error) {
+	if target.Versioning != config.VersioningSemver {
 		return "", nil
 	}
 
 	return detectReleaseAs(commits)
 }
 
-func (a *releaseAnalyzer) currentVersionFromReleaseHistory(ctx context.Context) (string, string, error) {
-	refs, err := a.versionHistoryRefs(ctx)
+func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
+	ctx context.Context,
+	target config.ResolvedTarget,
+) (string, string, error) {
+	refs, err := a.versionHistoryRefs(ctx, target)
 	if err != nil {
 		return "", "", err
 	}
 
 	for _, ref := range refs {
-		currentVersion, usable, useErr := a.currentVersionFromReachableRef(ctx, ref)
+		currentVersion, usable, useErr := a.currentVersionFromReachableRef(ctx, target, ref)
 		if useErr != nil {
 			return "", "", useErr
 		}
@@ -122,13 +851,13 @@ func (a *releaseAnalyzer) currentVersionFromReleaseHistory(ctx context.Context) 
 	}
 
 	if len(refs) > 0 {
-		return "", "", a.branchAncestryError(refs[0])
+		return "", "", a.branchAncestryError(target, refs[0])
 	}
 
 	return "", "", nil
 }
 
-func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context) ([]string, error) {
+func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context, target config.ResolvedTarget) ([]string, error) {
 	r := a.releaser
 	refs := make([]string, 0)
 
@@ -148,11 +877,15 @@ func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context) ([]string, err
 
 	refs = append(refs, tags...)
 
-	return a.orderedVersionRefs(refs, ""), nil
+	return a.orderedVersionRefs(target, refs, ""), nil
 }
 
-func (a *releaseAnalyzer) currentVersionFromReachableRef(ctx context.Context, ref string) (string, bool, error) {
-	currentVersion, ok := a.currentVersionFromRef(ref)
+func (a *releaseAnalyzer) currentVersionFromReachableRef(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	ref string,
+) (string, bool, error) {
+	currentVersion, ok := a.currentVersionFromRef(target, ref)
 	if !ok {
 		return "", false, nil
 	}
@@ -169,15 +902,15 @@ func (a *releaseAnalyzer) currentVersionFromReachableRef(ctx context.Context, re
 	return currentVersion, true, nil
 }
 
-func (a *releaseAnalyzer) currentVersionFromRef(ref string) (string, bool) {
-	r := a.releaser
+func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, ref string) (string, bool) {
+	strategy := a.releaser.strategyForTarget(target)
 
 	ref = strings.TrimSpace(ref)
-	if ref == "" || isPreviewTag(ref, r.strategy.prefix) {
+	if ref == "" || isPreviewTag(ref, strategy.prefix) {
 		return "", false
 	}
 
-	currentVersion, err := r.strategy.strategy.Current(ref)
+	currentVersion, err := strategy.strategy.Current(ref)
 	if err != nil {
 		return "", false
 	}
@@ -188,7 +921,7 @@ func (a *releaseAnalyzer) currentVersionFromRef(ref string) (string, bool) {
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
 	r := a.releaser
 
-	_, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	_, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch, false)
 	if err != nil {
 		if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
 			return false, nil
@@ -200,7 +933,11 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string
 	return true, nil
 }
 
-func (a *releaseAnalyzer) orderedVersionRefs(refs []string, excludeRef string) []string {
+func (a *releaseAnalyzer) orderedVersionRefs(
+	target config.ResolvedTarget,
+	refs []string,
+	excludeRef string,
+) []string {
 	orderedRefs := make([]string, 0, len(refs))
 	seen := make(map[string]struct{}, len(refs))
 	excludeRef = strings.TrimSpace(excludeRef)
@@ -215,7 +952,7 @@ func (a *releaseAnalyzer) orderedVersionRefs(refs []string, excludeRef string) [
 			continue
 		}
 
-		if _, ok := a.currentVersionFromRef(ref); !ok {
+		if _, ok := a.currentVersionFromRef(target, ref); !ok {
 			continue
 		}
 
@@ -223,92 +960,72 @@ func (a *releaseAnalyzer) orderedVersionRefs(refs []string, excludeRef string) [
 		seen[ref] = struct{}{}
 	}
 
-	sort.SliceStable(orderedRefs, func(i, j int) bool {
-		return a.versionRefLess(orderedRefs[j], orderedRefs[i])
+	sort.SliceStable(orderedRefs, func(leftIdx, rightIdx int) bool {
+		return a.versionRefLess(target, orderedRefs[rightIdx], orderedRefs[leftIdx])
 	})
 
 	return orderedRefs
 }
 
-func (a *releaseAnalyzer) versionRefLess(leftRef, rightRef string) bool {
-	r := a.releaser
-
-	leftVersion, ok := a.currentVersionFromRef(leftRef)
+func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, rightRef string) bool {
+	leftVersion, ok := a.currentVersionFromRef(target, leftRef)
 	if !ok {
 		return false
 	}
 
-	rightVersion, ok := a.currentVersionFromRef(rightRef)
+	rightVersion, ok := a.currentVersionFromRef(target, rightRef)
 	if !ok {
 		return false
 	}
 
-	if r.cfg.Versioning == config.VersioningCalVer {
+	if target.Versioning == config.VersioningCalVer {
 		return calVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
 	}
 
 	return semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
 }
 
-func (a *releaseAnalyzer) branchAncestryError(ref string) error {
-	r := a.releaser
-
+func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref string) error {
 	return fmt.Errorf(
-		"previous release ref %q is not reachable from release branch %q; "+
+		"previous release ref %q is not reachable from release branch %q for target %q; "+
 			"verify the latest tag/release and branch ancestry: %w",
 		ref,
-		r.cfg.Branch,
-		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: r.cfg.Branch},
+		a.releaser.cfg.Branch,
+		target.ID,
+		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: a.releaser.cfg.Branch},
 	)
 }
 
-func (a *releaseAnalyzer) commitsSince(ctx context.Context, ref string) ([]provider.CommitEntry, error) {
+func (a *releaseAnalyzer) commitsSince(
+	ctx context.Context,
+	ref, branch string,
+	includePaths bool,
+) ([]provider.CommitEntry, error) {
+	key := commitCacheKey{ref: ref, branch: branch, includePaths: includePaths}
+	if cached, exists := a.commitCache[key]; exists {
+		return cached, nil
+	}
+
 	r := a.releaser
 
-	entries, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch)
+	entries, err := r.history.GetCommitsSince(ctx, ref, branch, includePaths)
 	if err == nil {
+		a.commitCache[key] = entries
+
 		return entries, nil
 	}
 
 	if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
-		return nil, a.branchAncestryError(ref)
+		return nil, fmt.Errorf(
+			"previous release ref %q is not reachable from release branch %q; "+
+				"verify the latest tag/release and branch ancestry: %w",
+			ref,
+			branch,
+			&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: branch},
+		)
 	}
 
-	return nil, fmt.Errorf("get commits from branch %q: %w", r.cfg.Branch, err)
-}
-
-func (a *releaseAnalyzer) setResultVersions(
-	result *Result,
-	baseVersion string,
-	entries []provider.CommitEntry,
-	preview bool,
-	previewHashLength int,
-) error {
-	r := a.releaser
-
-	result.BaseVersion = baseVersion
-	result.BaseTag = r.strategy.prefix + baseVersion
-	result.NextVersion = baseVersion
-
-	if !preview {
-		result.NextTag = result.BaseTag
-
-		return nil
-	}
-
-	if len(entries) == 0 {
-		return fmt.Errorf("%w: no commit hash available", ErrInvalidPreviewHashLength)
-	}
-
-	hash, err := shortHash(entries[0].Hash, previewHashLength)
-	if err != nil {
-		return err
-	}
-
-	result.NextVersion = baseVersion + "+" + hash
-	result.NextTag = r.strategy.prefix + result.NextVersion
-
-	return nil
+	return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
 }
 
 func semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {

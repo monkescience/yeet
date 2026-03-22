@@ -34,26 +34,32 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 		return nil, multiplePendingReleasePRError(pendingPRs)
 	}
 
-	releaseTag := releasePRTag(result)
-
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
-		prOpts := r.releasePROptions(result, existing.Branch, releaseTag)
+
+		prOpts, prErr := r.releasePROptions(result, existing.Branch)
+		if prErr != nil {
+			return nil, prErr
+		}
 
 		return w.updateExisting(ctx, existing, existing.Branch, prOpts, result)
 	}
 
 	releaseBranch := stableReleaseBranch(r.cfg.Branch)
-	prOpts := r.releasePROptions(result, releaseBranch, releaseTag)
+
+	prOpts, err := r.releasePROptions(result, releaseBranch)
+	if err != nil {
+		return nil, err
+	}
 
 	return w.createNew(ctx, releaseBranch, prOpts, result)
 }
 
-func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result, preview bool) error {
+func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {
 	r := w.releaser
 
 	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
-	if preview || !autoMergeEnabled || result.PullRequest == nil {
+	if !autoMergeEnabled || result.PullRequest == nil {
 		return nil
 	}
 
@@ -82,9 +88,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result, previ
 		mergeOptions.Method,
 	)
 
-	releaseTag := releasePRTag(result)
-
-	releaseInfo, err := w.publisher.ensureReleaseForTag(ctx, releaseTag, r.cfg.Branch, result.Changelog)
+	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, r.cfg.Branch)
 	if err != nil {
 		return err
 	}
@@ -94,7 +98,10 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result, previ
 		return err
 	}
 
-	result.Release = releaseInfo
+	result.Releases = releaseInfos
+	if len(releaseInfos) > 0 {
+		result.Release = releaseInfos[0]
+	}
 
 	return nil
 }

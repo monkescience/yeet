@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
@@ -22,33 +23,42 @@ func newReleaseBranchUpdater(releaser *Releaser) *releaseBranchUpdater {
 
 func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, result *Result) error {
 	r := u.releaser
+	files := map[string]string{}
 
-	changelogContent, err := u.releaseChangelogFileContent(ctx, result.Changelog)
-	if err != nil {
-		return err
-	}
-
-	files := map[string]string{
-		r.cfg.Changelog.File: changelogContent,
-	}
-
-	for _, path := range r.cfg.VersionFiles {
-		content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, path)
-		if fileErr != nil {
-			return fmt.Errorf("get version file %s: %w", path, fileErr)
+	for _, plan := range r.resultPlans(result) {
+		target, exists := r.targets[plan.ID]
+		if !exists {
+			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		updatedContent, changed := versionfile.ApplyGenericMarkers(content, result.NextVersion)
-		if !changed {
-			slog.InfoContext(ctx, "skipping version file without yeet markers", "path", path)
-
-			continue
+		changelogContent, err := u.releaseChangelogFileContent(ctx, files, target, plan.Changelog)
+		if err != nil {
+			return err
 		}
 
-		files[path] = updatedContent
+		files[target.Changelog.File] = changelogContent
+
+		for _, path := range target.VersionFiles {
+			content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, path)
+			if fileErr != nil {
+				return fmt.Errorf("get version file %s: %w", path, fileErr)
+			}
+
+			updatedContent, changed := versionfile.ApplyGenericMarkers(content, plan.NextVersion)
+			if !changed {
+				slog.InfoContext(ctx, "skipping version file without yeet markers", "path", path)
+
+				continue
+			}
+
+			err = setBranchFileContent(files, path, updatedContent)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
-	err = r.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
+	err := r.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
 	}
@@ -56,19 +66,38 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 	return nil
 }
 
-func (u *releaseBranchUpdater) releaseChangelogFileContent(ctx context.Context, changelogEntry string) (string, error) {
+func (u *releaseBranchUpdater) releaseChangelogFileContent(
+	ctx context.Context,
+	pendingFiles map[string]string,
+	target config.ResolvedTarget,
+	changelogEntry string,
+) (string, error) {
 	r := u.releaser
 
-	existing, err := r.files.GetFile(ctx, r.cfg.Branch, r.cfg.Changelog.File)
+	if existing, exists := pendingFiles[target.Changelog.File]; exists {
+		return prependChangelogEntry(existing, changelogEntry), nil
+	}
+
+	existing, err := r.files.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
 	if err != nil {
 		if errors.Is(err, provider.ErrFileNotFound) {
 			return changelog.Prepend("", changelogEntry), nil
 		}
 
-		return "", fmt.Errorf("get changelog file %s: %w", r.cfg.Changelog.File, err)
+		return "", fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
 	}
 
 	return prependChangelogEntry(existing, changelogEntry), nil
+}
+
+func setBranchFileContent(files map[string]string, path, content string) error {
+	if existingContent, exists := files[path]; exists && existingContent != content {
+		return fmt.Errorf("%w: %s", ErrConflictingFileUpdate, path)
+	}
+
+	files[path] = content
+
+	return nil
 }
 
 func prependChangelogEntry(existing, changelogEntry string) string {

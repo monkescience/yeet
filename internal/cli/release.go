@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
@@ -18,13 +17,13 @@ import (
 
 const (
 	releaseHelpExample = `  yeet release --dry-run
-	  yeet release --preview --dry-run
+	  yeet release --target api --target web --dry-run
 	  yeet release --auto-merge
 	  yeet release --provider github --owner platform --repo yeet --dry-run`
-	releasePreviewHelp        = "append preview build metadata with a short commit hash (for example 1.2.3+abc1234)"
 	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
 	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks; " +
 		"still blocks draft/conflicts; provider rules may still apply"
+	releaseTargetHelp = "limit analysis to one or more configured targets; repeatable"
 )
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
@@ -56,29 +55,21 @@ marks the PR/MR as tagged.`,
 }
 
 type releaseFlagValues struct {
-	dryRun            bool
-	preview           bool
-	previewHashLength int
-	providerType      string
-	remote            string
-	host              string
-	owner             string
-	repo              string
-	project           string
-	autoMerge         bool
-	autoMergeForce    bool
-	autoMergeMethod   string
+	dryRun          bool
+	providerType    string
+	remote          string
+	host            string
+	owner           string
+	repo            string
+	project         string
+	autoMerge       bool
+	autoMergeForce  bool
+	autoMergeMethod string
+	targets         []string
 }
 
 func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
-	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "preview the release without creating a PR/MR")
-	cmd.Flags().BoolVar(&flags.preview, "preview", false, releasePreviewHelp)
-	cmd.Flags().IntVar(
-		&flags.previewHashLength,
-		"preview-hash-length",
-		release.DefaultPreviewHashLength,
-		"length of the short commit hash used for preview build metadata",
-	)
+	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "show the planned release without creating a PR/MR")
 	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: auto|github|gitlab")
 	cmd.Flags().StringVar(&flags.remote, "remote", "", "override git remote used for repository auto-detection")
 	cmd.Flags().StringVar(&flags.host, "host", "", "override repository host, such as github.com or gitlab.company.com")
@@ -106,13 +97,12 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 			config.AutoMergeMethodAuto,
 		),
 	)
+	cmd.Flags().StringArrayVar(&flags.targets, "target", nil, releaseTargetHelp)
 }
 
 func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) releaseRunOptions {
 	return releaseRunOptions{
 		dryRun:               flags.dryRun,
-		preview:              flags.preview,
-		previewHashLength:    flags.previewHashLength,
 		provider:             flags.providerType,
 		providerSet:          cmd.Flags().Changed("provider"),
 		repositoryRemote:     flags.remote,
@@ -131,13 +121,12 @@ func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) rele
 		autoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
 		autoMergeMethod:      flags.autoMergeMethod,
 		autoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
+		targets:              append([]string(nil), flags.targets...),
 	}
 }
 
 type releaseRunOptions struct {
 	dryRun               bool
-	preview              bool
-	previewHashLength    int
 	provider             string
 	providerSet          bool
 	repositoryRemote     string
@@ -156,6 +145,7 @@ type releaseRunOptions struct {
 	autoMergeForceSet    bool
 	autoMergeMethod      string
 	autoMergeMethodSet   bool
+	targets              []string
 }
 
 func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
@@ -185,14 +175,17 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	r := release.New(cfg, p)
+	r, err := release.New(cfg, p)
+	if err != nil {
+		return wrapReleaseConfigError(configPath, err)
+	}
 
-	result, err := r.Release(ctx, options.dryRun, options.preview, options.previewHashLength)
+	result, err := r.ReleaseTargets(ctx, options.dryRun, options.targets)
 	if err != nil {
 		return wrapReleaseExecutionError(err)
 	}
 
-	if result.BumpType == commit.BumpNone {
+	if len(result.Plans) == 0 {
 		if result.Release != nil {
 			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Release.TagName)
 
@@ -230,10 +223,6 @@ func wrapReleaseConfigError(configPath string, err error) error {
 }
 
 func wrapReleaseExecutionError(err error) error {
-	if errors.Is(err, release.ErrInvalidPreviewHashLength) {
-		return fmt.Errorf("invalid release options: %w", err)
-	}
-
 	if errors.Is(err, provider.ErrMergeBlocked) {
 		return fmt.Errorf(
 			"release execution failed: merge blocked; resolve PR/MR readiness or use --auto-merge-force when appropriate: %w",
@@ -258,10 +247,6 @@ func logReleaseCommand(ctx context.Context, configPath string, options releaseRu
 		configPath,
 		"dry_run",
 		options.dryRun,
-		"preview",
-		options.preview,
-		"preview_hash_length",
-		options.previewHashLength,
 		"provider_override_set",
 		options.providerSet,
 		"remote_override_set",
@@ -274,6 +259,8 @@ func logReleaseCommand(ctx context.Context, configPath string, options releaseRu
 		options.repositoryRepoSet,
 		"project_override_set",
 		options.repositoryProjectSet,
+		"targets",
+		options.targets,
 	)
 }
 
@@ -366,12 +353,21 @@ func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) 
 
 func printDryRun(w io.Writer, result *release.Result) {
 	_, _ = fmt.Fprintln(w, "--- Dry Run ---")
-	_, _ = fmt.Fprintf(w, "Current version: %s\n", result.CurrentVersion)
-	_, _ = fmt.Fprintf(w, "Next version:    %s\n", result.NextVersion)
-	_, _ = fmt.Fprintf(w, "Next tag:        %s\n", result.NextTag)
-	_, _ = fmt.Fprintf(w, "Bump type:       %s\n", result.BumpType)
-	_, _ = fmt.Fprintf(w, "Commits:         %d\n", result.CommitCount)
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Changelog:")
-	_, _ = fmt.Fprintln(w, result.Changelog)
+	if len(result.Plans) == 0 {
+		_, _ = fmt.Fprintln(w, "No changed targets.")
+
+		return
+	}
+
+	for _, plan := range result.Plans {
+		_, _ = fmt.Fprintf(w, "Target:          %s\n", plan.ID)
+		_, _ = fmt.Fprintf(w, "Current version: %s\n", plan.CurrentVersion)
+		_, _ = fmt.Fprintf(w, "Next version:    %s\n", plan.NextVersion)
+		_, _ = fmt.Fprintf(w, "Next tag:        %s\n", plan.NextTag)
+		_, _ = fmt.Fprintf(w, "Bump type:       %s\n", plan.BumpType)
+		_, _ = fmt.Fprintf(w, "Commits:         %d\n", plan.CommitCount)
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "Changelog:")
+		_, _ = fmt.Fprintln(w, plan.Changelog)
+	}
 }

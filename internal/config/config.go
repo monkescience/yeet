@@ -5,7 +5,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"path"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v4"
@@ -49,12 +53,45 @@ type Config struct {
 	Versioning   VersioningStrategy `yaml:"versioning"`
 	Branch       string             `yaml:"branch"`
 	Provider     ProviderType       `yaml:"provider"`
-	TagPrefix    string             `yaml:"tag_prefix"`
+	TagPrefix    string             `yaml:"tag_prefix,omitempty"`
 	Repository   RepositoryConfig   `yaml:"repository"`
 	VersionFiles []string           `yaml:"version_files,omitempty"`
 	Release      ReleaseConfig      `yaml:"release"`
 	Changelog    ChangelogConfig    `yaml:"changelog"`
 	CalVer       CalVerConfig       `yaml:"calver"`
+	Targets      map[string]Target  `yaml:"targets,omitempty"`
+}
+
+type TargetType = string
+
+const (
+	TargetTypePath    TargetType = "path"
+	TargetTypeDerived TargetType = "derived"
+)
+
+type Target struct {
+	Type         TargetType         `yaml:"type"`
+	Path         string             `yaml:"path,omitempty"`
+	TagPrefix    string             `yaml:"tag_prefix,omitempty"`
+	Versioning   VersioningStrategy `yaml:"versioning,omitempty"`
+	VersionFiles []string           `yaml:"version_files,omitempty"`
+	Changelog    ChangelogConfig    `yaml:"changelog,omitempty"`
+	CalVer       CalVerConfig       `yaml:"calver,omitempty"`
+	ExcludePaths []string           `yaml:"exclude_paths,omitempty"`
+	Includes     []string           `yaml:"includes,omitempty"`
+}
+
+type ResolvedTarget struct {
+	ID           string
+	Type         TargetType
+	Path         string
+	TagPrefix    string
+	Versioning   VersioningStrategy
+	VersionFiles []string
+	Changelog    ChangelogConfig
+	CalVer       CalVerConfig
+	ExcludePaths []string
+	Includes     []string
 }
 
 type RepositoryConfig struct {
@@ -85,6 +122,10 @@ type CalVerConfig struct {
 }
 
 var ErrInvalidConfig = errors.New("invalid config")
+
+var ErrEmptyRepoPath = errors.New("must not be empty")
+
+var ErrPathMustBeRepoRelative = errors.New("must be repo-relative")
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
@@ -194,7 +235,441 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	_, err = c.ResolvedTargets()
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
+	targets := c.targetsOrLegacyDefault()
+	resolved := make(map[string]ResolvedTarget, len(targets))
+
+	for id, target := range targets {
+		resolvedTarget, err := c.resolveTarget(id, target)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exists := resolved[resolvedTarget.ID]; exists {
+			return nil, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
+		}
+
+		resolved[resolvedTarget.ID] = resolvedTarget
+	}
+
+	err := validateResolvedTargets(resolved)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolved, nil
+}
+
+func (c *Config) targetsOrLegacyDefault() map[string]Target {
+	if c.Targets != nil {
+		return c.Targets
+	}
+
+	return map[string]Target{
+		"default": {
+			Type:         TargetTypePath,
+			Path:         ".",
+			TagPrefix:    strings.TrimSpace(c.TagPrefix),
+			Versioning:   c.Versioning,
+			VersionFiles: slices.Clone(c.VersionFiles),
+			Changelog:    c.Changelog,
+			CalVer:       c.CalVer,
+		},
+	}
+}
+
+//nolint:funlen // Target resolution intentionally centralizes validation and defaulting.
+func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error) {
+	targetID := strings.TrimSpace(id)
+	if targetID == "" {
+		return ResolvedTarget{}, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
+	}
+
+	targetType := strings.TrimSpace(target.Type)
+	if targetType != TargetTypePath && targetType != TargetTypeDerived {
+		return ResolvedTarget{}, fmt.Errorf(
+			"%w: targets.%s.type must be %q or %q, got %q",
+			ErrInvalidConfig,
+			targetID,
+			TargetTypePath,
+			TargetTypeDerived,
+			target.Type,
+		)
+	}
+
+	resolved := ResolvedTarget{
+		ID:           targetID,
+		Type:         targetType,
+		TagPrefix:    strings.TrimSpace(target.TagPrefix),
+		Versioning:   firstVersioning(target.Versioning, c.Versioning),
+		VersionFiles: resolveVersionFiles(target.VersionFiles, c.VersionFiles),
+		Changelog:    mergeChangelogConfig(c.Changelog, target.Changelog),
+		CalVer:       mergeCalVerConfig(c.CalVer, target.CalVer),
+		ExcludePaths: make([]string, 0, len(target.ExcludePaths)),
+		Includes:     normalizeTargetIDs(target.Includes),
+	}
+
+	if resolved.TagPrefix == "" {
+		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
+	}
+
+	if resolved.Changelog.File == "" {
+		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.file must not be empty", ErrInvalidConfig, targetID)
+	}
+
+	if len(resolved.Changelog.Include) == 0 {
+		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
+	}
+
+	for _, path := range resolved.VersionFiles {
+		if strings.TrimSpace(path) == "" {
+			return ResolvedTarget{}, fmt.Errorf(
+				"%w: targets.%s.version_files must not contain empty paths",
+				ErrInvalidConfig,
+				targetID,
+			)
+		}
+	}
+
+	if targetType == TargetTypePath || strings.TrimSpace(target.Path) != "" {
+		normalizedPath, err := normalizeRepoPath(target.Path)
+		if err != nil {
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path %w", ErrInvalidConfig, targetID, err)
+		}
+
+		resolved.Path = normalizedPath
+	}
+
+	for _, excludePath := range target.ExcludePaths {
+		normalizedExcludePath, err := normalizeRepoPath(excludePath)
+		if err != nil {
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.exclude_paths contains %w", ErrInvalidConfig, targetID, err)
+		}
+
+		resolved.ExcludePaths = append(resolved.ExcludePaths, normalizedExcludePath)
+	}
+
+	if resolved.Path != "." {
+		for _, excludePath := range resolved.ExcludePaths {
+			if !RepoPathContains(resolved.Path, excludePath) {
+				return ResolvedTarget{}, fmt.Errorf(
+					"%w: targets.%s.exclude_paths entry %q must be inside %q",
+					ErrInvalidConfig,
+					targetID,
+					excludePath,
+					resolved.Path,
+				)
+			}
+		}
+	}
+
+	if targetType == TargetTypePath {
+		if resolved.Path == "" {
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path must not be empty", ErrInvalidConfig, targetID)
+		}
+
+		if len(resolved.Includes) > 0 {
+			return ResolvedTarget{}, fmt.Errorf(
+				"%w: targets.%s.includes is only valid for derived targets",
+				ErrInvalidConfig,
+				targetID,
+			)
+		}
+	}
+
+	if targetType == TargetTypeDerived {
+		if len(resolved.Includes) == 0 {
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, targetID)
+		}
+	}
+
+	return resolved, nil
+}
+
+func normalizeTargetIDs(ids []string) []string {
+	normalizedIDs := make([]string, 0, len(ids))
+
+	for _, id := range ids {
+		normalizedIDs = append(normalizedIDs, strings.TrimSpace(id))
+	}
+
+	return normalizedIDs
+}
+
+//nolint:funlen // Cross-target validation is easier to review in one place.
+func validateResolvedTargets(targets map[string]ResolvedTarget) error {
+	if len(targets) == 0 {
+		return fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
+	}
+
+	tagPrefixes := make(map[string]string, len(targets))
+
+	for id, target := range targets {
+		if otherID, exists := tagPrefixes[target.TagPrefix]; exists {
+			return fmt.Errorf(
+				"%w: targets.%s.tag_prefix %q duplicates targets.%s.tag_prefix",
+				ErrInvalidConfig,
+				id,
+				target.TagPrefix,
+				otherID,
+			)
+		}
+
+		tagPrefixes[target.TagPrefix] = id
+	}
+
+	for id, target := range targets {
+		if target.Type != TargetTypeDerived {
+			continue
+		}
+
+		for _, includeID := range target.Includes {
+			normalizedIncludeID := strings.TrimSpace(includeID)
+
+			includedTarget, exists := targets[normalizedIncludeID]
+			if !exists {
+				return fmt.Errorf(
+					"%w: targets.%s.includes entry %q does not refer to a defined target",
+					ErrInvalidConfig,
+					id,
+					normalizedIncludeID,
+				)
+			}
+
+			if includedTarget.Type != TargetTypePath {
+				return fmt.Errorf(
+					"%w: targets.%s.includes entry %q must refer to a path target in v1",
+					ErrInvalidConfig,
+					id,
+					normalizedIncludeID,
+				)
+			}
+		}
+	}
+
+	directTargets := make([]ResolvedTarget, 0, len(targets))
+	for _, target := range targets {
+		if target.Path == "" {
+			continue
+		}
+
+		directTargets = append(directTargets, target)
+	}
+
+	for leftIdx := range directTargets {
+		leftTarget := directTargets[leftIdx]
+
+		for rightIdx := leftIdx + 1; rightIdx < len(directTargets); rightIdx++ {
+			rightTarget := directTargets[rightIdx]
+
+			if !directTargetsOverlap(leftTarget, rightTarget) {
+				continue
+			}
+
+			return fmt.Errorf(
+				"%w: direct path ownership overlaps between targets.%s and targets.%s",
+				ErrInvalidConfig,
+				leftTarget.ID,
+				rightTarget.ID,
+			)
+		}
+	}
+
+	err := validateResolvedTargetVersionFileOwnership(targets)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateResolvedTargetVersionFileOwnership(targets map[string]ResolvedTarget) error {
+	targetIDs := make([]string, 0, len(targets))
+	for id := range targets {
+		targetIDs = append(targetIDs, id)
+	}
+
+	slices.Sort(targetIDs)
+
+	versionFileOwners := make(map[string]string)
+
+	for _, id := range targetIDs {
+		target := targets[id]
+		for _, versionFilePath := range target.VersionFiles {
+			normalizedVersionFilePath := strings.TrimSpace(versionFilePath)
+
+			otherID, exists := versionFileOwners[normalizedVersionFilePath]
+			if exists && otherID != id {
+				return fmt.Errorf(
+					"%w: targets.%s.version_files entry %q duplicates targets.%s.version_files entry",
+					ErrInvalidConfig,
+					id,
+					normalizedVersionFilePath,
+					otherID,
+				)
+			}
+
+			versionFileOwners[normalizedVersionFilePath] = id
+		}
+	}
+
+	return nil
+}
+
+func directTargetsOverlap(leftTarget, rightTarget ResolvedTarget) bool {
+	if leftTarget.Path == "" || rightTarget.Path == "" {
+		return false
+	}
+
+	samplePath := overlappingSamplePath(leftTarget.Path, rightTarget.Path)
+	if samplePath == "" {
+		return false
+	}
+
+	return targetOwnsPath(leftTarget, samplePath) && targetOwnsPath(rightTarget, samplePath)
+}
+
+func overlappingSamplePath(leftPath, rightPath string) string {
+	if RepoPathContains(leftPath, rightPath) {
+		return rightPath
+	}
+
+	if RepoPathContains(rightPath, leftPath) {
+		return leftPath
+	}
+
+	return ""
+}
+
+func targetOwnsPath(target ResolvedTarget, candidate string) bool {
+	if !RepoPathContains(target.Path, candidate) {
+		return false
+	}
+
+	for _, excludePath := range target.ExcludePaths {
+		if RepoPathContains(excludePath, candidate) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RepoPathContains reports whether candidatePath is inside basePath using
+// repo-relative forward-slash semantics. A basePath of "." contains everything.
+func RepoPathContains(basePath, candidatePath string) bool {
+	if basePath == "." {
+		return true
+	}
+
+	if candidatePath == basePath {
+		return true
+	}
+
+	return strings.HasPrefix(candidatePath, basePath+"/")
+}
+
+func normalizeRepoPath(rawPath string) (string, error) {
+	trimmedPath := strings.TrimSpace(rawPath)
+	if trimmedPath == "" {
+		return "", ErrEmptyRepoPath
+	}
+
+	if isRepoPathAbsolute(trimmedPath) {
+		return "", ErrPathMustBeRepoRelative
+	}
+
+	normalizedPath := filepath.ToSlash(trimmedPath)
+	if path.IsAbs(normalizedPath) {
+		return "", ErrPathMustBeRepoRelative
+	}
+
+	normalizedPath = path.Clean(normalizedPath)
+	if normalizedPath == "." {
+		return ".", nil
+	}
+
+	if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
+		return "", ErrPathMustBeRepoRelative
+	}
+
+	return normalizedPath, nil
+}
+
+func isRepoPathAbsolute(rawPath string) bool {
+	const windowsDrivePrefixLength = 3
+
+	if filepath.IsAbs(rawPath) {
+		return true
+	}
+
+	normalizedPath := filepath.ToSlash(rawPath)
+	if len(normalizedPath) < windowsDrivePrefixLength {
+		return false
+	}
+
+	if normalizedPath[1] != ':' || normalizedPath[2] != '/' {
+		return false
+	}
+
+	return (normalizedPath[0] >= 'A' && normalizedPath[0] <= 'Z') ||
+		(normalizedPath[0] >= 'a' && normalizedPath[0] <= 'z')
+}
+
+func firstVersioning(values ...VersioningStrategy) VersioningStrategy {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+
+	return VersioningSemver
+}
+
+func resolveVersionFiles(overridePaths, defaultPaths []string) []string {
+	if len(overridePaths) > 0 {
+		return slices.Clone(overridePaths)
+	}
+
+	return slices.Clone(defaultPaths)
+}
+
+func mergeChangelogConfig(defaultConfig, overrideConfig ChangelogConfig) ChangelogConfig {
+	merged := defaultConfig
+
+	if overrideConfig.File != "" {
+		merged.File = overrideConfig.File
+	}
+
+	if len(overrideConfig.Include) > 0 {
+		merged.Include = slices.Clone(overrideConfig.Include)
+	}
+
+	if len(overrideConfig.Sections) > 0 {
+		merged.Sections = make(map[string]string, len(defaultConfig.Sections)+len(overrideConfig.Sections))
+		maps.Copy(merged.Sections, defaultConfig.Sections)
+		maps.Copy(merged.Sections, overrideConfig.Sections)
+	}
+
+	return merged
+}
+
+func mergeCalVerConfig(defaultConfig, overrideConfig CalVerConfig) CalVerConfig {
+	merged := defaultConfig
+
+	if overrideConfig.Format != "" {
+		merged.Format = overrideConfig.Format
+	}
+
+	return merged
 }
 
 func validateRepositoryConfig(provider ProviderType, repository RepositoryConfig) error {

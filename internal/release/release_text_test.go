@@ -16,7 +16,7 @@ func TestReleasePRBody(t *testing.T) {
 		t.Parallel()
 
 		// given: releaser with default config
-		r := New(config.Default(), newProviderStub())
+		r := newTestReleaser(t, config.Default(), newProviderStub())
 		changelogBody := "## v1.2.4 (2026-03-01)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
 
 		// when: building PR body
@@ -41,7 +41,7 @@ func TestReleasePRBody(t *testing.T) {
 		cfg.Release.PRBodyHeader = "Header"
 		cfg.Release.PRBodyFooter = "Footer"
 
-		r := New(cfg, newProviderStub())
+		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
 		body := r.releasePRBody("## v1.2.4", "v1.2.4")
@@ -58,13 +58,177 @@ func TestReleasePRBody(t *testing.T) {
 		cfg.Release.PRBodyHeader = ""
 		cfg.Release.PRBodyFooter = ""
 
-		r := New(cfg, newProviderStub())
+		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
 		body := r.releasePRBody("## v1.2.4\n", "v1.2.4")
 
 		// then: body is the changelog without extra sections
 		testastic.Equal(t, "## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->", body)
+	})
+}
+
+func TestCombinedPRChangelog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("single target preserves existing changelog format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a single target release result
+		r := newTestReleaser(t, config.Default(), newProviderStub())
+		prChangelog := strings.TrimSpace(`## [v1.2.4](https://example.com/compare/v1.2.3...abc1234) (2026-03-21)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+`) + "\n"
+
+		result := &Result{
+			BaseBranch: "main",
+			Plans: []TargetPlan{{
+				ID:          "default",
+				Type:        "path",
+				PRChangelog: prChangelog,
+			}},
+		}
+
+		// when: rendering the combined PR changelog
+		body := r.combinedPRChangelog(result)
+
+		// then: the single-target changelog stays unchanged
+		testastic.Equal(t, prChangelog, body)
+	})
+
+	t.Run("multi target includes wave summary and detailed target sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a multi-target release wave with a derived root target
+		r := newTestReleaser(t, config.Default(), newProviderStub())
+		result := &Result{
+			BaseBranch: "main",
+			Plans: []TargetPlan{
+				{
+					ID:             "api",
+					Type:           "path",
+					CurrentVersion: "1.2.0",
+					NextVersion:    "1.3.0",
+					NextTag:        "api-v1.3.0",
+					BumpType:       "minor",
+					PRChangelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...abc1234) (2026-03-21)
+
+### Features
+
+- add token rotation (abc1234)
+`),
+				},
+				{
+					ID:             "web",
+					Type:           "path",
+					CurrentVersion: "2.1.3",
+					NextVersion:    "2.1.4",
+					NextTag:        "web-v2.1.4",
+					BumpType:       "patch",
+					PRChangelog: strings.TrimSpace(`## [web-v2.1.4](https://example.com/compare/web-v2.1.3...def5678) (2026-03-21)
+
+### Bug Fixes
+
+- fix dashboard filters (def5678)
+`),
+				},
+				{
+					ID:              "root",
+					Type:            "derived",
+					CurrentVersion:  "2.9.0",
+					NextVersion:     "3.0.0",
+					NextTag:         "v3.0.0",
+					BumpType:        "major",
+					IncludedTargets: []string{"api", "web"},
+					PRChangelog: strings.TrimSpace(`## [v3.0.0](https://example.com/compare/v2.9.0...9876abc) (2026-03-21)
+
+### Documentation
+
+- update README install steps (9876abc)
+
+### api
+
+### Features
+
+- add token rotation (abc1234)
+
+### web
+
+### Bug Fixes
+
+- fix dashboard filters (def5678)
+`),
+				},
+			},
+		}
+
+		// when: rendering the combined PR changelog
+		body := r.combinedPRChangelog(result)
+
+		// then: the output matches the expected multi-target release wave markdown
+		testastic.AssertFile(t, "testdata/combined_pr_changelog_multi_target.expected.md", body)
+	})
+
+	t.Run("derived target preserves embedded child sections when some child plans are omitted", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release wave whose derived target embeds an analyzed child that is not emitted as its own plan
+		r := newTestReleaser(t, config.Default(), newProviderStub())
+		result := &Result{
+			BaseBranch: "main",
+			Plans: []TargetPlan{
+				{
+					ID:             "api",
+					Type:           "path",
+					CurrentVersion: "1.2.0",
+					NextVersion:    "1.3.0",
+					NextTag:        "api-v1.3.0",
+					BumpType:       "minor",
+					PRChangelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...abc1234) (2026-03-21)
+
+### Features
+
+- add token rotation (abc1234)
+`),
+				},
+				{
+					ID:              "root",
+					Type:            "derived",
+					CurrentVersion:  "2.9.0",
+					NextVersion:     "3.0.0",
+					NextTag:         "v3.0.0",
+					BumpType:        "major",
+					IncludedTargets: []string{"api", "web"},
+					PRChangelog: strings.TrimSpace(`## [v3.0.0](https://example.com/compare/v2.9.0...9876abc) (2026-03-21)
+
+### Documentation
+
+- update README install steps (9876abc)
+
+### api
+
+### Features
+
+- add token rotation (abc1234)
+
+### web
+
+### Bug Fixes
+
+- fix dashboard filters (def5678)
+`),
+				},
+			},
+		}
+
+		// when: rendering the combined PR changelog for the mixed release wave
+		body := r.combinedPRChangelog(result)
+
+		// then: the output matches the expected derived-target markdown with embedded child sections
+		testastic.AssertFile(t, "testdata/combined_pr_changelog_embedded_children.expected.md", body)
 	})
 }
 

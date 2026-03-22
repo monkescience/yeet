@@ -6,9 +6,22 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"testing"
 
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
+
+func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies) *Releaser {
+	t.Helper()
+
+	r, err := New(cfg, deps)
+	if err != nil {
+		t.Fatalf("New() returned unexpected error: %v", err)
+	}
+
+	return r
+}
 
 type fileUpdate struct {
 	branch  string
@@ -111,7 +124,9 @@ func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 	return refs, nil
 }
 
-func (s *versionHistoryStub) GetCommitsSince(_ context.Context, ref, branch string) ([]provider.CommitEntry, error) {
+func (s *versionHistoryStub) GetCommitsSince(
+	_ context.Context, ref, branch string, _ bool,
+) ([]provider.CommitEntry, error) {
 	s.getCommitsSinceOf = append(s.getCommitsSinceOf, ref)
 	s.getCommitsSinceBranches = append(s.getCommitsSinceBranches, branch)
 

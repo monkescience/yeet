@@ -569,6 +569,16 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 				resolveCalls.Add(1)
 
 				writeJSON(t, w, map[string]any{"sha": "base-sha"})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-1",
+					"files": []map[string]any{{"filename": "services/api/main.go"}},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-2":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-2",
+					"files": []map[string]any{{"filename": "services/api/http.go"}},
+				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
 				listCalls.Add(1)
 
@@ -608,7 +618,7 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), ref, branch)
+		entries, err := gh.GetCommitsSince(context.Background(), ref, branch, true)
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, int32(1), resolveCalls.Load())
@@ -631,6 +641,16 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+ref:
 				writeJSON(t, w, map[string]any{"sha": "base-sha"})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-1",
+					"files": []map[string]any{{"filename": "services/api/main.go"}},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-2":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-2",
+					"files": []map[string]any{{"filename": "services/api/http.go"}},
+				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
 				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
 				writeJSON(t, w, []map[string]any{
@@ -648,7 +668,7 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), ref, branch)
+		entries, err := gh.GetCommitsSince(context.Background(), ref, branch, true)
 
 		testastic.Error(t, err)
 		testastic.Equal(t, 0, len(entries))
@@ -669,6 +689,16 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-1",
+					"files": []map[string]any{{"filename": "services/api/main.go"}},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-2":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-2",
+					"files": []map[string]any{{"filename": "services/api/http.go"}},
+				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
 				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
 				writeJSON(t, w, []map[string]any{
@@ -686,12 +716,84 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), "", branch)
+		entries, err := gh.GetCommitsSince(context.Background(), "", branch, true)
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+	})
+
+	t.Run("collects changed files across commit detail pages", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub commit whose changed files span multiple commit detail pages
+		const branch = "release/main"
+
+		var server *httptest.Server
+
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
+				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
+
+				switch r.URL.Query().Get("page") {
+				case "":
+					w.Header().Set(
+						"Link",
+						fmt.Sprintf(
+							`<%s/repos/o/r/commits/head-1?per_page=100&page=2>; rel="next"`,
+							server.URL,
+						),
+					)
+
+					writeJSON(t, w, map[string]any{
+						"sha": "head-1",
+						"files": []map[string]any{
+							{"filename": "services/api/main.go"},
+							{"previous_filename": "services/api/legacy.go"},
+						},
+					})
+				case "2":
+					writeJSON(t, w, map[string]any{
+						"sha": "head-1",
+						"files": []map[string]any{
+							{"filename": "services/api/http.go"},
+							{"filename": "services/api/main.go"},
+						},
+					})
+				default:
+					t.Fatalf("unexpected GitHub commit detail page: %s", r.URL.RawQuery)
+				}
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
+
+				writeJSON(t, w, []map[string]any{{
+					"sha":    "head-1",
+					"commit": map[string]any{"message": "feat: add API"},
+				}})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: listing commits for the branch
+		entries, err := gh.GetCommitsSince(context.Background(), "", branch, true)
+
+		// then: all changed paths from every commit detail page are collected once
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(entries))
+		testastic.SliceEqual(
+			t,
+			[]string{"services/api/main.go", "services/api/legacy.go", "services/api/http.go"},
+			entries[0].Paths,
+		)
 	})
 }
 
@@ -712,6 +814,10 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case isGitLabCommitDiffRequest(r, "head-1"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
+			case isGitLabCommitDiffRequest(r, "head-2"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/http.go", "old_path": "services/api/http.go"}})
 			case isGitLabCommitResolveRequest(r):
 				resolveCalls.Add(1)
 
@@ -753,7 +859,7 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), ref, branch)
+		entries, err := gl.GetCommitsSince(context.Background(), ref, branch, true)
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, int32(1), resolveCalls.Load())
@@ -774,6 +880,10 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case isGitLabCommitDiffRequest(r, "head-1"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
+			case isGitLabCommitDiffRequest(r, "head-2"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/http.go", "old_path": "services/api/http.go"}})
 			case isGitLabCommitResolveRequest(r):
 				writeJSON(t, w, map[string]any{"id": "base-sha"})
 			case isGitLabCommitsListRequest(r):
@@ -798,7 +908,7 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), ref, branch)
+		entries, err := gl.GetCommitsSince(context.Background(), ref, branch, true)
 
 		testastic.Error(t, err)
 		testastic.Equal(t, 0, len(entries))
@@ -819,6 +929,10 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case isGitLabCommitDiffRequest(r, "head-1"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
+			case isGitLabCommitDiffRequest(r, "head-2"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/http.go", "old_path": "services/api/http.go"}})
 			case isGitLabCommitsListRequest(r):
 				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
 				writeJSON(t, w, []map[string]any{
@@ -841,12 +955,79 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), "", branch)
+		entries, err := gl.GetCommitsSince(context.Background(), "", branch, true)
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+	})
+
+	t.Run("collects changed files across commit diff pages", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab commit whose diff spans multiple pages
+		const branch = "release/main"
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case isGitLabCommitDiffRequest(r, "head-1"):
+				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
+
+				switch r.URL.Query().Get("page") {
+				case "":
+					w.Header().Set("X-Next-Page", "2")
+					writeJSON(t, w, []map[string]any{
+						{"new_path": "services/api/main.go", "old_path": "services/api/main.go"},
+						{"new_path": "services/api/legacy.go", "old_path": "services/api/legacy_old.go"},
+					})
+				case "2":
+					writeJSON(t, w, []map[string]any{
+						{"new_path": "services/api/http.go", "old_path": "services/api/http.go"},
+						{"new_path": "services/api/main.go", "old_path": "services/api/main.go"},
+					})
+				default:
+					t.Fatalf("unexpected GitLab commit diff page: %s", r.URL.RawQuery)
+				}
+			case isGitLabCommitsListRequest(r):
+				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
+
+				writeJSON(t, w, []map[string]any{{
+					"id":      "head-1",
+					"message": "feat: add API",
+				}})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: listing commits for the branch
+		entries, err := gl.GetCommitsSince(context.Background(), "", branch, true)
+
+		// then: all changed paths from every diff page are collected once
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(entries))
+		testastic.SliceEqual(
+			t,
+			[]string{
+				"services/api/main.go",
+				"services/api/legacy.go",
+				"services/api/legacy_old.go",
+				"services/api/http.go",
+			},
+			entries[0].Paths,
+		)
 	})
 }
 
@@ -989,6 +1170,11 @@ func isGitLabCommitResolveRequest(r *http.Request) bool {
 func isGitLabCommitsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits"
+}
+
+func isGitLabCommitDiffRequest(r *http.Request, commitID string) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits/"+commitID+"/diff"
 }
 
 func isGitHubCreateReleaseRequest(r *http.Request) bool {

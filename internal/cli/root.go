@@ -60,7 +60,6 @@ autorelease: pending by creating the provider release and relabeling them as
 autorelease: tagged.`,
 		Example: `  yeet init
   yeet release --dry-run
-  yeet release --preview --dry-run
   yeet release --auto-merge`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
