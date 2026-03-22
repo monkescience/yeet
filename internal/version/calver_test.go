@@ -62,6 +62,32 @@ func TestCalVerCurrent(t *testing.T) {
 	})
 }
 
+func TestCalVerTag(t *testing.T) {
+	t.Parallel()
+
+	// given: a calver strategy with a prefix
+	cv := &version.CalVer{Prefix: "v"}
+
+	// when: formatting a version as a tag
+	tag := cv.Tag("2026.02.1")
+
+	// then: prefix is prepended
+	testastic.Equal(t, "v2026.02.1", tag)
+}
+
+func TestCalVerInitialVersion(t *testing.T) {
+	t.Parallel()
+
+	// given: a calver strategy
+	cv := &version.CalVer{Prefix: "v"}
+
+	// when: requesting the initial version
+	initial := cv.InitialVersion()
+
+	// then: empty string since calver starts from current date
+	testastic.Equal(t, "", initial)
+}
+
 func TestCalVerNext(t *testing.T) {
 	t.Parallel()
 

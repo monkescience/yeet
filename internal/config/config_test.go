@@ -382,6 +382,58 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
 	})
 
+	t.Run("github project in valid owner repo form passes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: explicit github provider with a valid two-segment project
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Project = "owner/repo"
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: no error
+		testastic.NoError(t, err)
+	})
+
+	t.Run("github project with empty owner segment fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: explicit github provider with an empty owner segment
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Project = "/repo"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+	})
+
+	t.Run("github project with empty repo segment fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: explicit github provider with an empty repo segment
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Project = "owner/"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+	})
+
 	t.Run("empty repository remote fails", func(t *testing.T) {
 		t.Parallel()
 

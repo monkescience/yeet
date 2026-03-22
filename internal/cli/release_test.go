@@ -1,6 +1,7 @@
 package cli //nolint:testpackage // validates unexported release helpers directly
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/release"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -380,6 +383,121 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 		testastic.ErrorContains(t, err, "release execution failed: merge blocked")
 		testastic.ErrorContains(t, err, "--auto-merge-force")
+	})
+
+	t.Run("multiple pending PRs advises cleanup", func(t *testing.T) {
+		// given: multiple pending release PRs found
+		err := wrapReleaseExecutionError(fmt.Errorf("%w: found 2", release.ErrMultiplePendingReleasePRs))
+
+		// then: the message advises closing stale entries
+		testastic.ErrorIs(t, err, release.ErrMultiplePendingReleasePRs)
+		testastic.ErrorContains(t, err, "multiple pending release PRs/MRs found")
+	})
+
+	t.Run("generic error wraps with execution prefix", func(t *testing.T) {
+		// given: an unrecognized error
+		err := wrapReleaseExecutionError(errors.New("unexpected failure"))
+
+		// then: the message wraps with the generic prefix
+		testastic.ErrorContains(t, err, "release execution failed: unexpected failure")
+	})
+}
+
+func TestPrintDryRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("prints plan details", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a result with one plan
+		result := &release.Result{
+			Plans: []release.TargetPlan{
+				{
+					ID:             "default",
+					CurrentVersion: "1.0.0",
+					NextVersion:    "1.1.0",
+					NextTag:        "v1.1.0",
+					BumpType:       commit.BumpMinor,
+					CommitCount:    3,
+					Changelog:      "### Features\n\n- something new\n",
+				},
+			},
+		}
+
+		var buf bytes.Buffer
+
+		// when: printing the dry run
+		printDryRun(&buf, result)
+
+		// then: output contains plan fields
+		output := buf.String()
+		testastic.Contains(t, output, "--- Dry Run ---")
+		testastic.Contains(t, output, "Target:          default")
+		testastic.Contains(t, output, "Current version: 1.0.0")
+		testastic.Contains(t, output, "Next version:    1.1.0")
+		testastic.Contains(t, output, "Next tag:        v1.1.0")
+		testastic.Contains(t, output, "Bump type:       minor")
+		testastic.Contains(t, output, "Commits:         3")
+		testastic.Contains(t, output, "Changelog:")
+		testastic.Contains(t, output, "### Features")
+	})
+
+	t.Run("prints no changed targets for empty plans", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a result with no plans
+		result := &release.Result{}
+
+		var buf bytes.Buffer
+
+		// when: printing the dry run
+		printDryRun(&buf, result)
+
+		// then: output indicates no changes
+		output := buf.String()
+		testastic.Contains(t, output, "No changed targets.")
+	})
+}
+
+func TestApplyReleaseBehaviorOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auto merge force implies auto merge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with auto merge disabled and force enabled via options
+		cfg := config.Default()
+		cfg.Release.AutoMerge = false
+
+		options := releaseRunOptions{
+			autoMergeForceSet: true,
+			autoMergeForce:    true,
+		}
+
+		// when: applying options
+		applyReleaseBehaviorOptions(cfg, options)
+
+		// then: auto merge is enabled by force
+		testastic.True(t, cfg.Release.AutoMerge)
+		testastic.True(t, cfg.Release.AutoMergeForce)
+	})
+
+	t.Run("auto merge method is set", func(t *testing.T) {
+		t.Parallel()
+
+		// given: options specifying a merge method
+		cfg := config.Default()
+
+		options := releaseRunOptions{
+			autoMergeMethodSet: true,
+			autoMergeMethod:    config.AutoMergeMethodSquash,
+		}
+
+		// when: applying options
+		applyReleaseBehaviorOptions(cfg, options)
+
+		// then: merge method is applied
+		testastic.Equal(t, config.AutoMergeMethodSquash, cfg.Release.AutoMergeMethod)
 	})
 }
 

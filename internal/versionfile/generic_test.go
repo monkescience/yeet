@@ -113,4 +113,60 @@ func TestApplyGenericMarkers(t *testing.T) {
 		expected := "# x-yeet-start-month\nmonth = 03\nwindow = 03\n# x-yeet-end\noutside = 99"
 		testastic.Equal(t, expected, updated)
 	})
+
+	t.Run("version with too few parts leaves scoped markers unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: scoped markers but a version with only two parts
+		content := "MAJOR=1 # x-yeet-major\nMINOR=2 # x-yeet-minor\nPATCH=3 # x-yeet-patch"
+
+		// when: applying marker replacements with a two-part version
+		updated, changed := versionfile.ApplyGenericMarkers(content, "1.2")
+
+		// then: content is unchanged since splitVersion returns empty parts
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
+	t.Run("version with prerelease suffix strips suffix for patch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an inline patch marker with a different patch value
+		content := "PATCH=1 # x-yeet-patch"
+
+		// when: applying marker replacements with a prerelease version
+		updated, changed := versionfile.ApplyGenericMarkers(content, "1.2.3-rc.1")
+
+		// then: patch value is the numeric part only, suffix stripped
+		testastic.True(t, changed)
+		testastic.Equal(t, "PATCH=3 # x-yeet-patch", updated)
+	})
+
+	t.Run("no numeric match in scoped line is unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a major marker on a line with no numeric value
+		content := "name = \"app\" # x-yeet-major"
+
+		// when: applying marker replacements
+		updated, changed := versionfile.ApplyGenericMarkers(content, "2.0.0")
+
+		// then: line is unchanged since no numeric pattern matches for replacement
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
+	t.Run("empty content returns unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: empty content
+		content := ""
+
+		// when: applying marker replacements
+		updated, changed := versionfile.ApplyGenericMarkers(content, "1.0.0")
+
+		// then: nothing changes
+		testastic.False(t, changed)
+		testastic.Equal(t, "", updated)
+	})
 }

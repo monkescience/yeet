@@ -114,6 +114,27 @@ func TestGenerate(t *testing.T) {
 		testastic.Contains(t, entry.Body, "revert add new endpoint")
 	})
 
+	t.Run("uses capitalizeFirst fallback for unmapped commit type", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator where "perf" is included but has no Sections mapping
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat", "perf"},
+		}
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "perf", Description: "speed up query"},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: section header uses capitalized type name
+		testastic.Contains(t, entry.Body, "### Perf")
+		testastic.Contains(t, entry.Body, "speed up query")
+	})
+
 	t.Run("empty commits", func(t *testing.T) {
 		t.Parallel()
 

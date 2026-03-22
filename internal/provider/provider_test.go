@@ -1403,6 +1403,801 @@ func TestGitLabCreateBranch(t *testing.T) {
 	})
 }
 
+func TestGitHubPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub provider
+	client := githubapi.NewClient(nil)
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: requesting the path prefix
+	prefix := gh.PathPrefix()
+
+	// then: GitHub has no path prefix
+	testastic.Equal(t, "", prefix)
+}
+
+func TestGitLabPathPrefix(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab provider
+	client, err := gitlabapi.NewClient("", gitlabapi.WithoutRetries())
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: requesting the path prefix
+	prefix := gl.PathPrefix()
+
+	// then: GitLab uses /-  path prefix
+	testastic.Equal(t, "/-", prefix)
+}
+
+func TestGitHubCreateReleasePR(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub API that creates a pull request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls":
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(t, w, map[string]any{
+				"number":   42,
+				"title":    "chore: release v1.0.0",
+				"body":     "release body",
+				"html_url": "https://github.com/o/r/pull/42",
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: creating a release PR
+	pr, err := gh.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+		Title:         "chore: release v1.0.0",
+		Body:          "release body",
+		ReleaseBranch: "yeet/release-main",
+		BaseBranch:    "main",
+	})
+
+	// then: the PR is returned with correct fields
+	testastic.NoError(t, err)
+	testastic.Equal(t, 42, pr.Number)
+	testastic.Equal(t, "chore: release v1.0.0", pr.Title)
+	testastic.Equal(t, "yeet/release-main", pr.Branch)
+}
+
+func TestGitHubUpdateReleasePR(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub API that updates a pull request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPatch && r.URL.Path == "/repos/o/r/pulls/42":
+			writeJSON(t, w, map[string]any{
+				"number": 42,
+				"title":  "chore: release v1.1.0",
+				"body":   "updated body",
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: updating the release PR
+	err := gh.UpdateReleasePR(context.Background(), 42, provider.ReleasePROptions{
+		Title: "chore: release v1.1.0",
+		Body:  "updated body",
+	})
+
+	// then: no error
+	testastic.NoError(t, err)
+}
+
+func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finds pending release PRs", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitHub returns open PRs with one matching release branch and pending label
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
+				writeJSON(t, w, []map[string]any{
+					{
+						"number":   10,
+						"title":    "chore: release v2.0.0",
+						"body":     "pr body",
+						"html_url": "https://github.com/o/r/pull/10",
+						"head":     map[string]any{"ref": "yeet/release-main"},
+						"labels": []map[string]any{
+							{"name": provider.ReleaseLabelPending},
+						},
+					},
+					{
+						"number":   11,
+						"title":    "other pr",
+						"body":     "",
+						"html_url": "https://github.com/o/r/pull/11",
+						"head":     map[string]any{"ref": "feature/something"},
+						"labels":   []map[string]any{},
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: finding open pending release PRs
+		prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main")
+
+		// then: only the release PR with pending label is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(prs))
+		testastic.Equal(t, 10, prs[0].Number)
+		testastic.Equal(t, "yeet/release-main", prs[0].Branch)
+	})
+}
+
+func TestGitHubGetFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns file content", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub API that returns file content
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/contents/VERSION.txt":
+				writeJSON(t, w, map[string]any{
+					"type":     "file",
+					"encoding": "base64",
+					"content":  "MS4yLjM=", // base64 of "1.2.3"
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: getting a file
+		content, err := gh.GetFile(context.Background(), "main", "VERSION.txt")
+
+		// then: decoded content is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.3", content)
+	})
+
+	t.Run("returns ErrFileNotFound for missing file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub API that returns 404
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			writeJSON(t, w, map[string]any{"message": "Not Found"})
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: getting a missing file
+		_, err := gh.GetFile(context.Background(), "main", "MISSING.txt")
+
+		// then: ErrFileNotFound is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+	})
+}
+
+func TestGitHubEnsureLabel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates label when not found", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub API where the label does not exist
+		var created atomic.Bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/labels/"):
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "Not Found"})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/labels":
+				created.Store(true)
+				w.WriteHeader(http.StatusCreated)
+				writeJSON(t, w, map[string]any{"name": provider.ReleaseLabelPending})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/1/labels":
+				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelPending}})
+			case r.Method == http.MethodDelete:
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "Not Found"})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: marking a PR as pending (triggers ensureReleaseLabels)
+		err := gh.MarkReleasePRPending(context.Background(), 1)
+
+		// then: labels are created and no error is returned
+		testastic.NoError(t, err)
+		testastic.True(t, created.Load())
+	})
+}
+
+func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auto selects squash when enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that allows squash merge
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1":
+				writeJSON(t, w, map[string]any{
+					"number":          1,
+					"state":           "open",
+					"merged":          false,
+					"draft":           false,
+					"mergeable_state": "clean",
+					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+				writeJSON(t, w, map[string]any{
+					"allow_squash_merge": true,
+					"allow_rebase_merge": false,
+					"allow_merge_commit": false,
+				})
+			case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/1/merge":
+				writeJSON(t, w, map[string]any{"merged": true, "sha": "def456"})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: merging with auto method
+		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: no error
+		testastic.NoError(t, err)
+	})
+
+	t.Run("rejects disabled merge method", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that only allows merge commits
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1":
+				writeJSON(t, w, map[string]any{
+					"number":          1,
+					"state":           "open",
+					"merged":          false,
+					"draft":           false,
+					"mergeable_state": "clean",
+					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+				writeJSON(t, w, map[string]any{
+					"allow_squash_merge": false,
+					"allow_rebase_merge": false,
+					"allow_merge_commit": true,
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: merging with squash method (which is disabled)
+		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodSquash,
+		})
+
+		// then: merge is blocked because squash is disabled
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	})
+
+	t.Run("auto falls back to rebase when squash disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that allows only rebase
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1":
+				writeJSON(t, w, map[string]any{
+					"number":          1,
+					"state":           "open",
+					"merged":          false,
+					"draft":           false,
+					"mergeable_state": "clean",
+					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+				writeJSON(t, w, map[string]any{
+					"allow_squash_merge": false,
+					"allow_rebase_merge": true,
+					"allow_merge_commit": false,
+				})
+			case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/1/merge":
+				writeJSON(t, w, map[string]any{"merged": true, "sha": "def456"})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: merging with auto method
+		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: no error - auto selects rebase
+		testastic.NoError(t, err)
+	})
+
+	t.Run("auto fails when no merge methods enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository with all merge methods disabled
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1":
+				writeJSON(t, w, map[string]any{
+					"number":          1,
+					"state":           "open",
+					"merged":          false,
+					"draft":           false,
+					"mergeable_state": "clean",
+					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+				writeJSON(t, w, map[string]any{
+					"allow_squash_merge": false,
+					"allow_rebase_merge": false,
+					"allow_merge_commit": false,
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: merging with auto method
+		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: merge is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	})
+}
+
+func TestGitLabCreateReleasePR(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab API that creates a merge request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(t, w, map[string]any{
+				"iid":         42,
+				"title":       "chore: release v1.0.0",
+				"description": "release body",
+				"web_url":     "https://gitlab.com/o/r/-/merge_requests/42",
+			})
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: creating a release MR
+	pr, err := gl.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+		Title:         "chore: release v1.0.0",
+		Body:          "release body",
+		ReleaseBranch: "yeet/release-main",
+		BaseBranch:    "main",
+	})
+
+	// then: the MR is returned with correct fields
+	testastic.NoError(t, err)
+	testastic.Equal(t, 42, pr.Number)
+	testastic.Equal(t, "chore: release v1.0.0", pr.Title)
+	testastic.Equal(t, "yeet/release-main", pr.Branch)
+}
+
+func TestGitLabUpdateReleasePR(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab API that updates a merge request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+			writeJSON(t, w, map[string]any{
+				"iid":         42,
+				"title":       "chore: release v1.1.0",
+				"description": "updated body",
+			})
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: updating the release MR
+	err = gl.UpdateReleasePR(context.Background(), 42, provider.ReleasePROptions{
+		Title: "chore: release v1.1.0",
+		Body:  "updated body",
+	})
+
+	// then: no error
+	testastic.NoError(t, err)
+}
+
+func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
+	t.Parallel()
+
+	// given: GitLab returns open MRs with one matching release branch
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+			writeJSON(t, w, []map[string]any{
+				{
+					"iid":           10,
+					"title":         "chore: release v2.0.0",
+					"description":   "mr body",
+					"web_url":       "https://gitlab.com/o/r/-/merge_requests/10",
+					"source_branch": "yeet/release-main",
+					"state":         "opened",
+				},
+				{
+					"iid":           11,
+					"title":         "feature mr",
+					"description":   "",
+					"web_url":       "https://gitlab.com/o/r/-/merge_requests/11",
+					"source_branch": "feature/something",
+					"state":         "opened",
+				},
+			})
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: finding open pending release MRs
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main")
+
+	// then: only the release MR is returned
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, len(prs))
+	testastic.Equal(t, 10, prs[0].Number)
+	testastic.Equal(t, "yeet/release-main", prs[0].Branch)
+}
+
+func TestGitLabFindMergedReleasePR(t *testing.T) {
+	t.Parallel()
+
+	t.Run("finds merged release MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab returns merged MRs with one matching release branch
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+				writeJSON(t, w, []map[string]any{
+					{
+						"iid":              5,
+						"title":            "chore: release v1.0.0",
+						"description":      "merged mr",
+						"web_url":          "https://gitlab.com/o/r/-/merge_requests/5",
+						"source_branch":    "yeet/release-main",
+						"state":            "merged",
+						"merge_commit_sha": "abc123",
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: finding merged release MR
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+
+		// then: the merged MR is returned with merge commit SHA
+		testastic.NoError(t, err)
+		testastic.Equal(t, 5, pr.Number)
+		testastic.Equal(t, "abc123", pr.MergeCommitSHA)
+	})
+
+	t.Run("returns ErrNoPR when none found", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab returns no matching MRs
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+				writeJSON(t, w, []map[string]any{})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: finding merged release MR
+		_, err = gl.FindMergedReleasePR(context.Background(), "main")
+
+		// then: ErrNoPR is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrNoPR)
+	})
+}
+
+func TestGitLabEnsureLabel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates label when not found", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab API where the label does not exist
+		var created atomic.Bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.Contains(r.URL.EscapedPath(), "/labels/"):
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "404 Not Found"})
+			case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/labels":
+				created.Store(true)
+				w.WriteHeader(http.StatusCreated)
+				writeJSON(t, w, map[string]any{"name": provider.ReleaseLabelPending})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge_requests/"):
+				writeJSON(t, w, map[string]any{"iid": 1})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: marking an MR as pending (triggers ensureReleaseLabels)
+		err = gl.MarkReleasePRPending(context.Background(), 1)
+
+		// then: labels are created and no error is returned
+		testastic.NoError(t, err)
+		testastic.True(t, created.Load())
+	})
+}
+
+func TestGitLabMergeReleasePRMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auto method succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab API with an open MR and project settings
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "abc123",
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "merge",
+					"squash_option": "default_off",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				writeJSON(t, w, map[string]any{
+					"iid":              1,
+					"state":            "merged",
+					"merge_commit_sha": "def456",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with auto method
+		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: no error
+		testastic.NoError(t, err)
+	})
+
+	t.Run("squash blocked by project settings", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project with squash disabled
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "abc123",
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "merge",
+					"squash_option": "never",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with squash method
+		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Force:  false,
+			Method: provider.MergeMethodSquash,
+		})
+
+		// then: merge is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	})
+}
+
 // Compile-time interface checks.
 var (
 	_ provider.Provider = (*provider.GitHub)(nil)
