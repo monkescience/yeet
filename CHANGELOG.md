@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.4.0](https://github.com/monkescience/yeet/compare/v0.3.0...v0.4.0) (2026-03-22)
+
+### ⚠ BREAKING CHANGES
+
+- **release:** remove backward-compatibility shims ([4895431](https://github.com/monkescience/yeet/commit/489543163055fc70a90205dcc2a12d841fa5014f))
+- **release:** add monorepo release targets ([ae88ab3](https://github.com/monkescience/yeet/commit/ae88ab3220bc3dddb1225645f0c88d51eee4dfe0))
+### Features
+
+- **release:** add monorepo release targets ([ae88ab3](https://github.com/monkescience/yeet/commit/ae88ab3220bc3dddb1225645f0c88d51eee4dfe0))
+### Bug Fixes
+
+- **provider:** replace fragile string matching in CreateBranch error handling ([c955876](https://github.com/monkescience/yeet/commit/c95587683297e23f4f663018ca1a4c2285d4efa4))
+### Performance Improvements
+
+- **provider:** add HTTP resilience and parallel commit path fetching ([18e674c](https://github.com/monkescience/yeet/commit/18e674c5fae5abcc6fd015d08848235419c63eec))
+
 ## [v0.3.0](https://github.com/monkescience/yeet/compare/v0.2.2...v0.3.0) (2026-03-21)
 
 ### ⚠ BREAKING CHANGES
