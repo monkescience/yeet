@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
@@ -188,7 +189,15 @@ func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
 		return mergeCommitSHA
 	}
 
-	return strings.TrimSpace(mergeRequest.SquashCommitSHA)
+	squashCommitSHA := strings.TrimSpace(mergeRequest.SquashCommitSHA)
+	if squashCommitSHA != "" {
+		return squashCommitSHA
+	}
+
+	slog.Warn("merge request has no merge or squash commit SHA, release will be tagged against branch tip",
+		"iid", mergeRequest.IID)
+
+	return ""
 }
 
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {

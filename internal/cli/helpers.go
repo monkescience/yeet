@@ -464,9 +464,7 @@ func validateRepositoryCoordinates(repository *provider.RepositoryDescriptor) er
 	)
 }
 
-func getGitRemoteURL(ctx context.Context, remote string) (string, error) {
-	_ = ctx
-
+func getGitRemoteURL(_ context.Context, remote string) (string, error) {
 	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
 		DetectDotGit:          true,
 		EnableDotGitCommonDir: true,

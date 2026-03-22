@@ -1187,6 +1187,222 @@ func isGitLabCreateReleaseRequest(r *http.Request) bool {
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases"
 }
 
+func TestGitHubCreateBranch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("succeeds when branch does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository where the branch does not yet exist
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
+				writeJSON(t, w, map[string]any{
+					"ref":    "refs/heads/main",
+					"object": map[string]any{"sha": "abc123"},
+				})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+				w.WriteHeader(http.StatusCreated)
+				writeJSON(t, w, map[string]any{
+					"ref":    "refs/heads/release-main",
+					"object": map[string]any{"sha": "abc123"},
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: creating the branch
+		err := gh.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: no error is returned
+		testastic.NoError(t, err)
+	})
+
+	t.Run("succeeds when branch already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository where the branch already exists (API returns 422)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
+				writeJSON(t, w, map[string]any{
+					"ref":    "refs/heads/main",
+					"object": map[string]any{"sha": "abc123"},
+				})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				writeJSON(t, w, map[string]any{
+					"message": "Reference already exists",
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: creating a branch that already exists
+		err := gh.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: no error is returned (idempotent)
+		testastic.NoError(t, err)
+	})
+
+	t.Run("returns error on unexpected failure", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository where the API returns an unexpected error
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
+				writeJSON(t, w, map[string]any{
+					"ref":    "refs/heads/main",
+					"object": map[string]any{"sha": "abc123"},
+				})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+				w.WriteHeader(http.StatusInternalServerError)
+				writeJSON(t, w, map[string]any{
+					"message": "Internal Server Error",
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: creating a branch and the API fails
+		err := gh.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: the error is propagated
+		testastic.Error(t, err)
+	})
+}
+
+func TestGitLabCreateBranch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("succeeds when branch does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project where the branch does not yet exist
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches":
+				w.WriteHeader(http.StatusCreated)
+				writeJSON(t, w, map[string]any{
+					"name": "release-main",
+					"commit": map[string]any{
+						"id": "abc123",
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: creating the branch
+		err = gl.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: no error is returned
+		testastic.NoError(t, err)
+	})
+
+	t.Run("succeeds when branch already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project where the branch already exists (API returns 400)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches":
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(t, w, map[string]any{
+					"message": "Branch already exists",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: creating a branch that already exists
+		err = gl.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: no error is returned (idempotent)
+		testastic.NoError(t, err)
+	})
+
+	t.Run("returns error on unexpected failure", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project where the API returns an unexpected error
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches":
+				w.WriteHeader(http.StatusInternalServerError)
+				writeJSON(t, w, map[string]any{
+					"message": "Internal Server Error",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: creating a branch and the API fails
+		err = gl.CreateBranch(context.Background(), "release-main", "main")
+
+		// then: the error is propagated
+		testastic.Error(t, err)
+	})
+}
+
 // Compile-time interface checks.
 var (
 	_ provider.Provider = (*provider.GitHub)(nil)

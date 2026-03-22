@@ -2,10 +2,10 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/google/go-github/v84/github"
 )
@@ -21,7 +21,8 @@ func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
 		SHA: baseRef.GetObject().GetSHA(),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "Reference already exists") {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
 			return nil
 		}
 

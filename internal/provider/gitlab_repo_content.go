@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
-	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
@@ -16,7 +16,8 @@ func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
 		Ref:    gitlab.Ptr(base),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
-		if strings.Contains(err.Error(), "Branch already exists") {
+		var glErr *gitlab.ErrorResponse
+		if errors.As(err, &glErr) && glErr.Response != nil && glErr.Response.StatusCode == http.StatusBadRequest {
 			return nil
 		}
 
