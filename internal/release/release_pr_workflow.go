@@ -99,9 +99,6 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 	}
 
 	result.Releases = releaseInfos
-	if len(releaseInfos) > 0 {
-		result.Release = releaseInfos[0]
-	}
 
 	return nil
 }

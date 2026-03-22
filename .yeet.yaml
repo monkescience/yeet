@@ -3,7 +3,12 @@
 versioning: semver
 branch: main
 provider: auto
-tag_prefix: v
+
+targets:
+  yeet:
+    type: path
+    path: .
+    tag_prefix: v
 
 release:
   subject_include_branch: false

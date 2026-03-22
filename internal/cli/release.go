@@ -186,8 +186,8 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 	}
 
 	if len(result.Plans) == 0 {
-		if result.Release != nil {
-			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Release.TagName)
+		if len(result.Releases) > 0 {
+			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Releases[0].TagName)
 
 			return nil
 		}

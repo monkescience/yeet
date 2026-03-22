@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/commit"
@@ -17,13 +16,9 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
-var ErrPreviewTagNotAllowed = errors.New("preview tags are not allowed")
-
 var ErrInvalidReleaseAs = errors.New("invalid release-as footer")
 
 var ErrConflictingReleaseAs = errors.New("conflicting release-as footers")
-
-var ErrInvalidReleaseBranch = errors.New("invalid release branch")
 
 var ErrChangelogEntryNotFound = errors.New("changelog entry not found")
 
@@ -40,18 +35,10 @@ const (
 )
 
 type Result struct {
-	BaseBranch     string
-	Plans          []TargetPlan
-	CurrentVersion string
-	NextVersion    string
-	NextTag        string
-	BumpType       commit.BumpType
-	Changelog      string
-	prChangelog    string
-	PullRequest    *provider.PullRequest
-	Release        *provider.Release
-	Releases       []*provider.Release
-	CommitCount    int
+	BaseBranch  string
+	Plans       []TargetPlan
+	PullRequest *provider.PullRequest
+	Releases    []*provider.Release
 }
 
 type TargetPlan struct {
@@ -133,9 +120,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	}
 
 	result.Releases = finalizedReleases
-	if len(finalizedReleases) > 0 {
-		result.Release = finalizedReleases[0]
-	}
 
 	if len(result.Plans) == 0 {
 		slog.InfoContext(ctx, "no releasable commits found")
@@ -145,8 +129,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 	slog.InfoContext(ctx, "release analysis complete",
 		"targets", len(result.Plans),
-		"bump", result.BumpType,
-		"commits", result.CommitCount,
 	)
 
 	if dryRun {
@@ -172,18 +154,16 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 // Tag creates a release tag and VCS release from a merged release PR.
 func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result, error) {
-	if r.isPreviewTag(tag) {
-		return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, tag)
-	}
-
 	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Result{
-		NextTag:  tag,
-		Release:  release,
+		Plans: []TargetPlan{{
+			NextTag:   tag,
+			Changelog: changelogBody,
+		}},
 		Releases: []*provider.Release{release},
 	}, nil
 }
@@ -198,109 +178,6 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 
 func (r *Releaser) strategyForTarget(target config.ResolvedTarget) versionStrategy {
 	return versionStrategyForResolvedTarget(target)
-}
-
-func (r *Releaser) isPreviewTag(tag string) bool {
-	for _, target := range r.targets {
-		if isPreviewTag(tag, target.TagPrefix) {
-			return true
-		}
-	}
-
-	return isPreviewTag(tag, r.cfg.TagPrefix)
-}
-
-func (r *Releaser) setPrimaryPlan(result *Result) {
-	result.BumpType = commit.BumpNone
-	result.CommitCount = 0
-	result.CurrentVersion = ""
-	result.NextVersion = ""
-	result.NextTag = ""
-	result.Changelog = ""
-	result.prChangelog = ""
-
-	if len(result.Plans) == 0 {
-		return
-	}
-
-	primaryPlan := result.Plans[0]
-	result.CurrentVersion = primaryPlan.CurrentVersion
-	result.NextVersion = primaryPlan.NextVersion
-	result.NextTag = primaryPlan.NextTag
-	result.Changelog = primaryPlan.Changelog
-	result.prChangelog = primaryPlan.PRChangelog
-
-	for _, plan := range result.Plans {
-		if releaseBumpOrder(plan.BumpType) > releaseBumpOrder(result.BumpType) {
-			result.BumpType = plan.BumpType
-		}
-	}
-
-	result.CommitCount = aggregateCommitCount(result.Plans)
-}
-
-func aggregateCommitCount(plans []TargetPlan) int {
-	commitHashes := make(map[string]struct{})
-	commitCount := 0
-
-	for _, plan := range plans {
-		if len(plan.commitHashes) == 0 {
-			commitCount += plan.CommitCount
-
-			continue
-		}
-
-		for _, hash := range plan.commitHashes {
-			if _, exists := commitHashes[hash]; exists {
-				continue
-			}
-
-			commitHashes[hash] = struct{}{}
-			commitCount++
-		}
-	}
-
-	return commitCount
-}
-
-func (r *Releaser) resultPlans(result *Result) []TargetPlan {
-	if len(result.Plans) > 0 {
-		return result.Plans
-	}
-
-	if result.NextTag == "" && result.Changelog == "" {
-		return nil
-	}
-
-	target := r.targets["default"]
-	if target.ID == "" {
-		ids := make([]string, 0, len(r.targets))
-		for id := range r.targets {
-			ids = append(ids, id)
-		}
-
-		sort.Strings(ids)
-
-		if len(ids) > 0 {
-			target = r.targets[ids[0]]
-		}
-	}
-
-	return []TargetPlan{{
-		ID:             target.ID,
-		Type:           target.Type,
-		Path:           target.Path,
-		CurrentVersion: result.CurrentVersion,
-		NextVersion:    result.NextVersion,
-		NextTag:        result.NextTag,
-		BumpType:       result.BumpType,
-		CommitCount:    result.CommitCount,
-		Changelog:      result.Changelog,
-		PRChangelog:    result.prChangelog,
-		Files: map[string]string{
-			"changelog_file": target.Changelog.File,
-		},
-	}}
 }
 
 func releaseBumpOrder(bumpType commit.BumpType) int {

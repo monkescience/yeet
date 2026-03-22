@@ -52,15 +52,13 @@
     "calver": {
       "$ref": "#/$defs/calver"
     },
-    "tag_prefix": {
-      "type": "string",
-      "description": "Legacy tag prefix. Use targets.<id>.tag_prefix instead.",
-      "default": "v"
-    },
     "targets": {
       "$ref": "#/$defs/targets"
     }
   },
+  "required": [
+    "targets"
+  ],
   "$defs": {
     "repository": {
       "type": "object",

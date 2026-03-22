@@ -25,7 +25,7 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 	r := u.releaser
 	files := map[string]string{}
 
-	for _, plan := range r.resultPlans(result) {
+	for _, plan := range result.Plans {
 		target, exists := r.targets[plan.ID]
 		if !exists {
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)

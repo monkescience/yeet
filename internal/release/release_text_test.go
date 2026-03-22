@@ -20,7 +20,7 @@ func TestReleasePRBody(t *testing.T) {
 		changelogBody := "## v1.2.4 (2026-03-01)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
 
 		// when: building PR body
-		body := r.releasePRBody(changelogBody, "v1.2.4")
+		body := r.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: changelog is wrapped by default header and footer notes
 		testastic.Equal(
@@ -44,7 +44,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4", "v1.2.4")
+		body := r.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: body contains header, changelog, and footer in order
 		testastic.Equal(t, "Header\n\n## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->\n\nFooter", body)
@@ -61,7 +61,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4\n", "v1.2.4")
+		body := r.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: body is the changelog without extra sections
 		testastic.Equal(t, "## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->", body)

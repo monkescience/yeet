@@ -95,6 +95,9 @@ func TestReleaseCommand(t *testing.T) {
 
 		cfg := config.Default()
 		cfg.Versioning = "broken"
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
 
 		data, err := yaml.Marshal(cfg)
 		testastic.NoError(t, err)
@@ -384,6 +387,9 @@ func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 	t.Helper()
 
 	cfg := config.Default()
+	cfg.Targets = map[string]config.Target{
+		"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+	}
 	mutate(cfg)
 
 	data, err := yaml.Marshal(cfg)

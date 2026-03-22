@@ -8,38 +8,6 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func TestReleaseTagFromBranch(t *testing.T) {
-	t.Parallel()
-
-	t.Run("parses tag from release branch", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a valid release branch name
-		branch := "yeet/release-v1.2.3"
-
-		// when: parsing tag from branch
-		tag, err := releaseTagFromBranch(branch)
-
-		// then: release tag is returned
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", tag)
-	})
-
-	t.Run("rejects invalid release branch", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a non-release branch name
-		branch := "feature/something"
-
-		// when: parsing tag from branch
-		_, err := releaseTagFromBranch(branch)
-
-		// then: branch format error is returned
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseBranch)
-	})
-}
-
 func TestReleaseManifestRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +29,7 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 	marker, err := releaseManifestMarker(releaseManifestForResult(result))
 	testastic.NoError(t, err)
 
-	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: marker}, "CHANGELOG.md")
+	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: marker})
 
 	// then: all manifest entries survive the round trip
 	testastic.NoError(t, err)

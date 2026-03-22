@@ -26,17 +26,13 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
 
-	manifest, err := releaseManifestFromPullRequest(mergedPR, r.cfg.Changelog.File)
+	manifest, err := releaseManifestFromPullRequest(mergedPR)
 	if err != nil {
 		return nil, err
 	}
 
 	releases := make([]*provider.Release, 0, len(manifest.Targets))
 	for _, targetManifest := range manifest.Targets {
-		if p.releaser.isPreviewTag(targetManifest.Tag) {
-			return nil, fmt.Errorf("%w: %s", ErrPreviewTagNotAllowed, targetManifest.Tag)
-		}
-
 		releaseInfo, releaseErr := p.releaseForTag(
 			ctx,
 			targetManifest.Tag,

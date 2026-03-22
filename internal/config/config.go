@@ -53,13 +53,12 @@ type Config struct {
 	Versioning   VersioningStrategy `yaml:"versioning"`
 	Branch       string             `yaml:"branch"`
 	Provider     ProviderType       `yaml:"provider"`
-	TagPrefix    string             `yaml:"tag_prefix,omitempty"`
 	Repository   RepositoryConfig   `yaml:"repository"`
 	VersionFiles []string           `yaml:"version_files,omitempty"`
 	Release      ReleaseConfig      `yaml:"release"`
 	Changelog    ChangelogConfig    `yaml:"changelog"`
 	CalVer       CalVerConfig       `yaml:"calver"`
-	Targets      map[string]Target  `yaml:"targets,omitempty"`
+	Targets      map[string]Target  `yaml:"targets"`
 }
 
 type TargetType = string
@@ -160,7 +159,6 @@ func Default() *Config {
 		Versioning: VersioningSemver,
 		Branch:     "main",
 		Provider:   ProviderAuto,
-		TagPrefix:  "v",
 		Repository: RepositoryConfig{
 			Remote: "origin",
 		},
@@ -244,10 +242,13 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
-	targets := c.targetsOrLegacyDefault()
-	resolved := make(map[string]ResolvedTarget, len(targets))
+	if len(c.Targets) == 0 {
+		return nil, fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
+	}
 
-	for id, target := range targets {
+	resolved := make(map[string]ResolvedTarget, len(c.Targets))
+
+	for id, target := range c.Targets {
 		resolvedTarget, err := c.resolveTarget(id, target)
 		if err != nil {
 			return nil, err
@@ -266,24 +267,6 @@ func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
 	}
 
 	return resolved, nil
-}
-
-func (c *Config) targetsOrLegacyDefault() map[string]Target {
-	if c.Targets != nil {
-		return c.Targets
-	}
-
-	return map[string]Target{
-		"default": {
-			Type:         TargetTypePath,
-			Path:         ".",
-			TagPrefix:    strings.TrimSpace(c.TagPrefix),
-			Versioning:   c.Versioning,
-			VersionFiles: slices.Clone(c.VersionFiles),
-			Changelog:    c.Changelog,
-			CalVer:       c.CalVer,
-		},
-	}
 }
 
 //nolint:funlen // Target resolution intentionally centralizes validation and defaulting.

@@ -14,24 +14,14 @@ type prSection struct {
 }
 
 func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
-	plans := r.resultPlans(result)
-
-	manifestMarker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, plans))
+	manifestMarker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
 	if err != nil {
 		return provider.ReleasePROptions{}, err
 	}
 
-	releaseMarker := manifestMarker
-	if len(plans) == 1 {
-		releaseMarker = strings.TrimSpace(strings.Join([]string{
-			fmt.Sprintf("<!-- yeet-release-tag: %s -->", plans[0].NextTag),
-			manifestMarker,
-		}, "\n\n"))
-	}
-
 	return provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(r.combinedPRChangelog(result), releaseMarker),
+		Body:          r.releasePRBody(r.combinedPRChangelog(result), manifestMarker),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Files:         map[string]string{},
@@ -43,7 +33,7 @@ func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
 }
 
 func (r *Releaser) releaseSubject(result *Result) string {
-	plans := r.resultPlans(result)
+	plans := result.Plans
 	if len(plans) == 1 {
 		version := plans[0].NextVersion
 
@@ -62,7 +52,7 @@ func (r *Releaser) releaseSubject(result *Result) string {
 }
 
 func (r *Releaser) combinedPRChangelog(result *Result) string {
-	plans := r.resultPlans(result)
+	plans := result.Plans
 	if len(plans) == 0 {
 		return ""
 	}
@@ -357,10 +347,6 @@ func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {
 	}
 
 	if marker := strings.TrimSpace(manifestMarker); marker != "" {
-		if !strings.HasPrefix(marker, "<!--") {
-			marker = fmt.Sprintf("<!-- yeet-release-tag: %s -->", marker)
-		}
-
 		parts = append(parts, marker)
 	}
 

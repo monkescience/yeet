@@ -15,12 +15,39 @@ import (
 func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies) *Releaser {
 	t.Helper()
 
+	if len(cfg.Targets) == 0 {
+		cfg.Targets = map[string]config.Target{
+			"default": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+	}
+
 	r, err := New(cfg, deps)
 	if err != nil {
 		t.Fatalf("New() returned unexpected error: %v", err)
 	}
 
 	return r
+}
+
+func testManifestBody(tag, changelogFile string) string {
+	marker, err := releaseManifestMarker(releaseManifest{
+		BaseBranch: "main",
+		Targets: []releaseManifestEntry{{
+			ID:            "default",
+			Type:          "path",
+			Tag:           tag,
+			ChangelogFile: changelogFile,
+		}},
+	})
+	if err != nil {
+		panic("testManifestBody: " + err.Error())
+	}
+
+	return marker
 }
 
 type fileUpdate struct {

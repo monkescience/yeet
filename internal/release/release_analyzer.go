@@ -81,7 +81,6 @@ func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []strin
 
 	result.Plans = append(result.Plans, orderedPlans(filterPlansByID(pathPlans, selection.emitPathTargetIDs))...)
 	result.Plans = append(result.Plans, orderedPlans(derivedPlans)...)
-	r.setPrimaryPlan(result)
 
 	return result, nil
 }
@@ -906,7 +905,7 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 	strategy := a.releaser.strategyForTarget(target)
 
 	ref = strings.TrimSpace(ref)
-	if ref == "" || isPreviewTag(ref, strategy.prefix) {
+	if ref == "" {
 		return "", false
 	}
 
