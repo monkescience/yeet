@@ -50,15 +50,17 @@ const (
 )
 
 type Config struct {
-	Versioning   VersioningStrategy `yaml:"versioning"`
-	Branch       string             `yaml:"branch"`
-	Provider     ProviderType       `yaml:"provider"`
-	Repository   RepositoryConfig   `yaml:"repository"`
-	VersionFiles []string           `yaml:"version_files,omitempty"`
-	Release      ReleaseConfig      `yaml:"release"`
-	Changelog    ChangelogConfig    `yaml:"changelog"`
-	CalVer       CalVerConfig       `yaml:"calver"`
-	Targets      map[string]Target  `yaml:"targets"`
+	Versioning                 VersioningStrategy `yaml:"versioning"`
+	Branch                     string             `yaml:"branch"`
+	Provider                   ProviderType       `yaml:"provider"`
+	PreMajorBreakingBumpsMinor bool               `yaml:"pre_major_breaking_bumps_minor"`
+	PreMajorFeaturesBumpPatch  bool               `yaml:"pre_major_features_bump_patch"`
+	Repository                 RepositoryConfig   `yaml:"repository"`
+	VersionFiles               []string           `yaml:"version_files,omitempty"`
+	Release                    ReleaseConfig      `yaml:"release"`
+	Changelog                  ChangelogConfig    `yaml:"changelog"`
+	CalVer                     CalVerConfig       `yaml:"calver"`
+	Targets                    map[string]Target  `yaml:"targets"`
 }
 
 type TargetType = string
@@ -69,28 +71,32 @@ const (
 )
 
 type Target struct {
-	Type         TargetType         `yaml:"type"`
-	Path         string             `yaml:"path,omitempty"`
-	TagPrefix    string             `yaml:"tag_prefix,omitempty"`
-	Versioning   VersioningStrategy `yaml:"versioning,omitempty"`
-	VersionFiles []string           `yaml:"version_files,omitempty"`
-	Changelog    ChangelogConfig    `yaml:"changelog,omitempty"`
-	CalVer       CalVerConfig       `yaml:"calver,omitempty"`
-	ExcludePaths []string           `yaml:"exclude_paths,omitempty"`
-	Includes     []string           `yaml:"includes,omitempty"`
+	Type                       TargetType         `yaml:"type"`
+	Path                       string             `yaml:"path,omitempty"`
+	TagPrefix                  string             `yaml:"tag_prefix,omitempty"`
+	Versioning                 VersioningStrategy `yaml:"versioning,omitempty"`
+	PreMajorBreakingBumpsMinor *bool              `yaml:"pre_major_breaking_bumps_minor,omitempty"`
+	PreMajorFeaturesBumpPatch  *bool              `yaml:"pre_major_features_bump_patch,omitempty"`
+	VersionFiles               []string           `yaml:"version_files,omitempty"`
+	Changelog                  ChangelogConfig    `yaml:"changelog,omitempty"`
+	CalVer                     CalVerConfig       `yaml:"calver,omitempty"`
+	ExcludePaths               []string           `yaml:"exclude_paths,omitempty"`
+	Includes                   []string           `yaml:"includes,omitempty"`
 }
 
 type ResolvedTarget struct {
-	ID           string
-	Type         TargetType
-	Path         string
-	TagPrefix    string
-	Versioning   VersioningStrategy
-	VersionFiles []string
-	Changelog    ChangelogConfig
-	CalVer       CalVerConfig
-	ExcludePaths []string
-	Includes     []string
+	ID                         string
+	Type                       TargetType
+	Path                       string
+	TagPrefix                  string
+	Versioning                 VersioningStrategy
+	PreMajorBreakingBumpsMinor bool
+	PreMajorFeaturesBumpPatch  bool
+	VersionFiles               []string
+	Changelog                  ChangelogConfig
+	CalVer                     CalVerConfig
+	ExcludePaths               []string
+	Includes                   []string
 }
 
 type RepositoryConfig struct {
@@ -156,9 +162,11 @@ func Parse(data []byte) (*Config, error) {
 
 func Default() *Config {
 	return &Config{
-		Versioning: VersioningSemver,
-		Branch:     "main",
-		Provider:   ProviderAuto,
+		Versioning:                 VersioningSemver,
+		Branch:                     "main",
+		Provider:                   ProviderAuto,
+		PreMajorBreakingBumpsMinor: true,
+		PreMajorFeaturesBumpPatch:  true,
 		Repository: RepositoryConfig{
 			Remote: "origin",
 		},
@@ -289,15 +297,35 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 	}
 
 	resolved := ResolvedTarget{
-		ID:           targetID,
-		Type:         targetType,
-		TagPrefix:    strings.TrimSpace(target.TagPrefix),
-		Versioning:   firstVersioning(target.Versioning, c.Versioning),
-		VersionFiles: resolveVersionFiles(target.VersionFiles, c.VersionFiles),
-		Changelog:    mergeChangelogConfig(c.Changelog, target.Changelog),
-		CalVer:       mergeCalVerConfig(c.CalVer, target.CalVer),
-		ExcludePaths: make([]string, 0, len(target.ExcludePaths)),
-		Includes:     normalizeTargetIDs(target.Includes),
+		ID:                         targetID,
+		Type:                       targetType,
+		TagPrefix:                  strings.TrimSpace(target.TagPrefix),
+		Versioning:                 firstVersioning(target.Versioning, c.Versioning),
+		PreMajorBreakingBumpsMinor: resolveBool(target.PreMajorBreakingBumpsMinor, c.PreMajorBreakingBumpsMinor),
+		PreMajorFeaturesBumpPatch:  resolveBool(target.PreMajorFeaturesBumpPatch, c.PreMajorFeaturesBumpPatch),
+		VersionFiles:               resolveVersionFiles(target.VersionFiles, c.VersionFiles),
+		Changelog:                  mergeChangelogConfig(c.Changelog, target.Changelog),
+		CalVer:                     mergeCalVerConfig(c.CalVer, target.CalVer),
+		ExcludePaths:               make([]string, 0, len(target.ExcludePaths)),
+		Includes:                   normalizeTargetIDs(target.Includes),
+	}
+
+	if resolved.Versioning == VersioningCalVer {
+		if target.PreMajorBreakingBumpsMinor != nil {
+			return ResolvedTarget{}, fmt.Errorf(
+				"%w: targets.%s.pre_major_breaking_bumps_minor has no effect with calver versioning",
+				ErrInvalidConfig,
+				targetID,
+			)
+		}
+
+		if target.PreMajorFeaturesBumpPatch != nil {
+			return ResolvedTarget{}, fmt.Errorf(
+				"%w: targets.%s.pre_major_features_bump_patch has no effect with calver versioning",
+				ErrInvalidConfig,
+				targetID,
+			)
+		}
 	}
 
 	if resolved.TagPrefix == "" {
@@ -615,6 +643,14 @@ func firstVersioning(values ...VersioningStrategy) VersioningStrategy {
 	}
 
 	return VersioningSemver
+}
+
+func resolveBool(override *bool, defaultValue bool) bool {
+	if override != nil {
+		return *override
+	}
+
+	return defaultValue
 }
 
 func resolveVersionFiles(overridePaths, defaultPaths []string) []string {

@@ -31,6 +31,16 @@
       ],
       "default": "auto"
     },
+    "pre_major_breaking_bumps_minor": {
+      "type": "boolean",
+      "description": "Before 1.0.0, breaking changes bump minor instead of major.",
+      "default": true
+    },
+    "pre_major_features_bump_patch": {
+      "type": "boolean",
+      "description": "Before 1.0.0, features bump patch instead of minor.",
+      "default": true
+    },
     "repository": {
       "$ref": "#/$defs/repository"
     },
@@ -228,6 +238,14 @@
             "calver"
           ]
         },
+        "pre_major_breaking_bumps_minor": {
+          "type": "boolean",
+          "description": "Override the top-level pre_major_breaking_bumps_minor setting for this target."
+        },
+        "pre_major_features_bump_patch": {
+          "type": "boolean",
+          "description": "Override the top-level pre_major_features_bump_patch setting for this target."
+        },
         "version_files": {
           "type": "array",
           "items": {
@@ -278,6 +296,14 @@
             "semver",
             "calver"
           ]
+        },
+        "pre_major_breaking_bumps_minor": {
+          "type": "boolean",
+          "description": "Override the top-level pre_major_breaking_bumps_minor setting for this target."
+        },
+        "pre_major_features_bump_patch": {
+          "type": "boolean",
+          "description": "Override the top-level pre_major_features_bump_patch setting for this target."
         },
         "version_files": {
           "type": "array",

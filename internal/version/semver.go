@@ -20,7 +20,9 @@ type Strategy interface {
 }
 
 type SemVer struct {
-	Prefix string
+	Prefix                     string
+	PreMajorBreakingBumpsMinor bool
+	PreMajorFeaturesBumpPatch  bool
 }
 
 func (s *SemVer) Current(tag string) (string, error) {
@@ -40,7 +42,18 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", fmt.Errorf("%w: %s: %w", ErrInvalidVersion, current, err)
 	}
 
-	bump = preMajorBump(v, bump)
+	if v.Major() == 0 {
+		switch bump {
+		case commit.BumpMajor:
+			if s.PreMajorBreakingBumpsMinor {
+				bump = commit.BumpMinor
+			}
+		case commit.BumpMinor:
+			if s.PreMajorFeaturesBumpPatch {
+				bump = commit.BumpPatch
+			}
+		}
+	}
 
 	var next semver.Version
 
@@ -58,21 +71,6 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 	}
 
 	return next.String(), nil
-}
-
-func preMajorBump(v *semver.Version, bump commit.BumpType) commit.BumpType {
-	if v.Major() != 0 {
-		return bump
-	}
-
-	switch bump {
-	case commit.BumpMajor:
-		return commit.BumpMinor
-	case commit.BumpMinor:
-		return commit.BumpPatch
-	default:
-		return bump
-	}
 }
 
 func (s *SemVer) Tag(version string) string {

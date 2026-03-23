@@ -73,7 +73,11 @@ func TestSemVerCurrent(t *testing.T) {
 func TestSemVerNext(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := &version.SemVer{
+		Prefix:                     "v",
+		PreMajorBreakingBumpsMinor: true,
+		PreMajorFeaturesBumpPatch:  true,
+	}
 
 	t.Run("major bump", func(t *testing.T) {
 		t.Parallel()
@@ -193,6 +197,136 @@ func TestSemVerNext(t *testing.T) {
 		// then: error is returned
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+}
+
+func TestSemVerPreMajorOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("breaking bumps major when pre_major_breaking_bumps_minor disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: pre_major_breaking_bumps_minor is false
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: false,
+			PreMajorFeaturesBumpPatch:  true,
+		}
+
+		// when: applying a major bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMajor)
+
+		// then: major version increments normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.0.0", next)
+	})
+
+	t.Run("features still bump patch when only breaking scaling disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: pre_major_breaking_bumps_minor is false, pre_major_features_bump_patch is true
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: false,
+			PreMajorFeaturesBumpPatch:  true,
+		}
+
+		// when: applying a minor bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMinor)
+
+		// then: features still bump patch
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.3", next)
+	})
+
+	t.Run("features bump minor when pre_major_features_bump_patch disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: pre_major_features_bump_patch is false
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: true,
+			PreMajorFeaturesBumpPatch:  false,
+		}
+
+		// when: applying a minor bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMinor)
+
+		// then: minor version increments normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.5.0", next)
+	})
+
+	t.Run("breaking still bumps minor when only features scaling disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: pre_major_breaking_bumps_minor is true, pre_major_features_bump_patch is false
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: true,
+			PreMajorFeaturesBumpPatch:  false,
+		}
+
+		// when: applying a major bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMajor)
+
+		// then: breaking changes bump minor
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.5.0", next)
+	})
+
+	t.Run("both disabled allows standard semver before 1.0.0", func(t *testing.T) {
+		t.Parallel()
+
+		// given: both pre-major options disabled
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: false,
+			PreMajorFeaturesBumpPatch:  false,
+		}
+
+		// when: applying a major bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMajor)
+
+		// then: major version increments normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.0.0", next)
+	})
+
+	t.Run("both disabled features bump minor before 1.0.0", func(t *testing.T) {
+		t.Parallel()
+
+		// given: both pre-major options disabled
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: false,
+			PreMajorFeaturesBumpPatch:  false,
+		}
+
+		// when: applying a minor bump before 1.0.0
+		next, err := sv.Next("0.4.2", commit.BumpMinor)
+
+		// then: minor version increments normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.5.0", next)
+	})
+
+	t.Run("options have no effect after 1.0.0", func(t *testing.T) {
+		t.Parallel()
+
+		// given: both pre-major options enabled, version >= 1.0.0
+		sv := &version.SemVer{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: true,
+			PreMajorFeaturesBumpPatch:  true,
+		}
+
+		// when: applying a major bump after 1.0.0
+		next, err := sv.Next("1.2.3", commit.BumpMajor)
+
+		// then: standard semver applies
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2.0.0", next)
 	})
 }
 

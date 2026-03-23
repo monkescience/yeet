@@ -30,6 +30,8 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
+	testastic.True(t, cfg.PreMajorBreakingBumpsMinor)
+	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
 }
 
 func TestParse(t *testing.T) {
@@ -649,5 +651,181 @@ func TestResolvedTargets(t *testing.T) {
 		// then: ambiguous ownership is rejected
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "direct path ownership overlaps")
+	})
+}
+
+func TestPreMajorOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parses explicit false at top level", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with both pre-major options explicitly false
+		data := []byte(`
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+pre_major_breaking_bumps_minor: false
+pre_major_features_bump_patch: false
+`)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: both options are false
+		testastic.NoError(t, err)
+		testastic.False(t, cfg.PreMajorBreakingBumpsMinor)
+		testastic.False(t, cfg.PreMajorFeaturesBumpPatch)
+	})
+
+	t.Run("target inherits top-level values", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level options set to false, target does not override
+		cfg := config.Default()
+		cfg.PreMajorBreakingBumpsMinor = false
+		cfg.PreMajorFeaturesBumpPatch = false
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target inherits top-level values
+		testastic.NoError(t, err)
+		testastic.False(t, resolved["app"].PreMajorBreakingBumpsMinor)
+		testastic.False(t, resolved["app"].PreMajorFeaturesBumpPatch)
+	})
+
+	t.Run("target overrides top-level true with false", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level defaults are true, target sets false
+		cfg := config.Default()
+		breakingFalse := false
+		featuresFalse := false
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:                       config.TargetTypePath,
+				Path:                       ".",
+				TagPrefix:                  "v",
+				PreMajorBreakingBumpsMinor: &breakingFalse,
+				PreMajorFeaturesBumpPatch:  &featuresFalse,
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target overrides with false
+		testastic.NoError(t, err)
+		testastic.False(t, resolved["app"].PreMajorBreakingBumpsMinor)
+		testastic.False(t, resolved["app"].PreMajorFeaturesBumpPatch)
+	})
+
+	t.Run("target overrides top-level false with true", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level set to false, target overrides with true
+		cfg := config.Default()
+		cfg.PreMajorBreakingBumpsMinor = false
+		cfg.PreMajorFeaturesBumpPatch = false
+		breakingTrue := true
+		featuresTrue := true
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:                       config.TargetTypePath,
+				Path:                       ".",
+				TagPrefix:                  "v",
+				PreMajorBreakingBumpsMinor: &breakingTrue,
+				PreMajorFeaturesBumpPatch:  &featuresTrue,
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target overrides with true
+		testastic.NoError(t, err)
+		testastic.True(t, resolved["app"].PreMajorBreakingBumpsMinor)
+		testastic.True(t, resolved["app"].PreMajorFeaturesBumpPatch)
+	})
+
+	t.Run("rejects pre_major_breaking_bumps_minor on calver target", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver target with explicit pre_major_breaking_bumps_minor
+		cfg := config.Default()
+		breakingTrue := true
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:                       config.TargetTypePath,
+				Path:                       ".",
+				TagPrefix:                  "v",
+				Versioning:                 config.VersioningCalVer,
+				PreMajorBreakingBumpsMinor: &breakingTrue,
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: error mentions the incompatibility
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "pre_major_breaking_bumps_minor")
+		testastic.ErrorContains(t, err, "calver")
+	})
+
+	t.Run("rejects pre_major_features_bump_patch on calver target", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver target with explicit pre_major_features_bump_patch
+		cfg := config.Default()
+		featuresFalse := false
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:                      config.TargetTypePath,
+				Path:                      ".",
+				TagPrefix:                 "v",
+				Versioning:                config.VersioningCalVer,
+				PreMajorFeaturesBumpPatch: &featuresFalse,
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: error mentions the incompatibility
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "pre_major_features_bump_patch")
+		testastic.ErrorContains(t, err, "calver")
+	})
+
+	t.Run("allows calver target without pre_major overrides", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver target that inherits pre_major options (does not set them)
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: no error — inherited options are silently ignored
+		testastic.NoError(t, err)
 	})
 }

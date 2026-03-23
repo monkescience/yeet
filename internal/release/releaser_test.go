@@ -67,6 +67,88 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 	})
 }
 
+func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("breaking changes jump to 1.0.0 when both options disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a pre-1.0.0 release with both pre-major options disabled
+		cfg := config.Default()
+		cfg.PreMajorBreakingBumpsMinor = false
+		cfg.PreMajorFeaturesBumpPatch = false
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat(api)!: remove deprecated endpoint",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true)
+
+		// then: breaking change bumps major normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.2", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "1.0.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, "v1.0.0", result.Plans[0].NextTag)
+	})
+
+	t.Run("features bump minor when both options disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a pre-1.0.0 release with both pre-major options disabled
+		cfg := config.Default()
+		cfg.PreMajorBreakingBumpsMinor = false
+		cfg.PreMajorFeaturesBumpPatch = false
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true)
+
+		// then: feature bumps minor normally
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.2", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "0.5.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, "v0.5.0", result.Plans[0].NextTag)
+	})
+
+	t.Run("breaking bumps major but features still bump patch when only breaking disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: only pre_major_breaking_bumps_minor disabled
+		cfg := config.Default()
+		cfg.PreMajorBreakingBumpsMinor = false
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true)
+
+		// then: features still bump patch
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.4.3", result.Plans[0].NextVersion)
+	})
+}
+
 func TestReleaseUsesLatestVersionRef(t *testing.T) {
 	t.Parallel()
 

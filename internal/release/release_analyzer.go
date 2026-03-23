@@ -760,7 +760,9 @@ func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrat
 		}
 	default:
 		strategy = &version.SemVer{
-			Prefix: target.TagPrefix,
+			Prefix:                     target.TagPrefix,
+			PreMajorBreakingBumpsMinor: target.PreMajorBreakingBumpsMinor,
+			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
 		}
 	}
 
