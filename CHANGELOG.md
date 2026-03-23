@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.4.1](https://github.com/monkescience/yeet/compare/v0.4.0...v0.4.1) (2026-03-23)
+
+### Features
+
+- **version:** add configurable pre-major semver bump behavior ([21b7856](https://github.com/monkescience/yeet/commit/21b78562cef62ca199f9b5f412a5ee1afba82413))
+### Bug Fixes
+
+- **docs:** close unclosed block scope in version marker docs ([c11f364](https://github.com/monkescience/yeet/commit/c11f3645971e6dc5d574b6ddc480acb4b9a08384))
+- **config:** resolve linter issues in resolveTarget ([3be49c5](https://github.com/monkescience/yeet/commit/3be49c51ad5c96a9cc695674641389f03261c9df))
+
 ## [v0.4.0](https://github.com/monkescience/yeet/compare/v0.3.0...v0.4.0) (2026-03-22)
 
 ### ⚠ BREAKING CHANGES
