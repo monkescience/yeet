@@ -140,7 +140,8 @@ For calver repositories, yeet also supports aliases:
 - `x-yeet-year` (alias of `x-yeet-major`)
 - `x-yeet-month` (alias of `x-yeet-minor`)
 - `x-yeet-micro` (alias of `x-yeet-patch`)
-- `x-yeet-start-year|month|micro` ... `x-yeet-end`
+- `x-yeet-start-year|month|micro` for calver block markers
+- `x-yeet-end` closes the block
 
 ## Versioning strategies
 
