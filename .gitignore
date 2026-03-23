@@ -1,5 +1,6 @@
 # Binaries
 yeet
+dist/
 *.exe
 *.exe~
 *.dll

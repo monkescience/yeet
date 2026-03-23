@@ -1,0 +1,43 @@
+version: 2
+
+project_name: yeet
+
+builds:
+  - main: ./cmd/yeet
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -X github.com/monkescience/yeet/internal/cli.buildVersion={{.Version}}
+      - -X github.com/monkescience/yeet/internal/cli.buildCommit={{.ShortCommit}}
+      - -X github.com/monkescience/yeet/internal/cli.buildDate={{.Date}}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+release:
+  mode: append
+
+homebrew_casks:
+  - repository:
+      owner: monkescience
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    binaries:
+      - yeet
+    homepage: https://github.com/monkescience/yeet
+    description: Automate releases based on conventional commits

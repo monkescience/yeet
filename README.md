@@ -7,6 +7,12 @@ Inspired by [release-please](https://github.com/googleapis/release-please).
 ## Install
 
 ```sh
+brew install monkescience/tap/yeet
+```
+
+Or with Go:
+
+```sh
 go install github.com/monkescience/yeet/cmd/yeet@v0.4.1 # x-yeet-version
 ```
 
