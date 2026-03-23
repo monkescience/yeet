@@ -3,6 +3,8 @@
 versioning: semver
 branch: main
 provider: auto
+version_files:
+  - README.md
 
 targets:
   yeet:
