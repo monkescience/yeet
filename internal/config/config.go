@@ -277,7 +277,7 @@ func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
 	return resolved, nil
 }
 
-//nolint:funlen // Target resolution intentionally centralizes validation and defaulting.
+//nolint:funlen,gocognit // Target resolution intentionally centralizes validation and defaulting.
 func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error) {
 	targetID := strings.TrimSpace(id)
 	if targetID == "" {
@@ -310,22 +310,9 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		Includes:                   normalizeTargetIDs(target.Includes),
 	}
 
-	if resolved.Versioning == VersioningCalVer {
-		if target.PreMajorBreakingBumpsMinor != nil {
-			return ResolvedTarget{}, fmt.Errorf(
-				"%w: targets.%s.pre_major_breaking_bumps_minor has no effect with calver versioning",
-				ErrInvalidConfig,
-				targetID,
-			)
-		}
-
-		if target.PreMajorFeaturesBumpPatch != nil {
-			return ResolvedTarget{}, fmt.Errorf(
-				"%w: targets.%s.pre_major_features_bump_patch has no effect with calver versioning",
-				ErrInvalidConfig,
-				targetID,
-			)
-		}
+	preMajorErr := validatePreMajorCalVer(targetID, resolved.Versioning, target)
+	if preMajorErr != nil {
+		return ResolvedTarget{}, preMajorErr
 	}
 
 	if resolved.TagPrefix == "" {
@@ -643,6 +630,30 @@ func firstVersioning(values ...VersioningStrategy) VersioningStrategy {
 	}
 
 	return VersioningSemver
+}
+
+func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, target Target) error {
+	if versioning != VersioningCalVer {
+		return nil
+	}
+
+	if target.PreMajorBreakingBumpsMinor != nil {
+		return fmt.Errorf(
+			"%w: targets.%s.pre_major_breaking_bumps_minor has no effect with calver versioning",
+			ErrInvalidConfig,
+			targetID,
+		)
+	}
+
+	if target.PreMajorFeaturesBumpPatch != nil {
+		return fmt.Errorf(
+			"%w: targets.%s.pre_major_features_bump_patch has no effect with calver versioning",
+			ErrInvalidConfig,
+			targetID,
+		)
+	}
+
+	return nil
 }
 
 func resolveBool(override *bool, defaultValue bool) bool {
