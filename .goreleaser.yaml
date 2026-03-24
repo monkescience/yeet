@@ -36,6 +36,7 @@ homebrew_casks:
       owner: monkescience
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: "{{ .ProjectName }}-{{ .Tag }}"
       pull_request:
         enabled: true
     commit_msg_template: "chore: update yeet to {{ .Tag }}"
