@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.3](https://github.com/monkescience/yeet/compare/v0.4.2...v0.4.3) (2026-03-24)
+
+### Bug Fixes
+
+- **commit:** parse multi-line footer values per conventional commits spec ([cb80d29](https://github.com/monkescience/yeet/commit/cb80d290f2d1ce7ee80d95a09e761e2612ed3073))
+
 ## [v0.4.2](https://github.com/monkescience/yeet/compare/v0.4.1...v0.4.2) (2026-03-24)
 
 ### Features
