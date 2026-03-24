@@ -4,13 +4,18 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (e.g. v0.4.1)
+        required: true
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: yeet-image-${{ github.event.release.tag_name }}
+  group: yeet-image-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: true
 
 env:
@@ -18,13 +23,15 @@ env:
 
 jobs:
   publish:
-    if: ${{ !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
@@ -61,11 +68,10 @@ jobs:
             --image-annotation "org.opencontainers.image.created=${IMAGE_CREATED}" \
             ./cmd/yeet
         env:
-          IMAGE_CREATED: ${{ github.event.release.published_at }}
+          IMAGE_CREATED: ${{ github.event.release.published_at || github.event.repository.updated_at }}
           IMAGE_DESCRIPTION: "Yeet CLI for automated releases from conventional commits"
           IMAGE_DOCUMENTATION: "${{ github.server_url }}/${{ github.repository }}#readme"
           IMAGE_LICENSE: MIT
           IMAGE_REVISION: ${{ github.sha }}
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           IMAGE_TITLE: yeet
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
