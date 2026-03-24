@@ -33,9 +33,6 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
-      - name: Use latest GoReleaser config
-        run: git checkout origin/main -- .goreleaser.yaml
-
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
         with:
