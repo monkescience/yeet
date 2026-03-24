@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.4](https://github.com/monkescience/yeet/compare/v0.4.3...v0.4.4) (2026-03-24)
+
+### Bug Fixes
+
+- **goreleaser:** add branch for homebrew cask PR creation ([54f1d96](https://github.com/monkescience/yeet/commit/54f1d96241f5d37ca836afa140f48229a3b06098))
+
 ## [v0.4.3](https://github.com/monkescience/yeet/compare/v0.4.2...v0.4.3) (2026-03-24)
 
 ### Bug Fixes
