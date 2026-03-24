@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.5](https://github.com/monkescience/yeet/compare/v0.4.4...v0.4.5) (2026-03-24)
+
+### Bug Fixes
+
+- **goreleaser:** strip quarantine attribute on macOS cask install ([3ee0710](https://github.com/monkescience/yeet/commit/3ee07103d3d674dc5e8aecec64e566b0b0a9d6cd))
+
 ## [v0.4.4](https://github.com/monkescience/yeet/compare/v0.4.3...v0.4.4) (2026-03-24)
 
 ### Bug Fixes
