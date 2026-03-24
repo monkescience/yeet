@@ -117,6 +117,66 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "Implement Stripe integration.", c.Body)
 		testastic.Equal(t, 2, len(c.Footers))
 	})
+
+	t.Run("multi-line breaking change footer", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with a multi-line BREAKING CHANGE footer
+		raw := "feat!: redesign auth\n\n" +
+			"BREAKING CHANGE: The session token format changed\n" +
+			"from JWT to opaque tokens. Migrate before upgrading."
+
+		// when: parsing the commit
+		c := commit.Parse("mln1234", raw)
+
+		// then: continuation lines are included in the footer value
+		wantValue := "The session token format changed\n" +
+			"from JWT to opaque tokens. Migrate before upgrading."
+
+		testastic.True(t, c.Breaking)
+		testastic.Equal(t, 1, len(c.Footers))
+		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
+		testastic.Equal(t, wantValue, c.Footers[0].Value)
+	})
+
+	t.Run("multi-line footer followed by another footer", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with a multi-line footer followed by another footer
+		raw := "feat!: redesign auth\n\n" +
+			"BREAKING CHANGE: The session token format changed\n" +
+			"from JWT to opaque tokens.\n" +
+			"Release-As: 2.0.0"
+
+		// when: parsing the commit
+		c := commit.Parse("mln5678", raw)
+
+		// then: continuation stops at the next footer token
+		wantValue := "The session token format changed\n" +
+			"from JWT to opaque tokens."
+
+		testastic.True(t, c.Breaking)
+		testastic.Equal(t, 2, len(c.Footers))
+		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
+		testastic.Equal(t, wantValue, c.Footers[0].Value)
+		testastic.Equal(t, "Release-As", c.Footers[1].Key)
+		testastic.Equal(t, "2.0.0", c.Footers[1].Value)
+	})
+
+	t.Run("footer with blank continuation line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with a footer containing a blank line in its value
+		raw := "feat!: big change\n\nBREAKING CHANGE: First paragraph.\n\nSecond paragraph after blank line."
+
+		// when: parsing the commit
+		c := commit.Parse("mln9012", raw)
+
+		// then: blank lines within the footer value are preserved
+		testastic.True(t, c.Breaking)
+		testastic.Equal(t, 1, len(c.Footers))
+		testastic.Equal(t, "First paragraph.\n\nSecond paragraph after blank line.", c.Footers[0].Value)
+	})
 }
 
 func TestDetermineBump(t *testing.T) {

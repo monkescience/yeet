@@ -99,6 +99,13 @@ func parseBody(c *Commit, lines []string) {
 			continue
 		}
 
+		if inFooters && len(c.Footers) > 0 {
+			last := &c.Footers[len(c.Footers)-1]
+			last.Value += "\n" + line
+
+			continue
+		}
+
 		if !inFooters {
 			bodyLines = append(bodyLines, line)
 		}
