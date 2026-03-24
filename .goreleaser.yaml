@@ -45,3 +45,7 @@ homebrew_casks:
       - yeet
     homepage: https://github.com/monkescience/yeet
     description: Automate releases based on conventional commits
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yeet"]
