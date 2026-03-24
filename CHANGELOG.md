@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.4.2](https://github.com/monkescience/yeet/compare/v0.4.1...v0.4.2) (2026-03-24)
+
+### Features
+
+- add Homebrew tap and binary releases via GoReleaser ([b9ce0c5](https://github.com/monkescience/yeet/commit/b9ce0c584ec2952c0e6599e53931eeb1872bb9fd))
+### Bug Fixes
+
+- **release:** update GitHub app ID and private key variables in release.yaml ([c885823](https://github.com/monkescience/yeet/commit/c8858237fbe869d34beaae67684af1f579eed2f0))
+- **binaries:** update Homebrew tap app ID and private key variables ([5b80e51](https://github.com/monkescience/yeet/commit/5b80e512ead68cf3b9c06f317fd25d7836e7fe86))
+
 ## [v0.4.1](https://github.com/monkescience/yeet/compare/v0.4.0...v0.4.1) (2026-03-23)
 
 ### Features
