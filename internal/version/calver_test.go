@@ -61,6 +61,34 @@ func TestCalVerCurrent(t *testing.T) {
 		testastic.Error(t, err)
 	})
 
+	t.Run("rejects negative micro", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with negative micro
+		tag := "v2026.02.-1"
+
+		// when: parsing current version
+		_, err := cv.Current(tag)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("normalizes non-zero-padded month", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid calver tag with non-zero-padded month
+		tag := "v2026.2.1"
+
+		// when: parsing current version
+		v, err := cv.Current(tag)
+
+		// then: version is extracted with normalized month
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.02.1", v)
+	})
+
 	t.Run("rejects non-numeric year", func(t *testing.T) {
 		t.Parallel()
 
@@ -199,6 +227,23 @@ func TestCalVerNext(t *testing.T) {
 		// then: version unchanged
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2026.02.1", next)
+	})
+
+	t.Run("increment within same month with non-zero-padded input", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy with existing version using non-zero-padded month
+		cv := &version.CalVer{
+			Prefix: "v",
+			Now:    fixedTime(2026, time.February),
+		}
+
+		// when: calculating next from "2026.2.3" (non-zero-padded)
+		next, err := cv.Next("2026.2.3", commit.BumpPatch)
+
+		// then: micro increments (month padding should not cause a reset)
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.02.4", next)
 	})
 
 	t.Run("new year resets", func(t *testing.T) {

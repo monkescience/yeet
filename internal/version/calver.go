@@ -20,12 +20,12 @@ type CalVer struct {
 func (c *CalVer) Current(tag string) (string, error) {
 	cleaned := strings.TrimPrefix(tag, c.Prefix)
 
-	_, err := c.parseParts(cleaned)
+	parts, err := c.parseParts(cleaned)
 	if err != nil {
 		return "", err
 	}
 
-	return cleaned, nil
+	return fmt.Sprintf("%s.%s.%d", parts.Year, parts.Month, parts.Micro), nil
 }
 
 // Next increments the micro counter if the current year/month matches.
@@ -98,9 +98,9 @@ func (c *CalVer) parseParts(version string) (calverParts, error) {
 	}
 
 	micro, err := strconv.Atoi(segments[2])
-	if err != nil {
-		return calverParts{}, fmt.Errorf("%w: invalid micro version %q: %w", ErrInvalidVersion, segments[2], err)
+	if err != nil || micro < 0 {
+		return calverParts{}, fmt.Errorf("%w: invalid micro version %q in %q", ErrInvalidVersion, segments[2], version)
 	}
 
-	return calverParts{Year: segments[0], Month: segments[1], Micro: micro}, nil
+	return calverParts{Year: segments[0], Month: fmt.Sprintf("%02d", month), Micro: micro}, nil
 }
