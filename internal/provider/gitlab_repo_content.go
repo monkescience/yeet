@@ -12,8 +12,8 @@ import (
 
 func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
 	_, _, err := g.client.Branches.CreateBranch(g.pid, &gitlab.CreateBranchOptions{
-		Branch: gitlab.Ptr(name),
-		Ref:    gitlab.Ptr(base),
+		Branch: new(name),
+		Ref:    new(base),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		var glErr *gitlab.ErrorResponse
@@ -84,9 +84,9 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	force := true
 
 	_, _, err := g.client.Commits.CreateCommit(g.pid, &gitlab.CreateCommitOptions{
-		Branch:        gitlab.Ptr(branch),
-		CommitMessage: gitlab.Ptr(message),
-		StartBranch:   gitlab.Ptr(base),
+		Branch:        new(branch),
+		CommitMessage: new(message),
+		StartBranch:   new(base),
 		Actions:       actions,
 		Force:         &force,
 	}, gitlab.WithContext(ctx))

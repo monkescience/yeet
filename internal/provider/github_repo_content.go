@@ -184,7 +184,7 @@ func (g *GitHub) upsertBranchRef(ctx context.Context, branch, sha string) error 
 
 	_, _, err = g.client.Git.UpdateRef(ctx, g.repo.Owner, g.repo.Name, refName, github.UpdateRef{
 		SHA:   sha,
-		Force: github.Ptr(true),
+		Force: new(true),
 	})
 	if err != nil {
 		return fmt.Errorf("force update branch %s: %w", branch, err)

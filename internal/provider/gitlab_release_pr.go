@@ -20,10 +20,10 @@ const gitlabMergeRequestMergedState = "merged"
 
 func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
 	mr, _, err := g.client.MergeRequests.CreateMergeRequest(g.pid, &gitlab.CreateMergeRequestOptions{
-		Title:        gitlab.Ptr(opts.Title),
-		Description:  gitlab.Ptr(opts.Body),
-		SourceBranch: gitlab.Ptr(opts.ReleaseBranch),
-		TargetBranch: gitlab.Ptr(opts.BaseBranch),
+		Title:        new(opts.Title),
+		Description:  new(opts.Body),
+		SourceBranch: new(opts.ReleaseBranch),
+		TargetBranch: new(opts.BaseBranch),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("create merge request: %w", err)
@@ -40,8 +40,8 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 
 func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
 	_, _, err := g.client.MergeRequests.UpdateMergeRequest(g.pid, int64(number), &gitlab.UpdateMergeRequestOptions{
-		Title:       gitlab.Ptr(opts.Title),
-		Description: gitlab.Ptr(opts.Body),
+		Title:       new(opts.Title),
+		Description: new(opts.Body),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("update merge request !%d: %w", number, err)
@@ -57,10 +57,10 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
-		State:        gitlab.Ptr(state),
-		TargetBranch: gitlab.Ptr(baseBranch),
-		OrderBy:      gitlab.Ptr(orderBy),
-		Sort:         gitlab.Ptr(sortDirection),
+		State:        new(state),
+		TargetBranch: new(baseBranch),
+		OrderBy:      new(orderBy),
+		Sort:         new(sortDirection),
 		Labels:       &labels,
 		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
@@ -104,10 +104,10 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
-		State:        gitlab.Ptr(state),
-		TargetBranch: gitlab.Ptr(baseBranch),
-		OrderBy:      gitlab.Ptr(orderBy),
-		Sort:         gitlab.Ptr(sortDirection),
+		State:        new(state),
+		TargetBranch: new(baseBranch),
+		OrderBy:      new(orderBy),
+		Sort:         new(sortDirection),
 		Labels:       &labels,
 		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
@@ -241,7 +241,7 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 
 	sha := strings.TrimSpace(mr.SHA)
 	if sha != "" {
-		acceptOptions.SHA = gitlab.Ptr(sha)
+		acceptOptions.SHA = new(sha)
 	}
 
 	_, _, err = g.client.MergeRequests.AcceptMergeRequest(g.pid, int64(number), acceptOptions, gitlab.WithContext(ctx))
@@ -277,9 +277,9 @@ func (g *GitLab) ensureLabel(ctx context.Context, name, color, description strin
 	}
 
 	_, _, err = g.client.Labels.CreateLabel(g.pid, &gitlab.CreateLabelOptions{
-		Name:        gitlab.Ptr(name),
-		Color:       gitlab.Ptr(color),
-		Description: gitlab.Ptr(description),
+		Name:        new(name),
+		Color:       new(color),
+		Description: new(description),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("create label %q: %w", name, err)
@@ -333,7 +333,7 @@ func gitLabAcceptMergeOptions(
 			)
 		}
 
-		options.Squash = gitlab.Ptr(true)
+		options.Squash = new(true)
 
 		return options, nil
 	case MergeMethodRebase:

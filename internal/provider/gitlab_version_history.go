@@ -83,7 +83,7 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 	}
 
 	if branch != "" {
-		opts.RefName = gitlab.Ptr(branch)
+		opts.RefName = new(branch)
 	}
 
 	var entries []CommitEntry

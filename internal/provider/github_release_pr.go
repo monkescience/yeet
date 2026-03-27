@@ -15,10 +15,10 @@ const releaseTaggedLabelColor = "0E8A16"
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
 	pr, _, err := g.client.PullRequests.Create(ctx, g.repo.Owner, g.repo.Name, &github.NewPullRequest{
-		Title: github.Ptr(opts.Title),
-		Body:  github.Ptr(opts.Body),
-		Head:  github.Ptr(opts.ReleaseBranch),
-		Base:  github.Ptr(opts.BaseBranch),
+		Title: new(opts.Title),
+		Body:  new(opts.Body),
+		Head:  new(opts.ReleaseBranch),
+		Base:  new(opts.BaseBranch),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create pull request: %w", err)
@@ -35,8 +35,8 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 
 func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
 	_, _, err := g.client.PullRequests.Edit(ctx, g.repo.Owner, g.repo.Name, number, &github.PullRequest{
-		Title: github.Ptr(opts.Title),
-		Body:  github.Ptr(opts.Body),
+		Title: new(opts.Title),
+		Body:  new(opts.Body),
 	})
 	if err != nil {
 		return fmt.Errorf("update pull request #%d: %w", number, err)
@@ -271,9 +271,9 @@ func (g *GitHub) ensureLabel(ctx context.Context, name, color, description strin
 	}
 
 	_, _, err = g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, &github.Label{
-		Name:        github.Ptr(name),
-		Color:       github.Ptr(color),
-		Description: github.Ptr(description),
+		Name:        new(name),
+		Color:       new(color),
+		Description: new(description),
 	})
 	if err != nil {
 		return fmt.Errorf("create label %q: %w", name, err)

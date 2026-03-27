@@ -38,13 +38,13 @@ func (g *GitLab) TagExists(ctx context.Context, tag string) (bool, error) {
 func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	ref := strings.TrimSpace(opts.Ref)
 	releaseOptions := &gitlab.CreateReleaseOptions{
-		TagName:     gitlab.Ptr(opts.TagName),
-		Name:        gitlab.Ptr(opts.Name),
-		Description: gitlab.Ptr(opts.Body),
+		TagName:     new(opts.TagName),
+		Name:        new(opts.Name),
+		Description: new(opts.Body),
 	}
 
 	if ref != "" {
-		releaseOptions.Ref = gitlab.Ptr(ref)
+		releaseOptions.Ref = new(ref)
 	}
 
 	release, _, err := g.client.Releases.CreateRelease(g.pid, releaseOptions, gitlab.WithContext(ctx))
