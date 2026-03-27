@@ -60,6 +60,48 @@ func TestCalVerCurrent(t *testing.T) {
 		// then: error is returned
 		testastic.Error(t, err)
 	})
+
+	t.Run("rejects non-numeric year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with non-numeric year
+		tag := "vfoo.02.1"
+
+		// when: parsing current version
+		_, err := cv.Current(tag)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects invalid month", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with out-of-range month
+		tag := "v2026.13.1"
+
+		// when: parsing current version
+		_, err := cv.Current(tag)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects month zero", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with month zero
+		tag := "v2026.00.1"
+
+		// when: parsing current version
+		_, err := cv.Current(tag)
+
+		// then: error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
 }
 
 func TestCalVerTag(t *testing.T) {
