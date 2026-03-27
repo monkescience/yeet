@@ -47,12 +47,12 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", err
 	}
 
-	currentYearMonth := fmt.Sprintf("%s.%s", parts[0], parts[1])
+	currentYearMonth := fmt.Sprintf("%s.%s", parts.Year, parts.Month)
 
 	micro := 1
 
 	if currentYearMonth == yearMonth {
-		micro = parts[2].(int) + 1 //nolint:forcetypeassert // parseParts guarantees int
+		micro = parts.Micro + 1
 	}
 
 	return fmt.Sprintf("%s.%d", yearMonth, micro), nil
@@ -75,7 +75,11 @@ func (c *CalVer) now() time.Time {
 	return time.Now()
 }
 
-type calverParts [3]any
+type calverParts struct {
+	Year  string
+	Month string
+	Micro int
+}
 
 func (c *CalVer) parseParts(version string) (calverParts, error) {
 	segments := strings.SplitN(version, ".", 3) //nolint:mnd // calver has 3 parts: YYYY.MM.MICRO
@@ -83,10 +87,20 @@ func (c *CalVer) parseParts(version string) (calverParts, error) {
 		return calverParts{}, fmt.Errorf("%w: expected YYYY.MM.MICRO format, got %q", ErrInvalidVersion, version)
 	}
 
+	year, err := strconv.Atoi(segments[0])
+	if err != nil || year < 1 {
+		return calverParts{}, fmt.Errorf("%w: invalid year %q in %q", ErrInvalidVersion, segments[0], version)
+	}
+
+	month, err := strconv.Atoi(segments[1])
+	if err != nil || month < 1 || month > 12 {
+		return calverParts{}, fmt.Errorf("%w: invalid month %q in %q", ErrInvalidVersion, segments[1], version)
+	}
+
 	micro, err := strconv.Atoi(segments[2])
 	if err != nil {
 		return calverParts{}, fmt.Errorf("%w: invalid micro version %q: %w", ErrInvalidVersion, segments[2], err)
 	}
 
-	return calverParts{segments[0], segments[1], micro}, nil
+	return calverParts{Year: segments[0], Month: segments[1], Micro: micro}, nil
 }
