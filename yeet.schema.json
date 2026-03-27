@@ -177,6 +177,44 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "references": {
+          "type": "object",
+          "description": "Controls how issue/ticket references are linked in changelogs.",
+          "additionalProperties": false,
+          "properties": {
+            "patterns": {
+              "type": "array",
+              "description": "Regex patterns matched against commit descriptions. Matches are replaced inline with links using the URL template. Use {value} as placeholder for the matched text.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern"],
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "description": "Regular expression to match issue references (e.g. \"JIRA-\\\\d+\").",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "URL template with {value} placeholder. Empty string renders as plain text."
+                  }
+                }
+              }
+            },
+            "footers": {
+              "type": "object",
+              "description": "Mapping of commit footer keys to URL templates. Matched footers are appended after the commit hash. Use {value} as placeholder for the footer value. Empty string renders as plain text.",
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },

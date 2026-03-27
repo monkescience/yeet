@@ -3,12 +3,14 @@ package changelog
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/config"
 )
 
 type Generator struct {
@@ -16,6 +18,7 @@ type Generator struct {
 	Include    []string
 	RepoURL    string
 	PathPrefix string
+	References config.ReferencesConfig
 }
 
 type Entry struct {
@@ -162,11 +165,79 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.RepoURL, g.PathPrefix, c.Hash)
 	}
 
+	linked := g.linkDescription(description)
+
 	if c.Scope != "" {
-		fmt.Fprintf(sb, "- **%s:** %s (%s)\n", c.Scope, description, hashRef)
+		fmt.Fprintf(sb, "- **%s:** %s (%s)", c.Scope, linked, hashRef)
 	} else {
-		fmt.Fprintf(sb, "- %s (%s)\n", description, hashRef)
+		fmt.Fprintf(sb, "- %s (%s)", linked, hashRef)
 	}
+
+	if refs := g.footerReferences(c); refs != "" {
+		fmt.Fprintf(sb, " (%s)", refs)
+	}
+
+	sb.WriteString("\n")
+}
+
+func (g *Generator) linkDescription(description string) string {
+	if len(g.References.Patterns) == 0 {
+		return description
+	}
+
+	result := description
+
+	for _, p := range g.References.Patterns {
+		re, err := regexp.Compile(p.Pattern)
+		if err != nil {
+			continue
+		}
+
+		if p.URL == "" {
+			continue
+		}
+
+		result = re.ReplaceAllStringFunc(result, func(match string) string {
+			url := strings.ReplaceAll(p.URL, "{value}", match)
+
+			return fmt.Sprintf("[%s](%s)", match, url)
+		})
+	}
+
+	return result
+}
+
+func (g *Generator) footerReferences(c commit.Commit) string {
+	if len(g.References.Footers) == 0 {
+		return ""
+	}
+
+	var refs []string
+
+	for _, f := range c.Footers {
+		pattern, ok := g.References.Footers[f.Key]
+		if !ok {
+			continue
+		}
+
+		value := strings.TrimSpace(f.Value)
+		if value == "" {
+			continue
+		}
+
+		if pattern == "" {
+			refs = append(refs, value)
+		} else {
+			url := strings.ReplaceAll(pattern, "{value}", value)
+			refs = append(refs, fmt.Sprintf("[%s](%s)", value, url))
+		}
+	}
+
+	if len(refs) == 0 {
+		return ""
+	}
+
+	return strings.Join(refs, ", ")
 }
 
 func capitalizeFirst(s string) string {

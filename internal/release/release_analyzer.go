@@ -484,6 +484,7 @@ func renderTargetChangelog(
 		Include:    target.Changelog.Include,
 		RepoURL:    releaser.metadata.RepoURL(),
 		PathPrefix: releaser.metadata.PathPrefix(),
+		References: target.Changelog.References,
 	}
 
 	entry := gen.Generate(nextTag, ref, commits)

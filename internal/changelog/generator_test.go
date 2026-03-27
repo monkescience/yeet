@@ -7,6 +7,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/config"
 )
 
 func TestGenerate(t *testing.T) {
@@ -278,6 +279,293 @@ func TestGenerate(t *testing.T) {
 		// then: hash is plain text, not linked
 		testastic.Contains(t, entry.Body, "(abc1234)")
 		testastic.NotContains(t, entry.Body, "[abc1234]")
+	})
+
+	t.Run("inline pattern replaces reference with link", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with an inline reference pattern
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Patterns: []config.ReferencePattern{
+					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "feat", Description: "add OAuth2 support JIRA-123"},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: reference is linked inline
+		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
+		testastic.NotContains(t, entry.Body, "support JIRA-123 (")
+	})
+
+	t.Run("inline pattern with empty URL leaves text as-is", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with a plain-text reference pattern
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Patterns: []config.ReferencePattern{
+					{Pattern: `#\d+`, URL: ""},
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "feat", Description: "add feature #456"},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: reference is left as plain text
+		testastic.Contains(t, entry.Body, "add feature #456")
+		testastic.NotContains(t, entry.Body, "[#456]")
+	})
+
+	t.Run("footer reference appended after hash", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with footer reference config
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Footers: map[string]string{
+					"Refs": "https://jira.example.com/browse/{value}",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "add OAuth2 support",
+				Footers: []commit.Footer{{Key: "Refs", Value: "JIRA-123"}},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: footer reference is appended after hash
+		testastic.Contains(t, entry.Body, "(abc1234) ([JIRA-123](https://jira.example.com/browse/JIRA-123))")
+	})
+
+	t.Run("footer reference with empty URL renders plain text", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with plain-text footer reference
+		gen := &changelog.Generator{
+			Sections: map[string]string{"fix": "Bug Fixes"},
+			Include:  []string{"fix"},
+			References: config.ReferencesConfig{
+				Footers: map[string]string{
+					"Closes": "",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "fix", Description: "fix crash",
+				Footers: []commit.Footer{{Key: "Closes", Value: "#789"}},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: footer reference is plain text
+		testastic.Contains(t, entry.Body, "(abc1234) (#789)")
+		testastic.NotContains(t, entry.Body, "[#789]")
+	})
+
+	t.Run("multiple footers on one commit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit with multiple matching footers
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Footers: map[string]string{
+					"Refs": "https://jira.example.com/browse/{value}",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "big feature",
+				Footers: []commit.Footer{
+					{Key: "Refs", Value: "JIRA-100"},
+					{Key: "Refs", Value: "JIRA-200"},
+				},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: both references appear
+		testastic.Contains(t, entry.Body, "[JIRA-100]")
+		testastic.Contains(t, entry.Body, "[JIRA-200]")
+	})
+
+	t.Run("no references configured leaves output unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with no references config
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "add feature JIRA-123",
+				Footers: []commit.Footer{{Key: "Refs", Value: "JIRA-123"}},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: no linking or reference extraction
+		testastic.Contains(t, entry.Body, "add feature JIRA-123 (abc1234)\n")
+		testastic.NotContains(t, entry.Body, "[JIRA-123]")
+	})
+
+	t.Run("non-matching footer key is ignored", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with footer config that doesn't match the commit's footer
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Footers: map[string]string{
+					"Refs": "https://jira.example.com/browse/{value}",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "add feature",
+				Footers: []commit.Footer{{Key: "Reviewed-by", Value: "Alice"}},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: no reference text appended
+		testastic.Contains(t, entry.Body, "add feature (abc1234)\n")
+		testastic.NotContains(t, entry.Body, "Alice")
+	})
+
+	t.Run("references in breaking changes section", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a breaking commit with a footer reference
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Footers: map[string]string{
+					"Refs": "https://jira.example.com/browse/{value}",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "new API", Breaking: true,
+				Footers: []commit.Footer{
+					{Key: "BREAKING CHANGE", Value: "old endpoints removed"},
+					{Key: "Refs", Value: "JIRA-456"},
+				},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v2.0.0", "", commits)
+
+		// then: reference appears in breaking changes section
+		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
+		testastic.Contains(t, entry.Body, "[JIRA-456]")
+	})
+
+	t.Run("invalid regex pattern is skipped", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with an invalid regex pattern
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			References: config.ReferencesConfig{
+				Patterns: []config.ReferencePattern{
+					{Pattern: `[invalid`, URL: "https://example.com/{value}"},
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "feat", Description: "add feature"},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: no crash, description unchanged
+		testastic.Contains(t, entry.Body, "add feature (abc1234)")
+	})
+
+	t.Run("both inline patterns and footer references", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with both patterns and footers
+		gen := &changelog.Generator{
+			Sections: map[string]string{"feat": "Features"},
+			Include:  []string{"feat"},
+			RepoURL:  "https://github.com/owner/repo",
+			References: config.ReferencesConfig{
+				Patterns: []config.ReferencePattern{
+					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
+				},
+				Footers: map[string]string{
+					"Closes": "",
+				},
+			},
+		}
+
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567890def", Type: "feat", Description: "add OAuth2 JIRA-123",
+				Footers: []commit.Footer{{Key: "Closes", Value: "#456"}},
+			},
+		}
+
+		// when: generating changelog
+		entry := gen.Generate("v1.0.0", "", commits)
+
+		// then: inline pattern is linked in description
+		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
+		// and: footer reference is appended after hash
+		testastic.Contains(t, entry.Body, "(#456)")
+		// and: commit hash is still linked
+		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
 	})
 }
 

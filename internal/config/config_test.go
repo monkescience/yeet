@@ -125,6 +125,45 @@ targets:
 		testastic.Equal(t, "New Features", cfg.Changelog.Sections["feat"])
 	})
 
+	t.Run("config with changelog references", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with changelog references
+		data := []byte(`
+versioning: semver
+branch: main
+changelog:
+  references:
+    patterns:
+      - pattern: "JIRA-\\d+"
+        url: "https://jira.example.com/browse/{value}"
+      - pattern: "#\\d+"
+        url: ""
+    footers:
+      Refs: "https://jira.example.com/browse/{value}"
+      Closes: ""
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: references are parsed correctly
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(cfg.Changelog.References.Patterns))
+		testastic.Equal(t, `JIRA-\d+`, cfg.Changelog.References.Patterns[0].Pattern)
+		testastic.Equal(t, "https://jira.example.com/browse/{value}", cfg.Changelog.References.Patterns[0].URL)
+		testastic.Equal(t, `#\d+`, cfg.Changelog.References.Patterns[1].Pattern)
+		testastic.Equal(t, "", cfg.Changelog.References.Patterns[1].URL)
+		testastic.Equal(t, 2, len(cfg.Changelog.References.Footers))
+		testastic.Equal(t, "https://jira.example.com/browse/{value}", cfg.Changelog.References.Footers["Refs"])
+		testastic.Equal(t, "", cfg.Changelog.References.Footers["Closes"])
+	})
+
 	t.Run("invalid versioning", func(t *testing.T) {
 		t.Parallel()
 
@@ -756,6 +795,46 @@ pre_major_features_bump_patch: false
 		testastic.NoError(t, err)
 		testastic.True(t, resolved["app"].PreMajorBreakingBumpsMinor)
 		testastic.True(t, resolved["app"].PreMajorFeaturesBumpPatch)
+	})
+
+	t.Run("target inherits top-level references and merges overrides", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level references with patterns and footers, target adds a footer override
+		cfg := config.Default()
+		cfg.Changelog.References = config.ReferencesConfig{
+			Patterns: []config.ReferencePattern{
+				{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			Footers: map[string]string{
+				"Refs": "https://jira.example.com/browse/{value}",
+			},
+		}
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					References: config.ReferencesConfig{
+						Footers: map[string]string{
+							"Closes": "",
+						},
+					},
+				},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target inherits top-level patterns (no override) and merges footers
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(resolved["app"].Changelog.References.Patterns))
+		testastic.Equal(t, `JIRA-\d+`, resolved["app"].Changelog.References.Patterns[0].Pattern)
+		testastic.Equal(t, 2, len(resolved["app"].Changelog.References.Footers))
+		testastic.Equal(t, "https://jira.example.com/browse/{value}", resolved["app"].Changelog.References.Footers["Refs"])
+		testastic.Equal(t, "", resolved["app"].Changelog.References.Footers["Closes"])
 	})
 
 	t.Run("rejects pre_major_breaking_bumps_minor on calver target", func(t *testing.T) {

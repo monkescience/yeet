@@ -117,9 +117,22 @@ type ReleaseConfig struct {
 }
 
 type ChangelogConfig struct {
-	File     string            `yaml:"file"`
-	Include  []string          `yaml:"include"`
-	Sections map[string]string `yaml:"sections"`
+	File       string            `yaml:"file"`
+	Include    []string          `yaml:"include"`
+	Sections   map[string]string `yaml:"sections"`
+	References ReferencesConfig  `yaml:"references"`
+}
+
+// ReferencesConfig controls how issue/ticket references are linked in changelogs.
+type ReferencesConfig struct {
+	Patterns []ReferencePattern `yaml:"patterns,omitempty"`
+	Footers  map[string]string  `yaml:"footers,omitempty"`
+}
+
+// ReferencePattern matches issue references inline in commit descriptions.
+type ReferencePattern struct {
+	Pattern string `yaml:"pattern"`
+	URL     string `yaml:"url"`
 }
 
 type CalVerConfig struct {
@@ -687,6 +700,24 @@ func mergeChangelogConfig(defaultConfig, overrideConfig ChangelogConfig) Changel
 		merged.Sections = make(map[string]string, len(defaultConfig.Sections)+len(overrideConfig.Sections))
 		maps.Copy(merged.Sections, defaultConfig.Sections)
 		maps.Copy(merged.Sections, overrideConfig.Sections)
+	}
+
+	merged.References = mergeReferencesConfig(defaultConfig.References, overrideConfig.References)
+
+	return merged
+}
+
+func mergeReferencesConfig(defaultConfig, overrideConfig ReferencesConfig) ReferencesConfig {
+	merged := defaultConfig
+
+	if len(overrideConfig.Patterns) > 0 {
+		merged.Patterns = slices.Clone(overrideConfig.Patterns)
+	}
+
+	if len(overrideConfig.Footers) > 0 {
+		merged.Footers = make(map[string]string, len(defaultConfig.Footers)+len(overrideConfig.Footers))
+		maps.Copy(merged.Footers, defaultConfig.Footers)
+		maps.Copy(merged.Footers, overrideConfig.Footers)
 	}
 
 	return merged
