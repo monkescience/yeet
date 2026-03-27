@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.4.6](https://github.com/monkescience/yeet/compare/v0.4.5...v0.4.6) (2026-03-27)
+
+### Features
+
+- **changelog:** support issue/ticket reference linking ([91a30d6](https://github.com/monkescience/yeet/commit/91a30d6b5cfd3a147d91f423661e52e399ed0c39))
+### Bug Fixes
+
+- **provider:** add nil response checks in pagination loops ([1856264](https://github.com/monkescience/yeet/commit/185626493927cb1729b39c15a8da0e6997640745))
+- **version:** normalize calver month padding and reject negative micro ([8330d4c](https://github.com/monkescience/yeet/commit/8330d4cbe10bb520b191262a80deededf19a4aa2))
+- **version:** validate calver year and month segments ([98170b3](https://github.com/monkescience/yeet/commit/98170b35eb74c12427350412b4317c2a1c42e45e))
+- **provider:** add pagination safety limit to tag and commit fetching ([a5d85f9](https://github.com/monkescience/yeet/commit/a5d85f93ed8cd76712c03261e51127a35887bde6))
+
 ## [v0.4.5](https://github.com/monkescience/yeet/compare/v0.4.4...v0.4.5) (2026-03-24)
 
 ### Bug Fixes
