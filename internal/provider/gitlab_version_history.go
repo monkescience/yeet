@@ -38,7 +38,7 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	}
 	tags := make([]string, 0)
 
-	for {
+	for range maxPaginationPages {
 		pageTags, resp, err := g.client.Tags.ListTags(g.pid, options, gitlab.WithContext(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("list tags: %w", err)
@@ -54,13 +54,13 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 		}
 
 		if resp.NextPage == 0 {
-			break
+			return tags, nil
 		}
 
 		options.Page = resp.NextPage
 	}
 
-	return tags, nil
+	return nil, fmt.Errorf("%w: exceeded %d pages listing tags", ErrPaginationLimitExceeded, maxPaginationPages)
 }
 
 //nolint:funlen // Commit pagination and concurrent path fetching are clearer kept together.
@@ -90,7 +90,7 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 	boundaryFound := false
 
-	for {
+	for range maxPaginationPages {
 		commits, resp, err := g.client.Commits.ListCommits(g.pid, opts, gitlab.WithContext(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("list commits: %w", err)

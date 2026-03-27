@@ -37,7 +37,7 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
 	tags := make([]string, 0)
 
-	for {
+	for range maxPaginationPages {
 		pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
 		if err != nil {
 			return nil, fmt.Errorf("list tags: %w", err)
@@ -53,13 +53,13 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 		}
 
 		if resp.NextPage == 0 {
-			break
+			return tags, nil
 		}
 
 		options.Page = resp.NextPage
 	}
 
-	return tags, nil
+	return nil, fmt.Errorf("%w: exceeded %d pages listing tags", ErrPaginationLimitExceeded, maxPaginationPages)
 }
 
 const maxConcurrentPathFetches = 5
@@ -93,7 +93,7 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 	boundaryFound := false
 
-	for {
+	for range maxPaginationPages {
 		commits, resp, err := g.client.Repositories.ListCommits(ctx, g.repo.Owner, g.repo.Name, opts)
 		if err != nil {
 			return nil, fmt.Errorf("list commits: %w", err)

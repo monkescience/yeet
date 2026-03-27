@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -2196,6 +2197,78 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 	})
+}
+
+func TestGitHubListTagsPaginationLimit(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub API that always returns a next page
+	var calls atomic.Int32
+
+	var server *httptest.Server
+
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := int(calls.Add(1))
+		w.Header().Set(
+			"Link",
+			fmt.Sprintf(`<%s/repos/o/r/tags?per_page=100&page=%d>; rel="next"`, server.URL, n+1),
+		)
+		writeJSON(t, w, []map[string]any{{
+			"name":   fmt.Sprintf("v0.0.%d", n),
+			"commit": map[string]any{"sha": fmt.Sprintf("sha-%d", n)},
+		}})
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: listing tags from an effectively infinite repository
+	_, err := gh.ListTags(context.Background())
+
+	// then: pagination limit is enforced
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
+}
+
+func TestGitLabListTagsPaginationLimit(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab API that always returns a next page
+	var calls atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := int(calls.Add(1))
+		w.Header().Set("X-Next-Page", strconv.Itoa(n+1))
+		writeJSON(t, w, []map[string]any{{
+			"name": fmt.Sprintf("v0.0.%d", n),
+			"commit": map[string]any{
+				"id":         fmt.Sprintf("sha-%d", n),
+				"message":    "tag commit",
+				"created_at": "2026-01-01T00:00:00Z",
+			},
+		}})
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: listing tags from an effectively infinite repository
+	_, err = gl.ListTags(context.Background())
+
+	// then: pagination limit is enforced
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
 }
 
 // Compile-time interface checks.
