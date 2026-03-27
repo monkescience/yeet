@@ -264,7 +264,7 @@ func TestApplyReleaseOptions(t *testing.T) {
 
 		// when: applying explicit repository overrides
 		applyReleaseOptions(cfg, releaseRunOptions{
-			provider:             config.ProviderGitLab,
+			provider:             string(config.ProviderGitLab),
 			providerSet:          true,
 			repositoryRemote:     "upstream",
 			repositoryRemoteSet:  true,
@@ -298,7 +298,7 @@ func TestApplyReleaseOptions(t *testing.T) {
 
 		// when: applying github-style owner repo overrides
 		applyReleaseOptions(cfg, releaseRunOptions{
-			provider:           config.ProviderGitHub,
+			provider:           string(config.ProviderGitHub),
 			providerSet:        true,
 			repositoryOwner:    "platform",
 			repositoryOwnerSet: true,
@@ -324,7 +324,7 @@ func TestApplyReleaseOptions(t *testing.T) {
 		cfg.Repository.Project = "group/subgroup/service"
 
 		applyReleaseOptions(cfg, releaseRunOptions{
-			provider:           config.ProviderGitHub,
+			provider:           string(config.ProviderGitHub),
 			providerSet:        true,
 			repositoryOwner:    "platform",
 			repositoryOwnerSet: true,
@@ -343,7 +343,7 @@ func TestApplyReleaseOptions(t *testing.T) {
 
 		// then: yeet uses the github default host instead of the stale gitlab host
 		testastic.NoError(t, err)
-		testastic.Equal(t, config.ProviderGitHub, repository.Provider)
+		testastic.Equal(t, string(config.ProviderGitHub), repository.Provider)
 		testastic.Equal(t, provider.DefaultGitHubHost, repository.Host)
 		testastic.Equal(t, "platform", repository.Owner)
 		testastic.Equal(t, "yeet", repository.Repo)
@@ -360,7 +360,7 @@ func TestApplyReleaseOptions(t *testing.T) {
 
 		// when: applying a gitlab project override
 		applyReleaseOptions(cfg, releaseRunOptions{
-			provider:             config.ProviderGitLab,
+			provider:             string(config.ProviderGitLab),
 			providerSet:          true,
 			repositoryProject:    "group/subgroup/service",
 			repositoryProjectSet: true,
@@ -490,7 +490,7 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 
 		options := releaseRunOptions{
 			autoMergeMethodSet: true,
-			autoMergeMethod:    config.AutoMergeMethodSquash,
+			autoMergeMethod:    string(config.AutoMergeMethodSquash),
 		}
 
 		// when: applying options

@@ -117,7 +117,11 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 		}
 
 		for _, includeID := range target.Includes {
-			includedTarget := r.targets[includeID]
+			includedTarget, exists := r.targets[includeID]
+			if !exists {
+				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", ErrUnknownTarget, includeID, normalizedTargetID)
+			}
+
 			analyzedPathTargets[includeID] = includedTarget
 		}
 	}
@@ -440,7 +444,7 @@ func (a *releaseAnalyzer) newTargetPlan(
 	strategy := a.releaser.strategyForTarget(target)
 	plan := TargetPlan{
 		ID:             target.ID,
-		Type:           target.Type,
+		Type:           string(target.Type),
 		Path:           target.Path,
 		CurrentVersion: currentVersion,
 		BumpType:       bumpType,
@@ -759,7 +763,7 @@ func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrat
 			Format: target.CalVer.Format,
 			Prefix: target.TagPrefix,
 		}
-	default:
+	case config.VersioningSemver:
 		strategy = &version.SemVer{
 			Prefix:                     target.TagPrefix,
 			PreMajorBreakingBumpsMinor: target.PreMajorBreakingBumpsMinor,

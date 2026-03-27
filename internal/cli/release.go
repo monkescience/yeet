@@ -168,7 +168,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("repository resolution failed: %w", err)
 	}
 
-	cfg.Provider = repository.Provider
+	cfg.Provider = config.ProviderType(repository.Provider)
 
 	p, err := createProvider(repository)
 	if err != nil {
@@ -274,7 +274,7 @@ func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions
 	previousProvider := cfg.Provider
 
 	if options.providerSet {
-		cfg.Provider = options.provider
+		cfg.Provider = config.ProviderType(options.provider)
 	}
 
 	if options.repositoryRemoteSet {
@@ -308,7 +308,7 @@ func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions
 	}
 }
 
-func providerChanged(previous config.ProviderType, next string) bool {
+func providerChanged(previous, next config.ProviderType) bool {
 	previousProvider := normalizedRepositoryProvider(previous)
 	nextProvider := normalizedRepositoryProvider(next)
 
@@ -343,7 +343,7 @@ func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) 
 	}
 
 	if options.autoMergeMethodSet {
-		cfg.Release.AutoMergeMethod = options.autoMergeMethod
+		cfg.Release.AutoMergeMethod = config.AutoMergeMethod(options.autoMergeMethod)
 	}
 
 	if cfg.Release.AutoMergeForce {

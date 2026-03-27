@@ -65,7 +65,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 
 	mergeOptions := provider.MergeReleasePROptions{
 		Force:  r.cfg.Release.AutoMergeForce,
-		Method: r.cfg.Release.AutoMergeMethod,
+		Method: provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
 	err := r.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)

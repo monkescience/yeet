@@ -23,7 +23,7 @@ const SchemaDirective = "# yaml-language-server: $schema=" + DefaultSchemaURL
 
 const githubProjectSegments = 2
 
-type VersioningStrategy = string
+type VersioningStrategy string
 
 const (
 	// VersioningSemver uses semantic versioning (MAJOR.MINOR.PATCH).
@@ -32,7 +32,7 @@ const (
 	VersioningCalVer VersioningStrategy = "calver"
 )
 
-type ProviderType = string
+type ProviderType string
 
 const (
 	ProviderAuto   ProviderType = "auto"
@@ -40,7 +40,7 @@ const (
 	ProviderGitLab ProviderType = "gitlab"
 )
 
-type AutoMergeMethod = string
+type AutoMergeMethod string
 
 const (
 	AutoMergeMethodAuto   AutoMergeMethod = "auto"
@@ -63,7 +63,7 @@ type Config struct {
 	Targets                    map[string]Target  `yaml:"targets"`
 }
 
-type TargetType = string
+type TargetType string
 
 const (
 	TargetTypePath    TargetType = "path"
@@ -297,7 +297,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
 	}
 
-	targetType := strings.TrimSpace(target.Type)
+	targetType := TargetType(strings.TrimSpace(string(target.Type)))
 	if targetType != TargetTypePath && targetType != TargetTypeDerived {
 		return ResolvedTarget{}, fmt.Errorf(
 			"%w: targets.%s.type must be %q or %q, got %q",

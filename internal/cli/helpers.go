@@ -192,11 +192,16 @@ func newRetryableHTTPClient() *http.Client {
 }
 
 func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
-	switch repository.Provider {
+	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		return createGitHubProvider(repository)
 	case config.ProviderGitLab:
 		return createGitLabProvider(repository)
+	case config.ProviderAuto:
+		return nil, fmt.Errorf(
+			"%w: %s (provider auto must be resolved before creation)",
+			ErrUnsupportedProvider, repository.Provider,
+		)
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
 	}
@@ -312,7 +317,7 @@ func resolveRepository(
 		repository.Provider = providerType
 	}
 
-	switch repository.Provider {
+	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		if repository.Host == "" {
 			repository.Host = provider.DefaultGitHubHost
@@ -321,6 +326,8 @@ func resolveRepository(
 		if repository.Host == "" {
 			repository.Host = provider.DefaultGitLabHost
 		}
+	case config.ProviderAuto:
+		// auto is resolved via remote detection; no default host needed.
 	}
 
 	normalizeRepositoryDescriptor(repository)
@@ -345,8 +352,8 @@ func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
 }
 
 func normalizedRepositoryProvider(providerType config.ProviderType) string {
-	provider := strings.TrimSpace(providerType)
-	if provider == config.ProviderAuto {
+	provider := strings.TrimSpace(string(providerType))
+	if config.ProviderType(provider) == config.ProviderAuto {
 		return ""
 	}
 
@@ -437,7 +444,7 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 		return err
 	}
 
-	switch repository.Provider {
+	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		if repository.Owner == "" || repository.Repo == "" {
 			return ErrGitHubRepoRequired
@@ -450,6 +457,11 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 		if repository.Project == "" {
 			return ErrGitLabProjectNeeded
 		}
+	case config.ProviderAuto:
+		return fmt.Errorf(
+			"%w: %s (provider auto must be resolved before validation)",
+			ErrUnsupportedProvider, repository.Provider,
+		)
 	default:
 		return fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
 	}

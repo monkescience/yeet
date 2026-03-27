@@ -48,7 +48,7 @@ type ReleaseOptions struct {
 	Body    string
 }
 
-type MergeMethod = string
+type MergeMethod string
 
 const (
 	MergeMethodAuto   MergeMethod = "auto"

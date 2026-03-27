@@ -222,7 +222,7 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return err
 	}
 
-	mergeOptions := &github.PullRequestOptions{MergeMethod: mergeMethod}
+	mergeOptions := &github.PullRequestOptions{MergeMethod: string(mergeMethod)}
 
 	headSHA := strings.TrimSpace(pr.GetHead().GetSHA())
 	if headSHA != "" {
@@ -327,7 +327,7 @@ func isGitHubMergeStateConflicted(state string) bool {
 	return state == "dirty"
 }
 
-func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested MergeMethod) (string, error) {
+func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested MergeMethod) (MergeMethod, error) {
 	repo, _, err := g.client.Repositories.Get(ctx, g.repo.Owner, g.repo.Name)
 	if err != nil {
 		return "", fmt.Errorf("get repository merge settings: %w", err)

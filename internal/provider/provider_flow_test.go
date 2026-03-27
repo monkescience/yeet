@@ -171,7 +171,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		})
 
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.MergeMethodSquash, mergeRequest.MergeMethod)
+		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
 	})
 }
