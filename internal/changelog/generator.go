@@ -19,6 +19,14 @@ type Generator struct {
 	RepoURL    string
 	PathPrefix string
 	References config.ReferencesConfig
+	Now        func() time.Time
+
+	compiledPatterns []compiledPattern
+}
+
+type compiledPattern struct {
+	re  *regexp.Regexp
+	url string
 }
 
 type Entry struct {
@@ -57,7 +65,7 @@ func (g *Generator) Generate(version string, previousTag string, commits []commi
 
 	entry := Entry{
 		Version: version,
-		Date:    time.Now(),
+		Date:    g.now(),
 		Body:    sb.String(),
 	}
 
@@ -180,25 +188,39 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 	sb.WriteString("\n")
 }
 
-func (g *Generator) linkDescription(description string) string {
-	if len(g.References.Patterns) == 0 {
-		return description
+func (g *Generator) ensureCompiledPatterns() {
+	if g.compiledPatterns != nil || len(g.References.Patterns) == 0 {
+		return
 	}
 
-	result := description
+	g.compiledPatterns = make([]compiledPattern, 0, len(g.References.Patterns))
 
 	for _, p := range g.References.Patterns {
+		if p.URL == "" {
+			continue
+		}
+
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
 			continue
 		}
 
-		if p.URL == "" {
-			continue
-		}
+		g.compiledPatterns = append(g.compiledPatterns, compiledPattern{re: re, url: p.URL})
+	}
+}
 
-		result = re.ReplaceAllStringFunc(result, func(match string) string {
-			url := strings.ReplaceAll(p.URL, "{value}", match)
+func (g *Generator) linkDescription(description string) string {
+	g.ensureCompiledPatterns()
+
+	if len(g.compiledPatterns) == 0 {
+		return description
+	}
+
+	result := description
+
+	for _, cp := range g.compiledPatterns {
+		result = cp.re.ReplaceAllStringFunc(result, func(match string) string {
+			url := strings.ReplaceAll(cp.url, "{value}", match)
 
 			return fmt.Sprintf("[%s](%s)", match, url)
 		})
@@ -238,6 +260,14 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	}
 
 	return strings.Join(refs, ", ")
+}
+
+func (g *Generator) now() time.Time {
+	if g.Now != nil {
+		return g.Now()
+	}
+
+	return time.Now()
 }
 
 func capitalizeFirst(s string) string {
