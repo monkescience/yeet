@@ -149,6 +149,37 @@ For calver repositories, yeet also supports aliases:
 - `x-yeet-start-year|month|micro` for calver block markers
 - `x-yeet-end` closes the block
 
+### Changelog references
+
+yeet can link issue tracker references in generated changelogs. References are extracted from two sources: inline patterns matched in commit descriptions, and conventional commit footers.
+
+```yaml
+changelog:
+  references:
+    patterns:
+      - pattern: "JIRA-\\d+"
+        url: "https://jira.example.com/browse/{value}"
+      - pattern: "#\\d+"
+        url: ""  # plain text, GitHub auto-links these
+    footers:
+      Refs: "https://jira.example.com/browse/{value}"
+      Closes: ""
+```
+
+**Inline patterns** match against the commit description using regex and replace matches with links. A commit like `feat: add OAuth2 support JIRA-123` produces:
+
+```
+- add OAuth2 support [JIRA-123](https://jira.example.com/browse/JIRA-123) (abc1234)
+```
+
+**Footer references** extract values from conventional commit footers and append them after the commit hash. A commit with a `Refs: JIRA-456` footer produces:
+
+```
+- add OAuth2 support (abc1234) ([JIRA-456](https://jira.example.com/browse/JIRA-456))
+```
+
+Use `{value}` as the placeholder in URL templates. An empty URL string renders the reference as plain text without linking. Both `patterns` and `footers` can be configured per target in monorepo setups.
+
 ## Versioning strategies
 
 ### Semantic Versioning (semver)
