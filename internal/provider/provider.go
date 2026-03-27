@@ -168,6 +168,10 @@ var ErrMergeBlocked = errors.New("release PR merge blocked")
 
 var ErrMergeMethodUnsupported = errors.New("merge method unsupported")
 
+var ErrPaginationLimitExceeded = errors.New("pagination safety limit exceeded")
+
+const maxPaginationPages = 100
+
 // CommitBoundaryNotFoundError includes the missing boundary ref and the branch being analyzed.
 type CommitBoundaryNotFoundError struct {
 	Ref    string
@@ -271,7 +275,7 @@ func newRepositoryDescriptor(host, rawPath string) (*RepositoryDescriptor, error
 		return nil, ErrUnknownRemote
 	}
 
-	owner, repo := splitProjectPath(project)
+	owner, repo := SplitProjectPath(project)
 	if owner == "" || repo == "" {
 		return nil, ErrUnknownRemote
 	}
@@ -293,7 +297,7 @@ func normalizeRemotePath(rawPath string) string {
 	return path
 }
 
-func splitProjectPath(project string) (string, string) {
+func SplitProjectPath(project string) (string, string) {
 	parts := strings.Split(project, "/")
 	if len(parts) < minimumProjectSegments {
 		return "", ""

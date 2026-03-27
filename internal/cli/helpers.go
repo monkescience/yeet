@@ -32,8 +32,6 @@ var (
 )
 
 const (
-	minimumProjectSegments = 2
-
 	httpClientTimeout = 30 * time.Second
 	httpRetryMax      = 3
 	httpRetryWaitMin  = 1 * time.Second
@@ -422,7 +420,7 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 	}
 
 	if repository.Project != "" && (repository.Owner == "" || repository.Repo == "") {
-		owner, repo := splitProjectPath(repository.Project)
+		owner, repo := provider.SplitProjectPath(repository.Project)
 		if repository.Owner == "" {
 			repository.Owner = owner
 		}
@@ -431,15 +429,6 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 			repository.Repo = repo
 		}
 	}
-}
-
-func splitProjectPath(project string) (string, string) {
-	parts := strings.Split(project, "/")
-	if len(parts) < minimumProjectSegments {
-		return "", ""
-	}
-
-	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1]
 }
 
 func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) error {
