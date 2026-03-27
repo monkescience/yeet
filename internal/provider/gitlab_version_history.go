@@ -53,7 +53,7 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 			tags = append(tags, name)
 		}
 
-		if resp.NextPage == 0 {
+		if resp == nil || resp.NextPage == 0 {
 			return tags, nil
 		}
 
@@ -109,7 +109,7 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 			})
 		}
 
-		if boundaryFound || resp.NextPage == 0 {
+		if boundaryFound || resp == nil || resp.NextPage == 0 {
 			break
 		}
 
