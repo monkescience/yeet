@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.7](https://github.com/monkescience/yeet/compare/v0.4.6...v0.4.7) (2026-04-03)
+
+### Bug Fixes
+
+- **deps:** update module github.com/go-git/go-git/v5 to v5.17.1 [security] (#34) ([1384940](https://github.com/monkescience/yeet/commit/138494085361a5a66144bb05e6d651c666f29320))
+
 ## [v0.4.6](https://github.com/monkescience/yeet/compare/v0.4.5...v0.4.6) (2026-03-27)
 
 ### Features
