@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {

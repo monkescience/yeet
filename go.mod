@@ -9,8 +9,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/monkescience/testastic v0.2.0
 	github.com/spf13/cobra v1.10.2
-	gitlab.com/gitlab-org/api/client-go v1.46.0
-	gitlab.com/gitlab-org/api/client-go/v2 v2.9.0
+	gitlab.com/gitlab-org/api/client-go/v2 v2.17.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/sync v0.20.0
 )

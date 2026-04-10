@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sort"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {

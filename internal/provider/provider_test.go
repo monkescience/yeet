@@ -16,7 +16,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/provider"
-	gitlabapi "gitlab.com/gitlab-org/api/client-go"
+	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 func TestParseRemote(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 const gitlabReleasePendingLabelColor = "#FBCA04"
