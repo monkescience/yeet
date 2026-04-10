@@ -79,6 +79,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/monkescience/testastic v0.1.3 h1:OEk7oBjnq9NsuSnRKOTe/xdp0MVpk5/Uw6P9IPaX3RA=
 github.com/monkescience/testastic v0.1.3/go.mod h1:apmUQdDbar6r2ZdIX0Ta21qL45nk5pOWDzwvXhhILGc=
+github.com/monkescience/testastic v0.2.0 h1:JmXtU/aF3iTWrkiuULvYRLppxcMcFiylTzwAdAg/qwY=
+github.com/monkescience/testastic v0.2.0/go.mod h1:apmUQdDbar6r2ZdIX0Ta21qL45nk5pOWDzwvXhhILGc=
 github.com/onsi/gomega v1.34.1 h1:EUMJIKUjM8sKjYbtxQI9A4z2o+rruxnzNvpknOXie6k=
 github.com/onsi/gomega v1.34.1/go.mod h1:kU1QgUvBDLXBJq618Xvm2LUX6rSAfRaFRTcdOeDLwwY=
 github.com/pjbgf/sha1cd v0.5.0 h1:a+UkboSi1znleCDUNT3M5YxjOnN1fz2FhN48FlwCxs0=
