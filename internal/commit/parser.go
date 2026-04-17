@@ -32,6 +32,20 @@ const (
 	BumpMajor BumpType = "major"
 )
 
+// BumpMapping maps conventional commit types to their bump levels.
+// Types not present in the map produce BumpNone.
+// Breaking commits always produce BumpMajor regardless of mapping.
+type BumpMapping map[string]BumpType
+
+// DefaultBumpMapping returns the default mapping: feat→minor, fix/perf→patch.
+func DefaultBumpMapping() BumpMapping {
+	return BumpMapping{
+		"feat": BumpMinor,
+		"fix":  BumpPatch,
+		"perf": BumpPatch,
+	}
+}
+
 // conventionalCommitPattern matches a conventional commit header.
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
@@ -171,11 +185,11 @@ func parseFooter(line string) Footer {
 	return Footer{Key: line}
 }
 
-func DetermineBump(commits []Commit) BumpType {
+func DetermineBump(commits []Commit, mapping BumpMapping) BumpType {
 	bump := BumpNone
 
 	for _, c := range commits {
-		b := commitBump(c)
+		b := commitBump(c, mapping)
 
 		if compareBump(b, bump) > 0 {
 			bump = b
@@ -189,19 +203,16 @@ func DetermineBump(commits []Commit) BumpType {
 	return bump
 }
 
-func commitBump(c Commit) BumpType {
+func commitBump(c Commit, mapping BumpMapping) BumpType {
 	if c.Breaking {
 		return BumpMajor
 	}
 
-	switch c.Type {
-	case "feat":
-		return BumpMinor
-	case "fix", "perf":
-		return BumpPatch
-	default:
-		return BumpNone
+	if bump, ok := mapping[c.Type]; ok {
+		return bump
 	}
+
+	return BumpNone
 }
 
 func compareBump(a, b BumpType) int {

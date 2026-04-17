@@ -56,6 +56,9 @@
     "release": {
       "$ref": "#/$defs/release"
     },
+    "bump_types": {
+      "$ref": "#/$defs/bump_types"
+    },
     "changelog": {
       "$ref": "#/$defs/changelog"
     },
@@ -139,6 +142,36 @@
         "pr_body_footer": {
           "type": "string",
           "description": "Optional markdown appended after changelog in release PR/MR body."
+        }
+      }
+    },
+    "bump_types": {
+      "type": "object",
+      "description": "Mapping of bump levels to conventional commit types. Types not listed produce no version bump. Breaking commits always bump major regardless of this mapping.",
+      "additionalProperties": false,
+      "properties": {
+        "minor": {
+          "type": "array",
+          "description": "Commit types that trigger a minor version bump.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [
+            "feat"
+          ]
+        },
+        "patch": {
+          "type": "array",
+          "description": "Commit types that trigger a patch version bump.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [
+            "fix",
+            "perf"
+          ]
         }
       }
     },

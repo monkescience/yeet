@@ -189,7 +189,7 @@ func TestDetermineBump(t *testing.T) {
 		commits := []commit.Commit{}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: no bump is needed
 		testastic.Equal(t, commit.BumpNone, bump)
@@ -205,7 +205,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: patch bump
 		testastic.Equal(t, commit.BumpPatch, bump)
@@ -221,7 +221,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: minor bump (feat > fix)
 		testastic.Equal(t, commit.BumpMinor, bump)
@@ -237,7 +237,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: major bump
 		testastic.Equal(t, commit.BumpMajor, bump)
@@ -253,7 +253,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: no bump
 		testastic.Equal(t, commit.BumpNone, bump)
@@ -268,10 +268,75 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits)
+		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
 
 		// then: patch bump
 		testastic.Equal(t, commit.BumpPatch, bump)
+	})
+
+	t.Run("custom mapping docs as patch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a docs commit with a custom mapping
+		mapping := commit.BumpMapping{"docs": commit.BumpPatch}
+		commits := []commit.Commit{
+			{Type: "docs", Description: "update readme"},
+		}
+
+		// when: determining bump
+		bump := commit.DetermineBump(commits, mapping)
+
+		// then: patch bump
+		testastic.Equal(t, commit.BumpPatch, bump)
+	})
+
+	t.Run("custom mapping type not in mapping returns none", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a feat commit with a mapping that does not include feat
+		mapping := commit.BumpMapping{"fix": commit.BumpPatch}
+		commits := []commit.Commit{
+			{Type: "feat", Description: "new feature"},
+		}
+
+		// when: determining bump
+		bump := commit.DetermineBump(commits, mapping)
+
+		// then: no bump
+		testastic.Equal(t, commit.BumpNone, bump)
+	})
+
+	t.Run("breaking overrides custom mapping", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a breaking commit with a mapping that only has patch types
+		mapping := commit.BumpMapping{"fix": commit.BumpPatch}
+		commits := []commit.Commit{
+			{Type: "fix", Description: "fix bug", Breaking: true},
+		}
+
+		// when: determining bump
+		bump := commit.DetermineBump(commits, mapping)
+
+		// then: major bump regardless of mapping
+		testastic.Equal(t, commit.BumpMajor, bump)
+	})
+
+	t.Run("empty mapping only breaking triggers bump", func(t *testing.T) {
+		t.Parallel()
+
+		// given: feat and fix commits with an empty mapping
+		mapping := commit.BumpMapping{}
+		commits := []commit.Commit{
+			{Type: "feat", Description: "new feature"},
+			{Type: "fix", Description: "fix bug"},
+		}
+
+		// when: determining bump
+		bump := commit.DetermineBump(commits, mapping)
+
+		// then: no bump
+		testastic.Equal(t, commit.BumpNone, bump)
 	})
 }
 

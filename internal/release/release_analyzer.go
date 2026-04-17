@@ -18,6 +18,7 @@ import (
 
 type releaseAnalyzer struct {
 	releaser        *Releaser
+	bumpMapping     commit.BumpMapping
 	commitCache     map[commitCacheKey][]provider.CommitEntry
 	analyzedTargets map[string]config.ResolvedTarget
 }
@@ -37,6 +38,7 @@ type releaseSelection struct {
 func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 	return &releaseAnalyzer{
 		releaser:    releaser,
+		bumpMapping: releaser.cfg.BumpTypes.ToBumpMapping(),
 		commitCache: make(map[commitCacheKey][]provider.CommitEntry),
 	}
 }
@@ -286,7 +288,7 @@ func (a *releaseAnalyzer) planDirectTarget(
 
 	filteredEntries := filterEntriesForTarget(entries, target)
 	commits := provider.ParseCommits(filteredEntries)
-	bumpType := commit.DetermineBump(commits)
+	bumpType := commit.DetermineBump(commits, a.bumpMapping)
 
 	nextVersion, nextBumpType, shouldRelease, err := a.nextVersionPlan(target, commits, currentVersion, bumpType)
 	if err != nil {
@@ -342,7 +344,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	childEntries := filterEntriesForPlans(allEntries, childPlans, a.releaser.targets)
 
 	directCommits := provider.ParseCommits(directEntries)
-	directBumpType := commit.DetermineBump(directCommits)
+	directBumpType := commit.DetermineBump(directCommits, a.bumpMapping)
 
 	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(
 		target,

@@ -32,6 +32,8 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
 	testastic.True(t, cfg.PreMajorBreakingBumpsMinor)
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
+	testastic.SliceEqual(t, []string{"feat"}, cfg.BumpTypes.Minor)
+	testastic.SliceEqual(t, []string{"fix", "perf"}, cfg.BumpTypes.Patch)
 }
 
 func TestParse(t *testing.T) {
@@ -123,6 +125,37 @@ targets:
 		testastic.Equal(t, "CHANGES.md", cfg.Changelog.File)
 		testastic.Equal(t, 2, len(cfg.Changelog.Include))
 		testastic.Equal(t, "New Features", cfg.Changelog.Sections["feat"])
+	})
+
+	t.Run("config with custom bump types", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with custom bump_types
+		data := []byte(`
+versioning: semver
+branch: main
+bump_types:
+  minor:
+    - feat
+    - revert
+  patch:
+    - fix
+    - perf
+    - docs
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: bump types are parsed correctly
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{"feat", "revert"}, cfg.BumpTypes.Minor)
+		testastic.SliceEqual(t, []string{"fix", "perf", "docs"}, cfg.BumpTypes.Patch)
 	})
 
 	t.Run("config with changelog references", func(t *testing.T) {
@@ -569,6 +602,118 @@ func TestValidate(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.ErrorContains(t, err, "version_files")
+	})
+
+	t.Run("overlapping bump types fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a type appearing in both minor and patch
+		cfg := config.Default()
+		cfg.BumpTypes.Minor = []string{"feat"}
+		cfg.BumpTypes.Patch = []string{"fix", "feat"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "feat")
+	})
+
+	t.Run("empty string in bump types minor fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with an empty string in bump_types.minor
+		cfg := config.Default()
+		cfg.BumpTypes.Minor = []string{"feat", ""}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "bump_types.minor")
+	})
+
+	t.Run("empty bump types lists are valid", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with empty bump type lists
+		cfg := config.Default()
+		cfg.BumpTypes.Minor = []string{}
+		cfg.BumpTypes.Patch = []string{}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation passes
+		testastic.NoError(t, err)
+	})
+}
+
+func TestBumpTypesConfig_ToBumpMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default config produces default mapping", func(t *testing.T) {
+		t.Parallel()
+
+		// given: default bump types config
+		bt := config.BumpTypesConfig{
+			Minor: []string{"feat"},
+			Patch: []string{"fix", "perf"},
+		}
+
+		// when: converting to bump mapping
+		mapping := bt.ToBumpMapping()
+
+		// then: matches expected mapping
+		testastic.Equal(t, 3, len(mapping))
+		testastic.Equal(t, "minor", mapping["feat"])
+		testastic.Equal(t, "patch", mapping["fix"])
+		testastic.Equal(t, "patch", mapping["perf"])
+	})
+
+	t.Run("custom config produces custom mapping", func(t *testing.T) {
+		t.Parallel()
+
+		// given: custom bump types config
+		bt := config.BumpTypesConfig{
+			Minor: []string{"feat", "revert"},
+			Patch: []string{"docs"},
+		}
+
+		// when: converting to bump mapping
+		mapping := bt.ToBumpMapping()
+
+		// then: matches expected mapping
+		testastic.Equal(t, 3, len(mapping))
+		testastic.Equal(t, "minor", mapping["feat"])
+		testastic.Equal(t, "minor", mapping["revert"])
+		testastic.Equal(t, "patch", mapping["docs"])
+	})
+
+	t.Run("empty config produces empty mapping", func(t *testing.T) {
+		t.Parallel()
+
+		// given: empty bump types config
+		bt := config.BumpTypesConfig{}
+
+		// when: converting to bump mapping
+		mapping := bt.ToBumpMapping()
+
+		// then: empty mapping
+		testastic.Equal(t, 0, len(mapping))
 	})
 }
 

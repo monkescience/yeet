@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/commit"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -55,6 +56,7 @@ type Config struct {
 	Provider                   ProviderType       `yaml:"provider"`
 	PreMajorBreakingBumpsMinor bool               `yaml:"pre_major_breaking_bumps_minor"`
 	PreMajorFeaturesBumpPatch  bool               `yaml:"pre_major_features_bump_patch"`
+	BumpTypes                  BumpTypesConfig    `yaml:"bump_types"`
 	Repository                 RepositoryConfig   `yaml:"repository"`
 	VersionFiles               []string           `yaml:"version_files,omitempty"`
 	Release                    ReleaseConfig      `yaml:"release"`
@@ -135,6 +137,26 @@ type ReferencePattern struct {
 	URL     string `yaml:"url"`
 }
 
+type BumpTypesConfig struct {
+	Minor []string `yaml:"minor"`
+	Patch []string `yaml:"patch"`
+}
+
+// ToBumpMapping converts the config into a commit.BumpMapping.
+func (b BumpTypesConfig) ToBumpMapping() commit.BumpMapping {
+	m := make(commit.BumpMapping, len(b.Minor)+len(b.Patch))
+
+	for _, t := range b.Minor {
+		m[t] = commit.BumpMinor
+	}
+
+	for _, t := range b.Patch {
+		m[t] = commit.BumpPatch
+	}
+
+	return m
+}
+
 type CalVerConfig struct {
 	Format string `yaml:"format"`
 }
@@ -180,6 +202,10 @@ func Default() *Config {
 		Provider:                   ProviderAuto,
 		PreMajorBreakingBumpsMinor: true,
 		PreMajorFeaturesBumpPatch:  true,
+		BumpTypes: BumpTypesConfig{
+			Minor: []string{"feat"},
+			Patch: []string{"fix", "perf"},
+		},
 		Repository: RepositoryConfig{
 			Remote: "origin",
 		},
@@ -230,7 +256,12 @@ func (c *Config) Validate() error {
 			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, c.Provider)
 	}
 
-	err := validateRepositoryConfig(c.Provider, c.Repository)
+	err := validateBumpTypes(c.BumpTypes)
+	if err != nil {
+		return err
+	}
+
+	err = validateRepositoryConfig(c.Provider, c.Repository)
 	if err != nil {
 		return err
 	}
@@ -803,6 +834,30 @@ func splitGitHubProjectPath(project string) (string, string, bool) {
 	}
 
 	return owner, repo, true
+}
+
+func validateBumpTypes(bt BumpTypesConfig) error {
+	seen := make(map[string]string, len(bt.Minor)+len(bt.Patch))
+
+	for _, t := range bt.Minor {
+		if strings.TrimSpace(t) == "" {
+			return fmt.Errorf("%w: bump_types.minor must not contain empty strings", ErrInvalidConfig)
+		}
+
+		seen[t] = "minor"
+	}
+
+	for _, t := range bt.Patch {
+		if strings.TrimSpace(t) == "" {
+			return fmt.Errorf("%w: bump_types.patch must not contain empty strings", ErrInvalidConfig)
+		}
+
+		if level, exists := seen[t]; exists {
+			return fmt.Errorf("%w: bump_types: type %q appears in both %s and patch", ErrInvalidConfig, t, level)
+		}
+	}
+
+	return nil
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {
