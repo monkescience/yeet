@@ -55,3 +55,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.generate-tap-token.outputs.token }}
+
+      - name: Enable auto-merge on Homebrew tap PR
+        env:
+          GH_TOKEN: ${{ steps.generate-tap-token.outputs.token }}
+        run: |
+          PR_URL=$(gh pr list --repo monkescience/homebrew-tap --head "yeet-${{ env.RELEASE_TAG }}" --json url --jq '.[0].url')
+          if [ -n "$PR_URL" ]; then
+            gh pr merge --auto --squash "$PR_URL" --repo monkescience/homebrew-tap
+          fi
