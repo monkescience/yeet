@@ -12,6 +12,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
+	"github.com/monkescience/yeet/internal/ui" // lipgloss styles for dry-run output
 	"github.com/spf13/cobra"
 )
 
@@ -352,22 +353,50 @@ func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) 
 }
 
 func printDryRun(w io.Writer, result *release.Result) {
-	_, _ = fmt.Fprintln(w, "--- Dry Run ---")
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, ui.Header.Render("Dry Run"))
+	_, _ = fmt.Fprintln(w)
+
 	if len(result.Plans) == 0 {
-		_, _ = fmt.Fprintln(w, "No changed targets.")
+		_, _ = fmt.Fprintln(w, ui.Faint.Render("No changed targets."))
 
 		return
 	}
 
-	for _, plan := range result.Plans {
-		_, _ = fmt.Fprintf(w, "Target:          %s\n", plan.ID)
-		_, _ = fmt.Fprintf(w, "Current version: %s\n", plan.CurrentVersion)
-		_, _ = fmt.Fprintf(w, "Next version:    %s\n", plan.NextVersion)
-		_, _ = fmt.Fprintf(w, "Next tag:        %s\n", plan.NextTag)
-		_, _ = fmt.Fprintf(w, "Bump type:       %s\n", plan.BumpType)
-		_, _ = fmt.Fprintf(w, "Commits:         %d\n", plan.CommitCount)
-		_, _ = fmt.Fprintln(w)
-		_, _ = fmt.Fprintln(w, "Changelog:")
-		_, _ = fmt.Fprintln(w, plan.Changelog)
+	for i, plan := range result.Plans {
+		if i > 0 {
+			_, _ = fmt.Fprintln(w)
+		}
+
+		printDryRunTarget(w, plan)
 	}
+}
+
+func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
+	_, _ = fmt.Fprintf(w, "  %s  %s\n",
+		ui.Label.Render("Target"),
+		plan.ID,
+	)
+
+	versionLine := fmt.Sprintf("%s → %s", plan.CurrentVersion, ui.Value.Render(plan.NextVersion))
+	_, _ = fmt.Fprintf(w, "  %s  %s %s\n",
+		ui.Label.Render("Version"),
+		versionLine,
+		ui.Faint.Render("("+plan.BumpType+")"),
+	)
+
+	_, _ = fmt.Fprintf(w, "  %s  %s\n",
+		ui.Label.Render("Tag"),
+		ui.Value.Render(plan.NextTag),
+	)
+
+	_, _ = fmt.Fprintf(w, "  %s  %d\n",
+		ui.Label.Render("Commits"),
+		plan.CommitCount,
+	)
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "  %s\n", ui.Faint.Render(ui.Separator))
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, plan.Changelog)
 }

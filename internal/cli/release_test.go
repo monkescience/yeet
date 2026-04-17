@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
@@ -18,19 +19,7 @@ import (
 )
 
 func TestReleaseCommand(t *testing.T) {
-	t.Run("help explains auto-merge method effective default", func(t *testing.T) {
-		// given: the release command help is requested
-
-		// when: rendering help output
-		stdout, stderr, err := executeCommand(t, "release", "--help")
-
-		// then: the flag description explains the config-backed default
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-		testastic.Contains(t, stdout, "defaults to config value; built-in default: auto")
-	})
-
-	t.Run("help includes the main release examples", func(t *testing.T) {
+	t.Run("help matches expected release CLI contract", func(t *testing.T) {
 		// given: the release command help is requested
 
 		// when: rendering help output
@@ -40,23 +29,6 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stderr)
 		testastic.AssertFile(t, "testdata/release_help.expected.txt", stdout)
-	})
-
-	t.Run("help includes repository override flags", func(t *testing.T) {
-		// given: the release command help is requested
-
-		// when: rendering help output
-		stdout, stderr, err := executeCommand(t, "release", "--help")
-
-		// then: the repository targeting flags are documented
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-		testastic.Contains(t, stdout, "--provider string")
-		testastic.Contains(t, stdout, "--remote string")
-		testastic.Contains(t, stdout, "--host string")
-		testastic.Contains(t, stdout, "--owner string")
-		testastic.Contains(t, stdout, "--repo string")
-		testastic.Contains(t, stdout, "--project string")
 	})
 
 	t.Run("reports missing config file with next step", func(t *testing.T) {
@@ -429,17 +401,9 @@ func TestPrintDryRun(t *testing.T) {
 		// when: printing the dry run
 		printDryRun(&buf, result)
 
-		// then: output contains plan fields
-		output := buf.String()
-		testastic.Contains(t, output, "--- Dry Run ---")
-		testastic.Contains(t, output, "Target:          default")
-		testastic.Contains(t, output, "Current version: 1.0.0")
-		testastic.Contains(t, output, "Next version:    1.1.0")
-		testastic.Contains(t, output, "Next tag:        v1.1.0")
-		testastic.Contains(t, output, "Bump type:       minor")
-		testastic.Contains(t, output, "Commits:         3")
-		testastic.Contains(t, output, "Changelog:")
-		testastic.Contains(t, output, "### Features")
+		// then: output matches expected layout
+		output := ansi.Strip(buf.String())
+		testastic.AssertFile(t, "testdata/dry_run_single_target.expected.txt", output)
 	})
 
 	t.Run("prints no changed targets for empty plans", func(t *testing.T) {
@@ -453,9 +417,9 @@ func TestPrintDryRun(t *testing.T) {
 		// when: printing the dry run
 		printDryRun(&buf, result)
 
-		// then: output indicates no changes
-		output := buf.String()
-		testastic.Contains(t, output, "No changed targets.")
+		// then: output matches expected empty layout
+		output := ansi.Strip(buf.String())
+		testastic.AssertFile(t, "testdata/dry_run_empty.expected.txt", output)
 	})
 }
 

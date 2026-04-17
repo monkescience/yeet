@@ -276,26 +276,13 @@ func TestRootCommand(t *testing.T) {
 		// when: initializing config with verbose logging
 		stdout, stderr, err := executeCommand(t, "--verbose", "init")
 
-		// then: debug logs are emitted to stderr
+		// then: debug and info logs are emitted to stderr
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stdout)
-		testastic.Contains(t, stderr, "level=DEBUG")
-		testastic.Contains(t, stderr, "msg=\"initializing config file\"")
-	})
-
-	t.Run("json log format emits structured debug logs for init", func(t *testing.T) {
-		// given: an empty temporary workspace
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		// when: initializing config with verbose logging and json output
-		stdout, stderr, err := executeCommand(t, "--log-format", "json", "--verbose", "init")
-
-		// then: debug logs are emitted to stderr as json
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stdout)
-		testastic.Contains(t, stderr, `"level":"DEBUG"`)
-		testastic.Contains(t, stderr, `"msg":"initializing config file"`)
+		testastic.Contains(t, stderr, "DEBU")
+		testastic.Contains(t, stderr, "initializing config file")
+		testastic.Contains(t, stderr, "INFO")
+		testastic.Contains(t, stderr, "created config file")
 	})
 
 	t.Run("verbose and quiet flags conflict", func(t *testing.T) {
@@ -307,18 +294,6 @@ func TestRootCommand(t *testing.T) {
 		// then: the command fails before running the subcommand
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "--verbose and --quiet cannot be used together")
-	})
-
-	t.Run("invalid log format fails before running subcommand", func(t *testing.T) {
-		// given: an unsupported log format value
-
-		// when: executing any command with an invalid log format
-		_, _, err := executeCommand(t, "--log-format", "xml", "version")
-
-		// then: the command fails with a clear validation error
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid --log-format value")
-		testastic.ErrorContains(t, err, "expected text or json")
 	})
 }
 

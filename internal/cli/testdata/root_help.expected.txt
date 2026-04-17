@@ -21,10 +21,10 @@ Available Commands:
   version     Print build information
 
 Flags:
-      --config string       path to config file (default: nearest ancestor .yeet.yaml)
-  -h, --help                help for yeet
-      --log-format string   set log output format: text|json (default "text")
-      --quiet               show warnings and errors only
-  -v, --verbose             enable debug logging
+      --config string   path to config file (default: nearest ancestor .yeet.yaml)
+  -h, --help            help for yeet
+      --no-color        disable colored output
+      --quiet           show warnings and errors only
+  -v, --verbose         enable debug logging
 
 Use "yeet [command] --help" for more information about a command.

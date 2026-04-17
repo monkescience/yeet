@@ -29,7 +29,7 @@ Flags:
       --target stringArray         limit analysis to one or more configured targets; repeatable
 
 Global Flags:
-      --config string       path to config file (default: nearest ancestor .yeet.yaml)
-      --log-format string   set log output format: text|json (default "text")
-      --quiet               show warnings and errors only
-  -v, --verbose             enable debug logging
+      --config string   path to config file (default: nearest ancestor .yeet.yaml)
+      --no-color        disable colored output
+      --quiet           show warnings and errors only
+  -v, --verbose         enable debug logging

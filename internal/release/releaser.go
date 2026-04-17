@@ -127,9 +127,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return result, nil
 	}
 
-	slog.InfoContext(ctx, "release analysis complete",
-		"targets", len(result.Plans),
-	)
+	slog.InfoContext(ctx, "release analysis complete", "targets", len(result.Plans))
 
 	if dryRun {
 		return result, nil

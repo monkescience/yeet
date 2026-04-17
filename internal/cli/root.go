@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	charmlog "github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 )
 
@@ -17,19 +18,13 @@ var (
 	buildCommit             = "none"
 	buildDate               = "unknown"
 	errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
-	errInvalidLogFormat     = errors.New("invalid --log-format value")
-)
-
-const (
-	logFormatText = "text"
-	logFormatJSON = "json"
 )
 
 type bootstrapOptions struct {
 	configFile string
-	logFormat  string
 	verbose    bool
 	quiet      bool
+	noColor    bool
 }
 
 type buildInfo struct {
@@ -74,9 +69,9 @@ autorelease: tagged.`,
 		"",
 		"path to config file (default: nearest ancestor .yeet.yaml)",
 	)
-	cmd.PersistentFlags().StringVar(&options.logFormat, "log-format", logFormatText, "set log output format: text|json")
 	cmd.PersistentFlags().BoolVarP(&options.verbose, "verbose", "v", false, "enable debug logging")
 	cmd.PersistentFlags().BoolVar(&options.quiet, "quiet", false, "show warnings and errors only")
+	cmd.PersistentFlags().BoolVar(&options.noColor, "no-color", false, "disable colored output")
 
 	cmd.AddCommand(
 		releaseCmd(options),
@@ -106,49 +101,25 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 		return errVerboseQuietConflict
 	}
 
-	logFormat := strings.TrimSpace(options.logFormat)
-
-	switch logFormat {
-	case logFormatText, logFormatJSON:
-	default:
-		return fmt.Errorf(
-			"%w: %q (expected %s or %s)",
-			errInvalidLogFormat,
-			logFormat,
-			logFormatText,
-			logFormatJSON,
-		)
-	}
-
-	level := slog.LevelInfo
+	level := charmlog.InfoLevel
 	if options.verbose {
-		level = slog.LevelDebug
+		level = charmlog.DebugLevel
 	}
 
 	if options.quiet {
-		level = slog.LevelWarn
+		level = charmlog.WarnLevel
 	}
 
-	handlerOptions := &slog.HandlerOptions{
-		Level: level,
-		ReplaceAttr: func(_ []string, attr slog.Attr) slog.Attr {
-			if attr.Key == slog.TimeKey {
-				return slog.Attr{}
-			}
+	logger := charmlog.NewWithOptions(cmd.ErrOrStderr(), charmlog.Options{
+		Level:           level,
+		ReportTimestamp: false,
+	})
 
-			return attr
-		},
+	if options.noColor {
+		logger.SetColorProfile(0) // termenv.Ascii — disables all color
 	}
 
-	var handler slog.Handler
-
-	if logFormat == logFormatJSON {
-		handler = slog.NewJSONHandler(cmd.ErrOrStderr(), handlerOptions)
-	} else {
-		handler = slog.NewTextHandler(cmd.ErrOrStderr(), handlerOptions)
-	}
-
-	slog.SetDefault(slog.New(handler))
+	slog.SetDefault(slog.New(logger))
 
 	return nil
 }

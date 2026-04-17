@@ -77,16 +77,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		return fmt.Errorf("merge release PR: %w", err)
 	}
 
-	slog.InfoContext(
-		ctx,
-		"merged release PR",
-		"url",
-		result.PullRequest.URL,
-		"force",
-		mergeOptions.Force,
-		"method",
-		mergeOptions.Method,
-	)
+	slog.InfoContext(ctx, "merged release PR", "url", result.PullRequest.URL)
 
 	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, r.cfg.Branch)
 	if err != nil {
