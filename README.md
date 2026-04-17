@@ -62,6 +62,40 @@ release PR/MR and finalizes the release in the same run. Force mode (`--auto-mer
 yeet's own readiness gates but does not bypass provider branch protections, required checks,
 approvals, or missing permissions.
 
+## Versioning strategies
+
+### Semantic Versioning (semver)
+
+Follows [semver](https://semver.org/) with configurable pre-1.0 behavior.
+
+For versions `>= 1.0.0`:
+
+- `feat` -> minor
+- `fix`, `perf` -> patch
+- Breaking changes (`!` or `BREAKING CHANGE` footer) -> major
+
+For versions `< 1.0.0` (default behavior with `pre_major_breaking_bumps_minor: true` and `pre_major_features_bump_patch: true`):
+
+- `feat` -> patch
+- `fix`, `perf` -> patch
+- Breaking changes (`!` or `BREAKING CHANGE` footer) -> minor
+
+These type-to-bump defaults are configurable via `bump_types` (see [Bump types](#bump-types)).
+
+This keeps pre-1.0 breaking changes from automatically jumping to `1.0.0`.
+
+Set `pre_major_breaking_bumps_minor: false` to let breaking changes bump major (triggering 1.0.0),
+or `pre_major_features_bump_patch: false` to let features bump minor as they do post-1.0.
+These options can also be overridden per target in monorepo configurations.
+
+`Release-As` commit footers (for example `Release-As: 1.0.0`) override automatic semver bumping.
+The value must be a stable semver version greater than the current version. `Release-As` is
+case-insensitive and applies only to semver repositories; calver repositories ignore it.
+
+### Calendar Versioning (calver)
+
+Uses `YYYY.0M.MICRO` format (e.g., `2026.02.1`). The micro counter resets when the year/month changes.
+
 ## Configuration
 
 yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to generate one with sensible defaults, or pass `--config` to write to a custom path. The generated file includes a YAML language server schema modeline for editor validation and autocomplete.
@@ -98,10 +132,12 @@ repository:
   project: group/subgroup/service
 ```
 
-### Monorepo targets
+### Targets
 
 yeet plans releases per target and creates one combined release PR/MR per base branch.
 PR workflow settings remain top-level under `release:` and apply to the combined PR/MR, not individual targets.
+
+Use `--target` to limit `yeet release` to specific targets (repeatable).
 
 ```yaml
 targets:
@@ -109,6 +145,8 @@ targets:
     type: path
     path: services/api
     tag_prefix: api-v
+    exclude_paths:
+      - services/api/testdata
 
   web:
     type: path
@@ -120,10 +158,31 @@ targets:
     includes:
       - api
       - web
+    path: .              # optional: also matches commits at repo root
     tag_prefix: v
 ```
 
-### Version file markers
+Path targets support `exclude_paths` to ignore commits under specific subdirectories.
+Derived targets aggregate included path targets and optionally match direct commits via `path`.
+
+### Bump types
+
+By default, `feat` commits bump minor and `fix`/`perf` commits bump patch. Override this mapping with `bump_types`:
+
+```yaml
+bump_types:
+  minor:
+    - feat
+    - improvement
+  patch:
+    - fix
+    - perf
+    - deps
+```
+
+Types not listed produce no version bump. Breaking changes always bump major regardless of this mapping.
+
+### Version files
 
 `yeet release` updates only files listed in `version_files`. Each file must contain yeet markers.
 
@@ -149,7 +208,28 @@ For calver repositories, yeet also supports aliases:
 - `x-yeet-start-year|month|micro` for calver block markers
 - `x-yeet-end` closes the block
 
-### Changelog references
+### Changelog
+
+yeet generates a changelog from conventional commits. Configure which commit types appear and how sections are labeled:
+
+```yaml
+changelog:
+  file: CHANGELOG.md
+  include:
+    - feat
+    - fix
+    - perf
+    - revert
+  sections:
+    feat: Features
+    fix: Bug Fixes
+    perf: Performance Improvements
+    revert: Reverts
+```
+
+Only types listed in `include` appear in the changelog. The `sections` map controls their heading text.
+
+#### References
 
 yeet can link issue tracker references in generated changelogs. References are extracted from two sources: inline patterns matched in commit descriptions, and conventional commit footers.
 
@@ -180,37 +260,14 @@ changelog:
 
 Use `{value}` as the placeholder in URL templates. An empty URL string renders the reference as plain text without linking. Both `patterns` and `footers` can be configured per target in monorepo setups.
 
-## Versioning strategies
+### Release PR/MR customization
 
-### Semantic Versioning (semver)
-
-Follows [semver](https://semver.org/) with configurable pre-1.0 behavior.
-
-For versions `>= 1.0.0`:
-
-- `feat` -> minor
-- `fix`, `perf` -> patch
-- Breaking changes (`!` or `BREAKING CHANGE` footer) -> major
-
-For versions `< 1.0.0` (default behavior with `pre_major_breaking_bumps_minor: true` and `pre_major_features_bump_patch: true`):
-
-- `feat` -> patch
-- `fix`, `perf` -> patch
-- Breaking changes (`!` or `BREAKING CHANGE` footer) -> minor
-
-This keeps pre-1.0 breaking changes from automatically jumping to `1.0.0`.
-
-Set `pre_major_breaking_bumps_minor: false` to let breaking changes bump major (triggering 1.0.0),
-or `pre_major_features_bump_patch: false` to let features bump minor as they do post-1.0.
-These options can also be overridden per target in monorepo configurations.
-
-`Release-As` commit footers (for example `Release-As: 1.0.0`) override automatic semver bumping.
-The value must be a stable semver version greater than the current version. `Release-As` is
-case-insensitive and applies only to semver repositories; calver repositories ignore it.
-
-### Calendar Versioning (calver)
-
-Uses `YYYY.0M.MICRO` format (e.g., `2026.02.1`). The micro counter resets when the year/month changes.
+```yaml
+release:
+  subject_include_branch: true       # include target branch in PR/MR subject
+  pr_body_header: "## Release"       # markdown before changelog in PR/MR body
+  pr_body_footer: "_Automated._"     # markdown after changelog in PR/MR body
+```
 
 ## Authentication
 
@@ -269,45 +326,38 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
-  pull-requests: write
   issues: write
+  pull-requests: write
 
 concurrency:
-  group: yeet-release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: stable
-
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
         with:
-          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.YEET_APP_ID }}
+          private-key: ${{ secrets.YEET_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Run yeet release
-        run: |
-          go install github.com/monkescience/yeet/cmd/yeet@v0.4.9 # x-yeet-version
-          yeet release
+      - name: Run yeet
+        uses: docker://ghcr.io/monkescience/yeet:v0.4.9 # x-yeet-version
+        with:
+          args: release
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 ```
@@ -347,7 +397,3 @@ category so you can pick the next fix quickly:
   lacks required approvals/checks, or requests a merge method the provider settings do not allow.
 - `release execution failed: multiple pending release PRs/MRs found`: close or relabel stale
   `autorelease: pending` entries until only one open release PR/MR remains for the base branch.
-
-## License
-
-MIT
