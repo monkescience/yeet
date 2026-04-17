@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.4.10](https://github.com/monkescience/yeet/compare/v0.4.9...v0.4.10) (2026-04-17)
+
+### Features
+
+- use charmbracelet/log for pretty CLI output and improve dry-run formatting ([b488f85](https://github.com/monkescience/yeet/commit/b488f85c7db7ee6b9d2474a70df3e025bb2e55fa))
+- **ci:** enable auto-merge on homebrew-tap PRs ([48c4523](https://github.com/monkescience/yeet/commit/48c452365ff8ffcac0fcb96f995fccaa428356dd))
+### Bug Fixes
+
+- add pagination safety limits and warn on invalid changelog regex patterns ([ff7d485](https://github.com/monkescience/yeet/commit/ff7d48558aa368e1dc203b29cfd8300c8249fae4))
+
 ## [v0.4.9](https://github.com/monkescience/yeet/compare/v0.4.8...v0.4.9) (2026-04-17)
 
 ### Features
