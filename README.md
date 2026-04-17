@@ -13,13 +13,13 @@ brew install monkescience/tap/yeet
 Or with Go:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.4.8 # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.4.9 # x-yeet-version
 ```
 
 Or use the published container image:
 
 ```sh
-docker run --rm ghcr.io/monkescience/yeet:v0.4.8 --help # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.4.9 --help # x-yeet-version
 ```
 
 ## Quick start
@@ -129,15 +129,15 @@ targets:
 
 ```txt
 # inline markers
-VERSION = "0.4.8" # x-yeet-version
+VERSION = "0.4.9" # x-yeet-version
 MAJOR = 0 # x-yeet-major
 MINOR = 4 # x-yeet-minor
-PATCH = 8 # x-yeet-patch
+PATCH = 9 # x-yeet-patch
 
 # block markers
 # x-yeet-start-version
-image: ghcr.io/acme/app:0.4.8
-appVersion: "0.4.8"
+image: ghcr.io/acme/app:0.4.9
+appVersion: "0.4.9"
 # x-yeet-end
 ```
 
@@ -306,7 +306,7 @@ jobs:
 
       - name: Run yeet release
         run: |
-          go install github.com/monkescience/yeet/cmd/yeet@v0.4.8 # x-yeet-version
+          go install github.com/monkescience/yeet/cmd/yeet@v0.4.9 # x-yeet-version
           yeet release
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -321,7 +321,7 @@ GitLab runs the job script with `sh` instead of the image's default `yeet` entry
 release:
   stage: release
   image:
-    name: ghcr.io/monkescience/yeet:v0.4.8 # x-yeet-version
+    name: ghcr.io/monkescience/yeet:v0.4.9 # x-yeet-version
     entrypoint: [""]
   variables:
     GIT_STRATEGY: fetch
