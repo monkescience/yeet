@@ -183,7 +183,7 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 	paths := make([]string, 0)
 	seen := make(map[string]struct{})
 
-	for {
+	for range maxPaginationPages {
 		commitDetails, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, sha, options)
 		if err != nil {
 			return nil, fmt.Errorf("get changed files for commit %q: %w", sha, err)
@@ -206,11 +206,14 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 		}
 
 		if resp == nil || resp.NextPage == 0 {
-			break
+			return paths, nil
 		}
 
 		options.Page = resp.NextPage
 	}
 
-	return paths, nil
+	return nil, fmt.Errorf(
+		"%w: exceeded %d pages listing commit paths for %q",
+		ErrPaginationLimitExceeded, maxPaginationPages, sha,
+	)
 }

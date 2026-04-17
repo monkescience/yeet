@@ -58,7 +58,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 	pendingPRs := make([]*PullRequest, 0)
 
-	for {
+	for range maxPaginationPages {
 		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
 		if err != nil {
 			return nil, fmt.Errorf("list pull requests: %w", err)
@@ -84,13 +84,16 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		}
 
 		if resp.NextPage == 0 {
-			break
+			return pendingPRs, nil
 		}
 
 		options.Page = resp.NextPage
 	}
 
-	return pendingPRs, nil
+	return nil, fmt.Errorf(
+		"%w: exceeded %d pages listing open pending release PRs",
+		ErrPaginationLimitExceeded, maxPaginationPages,
+	)
 }
 
 func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
@@ -104,7 +107,7 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		},
 	}
 
-	for {
+	for range maxPaginationPages {
 		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
 		if err != nil {
 			return nil, fmt.Errorf("list pull requests: %w", err)
@@ -140,13 +143,16 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		}
 
 		if resp.NextPage == 0 {
-			break
+			return nil, ErrNoPR
 		}
 
 		options.Page = resp.NextPage
 	}
 
-	return nil, ErrNoPR
+	return nil, fmt.Errorf(
+		"%w: exceeded %d pages listing merged release PRs",
+		ErrPaginationLimitExceeded, maxPaginationPages,
+	)
 }
 
 func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {

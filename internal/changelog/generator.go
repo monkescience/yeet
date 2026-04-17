@@ -3,6 +3,7 @@ package changelog
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -202,6 +203,8 @@ func (g *Generator) ensureCompiledPatterns() {
 
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
+			slog.Warn("invalid changelog reference pattern, skipping", "pattern", p.Pattern, "error", err)
+
 			continue
 		}
 
