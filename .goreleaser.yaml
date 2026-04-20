@@ -35,6 +35,7 @@ changelog:
 
 release:
   mode: append
+  replace_existing_artifacts: true
 
 homebrew_casks:
   - repository:
