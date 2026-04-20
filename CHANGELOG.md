@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.11](https://github.com/monkescience/yeet/compare/v0.4.10...v0.4.11) (2026-04-20)
+
+### Features
+
+- release Windows binaries via Scoop bucket ([50678e8](https://github.com/monkescience/yeet/commit/50678e80eb69d47d35c762c56da4a4361739e5b6))
+
 ## [v0.4.10](https://github.com/monkescience/yeet/compare/v0.4.9...v0.4.10) (2026-04-17)
 
 ### Features
