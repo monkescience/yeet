@@ -10,6 +10,13 @@ Inspired by [release-please](https://github.com/googleapis/release-please).
 brew install monkescience/tap/yeet
 ```
 
+Or on Windows with [Scoop](https://scoop.sh):
+
+```sh
+scoop bucket add monkescience https://github.com/monkescience/scoop-bucket
+scoop install yeet
+```
+
 Or with Go:
 
 ```sh

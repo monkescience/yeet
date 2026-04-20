@@ -47,6 +47,15 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: homebrew-tap
 
+      - name: Generate Scoop bucket token
+        id: generate-scoop-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
+        with:
+          client-id: ${{ vars.SCOOP_APP_ID }}
+          private-key: ${{ secrets.SCOOP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: scoop-bucket
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
@@ -55,6 +64,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.generate-tap-token.outputs.token }}
+          SCOOP_BUCKET_TOKEN: ${{ steps.generate-scoop-token.outputs.token }}
 
       - name: Enable auto-merge on Homebrew tap PR
         env:
@@ -63,4 +73,13 @@ jobs:
           PR_URL=$(gh pr list --repo monkescience/homebrew-tap --head "yeet-${{ env.RELEASE_TAG }}" --json url --jq '.[0].url')
           if [ -n "$PR_URL" ]; then
             gh pr merge --auto --squash "$PR_URL" --repo monkescience/homebrew-tap
+          fi
+
+      - name: Enable auto-merge on Scoop bucket PR
+        env:
+          GH_TOKEN: ${{ steps.generate-scoop-token.outputs.token }}
+        run: |
+          PR_URL=$(gh pr list --repo monkescience/scoop-bucket --head "yeet-${{ env.RELEASE_TAG }}" --json url --jq '.[0].url')
+          if [ -n "$PR_URL" ]; then
+            gh pr merge --auto --squash "$PR_URL" --repo monkescience/scoop-bucket
           fi

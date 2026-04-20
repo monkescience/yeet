@@ -9,6 +9,7 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -20,6 +21,10 @@ builds:
 archives:
   - formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -49,3 +54,17 @@ homebrew_casks:
       post:
         install: |
           system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yeet"]
+
+scoops:
+  - repository:
+      owner: monkescience
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      branch: "{{ .ProjectName }}-{{ .Tag }}"
+      pull_request:
+        enabled: true
+    commit_msg_template: "chore: update yeet to {{ .Tag }}"
+    directory: bucket
+    homepage: https://github.com/monkescience/yeet
+    description: Automate releases based on conventional commits
+    license: MIT
