@@ -11,7 +11,7 @@ import "runtime/debug"
 
 const (
 	ServiceName  = "yeet"
-	unknownValue = "(unknown)"
+	unknownValue = "unknown"
 )
 
 var (
@@ -47,6 +47,18 @@ func Date() string {
 	}
 
 	return buildInfoSetting("vcs.time")
+}
+
+// Module returns the module checksum (e.g. "h1:abc...") embedded by `go install`
+// builds. Empty for `go build` / release / ko builds where the binary is not
+// sourced from a module tarball. Callers decide whether to display it.
+func Module() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+
+	return info.Main.Sum
 }
 
 func buildInfoSetting(key string) string {

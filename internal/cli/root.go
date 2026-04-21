@@ -28,6 +28,7 @@ type buildInfo struct {
 	version string
 	commit  string
 	built   string
+	module  string
 }
 
 func Execute() {
@@ -141,6 +142,7 @@ func currentBuildInfo() buildInfo {
 		version: build.Version(),
 		commit:  build.Commit(),
 		built:   build.Date(),
+		module:  build.Module(),
 	}
 }
 
@@ -148,6 +150,13 @@ func printVersion(w io.Writer, info buildInfo) error {
 	_, err := fmt.Fprintf(w, "version: %s\ncommit: %s\nbuilt: %s\n", info.version, info.commit, info.built)
 	if err != nil {
 		return fmt.Errorf("print version: %w", err)
+	}
+
+	if info.module != "" {
+		_, err = fmt.Fprintf(w, "module: %s\n", info.module)
+		if err != nil {
+			return fmt.Errorf("print module: %w", err)
+		}
 	}
 
 	return nil

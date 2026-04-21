@@ -225,8 +225,8 @@ func TestRootCommand(t *testing.T) {
 		testastic.Equal(t, "", stderr)
 
 		lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
-		if len(lines) != 3 {
-			t.Fatalf("expected 3 lines, got %d: %q", len(lines), stdout)
+		if len(lines) < 3 || len(lines) > 4 {
+			t.Fatalf("expected 3 or 4 lines, got %d: %q", len(lines), stdout)
 		}
 
 		for index, prefix := range []string{"version: ", "commit: ", "built: "} {
@@ -237,6 +237,10 @@ func TestRootCommand(t *testing.T) {
 			if strings.TrimSpace(strings.TrimPrefix(lines[index], prefix)) == "" {
 				t.Errorf("line %d %q has empty value after prefix %q", index, lines[index], prefix)
 			}
+		}
+
+		if len(lines) == 4 && !strings.HasPrefix(lines[3], "module: ") {
+			t.Errorf("line 3 %q missing prefix %q", lines[3], "module: ")
 		}
 	})
 
