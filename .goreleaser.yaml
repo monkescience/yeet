@@ -54,7 +54,9 @@ homebrew_casks:
     hooks:
       post:
         install: |
-          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yeet"]
+          on_macos do
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yeet"]
+          end
 
 scoops:
   - repository:
