@@ -75,3 +75,4 @@ jobs:
           IMAGE_REVISION: ${{ github.sha }}
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           IMAGE_TITLE: yeet
+          VERSION: ${{ env.RELEASE_TAG }}
