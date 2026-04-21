@@ -215,27 +215,29 @@ func TestRootCommand(t *testing.T) {
 	})
 
 	t.Run("version prints build information", func(t *testing.T) {
-		// given: build metadata injected for the command
-		previousVersion := buildVersion
-		previousCommit := buildCommit
-		previousDate := buildDate
-		buildVersion = "v1.2.3"
-		buildCommit = "abc1234"
-		buildDate = "2026-03-20T12:34:56Z"
-
-		t.Cleanup(func() {
-			buildVersion = previousVersion
-			buildCommit = previousCommit
-			buildDate = previousDate
-		})
+		// given: build metadata provided by the build package (ldflag or ReadBuildInfo fallback)
 
 		// when: printing the CLI version
 		stdout, stderr, err := executeCommand(t, "version")
 
-		// then: the human-readable build metadata is written to stdout
+		// then: three human-readable lines are written to stdout with non-empty values
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stderr)
-		testastic.Equal(t, "version: v1.2.3\ncommit: abc1234\nbuilt: 2026-03-20T12:34:56Z\n", stdout)
+
+		lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("expected 3 lines, got %d: %q", len(lines), stdout)
+		}
+
+		for index, prefix := range []string{"version: ", "commit: ", "built: "} {
+			if !strings.HasPrefix(lines[index], prefix) {
+				t.Errorf("line %d %q missing prefix %q", index, lines[index], prefix)
+			}
+
+			if strings.TrimSpace(strings.TrimPrefix(lines[index], prefix)) == "" {
+				t.Errorf("line %d %q has empty value after prefix %q", index, lines[index], prefix)
+			}
+		}
 	})
 
 	t.Run("completion command is available for bash", func(t *testing.T) {

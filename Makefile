@@ -1,7 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
-COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf 'none')
-BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -X github.com/monkescience/yeet/internal/cli.buildVersion=$(VERSION) -X github.com/monkescience/yeet/internal/cli.buildCommit=$(COMMIT) -X github.com/monkescience/yeet/internal/cli.buildDate=$(BUILD_DATE)
+LDFLAGS := -X github.com/monkescience/yeet/internal/build.version=$(VERSION)
 
 .PHONY: help build snapshot image test coverage lint fmt clean
 
@@ -15,7 +13,7 @@ snapshot: ## Build a local release snapshot with goreleaser
 	goreleaser release --snapshot --clean
 
 image: ## Build the yeet container image locally with ko
-	ko build --local --platform=linux/$$(go env GOARCH) ./cmd/yeet
+	VERSION=$(VERSION) ko build --local --platform=linux/$$(go env GOARCH) ./cmd/yeet
 
 test: ## Run tests
 	go test ./...

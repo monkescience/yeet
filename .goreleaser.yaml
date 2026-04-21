@@ -14,9 +14,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -X github.com/monkescience/yeet/internal/cli.buildVersion={{.Version}}
-      - -X github.com/monkescience/yeet/internal/cli.buildCommit={{.ShortCommit}}
-      - -X github.com/monkescience/yeet/internal/cli.buildDate={{.Date}}
+      - -X github.com/monkescience/yeet/internal/build.version={{.Version}}
 
 archives:
   - formats:

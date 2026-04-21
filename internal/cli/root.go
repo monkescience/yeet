@@ -11,14 +11,11 @@ import (
 
 	charmlog "github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
+
+	"github.com/monkescience/yeet/internal/build"
 )
 
-var (
-	buildVersion            = "dev"
-	buildCommit             = "none"
-	buildDate               = "unknown"
-	errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
-)
+var errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
 
 type bootstrapOptions struct {
 	configFile string
@@ -141,19 +138,10 @@ func versionCmd() *cobra.Command {
 
 func currentBuildInfo() buildInfo {
 	return buildInfo{
-		version: defaultBuildValue(buildVersion, "dev"),
-		commit:  defaultBuildValue(buildCommit, "none"),
-		built:   defaultBuildValue(buildDate, "unknown"),
+		version: build.Version(),
+		commit:  build.Commit(),
+		built:   build.Date(),
 	}
-}
-
-func defaultBuildValue(value, fallback string) string {
-	trimmedValue := strings.TrimSpace(value)
-	if trimmedValue == "" {
-		return fallback
-	}
-
-	return trimmedValue
 }
 
 func printVersion(w io.Writer, info buildInfo) error {
