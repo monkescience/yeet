@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.15](https://github.com/monkescience/yeet/compare/v0.4.14...v0.4.15) (2026-04-21)
+
+### Features
+
+- print module checksum on go install builds ([8c8c1ca](https://github.com/monkescience/yeet/commit/8c8c1ca13ffe862acac40e8315bc1bc5207b5746))
+
 ## [v0.4.14](https://github.com/monkescience/yeet/compare/v0.4.13...v0.4.14) (2026-04-21)
 
 ### Features
