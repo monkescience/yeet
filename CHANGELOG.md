@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.13](https://github.com/monkescience/yeet/compare/v0.4.12...v0.4.13) (2026-04-21)
+
+### Bug Fixes
+
+- use OS.mac? guard for Homebrew cask xattr postflight ([96a9175](https://github.com/monkescience/yeet/commit/96a917540a08c7040d7837d95c0de82304be9589))
+
 ## [v0.4.12](https://github.com/monkescience/yeet/compare/v0.4.11...v0.4.12) (2026-04-21)
 
 ### Bug Fixes
