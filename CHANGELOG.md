@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.14](https://github.com/monkescience/yeet/compare/v0.4.13...v0.4.14) (2026-04-21)
+
+### Features
+
+- expose version metadata via debug.ReadBuildInfo fallback ([591f048](https://github.com/monkescience/yeet/commit/591f0483db9e80d932d208930caa34163c93fb38))
+
 ## [v0.4.13](https://github.com/monkescience/yeet/compare/v0.4.12...v0.4.13) (2026-04-21)
 
 ### Bug Fixes
