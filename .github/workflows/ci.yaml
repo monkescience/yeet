@@ -28,69 +28,15 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run tests
-        run: make test
+      - name: Run tests with coverage
+        run: make coverage
 
-  coverage:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout head
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Checkout base
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@aa56896cf108bd10b5eb883cd1d24196da57f695 # v5.5.4
         with:
-          path: base
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: go.mod
-
-      - name: Measure head coverage
-        id: head_coverage
-        run: |
-          set -euo pipefail
-          go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
-          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')
-          echo "total=${total}" >> "$GITHUB_OUTPUT"
-
-      - name: Measure base coverage
-        id: base_coverage
-        working-directory: base
-        run: |
-          set -euo pipefail
-          go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
-          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')
-          echo "total=${total}" >> "$GITHUB_OUTPUT"
-
-      - name: Check coverage regression
-        env:
-          BASE_COVERAGE: ${{ steps.base_coverage.outputs.total }}
-          HEAD_COVERAGE: ${{ steps.head_coverage.outputs.total }}
-        run: |
-          python3 - <<'PY'
-          from decimal import Decimal
-          import os
-
-          base = Decimal(os.environ["BASE_COVERAGE"])
-          head = Decimal(os.environ["HEAD_COVERAGE"])
-          delta = head - base
-          delta_sign = "+" if delta >= 0 else ""
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("## Coverage\n\n")
-              summary.write("| Metric | Value |\n")
-              summary.write("| --- | ---: |\n")
-              summary.write(f"| Base | {base}% |\n")
-              summary.write(f"| Head | {head}% |\n")
-              summary.write(f"| Delta | {delta_sign}{delta}% |\n")
-
-          if head < base:
-              raise SystemExit(f"coverage decreased from {base}% to {head}%")
-          PY
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true
 
   lint:
     runs-on: ubuntu-latest
