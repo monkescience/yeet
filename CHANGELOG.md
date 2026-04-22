@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.5.0](https://github.com/monkescience/yeet/compare/v0.4.15...v0.5.0) (2026-04-22)
+
+### ⚠ BREAKING CHANGES
+
+- **versionfile:** reject misconfigured version files instead of silently skipping ([7e6991c](https://github.com/monkescience/yeet/commit/7e6991c943254dc143f374a3d73b97de60620cbf))
+### Features
+
+- **init:** write minimal config with target named after the directory ([15320df](https://github.com/monkescience/yeet/commit/15320dfbf708ca9d891651a05734855d3952e19a))
+### Bug Fixes
+
+- **versionfile:** require comment prefix on markers so prose mentions are skipped ([de7f086](https://github.com/monkescience/yeet/commit/de7f08615a4e452cd36e1abe479284ba013f2e5b))
+- **versionfile:** reject misconfigured version files instead of silently skipping ([7e6991c](https://github.com/monkescience/yeet/commit/7e6991c943254dc143f374a3d73b97de60620cbf))
+
 ## [v0.4.15](https://github.com/monkescience/yeet/compare/v0.4.14...v0.4.15) (2026-04-21)
 
 ### Features
