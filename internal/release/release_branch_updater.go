@@ -44,9 +44,13 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 				return fmt.Errorf("get version file %s: %w", path, fileErr)
 			}
 
-			updatedContent, changed := versionfile.ApplyGenericMarkers(content, plan.NextVersion)
+			updatedContent, changed, markerErr := versionfile.ApplyGenericMarkers(content, plan.NextVersion)
+			if markerErr != nil {
+				return fmt.Errorf("update version file %s: %w", path, markerErr)
+			}
+
 			if !changed {
-				slog.InfoContext(ctx, "skipping version file without yeet markers", "path", path)
+				slog.InfoContext(ctx, "version file already at target version", "path", path)
 
 				continue
 			}

@@ -11,6 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/versionfile"
 )
 
 func TestReleaseSemVerPreMajorBumps(t *testing.T) {
@@ -1365,7 +1366,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.Equal(t, "version=1.2.4 # x-yeet-version", stub.files[providerFileKey(branch, "VERSION.txt")])
 	})
 
-	t.Run("skips version files without yeet markers", func(t *testing.T) {
+	t.Run("fails when configured version file has no yeet markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: releaser with one configured version file without markers
@@ -1390,10 +1391,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		// when: updating release branch files
 		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
 
-		// then: only changelog is updated
-		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(stub.updates))
-		testastic.Equal(t, "version=1.2.3", stub.files[providerFileKey(branch, "VERSION.txt")])
+		// then: missing markers abort the release and no provider updates are dispatched
+		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
+		testastic.Equal(t, 0, len(stub.updates))
 	})
 
 	t.Run("prepends changelog entry and normalizes headerless history", func(t *testing.T) {
