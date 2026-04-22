@@ -39,11 +39,18 @@ var majorPattern = regexp.MustCompile(`\d+\b`)
 
 var minorPatchPattern = regexp.MustCompile(`\b\d+\b`)
 
-var inlineMarkerPattern = regexp.MustCompile(`x-yeet-(major|minor|patch|version|year|month|micro)\b`)
+// commentPrefix requires a real comment opener (not arbitrary text like
+// backticks or list markers) before a yeet marker. This keeps prose mentions
+// of marker names in READMEs from being interpreted as live markers.
+const commentPrefix = `(?:#+|//+|/\*+|--+|;+|<!--)[ \t]*`
 
-var blockStartPattern = regexp.MustCompile(`x-yeet-start-(major|minor|patch|version|year|month|micro)\b`)
+const scopeAlternation = `(major|minor|patch|version|year|month|micro)`
 
-var blockEndPattern = regexp.MustCompile(`x-yeet-end\b`)
+var inlineMarkerPattern = regexp.MustCompile(commentPrefix + `x-yeet-` + scopeAlternation + `\b`)
+
+var blockStartPattern = regexp.MustCompile(commentPrefix + `x-yeet-start-` + scopeAlternation + `\b`)
+
+var blockEndPattern = regexp.MustCompile(commentPrefix + `x-yeet-end\b`)
 
 // ApplyGenericMarkers applies yeet marker-based version replacements to file content.
 // It returns the updated content, whether anything changed, and an error describing any

@@ -226,6 +226,27 @@ func TestApplyGenericMarkers(t *testing.T) {
 		testastic.Equal(t, content, updated)
 	})
 
+	t.Run("prose mentions of markers inside backticks are skipped", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a README-like file mixing a real marker line with prose that references marker names in backticks
+		content := "VERSION = \"1.2.3\" # x-yeet-version\n\n" +
+			"- `x-yeet-year` (alias of `x-yeet-major`)\n" +
+			"- `x-yeet-month` (alias of `x-yeet-minor`)\n"
+
+		// when: applying marker replacements
+		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.3.0")
+
+		// then: only the real marker line is rewritten; prose mentions are left alone
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+
+		expected := "VERSION = \"1.3.0\" # x-yeet-version\n\n" +
+			"- `x-yeet-year` (alias of `x-yeet-major`)\n" +
+			"- `x-yeet-month` (alias of `x-yeet-minor`)\n"
+		testastic.Equal(t, expected, updated)
+	})
+
 	t.Run("marker already at target version succeeds without changes", func(t *testing.T) {
 		t.Parallel()
 
