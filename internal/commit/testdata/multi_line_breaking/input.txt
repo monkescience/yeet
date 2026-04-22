@@ -1,0 +1,4 @@
+feat!: redesign auth
+
+BREAKING CHANGE: The session token format changed
+from JWT to opaque tokens. Migrate before upgrading.

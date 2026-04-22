@@ -1,0 +1,4 @@
+VERSION = "1.3.0" # x-yeet-version
+
+- `x-yeet-year` (alias of `x-yeet-major`)
+- `x-yeet-month` (alias of `x-yeet-minor`)

@@ -1,0 +1,5 @@
+# x-yeet-start-version
+version = "1.2.3"
+app = "0.0.1"
+# x-yeet-end
+outside = "1.2.3"

@@ -1,6 +1,7 @@
 package versionfile_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -29,32 +30,32 @@ func TestApplyGenericMarkers(t *testing.T) {
 		t.Parallel()
 
 		// given: inline markers for each numeric scope
-		content := "MAJOR=1 # x-yeet-major\nMINOR=2 # x-yeet-minor\nPATCH=3 # x-yeet-patch"
+		input, err := os.ReadFile("testdata/major_minor_patch/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "4.5.6")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "4.5.6")
 
 		// then: all numeric scopes are updated
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
-		testastic.Equal(t, "MAJOR=4 # x-yeet-major\nMINOR=5 # x-yeet-minor\nPATCH=6 # x-yeet-patch", updated)
+		testastic.AssertFile(t, "testdata/major_minor_patch/expected.txt", updated)
 	})
 
 	t.Run("replaces version markers in block", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a yeet version block with multiple version strings
-		content := "# x-yeet-start-version\nversion = \"1.2.3\"\napp = \"0.0.1\"\n# x-yeet-end\noutside = \"1.2.3\""
+		input, err := os.ReadFile("testdata/version_block/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2.0.0")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0")
 
 		// then: versions inside the block are updated and outside is unchanged
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
-
-		expected := "# x-yeet-start-version\nversion = \"2.0.0\"\napp = \"2.0.0\"\n# x-yeet-end\noutside = \"1.2.3\""
-		testastic.Equal(t, expected, updated)
+		testastic.AssertFile(t, "testdata/version_block/expected.txt", updated)
 	})
 
 	t.Run("returns no markers error for release please markers", func(t *testing.T) {
@@ -91,49 +92,48 @@ func TestApplyGenericMarkers(t *testing.T) {
 		t.Parallel()
 
 		// given: calver alias markers for year month and micro
-		content := "YEAR=2025 # x-yeet-year\nMONTH=11 # x-yeet-month\nMICRO=9 # x-yeet-micro"
+		input, err := os.ReadFile("testdata/calver_aliases/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.03.1")
 
 		// then: aliases update to year month and micro parts
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
-
-		expected := "YEAR=2026 # x-yeet-year\nMONTH=03 # x-yeet-month\nMICRO=1 # x-yeet-micro"
-		testastic.Equal(t, expected, updated)
+		testastic.AssertFile(t, "testdata/calver_aliases/expected.txt", updated)
 	})
 
 	t.Run("replaces calver aliases in block markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a month block using calver alias marker
-		content := "# x-yeet-start-month\nmonth = 02\nwindow = 12\n# x-yeet-end\noutside = 99"
+		input, err := os.ReadFile("testdata/calver_block/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.03.1")
 
 		// then: values inside block are updated and outside is unchanged
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
-
-		expected := "# x-yeet-start-month\nmonth = 03\nwindow = 03\n# x-yeet-end\noutside = 99"
-		testastic.Equal(t, expected, updated)
+		testastic.AssertFile(t, "testdata/calver_block/expected.txt", updated)
 	})
 
 	t.Run("version with too few parts leaves scoped markers unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		// given: scoped markers but a version with only two parts
-		content := "MAJOR=1 # x-yeet-major\nMINOR=2 # x-yeet-minor\nPATCH=3 # x-yeet-patch"
+		input, err := os.ReadFile("testdata/scoped_markers/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements with a two-part version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.2")
 
 		// then: content is unchanged since splitVersion returns empty parts
 		testastic.NoError(t, err)
 		testastic.False(t, changed)
-		testastic.Equal(t, content, updated)
+		testastic.Equal(t, string(input), updated)
 	})
 
 	t.Run("version with prerelease suffix strips suffix for patch", func(t *testing.T) {
@@ -185,66 +185,64 @@ func TestApplyGenericMarkers(t *testing.T) {
 		t.Parallel()
 
 		// given: a block start with no matching end marker
-		content := "# x-yeet-start-version\nversion = \"1.2.3\"\nmore content"
+		input, err := os.ReadFile("testdata/unclosed_block/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2.0.0")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0")
 
 		// then: the unclosed block surfaces as a structural error
 		testastic.ErrorIs(t, err, versionfile.ErrUnclosedBlockMarker)
 		testastic.False(t, changed)
-		testastic.Equal(t, content, updated)
+		testastic.Equal(t, string(input), updated)
 	})
 
 	t.Run("nested block start returns error", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a second block start inside an already-open block
-		content := "# x-yeet-start-version\n# x-yeet-start-major\nversion = \"1.2.3\"\n# x-yeet-end"
+		input, err := os.ReadFile("testdata/nested_block/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2.0.0")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0")
 
 		// then: the nested start surfaces as a structural error
 		testastic.ErrorIs(t, err, versionfile.ErrNestedBlockMarker)
 		testastic.False(t, changed)
-		testastic.Equal(t, content, updated)
+		testastic.Equal(t, string(input), updated)
 	})
 
 	t.Run("file without yeet markers returns error", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a non-empty file with no yeet markers at all
-		content := "version=1.2.3\nname=app\n"
+		input, err := os.ReadFile("testdata/no_markers/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2.4")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.2.4")
 
 		// then: missing markers surface as a config error
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
 		testastic.False(t, changed)
-		testastic.Equal(t, content, updated)
+		testastic.Equal(t, string(input), updated)
 	})
 
 	t.Run("prose mentions of markers inside backticks are skipped", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a README-like file mixing a real marker line with prose that references marker names in backticks
-		content := "VERSION = \"1.2.3\" # x-yeet-version\n\n" +
-			"- `x-yeet-year` (alias of `x-yeet-major`)\n" +
-			"- `x-yeet-month` (alias of `x-yeet-minor`)\n"
+		input, err := os.ReadFile("testdata/prose_mentions/input.txt")
+		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.3.0")
+		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.3.0")
 
 		// then: only the real marker line is rewritten; prose mentions are left alone
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
-
-		expected := "VERSION = \"1.3.0\" # x-yeet-version\n\n" +
-			"- `x-yeet-year` (alias of `x-yeet-major`)\n" +
-			"- `x-yeet-month` (alias of `x-yeet-minor`)\n"
-		testastic.Equal(t, expected, updated)
+		testastic.AssertFile(t, "testdata/prose_mentions/expected.txt", updated)
 	})
 
 	t.Run("marker already at target version succeeds without changes", func(t *testing.T) {

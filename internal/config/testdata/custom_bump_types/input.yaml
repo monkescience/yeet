@@ -1,0 +1,15 @@
+versioning: semver
+branch: main
+bump_types:
+  minor:
+    - feat
+    - revert
+  patch:
+    - fix
+    - perf
+    - docs
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

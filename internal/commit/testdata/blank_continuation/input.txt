@@ -1,0 +1,5 @@
+feat!: big change
+
+BREAKING CHANGE: First paragraph.
+
+Second paragraph after blank line.

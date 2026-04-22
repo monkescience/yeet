@@ -1,0 +1,3 @@
+YEAR=2025 # x-yeet-year
+MONTH=11 # x-yeet-month
+MICRO=9 # x-yeet-micro

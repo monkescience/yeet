@@ -1,0 +1,6 @@
+versioning: semver
+branch: main
+targets:
+  api:
+    type: path
+    path: services/api

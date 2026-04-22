@@ -1,0 +1,6 @@
+feat: add payment processing
+
+Implement Stripe integration.
+
+Refs: TICKET-123
+Reviewed-by: Alice

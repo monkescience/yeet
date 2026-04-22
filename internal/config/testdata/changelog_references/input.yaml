@@ -1,0 +1,17 @@
+versioning: semver
+branch: main
+changelog:
+  references:
+    patterns:
+      - pattern: "JIRA-\\d+"
+        url: "https://jira.example.com/browse/{value}"
+      - pattern: "#\\d+"
+        url: ""
+    footers:
+      Refs: "https://jira.example.com/browse/{value}"
+      Closes: ""
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

@@ -1,0 +1,5 @@
+# x-yeet-start-month
+month = 02
+window = 12
+# x-yeet-end
+outside = 99

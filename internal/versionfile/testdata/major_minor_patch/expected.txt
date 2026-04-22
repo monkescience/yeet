@@ -1,0 +1,3 @@
+MAJOR=4 # x-yeet-major
+MINOR=5 # x-yeet-minor
+PATCH=6 # x-yeet-patch

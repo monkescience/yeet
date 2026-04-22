@@ -1,0 +1,5 @@
+feat: new auth flow
+
+Some body text.
+
+BREAKING CHANGE: old auth tokens are no longer valid

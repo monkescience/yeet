@@ -1,6 +1,7 @@
 package commit_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -61,10 +62,11 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with BREAKING CHANGE footer
-		raw := "feat: new auth flow\n\nSome body text.\n\nBREAKING CHANGE: old auth tokens are no longer valid"
+		raw, err := os.ReadFile("testdata/breaking_in_footer/input.txt")
+		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("jkl3456", raw)
+		c := commit.Parse("jkl3456", string(raw))
 
 		// then: breaking flag is set and footer is parsed
 		testastic.True(t, c.Breaking)
@@ -107,10 +109,11 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with multiple footers
-		raw := "feat: add payment processing\n\nImplement Stripe integration.\n\nRefs: TICKET-123\nReviewed-by: Alice"
+		raw, err := os.ReadFile("testdata/multiple_footers/input.txt")
+		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("stu5678", raw)
+		c := commit.Parse("stu5678", string(raw))
 
 		// then: all footers are parsed
 		testastic.Equal(t, "feat", c.Type)
@@ -122,43 +125,34 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with a multi-line BREAKING CHANGE footer
-		raw := "feat!: redesign auth\n\n" +
-			"BREAKING CHANGE: The session token format changed\n" +
-			"from JWT to opaque tokens. Migrate before upgrading."
+		raw, err := os.ReadFile("testdata/multi_line_breaking/input.txt")
+		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln1234", raw)
+		c := commit.Parse("mln1234", string(raw))
 
 		// then: continuation lines are included in the footer value
-		wantValue := "The session token format changed\n" +
-			"from JWT to opaque tokens. Migrate before upgrading."
-
 		testastic.True(t, c.Breaking)
 		testastic.Equal(t, 1, len(c.Footers))
 		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
-		testastic.Equal(t, wantValue, c.Footers[0].Value)
+		testastic.AssertFile(t, "testdata/multi_line_breaking/expected.txt", c.Footers[0].Value)
 	})
 
 	t.Run("multi-line footer followed by another footer", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with a multi-line footer followed by another footer
-		raw := "feat!: redesign auth\n\n" +
-			"BREAKING CHANGE: The session token format changed\n" +
-			"from JWT to opaque tokens.\n" +
-			"Release-As: 2.0.0"
+		raw, err := os.ReadFile("testdata/multi_line_then_another/input.txt")
+		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln5678", raw)
+		c := commit.Parse("mln5678", string(raw))
 
 		// then: continuation stops at the next footer token
-		wantValue := "The session token format changed\n" +
-			"from JWT to opaque tokens."
-
 		testastic.True(t, c.Breaking)
 		testastic.Equal(t, 2, len(c.Footers))
 		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
-		testastic.Equal(t, wantValue, c.Footers[0].Value)
+		testastic.AssertFile(t, "testdata/multi_line_then_another/expected.txt", c.Footers[0].Value)
 		testastic.Equal(t, "Release-As", c.Footers[1].Key)
 		testastic.Equal(t, "2.0.0", c.Footers[1].Value)
 	})
@@ -167,15 +161,16 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with a footer containing a blank line in its value
-		raw := "feat!: big change\n\nBREAKING CHANGE: First paragraph.\n\nSecond paragraph after blank line."
+		raw, err := os.ReadFile("testdata/blank_continuation/input.txt")
+		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln9012", raw)
+		c := commit.Parse("mln9012", string(raw))
 
 		// then: blank lines within the footer value are preserved
 		testastic.True(t, c.Breaking)
 		testastic.Equal(t, 1, len(c.Footers))
-		testastic.Equal(t, "First paragraph.\n\nSecond paragraph after blank line.", c.Footers[0].Value)
+		testastic.AssertFile(t, "testdata/blank_continuation/expected.txt", c.Footers[0].Value)
 	})
 }
 
