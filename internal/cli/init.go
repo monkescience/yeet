@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"regexp"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v4"
 )
 
 var ErrConfigExists = errors.New("config file already exists")
+
+var targetNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
+const fallbackTargetName = "root"
 
 func initCmd(options *bootstrapOptions) *cobra.Command {
 	return &cobra.Command{
@@ -43,23 +48,9 @@ func runInit(path string) error {
 		return fmt.Errorf("%w: %s", ErrConfigExists, resolvedPath)
 	}
 
-	cfg := config.Default()
-	cfg.Targets = map[string]config.Target{
-		"default": {
-			Type:      config.TargetTypePath,
-			Path:      ".",
-			TagPrefix: "v",
-		},
-	}
+	content := renderInitConfig(deriveTargetName(resolvedPath))
 
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
-	}
-
-	content := append([]byte(config.SchemaDirective+"\n\n"), data...)
-
-	err = os.WriteFile(resolvedPath, content, 0o600) //nolint:mnd // secure file permissions
+	err = os.WriteFile(resolvedPath, []byte(content), 0o600) //nolint:mnd // secure file permissions
 	if err != nil {
 		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
@@ -67,4 +58,29 @@ func runInit(path string) error {
 	slog.Info("created config file", "path", resolvedPath)
 
 	return nil
+}
+
+func renderInitConfig(targetName string) string {
+	return fmt.Sprintf(`%s
+
+targets:
+  %s:
+    type: path
+    path: .
+    tag_prefix: v
+`, config.SchemaDirective, targetName)
+}
+
+func deriveTargetName(configPath string) string {
+	absPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return fallbackTargetName
+	}
+
+	name := filepath.Base(filepath.Dir(absPath))
+	if !targetNamePattern.MatchString(name) {
+		return fallbackTargetName
+	}
+
+	return name
 }

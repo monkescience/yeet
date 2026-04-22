@@ -187,6 +187,59 @@ func TestRunInit(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, ErrConfigExists)
 	})
+
+	t.Run("writes minimal config with target named after the config directory", func(t *testing.T) {
+		// given: a workspace whose basename is a valid bare YAML key
+		parentDir := t.TempDir()
+		projectDir := filepath.Join(parentDir, "my-cool-app")
+		err := os.MkdirAll(projectDir, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(projectDir)
+
+		// when: initializing config
+		err = runInit(config.DefaultFile)
+		testastic.NoError(t, err)
+
+		// then: config is minimal, parseable, and names the target after the directory
+		content, readErr := os.ReadFile(config.DefaultFile)
+		testastic.NoError(t, readErr)
+
+		contentStr := string(content)
+		testastic.HasPrefix(t, contentStr, config.SchemaDirective+"\n")
+		testastic.Contains(t, contentStr, "\n  my-cool-app:\n")
+
+		cfg, parseErr := config.Parse(content)
+		testastic.NoError(t, parseErr)
+
+		_, exists := cfg.Targets["my-cool-app"]
+		testastic.True(t, exists)
+	})
+
+	t.Run("falls back to root target name when directory basename is not a safe bare key", func(t *testing.T) {
+		// given: a workspace whose basename starts with a dot
+		parentDir := t.TempDir()
+		projectDir := filepath.Join(parentDir, ".hidden")
+		err := os.MkdirAll(projectDir, 0o755)
+		testastic.NoError(t, err)
+		t.Chdir(projectDir)
+
+		// when: initializing config
+		err = runInit(config.DefaultFile)
+		testastic.NoError(t, err)
+
+		// then: the target name falls back to "root"
+		content, readErr := os.ReadFile(config.DefaultFile)
+		testastic.NoError(t, readErr)
+
+		contentStr := string(content)
+		testastic.Contains(t, contentStr, "\n  root:\n")
+
+		cfg, parseErr := config.Parse(content)
+		testastic.NoError(t, parseErr)
+
+		_, exists := cfg.Targets["root"]
+		testastic.True(t, exists)
+	})
 }
 
 func TestRootCommand(t *testing.T) {
