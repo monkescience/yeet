@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
 
-versioning: semver
-branch: main
-provider: auto
 version_files:
   - README.md
 
@@ -11,35 +8,3 @@ targets:
     type: path
     path: .
     tag_prefix: v
-
-release:
-  subject_include_branch: false
-  auto_merge: false
-  auto_merge_force: false
-  auto_merge_method: auto
-  pr_body_header: "## ٩(^ᴗ^)۶ release created"
-  pr_body_footer: "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
-
-changelog:
-  file: CHANGELOG.md
-  include:
-    - feat
-    - fix
-    - perf
-    - revert
-  sections:
-    breaking: Breaking Changes
-    build: Build System
-    chore: Miscellaneous Chores
-    ci: Continuous Integration
-    docs: Documentation
-    feat: Features
-    fix: Bug Fixes
-    perf: Performance Improvements
-    refactor: Code Refactoring
-    revert: Reverts
-    style: Styles
-    test: Tests
-
-calver:
-  format: YYYY.0M.MICRO
