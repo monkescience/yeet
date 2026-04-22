@@ -75,6 +75,7 @@
   "$defs": {
     "repository": {
       "type": "object",
+      "description": "Repository coordinates. Provide host plus either owner+repo (GitHub-style) or project (GitLab-style). If omitted, yeet auto-detects from the git remote.",
       "additionalProperties": false,
       "properties": {
         "remote": {
@@ -181,7 +182,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "Path to changelog file.",
+          "description": "Repo-relative path to the changelog file that is created and updated on release.",
           "minLength": 1,
           "default": "CHANGELOG.md"
         },
@@ -257,7 +258,7 @@
       "properties": {
         "format": {
           "type": "string",
-          "description": "CalVer format string.",
+          "description": "CalVer format template. Currently only \"YYYY.0M.MICRO\" is supported, where MICRO is a per-month incrementing counter.",
           "minLength": 1,
           "default": "YYYY.0M.MICRO"
         }
@@ -304,6 +305,7 @@
         },
         "versioning": {
           "type": "string",
+          "description": "Versioning strategy for this target. Overrides the top-level versioning setting.",
           "enum": [
             "semver",
             "calver"
@@ -319,6 +321,7 @@
         },
         "version_files": {
           "type": "array",
+          "description": "Files whose version strings are updated on release. Overrides the top-level version_files for this target.",
           "items": {
             "type": "string",
             "minLength": 1
@@ -332,6 +335,7 @@
         },
         "exclude_paths": {
           "type": "array",
+          "description": "Repo-relative paths excluded from this target's commit filtering. Must be inside the target's path.",
           "items": {
             "type": "string",
             "minLength": 1
@@ -353,7 +357,7 @@
         },
         "path": {
           "type": "string",
-          "description": "Repo-relative path used for direct commit filtering.",
+          "description": "Optional repo-relative path for direct commit filtering. When set, commits under this path contribute to the release in addition to commits from included path targets.",
           "minLength": 1
         },
         "tag_prefix": {
@@ -363,6 +367,7 @@
         },
         "versioning": {
           "type": "string",
+          "description": "Versioning strategy for this target. Overrides the top-level versioning setting.",
           "enum": [
             "semver",
             "calver"
@@ -378,6 +383,7 @@
         },
         "version_files": {
           "type": "array",
+          "description": "Files whose version strings are updated on release. Overrides the top-level version_files for this target.",
           "items": {
             "type": "string",
             "minLength": 1
@@ -391,6 +397,7 @@
         },
         "exclude_paths": {
           "type": "array",
+          "description": "Repo-relative paths excluded from this target's commit filtering. Must be inside the target's path.",
           "items": {
             "type": "string",
             "minLength": 1
