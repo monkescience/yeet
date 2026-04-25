@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
 LDFLAGS := -X github.com/monkescience/yeet/internal/build.version=$(VERSION)
 
-.PHONY: help build snapshot image test coverage lint fmt clean
+.PHONY: help build snapshot image test coverage coverage-html lint fmt clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -22,6 +22,9 @@ coverage: ## Run tests with repo-wide coverage output
 	go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage.out
 	go tool cover -func=coverage.out
 
+coverage-html: coverage ## Generate an HTML coverage report
+	go tool cover -html=coverage.out -o coverage.html
+
 lint: ## Run linter
 	golangci-lint run ./...
 
@@ -29,4 +32,4 @@ fmt: ## Format code
 	golangci-lint fmt ./...
 
 clean: ## Remove build artifacts
-	rm -f yeet coverage.out
+	rm -f yeet coverage.out coverage.html
