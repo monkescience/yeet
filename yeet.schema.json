@@ -23,7 +23,7 @@
     },
     "provider": {
       "type": "string",
-      "description": "VCS provider. Use \"auto\" to detect from repository host or remote.",
+      "description": "VCS provider. Use \"auto\" to detect github.com or gitlab.com from repository host or remote. Custom domains require an explicit provider.",
       "enum": [
         "auto",
         "github",
@@ -75,7 +75,7 @@
   "$defs": {
     "repository": {
       "type": "object",
-      "description": "Repository coordinates. Provide host plus either owner+repo (GitHub-style) or project (GitLab-style). If omitted, yeet auto-detects from the git remote.",
+      "description": "Repository coordinates. Provide host plus either owner+repo (GitHub-style) or project (GitLab-style). If omitted, yeet auto-detects from the git remote. Custom domains require an explicit provider.",
       "additionalProperties": false,
       "properties": {
         "remote": {

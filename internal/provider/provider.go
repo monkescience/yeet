@@ -240,11 +240,11 @@ func DetectProviderType(host string) (string, error) {
 		return "", fmt.Errorf("%w: empty host", ErrUnsupportedHost)
 	}
 
-	if strings.Contains(host, "github") {
+	if host == DefaultGitHubHost {
 		return "github", nil
 	}
 
-	if strings.Contains(host, "gitlab") {
+	if host == DefaultGitLabHost {
 		return "gitlab", nil
 	}
 

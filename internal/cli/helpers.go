@@ -307,11 +307,7 @@ func resolveRepository(
 	if repository.Provider == "" {
 		providerType, err := provider.DetectProviderType(repository.Host)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"resolve repository provider for host %q: %w; set provider, [repository], or pass explicit flags",
-				repository.Host,
-				err,
-			)
+			return nil, unsupportedAutoProviderError(repository.Host, err)
 		}
 
 		repository.Provider = providerType
@@ -338,6 +334,16 @@ func resolveRepository(
 	}
 
 	return repository, nil
+}
+
+func unsupportedAutoProviderError(host string, err error) error {
+	return fmt.Errorf(
+		"resolve repository provider for host %q: %w; "+
+			"auto-detection only supports github.com and gitlab.com; "+
+			"set provider, [repository], or pass explicit flags for custom domains",
+		host,
+		err,
+	)
 }
 
 func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {

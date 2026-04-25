@@ -120,6 +120,24 @@ func TestResolveRepository(t *testing.T) {
 		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
 	})
 
+	t.Run("fails on github custom host without explicit provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@github.company.com:platform/yeet.git", nil
+			},
+		)
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
+		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
+	})
+
 	t.Run("honors explicit provider on unknown host", func(t *testing.T) {
 		t.Parallel()
 

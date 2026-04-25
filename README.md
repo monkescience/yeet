@@ -118,7 +118,9 @@ yeet resolves the target repository from these sources, highest priority first:
 3. the configured `repository.remote`
 4. the `origin` remote
 
-When yeet cannot classify a remote host automatically, set the provider and repository explicitly:
+Automatic provider detection intentionally only classifies the public hosts `github.com` and
+`gitlab.com`. For custom or enterprise domains, set the provider and repository explicitly; this
+avoids sending provider tokens to an arbitrary host based only on hostname text:
 
 ```yaml
 # GitHub Enterprise
