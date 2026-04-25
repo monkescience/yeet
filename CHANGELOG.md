@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.5.1](https://github.com/monkescience/yeet/compare/v0.5.0...v0.5.1) (2026-04-25)
+
+### Features
+
+- **release:** support commit override release notes ([69ebd2d](https://github.com/monkescience/yeet/commit/69ebd2d6cb72b23ee126ae5b9faa1b8a3e488326))
+### Bug Fixes
+
+- **deps:** update module github.com/charmbracelet/log to v2 (#61) ([256fc1d](https://github.com/monkescience/yeet/commit/256fc1dcb10b0efdd42d3156c4efac68fe85d580))
+- **deps:** update module github.com/monkescience/testastic to v0.2.1 (#63) ([951ccaf](https://github.com/monkescience/yeet/commit/951ccafb9778b33a2fbbf4e1c915428a229457e8))
+
 ## [v0.5.0](https://github.com/monkescience/yeet/compare/v0.4.15...v0.5.0) (2026-04-22)
 
 ### ⚠ BREAKING CHANGES
