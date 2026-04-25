@@ -1838,6 +1838,45 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 	})
 }
 
+func TestGitHubCommitPullRequestBody(t *testing.T) {
+	t.Parallel()
+
+	// given: GitHub returns PRs associated with a commit, but only one is the merge commit
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/abc123/pulls":
+			writeJSON(t, w, []map[string]any{
+				{
+					"number":           1,
+					"body":             "wrong body",
+					"merge_commit_sha": "def456",
+				},
+				{
+					"number":           2,
+					"body":             "override body",
+					"merge_commit_sha": "abc123",
+				},
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := githubapi.NewClient(server.Client())
+	client.BaseURL = mustParseURL(t, server.URL+"/")
+
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: finding a PR body for the commit
+	body, found, err := gh.CommitPullRequestBody(context.Background(), "abc123")
+
+	// then: only the exact merge-commit PR body is returned
+	testastic.NoError(t, err)
+	testastic.True(t, found)
+	testastic.Equal(t, "override body", body)
+}
+
 func TestGitLabCreateReleasePR(t *testing.T) {
 	t.Parallel()
 
@@ -1919,6 +1958,51 @@ func TestGitLabUpdateReleasePR(t *testing.T) {
 
 	// then: no error
 	testastic.NoError(t, err)
+}
+
+func TestGitLabCommitPullRequestBody(t *testing.T) {
+	t.Parallel()
+
+	// given: GitLab returns MRs associated with a commit, but only one is the merge commit
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+			"/api/v4/projects/o%2Fr/repository/commits/abc123/merge_requests":
+			writeJSON(t, w, []map[string]any{
+				{
+					"iid":              1,
+					"description":      "wrong body",
+					"merge_commit_sha": "def456",
+				},
+				{
+					"iid":              2,
+					"description":      "override body",
+					"merge_commit_sha": "abc123",
+				},
+			})
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: finding an MR body for the commit
+	body, found, err := gl.CommitPullRequestBody(context.Background(), "abc123")
+
+	// then: only the exact merge-commit MR body is returned
+	testastic.NoError(t, err)
+	testastic.True(t, found)
+	testastic.Equal(t, "override body", body)
 }
 
 func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {

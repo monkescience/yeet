@@ -102,6 +102,8 @@ type releasePRProvider interface {
 	MarkReleasePRPending(ctx context.Context, number int) error
 	// MarkReleasePRTagged marks a release PR/MR as tagged.
 	MarkReleasePRTagged(ctx context.Context, number int) error
+	// CommitPullRequestBody returns the merged PR/MR body associated with the commit hash.
+	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
 }
 
 type repoContentProvider interface {

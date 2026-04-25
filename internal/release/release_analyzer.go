@@ -20,6 +20,7 @@ type releaseAnalyzer struct {
 	releaser        *Releaser
 	bumpMapping     commit.BumpMapping
 	commitCache     map[commitCacheKey][]provider.CommitEntry
+	overrideCache   map[string]commitOverrideResult
 	analyzedTargets map[string]config.ResolvedTarget
 }
 
@@ -37,9 +38,10 @@ type releaseSelection struct {
 
 func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 	return &releaseAnalyzer{
-		releaser:    releaser,
-		bumpMapping: releaser.cfg.BumpTypes.ToBumpMapping(),
-		commitCache: make(map[commitCacheKey][]provider.CommitEntry),
+		releaser:      releaser,
+		bumpMapping:   releaser.cfg.BumpTypes.ToBumpMapping(),
+		commitCache:   make(map[commitCacheKey][]provider.CommitEntry),
+		overrideCache: make(map[string]commitOverrideResult),
 	}
 }
 
@@ -133,6 +135,75 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 		analyzedPathTargets: analyzedPathTargets,
 		emitPathTargetIDs:   emitPathTargetIDs,
 	}, nil
+}
+
+func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []provider.CommitEntry) ([]commit.Commit, error) {
+	commits := make([]commit.Commit, 0, len(entries))
+
+	for _, entry := range entries {
+		override, err := a.commitOverride(ctx, entry)
+		if err != nil {
+			return nil, err
+		}
+
+		if override.found {
+			commits = append(commits, override.commits...)
+
+			continue
+		}
+
+		commits = append(commits, commit.Parse(entry.Hash, entry.Message))
+	}
+
+	return commits, nil
+}
+
+func (a *releaseAnalyzer) commitOverride(
+	ctx context.Context,
+	entry provider.CommitEntry,
+) (commitOverrideResult, error) {
+	hash := strings.TrimSpace(entry.Hash)
+	if hash == "" {
+		return commitOverrideResult{}, nil
+	}
+
+	if cached, exists := a.overrideCache[hash]; exists {
+		return cached, nil
+	}
+
+	body, found, err := a.releaser.overrides.CommitPullRequestBody(ctx, hash)
+	if err != nil {
+		return commitOverrideResult{}, fmt.Errorf("find commit override for %q: %w", hash, err)
+	}
+
+	if !found {
+		result := commitOverrideResult{}
+		a.overrideCache[hash] = result
+
+		return result, nil
+	}
+
+	messages, found, err := commitOverrideMessages(body)
+	if err != nil {
+		return commitOverrideResult{}, fmt.Errorf("parse commit override for %q: %w", hash, err)
+	}
+
+	if !found {
+		result := commitOverrideResult{}
+		a.overrideCache[hash] = result
+
+		return result, nil
+	}
+
+	commits := make([]commit.Commit, 0, len(messages))
+	for _, message := range messages {
+		commits = append(commits, commit.Parse(hash, message))
+	}
+
+	result := commitOverrideResult{commits: commits, found: true}
+	a.overrideCache[hash] = result
+
+	return result, nil
 }
 
 func (a *releaseAnalyzer) planPathTargets(
@@ -287,7 +358,12 @@ func (a *releaseAnalyzer) planDirectTarget(
 	}
 
 	filteredEntries := filterEntriesForTarget(entries, target)
-	commits := provider.ParseCommits(filteredEntries)
+
+	commits, err := a.parseCommits(ctx, filteredEntries)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
 	bumpType := commit.DetermineBump(commits, a.bumpMapping)
 
 	nextVersion, nextBumpType, shouldRelease, err := a.nextVersionPlan(target, commits, currentVersion, bumpType)
@@ -343,7 +419,11 @@ func (a *releaseAnalyzer) planDerivedTarget(
 
 	childEntries := filterEntriesForPlans(allEntries, childPlans, a.releaser.targets)
 
-	directCommits := provider.ParseCommits(directEntries)
+	directCommits, err := a.parseCommits(ctx, directEntries)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
 	directBumpType := commit.DetermineBump(directCommits, a.bumpMapping)
 
 	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(

@@ -193,6 +193,47 @@ func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
 	return nil
 }
 
+func (g *GitHub) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {
+	commitHash := strings.TrimSpace(hash)
+	if commitHash == "" {
+		return "", false, nil
+	}
+
+	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
+
+	for range maxPaginationPages {
+		prs, resp, err := g.client.PullRequests.ListPullRequestsWithCommit(
+			ctx,
+			g.repo.Owner,
+			g.repo.Name,
+			commitHash,
+			options,
+		)
+		if err != nil {
+			return "", false, fmt.Errorf("list pull requests for commit %q: %w", commitHash, err)
+		}
+
+		for _, pr := range prs {
+			if strings.TrimSpace(pr.GetMergeCommitSHA()) != commitHash {
+				continue
+			}
+
+			return pr.GetBody(), true, nil
+		}
+
+		if resp == nil || resp.NextPage == 0 {
+			return "", false, nil
+		}
+
+		options.Page = resp.NextPage
+	}
+
+	return "", false, fmt.Errorf(
+		"%w: exceeded %d pages listing pull requests for commit %q",
+		ErrPaginationLimitExceeded, maxPaginationPages, commitHash,
+	)
+}
+
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
 	pr, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
 	if err != nil {

@@ -188,6 +188,8 @@ type releasePRWorkflowStub struct {
 	pullRequests map[string]*provider.PullRequest
 	openPending  []*provider.PullRequest
 
+	commitOverrideBodies map[string]string
+
 	createPRCalls int
 	updatePRCalls int
 
@@ -262,6 +264,12 @@ func (s *releasePRWorkflowStub) MarkReleasePRPending(_ context.Context, number i
 	s.markPendingCalls = append(s.markPendingCalls, number)
 
 	return nil
+}
+
+func (s *releasePRWorkflowStub) CommitPullRequestBody(_ context.Context, hash string) (string, bool, error) {
+	body, exists := s.commitOverrideBodies[hash]
+
+	return body, exists, nil
 }
 
 func (s *releasePRWorkflowStub) CreateBranch(_ context.Context, branch, _ string) error {

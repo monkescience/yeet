@@ -267,6 +267,32 @@ changelog:
 
 Use `{value}` as the placeholder in URL templates. An empty URL string renders the reference as plain text without linking. Both `patterns` and `footers` can be configured per target in monorepo setups.
 
+#### Commit overrides
+
+If a merged PR/MR has a vague squash or merge commit message, edit that source PR/MR body to add override entries:
+
+```md
+BEGIN_COMMIT_OVERRIDE
+feat(auth): add OAuth token refresh
+
+fix(api): return 401 for expired sessions
+END_COMMIT_OVERRIDE
+```
+
+When yeet analyzes the merge/squash commit, those conventional commit messages replace the commit message for version bumping and changelog generation. The generated changelog still links to the original commit hash.
+
+This can split one merged commit into multiple release notes, or introduce a breaking change:
+
+```md
+BEGIN_COMMIT_OVERRIDE
+feat(auth)!: replace session cookie format
+
+BREAKING CHANGE: existing session cookies are invalid after upgrade
+END_COMMIT_OVERRIDE
+```
+
+Commit overrides are read from the original merged PR/MR body. Manual edits to the generated release PR/MR body may be overwritten the next time yeet updates the release branch. Rebase-merged PRs are not overridden because one PR/MR can produce many commits and the association is ambiguous.
+
 ### Release PR/MR customization
 
 ```yaml

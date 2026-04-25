@@ -64,6 +64,7 @@ type Releaser struct {
 	history   versionHistoryProvider
 	metadata  repoMetadataProvider
 	prs       releasePRProvider
+	overrides releasePRProvider
 	files     releaseFileProvider
 	publisher releasePublishingProvider
 }
@@ -85,6 +86,7 @@ func New(cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
 		history:   deps,
 		metadata:  deps,
 		prs:       deps,
+		overrides: deps,
 		files:     deps,
 		publisher: deps,
 	}, nil

@@ -189,15 +189,41 @@ func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int) error {
 	return nil
 }
 
-func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
+func (g *GitLab) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {
+	commitHash := strings.TrimSpace(hash)
+	if commitHash == "" {
+		return "", false, nil
+	}
+
+	mrs, _, err := g.client.Commits.ListMergeRequestsByCommit(g.pid, commitHash, gitlab.WithContext(ctx))
+	if err != nil {
+		return "", false, fmt.Errorf("list merge requests for commit %q: %w", commitHash, err)
+	}
+
+	for _, mr := range mrs {
+		if gitLabMergeRequestCommitSHA(mr) != commitHash {
+			continue
+		}
+
+		return mr.Description, true, nil
+	}
+
+	return "", false, nil
+}
+
+func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
 	mergeCommitSHA := strings.TrimSpace(mergeRequest.MergeCommitSHA)
 	if mergeCommitSHA != "" {
 		return mergeCommitSHA
 	}
 
-	squashCommitSHA := strings.TrimSpace(mergeRequest.SquashCommitSHA)
-	if squashCommitSHA != "" {
-		return squashCommitSHA
+	return strings.TrimSpace(mergeRequest.SquashCommitSHA)
+}
+
+func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
+	commitSHA := gitLabMergeRequestCommitSHA(mergeRequest)
+	if commitSHA != "" {
+		return commitSHA
 	}
 
 	slog.Warn("merge request has no merge or squash commit SHA, release will be tagged against branch tip",
