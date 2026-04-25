@@ -9,7 +9,8 @@ import (
 	"os"
 	"strings"
 
-	charmlog "github.com/charmbracelet/log"
+	charmlog "charm.land/log/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/spf13/cobra"
 
 	"github.com/monkescience/yeet/internal/build"
@@ -114,7 +115,7 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 	})
 
 	if options.noColor {
-		logger.SetColorProfile(0) // termenv.Ascii — disables all color
+		logger.SetColorProfile(colorprofile.ASCII)
 	}
 
 	slog.SetDefault(slog.New(logger))
