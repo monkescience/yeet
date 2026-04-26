@@ -20,13 +20,13 @@ scoop install yeet
 Or with Go:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.5.1 # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.6.0 # x-yeet-version
 ```
 
 Or use the published container image:
 
 ```sh
-docker run --rm ghcr.io/monkescience/yeet:v0.5.1 --help # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.6.0 --help # x-yeet-version
 ```
 
 ## Quick start
@@ -197,15 +197,15 @@ Types not listed produce no version bump. Breaking changes always bump major reg
 
 ```txt
 # inline markers
-VERSION = "0.5.1" # x-yeet-version
+VERSION = "0.6.0" # x-yeet-version
 MAJOR = 0 # x-yeet-major
-MINOR = 5 # x-yeet-minor
-PATCH = 1 # x-yeet-patch
+MINOR = 6 # x-yeet-minor
+PATCH = 0 # x-yeet-patch
 
 # block markers
 # x-yeet-start-version
-image: ghcr.io/acme/app:0.5.1
-appVersion: "0.5.1"
+image: ghcr.io/acme/app:0.6.0
+appVersion: "0.6.0"
 # x-yeet-end
 ```
 
@@ -410,7 +410,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run yeet
-        uses: docker://ghcr.io/monkescience/yeet:v0.5.1 # x-yeet-version
+        uses: docker://ghcr.io/monkescience/yeet:v0.6.0 # x-yeet-version
         with:
           args: release
         env:
@@ -426,7 +426,7 @@ GitLab runs the job script with `sh` instead of the image's default `yeet` entry
 release:
   stage: release
   image:
-    name: ghcr.io/monkescience/yeet:v0.5.1 # x-yeet-version
+    name: ghcr.io/monkescience/yeet:v0.6.0 # x-yeet-version
     entrypoint: [""]
   variables:
     GIT_STRATEGY: fetch
