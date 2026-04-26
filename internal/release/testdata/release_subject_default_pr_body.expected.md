@@ -2,6 +2,10 @@
 
 ## v0.0.1 ({{regex `[^)]+`}})
 
+<!-- BEGIN_YEET_RELEASE_NOTES -->
+
+<!-- END_YEET_RELEASE_NOTES -->
+
 ### Bug Fixes
 
 - patch bug (abcdef1)

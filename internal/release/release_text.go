@@ -13,15 +13,21 @@ type prSection struct {
 	body string
 }
 
+const releaseNotesStartMarker = "<!-- BEGIN_YEET_RELEASE_NOTES -->"
+
+const releaseNotesEndMarker = "<!-- END_YEET_RELEASE_NOTES -->"
+
 func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
 	manifestMarker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
 	if err != nil {
 		return provider.ReleasePROptions{}, err
 	}
 
+	changelogBody := insertReleaseNotesBlock(r.combinedPRChangelog(result), result.ReleaseNotes)
+
 	return provider.ReleasePROptions{
 		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(r.combinedPRChangelog(result), manifestMarker),
+		Body:          r.releasePRBody(changelogBody, manifestMarker),
 		BaseBranch:    r.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Files:         map[string]string{},
@@ -333,6 +339,101 @@ func appendMarkdownBlock(body *strings.Builder, markdown string) {
 
 	body.WriteString("\n\n")
 	body.WriteString(trimmedMarkdown)
+}
+
+func releaseNotesFromPullRequest(pullRequest *provider.PullRequest) string {
+	if pullRequest == nil {
+		return ""
+	}
+
+	return extractReleaseNotesBlock(pullRequest.Body)
+}
+
+func extractReleaseNotesBlock(body string) string {
+	_, afterStart, found := strings.Cut(body, releaseNotesStartMarker)
+	if !found {
+		return ""
+	}
+
+	notes, _, found := strings.Cut(afterStart, releaseNotesEndMarker)
+	if !found {
+		return ""
+	}
+
+	return strings.TrimSpace(notes)
+}
+
+func applyReleaseNotesToResult(result *Result) {
+	if result == nil {
+		return
+	}
+
+	notes := strings.TrimSpace(result.ReleaseNotes)
+	if notes == "" {
+		return
+	}
+
+	for idx := range result.Plans {
+		result.Plans[idx].Changelog = insertReleaseNotes(result.Plans[idx].Changelog, notes)
+	}
+}
+
+func insertReleaseNotes(changelogBody, notes string) string {
+	trimmedNotes := strings.TrimSpace(notes)
+	if trimmedNotes == "" || strings.Contains(changelogBody, trimmedNotes) {
+		return changelogBody
+	}
+
+	return insertMarkdownAfterFirstHeading(changelogBody, trimmedNotes)
+}
+
+func insertReleaseNotesBlock(changelogBody, notes string) string {
+	return insertMarkdownAfterFirstHeading(changelogBody, renderReleaseNotesBlock(notes))
+}
+
+func renderReleaseNotesBlock(notes string) string {
+	trimmedNotes := strings.TrimSpace(notes)
+	if trimmedNotes == "" {
+		return releaseNotesStartMarker + "\n\n" + releaseNotesEndMarker
+	}
+
+	return releaseNotesStartMarker + "\n" + trimmedNotes + "\n" + releaseNotesEndMarker
+}
+
+func insertMarkdownAfterFirstHeading(markdown, insertion string) string {
+	trimmedInsertion := strings.TrimSpace(insertion)
+	if trimmedInsertion == "" {
+		return markdown
+	}
+
+	normalizedMarkdown := strings.ReplaceAll(markdown, "\r\n", "\n")
+	lines := strings.Split(normalizedMarkdown, "\n")
+
+	for idx, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		if !strings.HasPrefix(strings.TrimSpace(line), "## ") {
+			break
+		}
+
+		heading := strings.TrimRight(strings.Join(lines[:idx+1], "\n"), "\n")
+
+		rest := strings.TrimLeft(strings.Join(lines[idx+1:], "\n"), "\n")
+		if rest == "" {
+			return heading + "\n\n" + trimmedInsertion + "\n"
+		}
+
+		return heading + "\n\n" + trimmedInsertion + "\n\n" + rest
+	}
+
+	trimmedMarkdown := strings.TrimSpace(normalizedMarkdown)
+	if trimmedMarkdown == "" {
+		return trimmedInsertion + "\n"
+	}
+
+	return trimmedInsertion + "\n\n" + trimmedMarkdown
 }
 
 func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {

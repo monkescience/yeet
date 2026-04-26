@@ -35,10 +35,11 @@ const (
 )
 
 type Result struct {
-	BaseBranch  string
-	Plans       []TargetPlan
-	PullRequest *provider.PullRequest
-	Releases    []*provider.Release
+	BaseBranch   string
+	Plans        []TargetPlan
+	ReleaseNotes string
+	PullRequest  *provider.PullRequest
+	Releases     []*provider.Release
 }
 
 type TargetPlan struct {

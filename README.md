@@ -304,6 +304,26 @@ release:
   pr_body_footer: "_Automated._"     # markdown after changelog in PR/MR body
 ```
 
+Generated release PRs/MRs also include an editable release notes block:
+
+````md
+<!-- BEGIN_YEET_RELEASE_NOTES -->
+### Action Required
+
+Set the provider explicitly when using custom or enterprise hosts:
+
+```yaml
+provider: github
+repository:
+  host: github.company.com
+  owner: platform
+  repo: app
+```
+<!-- END_YEET_RELEASE_NOTES -->
+````
+
+Anything between those markers is preserved when `yeet release` updates the release PR/MR. Markdown, including fenced code blocks, is supported. Rerun `yeet release` after editing the block to write the notes into the generated `CHANGELOG.md` entry; merged PR/MR notes are also copied into the final GitHub/GitLab release notes.
+
 ## Authentication
 
 yeet needs a provider API token whenever it creates or updates PRs/MRs, applies release labels, or

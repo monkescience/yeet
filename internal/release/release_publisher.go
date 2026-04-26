@@ -31,6 +31,8 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		return nil, err
 	}
 
+	releaseNotes := releaseNotesFromPullRequest(mergedPR)
+
 	releases := make([]*provider.Release, 0, len(manifest.Targets))
 	for _, targetManifest := range manifest.Targets {
 		releaseInfo, releaseErr := p.releaseForTag(
@@ -38,6 +40,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 			targetManifest.Tag,
 			targetManifest.ChangelogFile,
 			releaseRefForPullRequest(mergedPR, r.cfg.Branch),
+			releaseNotes,
 		)
 		if releaseErr != nil {
 			return nil, releaseErr
@@ -77,7 +80,7 @@ func (p *releasePublisher) ensureReleasesForResult(
 
 func (p *releasePublisher) releaseForTag(
 	ctx context.Context,
-	tag, changelogFile, ref string,
+	tag, changelogFile, ref, releaseNotes string,
 ) (*provider.Release, error) {
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
@@ -92,6 +95,8 @@ func (p *releasePublisher) releaseForTag(
 	if err != nil {
 		return nil, err
 	}
+
+	releaseBody = insertReleaseNotes(releaseBody, releaseNotes)
 
 	return p.ensureReleaseForTag(ctx, tag, ref, releaseBody)
 }

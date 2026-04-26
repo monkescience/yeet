@@ -36,6 +36,8 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
+		result.ReleaseNotes = releaseNotesFromPullRequest(existing)
+		applyReleaseNotesToResult(result)
 
 		prOpts, prErr := r.releasePROptions(result, existing.Branch)
 		if prErr != nil {
