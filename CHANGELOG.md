@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.6.0](https://github.com/monkescience/yeet/compare/v0.5.1...v0.6.0) (2026-04-26)
+
+### Action Required
+Provider auto-detection now only supports the public hosts `github.com` and `gitlab.com`.
+If you use GitHub Enterprise, GitLab self-managed, or another custom domain, set `provider` explicitly in `.yeet.yaml`:
+
+```yaml
+provider: github
+```
+or
+```yaml
+provider: gitlab
+```
+
+### ⚠ BREAKING CHANGES
+
+- **provider:** restrict auto-detection to public hosts ([d9bf83a](https://github.com/monkescience/yeet/commit/d9bf83a9139e02a28326331580ae8e52110e0b50))
+### Features
+
+- **release:** support editable release notes ([6c454d1](https://github.com/monkescience/yeet/commit/6c454d13f173d9ef3d0bd3e57a86c5733e2c7101))
+### Bug Fixes
+
+- **provider:** restrict auto-detection to public hosts ([d9bf83a](https://github.com/monkescience/yeet/commit/d9bf83a9139e02a28326331580ae8e52110e0b50))
+
 ## [v0.5.1](https://github.com/monkescience/yeet/compare/v0.5.0...v0.5.1) (2026-04-25)
 
 ### Features
