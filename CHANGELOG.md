@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.6.1](https://github.com/monkescience/yeet/compare/v0.6.0...v0.6.1) (2026-04-26)
+
+### Features
+
+- **version:** support configurable calver formats ([be0326e](https://github.com/monkescience/yeet/commit/be0326ef1a7501b0a2c4c9c38c7da7371f0dbd88))
+### Bug Fixes
+
+- **deps:** update module github.com/monkescience/testastic to v0.3.0 (#66) ([b111e3d](https://github.com/monkescience/yeet/commit/b111e3d2e20d29ebae868f4e08887efe537e8275))
+
 ## [v0.6.0](https://github.com/monkescience/yeet/compare/v0.5.1...v0.6.0) (2026-04-26)
 
 ### Action Required
