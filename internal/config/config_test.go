@@ -954,4 +954,54 @@ func TestPreMajorOptions(t *testing.T) {
 		// then: no error — inherited options are silently ignored
 		testastic.NoError(t, err)
 	})
+
+	t.Run("rejects invalid top-level calver format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with an unsupported calver format
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.CalVer.Format = "YYYY.QQ.MICRO"
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails before release planning
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "calver.format")
+	})
+
+	t.Run("rejects invalid target calver format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with an unsupported calver format override
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				CalVer: config.CalVerConfig{
+					Format: "YYYY.0M",
+				},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails with the target path
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.app.calver.format")
+	})
 }

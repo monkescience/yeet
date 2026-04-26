@@ -1067,7 +1067,7 @@ func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, 
 	}
 
 	if target.Versioning == config.VersioningCalVer {
-		return calVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
+		return calVerVersionRefLess(target.CalVer.Format, leftVersion, rightVersion, leftRef, rightRef)
 	}
 
 	return semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
@@ -1134,35 +1134,22 @@ func semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) b
 	return leftRef < rightRef
 }
 
-func calVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {
-	leftParts, err := parseCalVerVersion(leftVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
+func calVerVersionRefLess(format, leftVersion, rightVersion, leftRef, rightRef string) bool {
+	calver := &version.CalVer{Format: format}
 
-	rightParts, err := parseCalVerVersion(rightVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	if leftParts[0] != rightParts[0] {
-		return leftParts[0] < rightParts[0]
-	}
-
-	if leftParts[1] != rightParts[1] {
-		return leftParts[1] < rightParts[1]
-	}
-
-	if leftParts[2] != rightParts[2] {
-		return leftParts[2] < rightParts[2]
-	}
-
-	return leftRef < rightRef
+	return calver.Less(leftVersion, rightVersion, leftRef, rightRef)
 }
 
 func parseCalVerVersion(rawVersion string) ([3]int, error) {
-	parts := strings.SplitN(strings.TrimSpace(rawVersion), ".", 3) //nolint:mnd // calver has 3 segments
-	if len(parts) != 3 {                                           //nolint:mnd // calver has 3 segments
+	calver := &version.CalVer{Format: version.DefaultCalVerFormat}
+
+	normalizedVersion, err := calver.Current(strings.TrimSpace(rawVersion))
+	if err != nil {
+		return [3]int{}, fmt.Errorf("parse calver version %q: %w", rawVersion, err)
+	}
+
+	parts := strings.SplitN(normalizedVersion, ".", 3) //nolint:mnd // default calver has 3 segments
+	if len(parts) != 3 {                               //nolint:mnd // default calver has 3 segments
 		return [3]int{}, fmt.Errorf("%w: %q", version.ErrInvalidVersion, rawVersion)
 	}
 

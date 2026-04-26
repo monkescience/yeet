@@ -258,7 +258,7 @@
       "properties": {
         "format": {
           "type": "string",
-          "description": "CalVer format template. Currently only \"YYYY.0M.MICRO\" is supported, where MICRO is a per-month incrementing counter.",
+          "description": "CalVer format template. Supports dot-separated YYYY, YY, 0Y, MM, 0M, WW, 0W, DD, 0D, and required final MICRO tokens. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.",
           "minLength": 1,
           "default": "YYYY.0M.MICRO"
         }

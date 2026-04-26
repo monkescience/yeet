@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/version"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -236,7 +237,7 @@ func Default() *Config {
 			},
 		},
 		CalVer: CalVerConfig{
-			Format: "YYYY.0M.MICRO",
+			Format: version.DefaultCalVerFormat,
 		},
 	}
 }
@@ -272,6 +273,11 @@ func (c *Config) Validate() error {
 
 	if len(c.Changelog.Include) == 0 {
 		return fmt.Errorf("%w: changelog.include must not be empty", ErrInvalidConfig)
+	}
+
+	err = validateCalVerConfig("calver.format", c.CalVer)
+	if err != nil {
+		return err
 	}
 
 	for _, path := range c.VersionFiles {
@@ -357,6 +363,11 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 	preMajorErr := validatePreMajorCalVer(targetID, resolved.Versioning, target)
 	if preMajorErr != nil {
 		return ResolvedTarget{}, preMajorErr
+	}
+
+	err := validateCalVerConfig("targets."+targetID+".calver.format", resolved.CalVer)
+	if err != nil {
+		return ResolvedTarget{}, err
 	}
 
 	if resolved.TagPrefix == "" {
@@ -695,6 +706,15 @@ func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, targ
 			ErrInvalidConfig,
 			targetID,
 		)
+	}
+
+	return nil
+}
+
+func validateCalVerConfig(path string, calver CalVerConfig) error {
+	err := version.ValidateCalVerFormat(calver.Format)
+	if err != nil {
+		return fmt.Errorf("%w: %s: %w", ErrInvalidConfig, path, err)
 	}
 
 	return nil

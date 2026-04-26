@@ -76,7 +76,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: two versions with different years
 		// when: comparing
-		result := calVerVersionRefLess("2025.01.1", "2026.01.1", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2025.01.1", "2026.01.1", "ref-a", "ref-b")
 
 		// then: earlier year is less
 		testastic.True(t, result)
@@ -87,7 +87,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: two versions with same year but different months
 		// when: comparing
-		result := calVerVersionRefLess("2026.02.1", "2026.03.1", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2026.02.1", "2026.03.1", "ref-a", "ref-b")
 
 		// then: earlier month is less
 		testastic.True(t, result)
@@ -98,7 +98,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: two versions with same year/month but different micro
 		// when: comparing
-		result := calVerVersionRefLess("2026.03.1", "2026.03.2", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2026.03.1", "2026.03.2", "ref-a", "ref-b")
 
 		// then: smaller micro is less
 		testastic.True(t, result)
@@ -109,7 +109,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: two identical versions but different refs
 		// when: comparing
-		result := calVerVersionRefLess("2026.03.1", "2026.03.1", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2026.03.1", "2026.03.1", "ref-a", "ref-b")
 
 		// then: falls back to string comparison of refs
 		testastic.True(t, result)
@@ -120,7 +120,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: an invalid left version
 		// when: comparing
-		result := calVerVersionRefLess("invalid", "2026.03.1", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "invalid", "2026.03.1", "ref-a", "ref-b")
 
 		// then: falls back to string comparison of refs
 		testastic.True(t, result)
@@ -131,7 +131,7 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: an invalid right version
 		// when: comparing
-		result := calVerVersionRefLess("2026.03.1", "invalid", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2026.03.1", "invalid", "ref-a", "ref-b")
 
 		// then: falls back to string comparison of refs
 		testastic.True(t, result)
@@ -142,9 +142,20 @@ func TestCalVerVersionRefLess(t *testing.T) {
 
 		// given: right version is earlier than left
 		// when: comparing
-		result := calVerVersionRefLess("2026.03.2", "2026.03.1", "ref-a", "ref-b")
+		result := calVerVersionRefLess("YYYY.0M.MICRO", "2026.03.2", "2026.03.1", "ref-a", "ref-b")
 
 		// then: left is not less than right
 		testastic.False(t, result)
+	})
+
+	t.Run("configured short year and unpadded month", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two YY.MM.MICRO versions that do not sort correctly as strings
+		// when: comparing with the configured format
+		result := calVerVersionRefLess("YY.MM.MICRO", "26.2.9", "26.10.1", "ref-a", "ref-b")
+
+		// then: the earlier month is less
+		testastic.True(t, result)
 	})
 }

@@ -15,6 +15,60 @@ func fixedTime(year int, month time.Month) func() time.Time {
 	}
 }
 
+func fixedDate(year int, month time.Month, day int) func() time.Time {
+	return func() time.Time {
+		return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+	}
+}
+
+func TestValidateCalVerFormat(t *testing.T) {
+	t.Parallel()
+
+	validFormats := []string{
+		"YYYY.0M.MICRO",
+		"YY.MM.MICRO",
+		"0Y.0W.MICRO",
+		"YYYY.0M.0D.MICRO",
+	}
+
+	for _, format := range validFormats {
+		t.Run("valid "+format, func(t *testing.T) {
+			t.Parallel()
+
+			// when: validating the format
+			err := version.ValidateCalVerFormat(format)
+
+			// then: it is accepted
+			testastic.NoError(t, err)
+		})
+	}
+
+	invalidFormats := []string{
+		"",
+		"YYYY.0M",
+		"YYYY.0D.MICRO",
+		"YYYY.MICRO.0M",
+		"YYYY-0M-MICRO",
+		"YYYY_0M_MICRO",
+		"YYYY.QQ.MICRO",
+		"YYYY.0M.MICRO.MICRO",
+		"0M.MICRO",
+	}
+
+	for _, format := range invalidFormats {
+		t.Run("invalid "+format, func(t *testing.T) {
+			t.Parallel()
+
+			// when: validating the format
+			err := version.ValidateCalVerFormat(format)
+
+			// then: it is rejected
+			testastic.Error(t, err)
+			testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		})
+	}
+}
+
 func TestCalVerCurrent(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +141,36 @@ func TestCalVerCurrent(t *testing.T) {
 		// then: version is extracted with normalized month
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2026.02.1", v)
+	})
+
+	t.Run("uses short year and unpadded month format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag using YY.MM.MICRO
+		cv := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+		tag := "v26.02.7"
+
+		// when: parsing current version
+		v, err := cv.Current(tag)
+
+		// then: version is normalized according to the configured format
+		testastic.NoError(t, err)
+		testastic.Equal(t, "26.2.7", v)
+	})
+
+	t.Run("uses day format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag using YYYY.0M.0D.MICRO
+		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+		tag := "v2026.2.3.7"
+
+		// when: parsing current version
+		v, err := cv.Current(tag)
+
+		// then: month and day are normalized according to the configured format
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.02.03.7", v)
 	})
 
 	t.Run("rejects non-numeric year", func(t *testing.T) {
@@ -261,5 +345,41 @@ func TestCalVerNext(t *testing.T) {
 		// then: new year, new month, micro resets
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2027.01.1", next)
+	})
+
+	t.Run("uses configured short year format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy with YY.MM.MICRO
+		cv := &version.CalVer{
+			Format: "YY.MM.MICRO",
+			Prefix: "v",
+			Now:    fixedTime(2026, time.February),
+		}
+
+		// when: calculating next from existing version in same month
+		next, err := cv.Next("26.2.3", commit.BumpPatch)
+
+		// then: micro increments and the configured format is preserved
+		testastic.NoError(t, err)
+		testastic.Equal(t, "26.2.4", next)
+	})
+
+	t.Run("resets micro when configured day changes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy with YYYY.0M.0D.MICRO
+		cv := &version.CalVer{
+			Format: "YYYY.0M.0D.MICRO",
+			Prefix: "v",
+			Now:    fixedDate(2026, time.February, 3),
+		}
+
+		// when: calculating next from the previous day
+		next, err := cv.Next("2026.02.02.7", commit.BumpPatch)
+
+		// then: micro resets for the new day
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.02.03.1", next)
 	})
 }

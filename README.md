@@ -101,7 +101,17 @@ case-insensitive and applies only to semver repositories; calver repositories ig
 
 ### Calendar Versioning (calver)
 
-Uses `YYYY.0M.MICRO` format (e.g., `2026.02.1`). The micro counter resets when the year/month changes.
+Uses `YYYY.0M.MICRO` format by default (e.g., `2026.02.1`). The `MICRO` counter increments within the configured calendar period and resets when that period changes.
+
+Configure the format globally or per target:
+
+```yaml
+versioning: calver
+calver:
+  format: YYYY.0M.0D.MICRO
+```
+
+Supported date tokens are `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`, `DD`, and `0D`. `MICRO` is required as the final token so multiple releases in the same calendar period can produce unique versions. Tokens must be dot-separated; week tokens cannot be combined with month or day tokens, and day tokens require a month token.
 
 ## Configuration
 
