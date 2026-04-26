@@ -140,6 +140,29 @@ func TestParse(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
+	t.Run("invalid target versioning", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with invalid target-level versioning strategy
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:       config.TargetTypePath,
+				Path:       ".",
+				TagPrefix:  "v",
+				Versioning: config.VersioningStrategy("calendar"),
+			},
+		}
+
+		// when: validating the config
+		err := cfg.Validate()
+
+		// then: validation rejects the unsupported target versioning strategy
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.api.versioning")
+	})
+
 	t.Run("invalid provider", func(t *testing.T) {
 		t.Parallel()
 

@@ -365,6 +365,17 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, preMajorErr
 	}
 
+	if resolved.Versioning != VersioningSemver && resolved.Versioning != VersioningCalVer {
+		return ResolvedTarget{}, fmt.Errorf(
+			"%w: targets.%s.versioning must be %q or %q, got %q",
+			ErrInvalidConfig,
+			targetID,
+			VersioningSemver,
+			VersioningCalVer,
+			resolved.Versioning,
+		)
+	}
+
 	err := validateCalVerConfig("targets."+targetID+".calver.format", resolved.CalVer)
 	if err != nil {
 		return ResolvedTarget{}, err
