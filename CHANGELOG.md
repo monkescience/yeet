@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.6.2](https://github.com/monkescience/yeet/compare/v0.6.1...v0.6.2) (2026-04-26)
+
+### Bug Fixes
+
+- **versionfile:** support custom calver markers ([b7cbab5](https://github.com/monkescience/yeet/commit/b7cbab5b3cc012b87c8c66b78f8fe01060405e5b))
+- **config:** validate target versioning ([f3f98f8](https://github.com/monkescience/yeet/commit/f3f98f85370980a35079e3574d0bf7525cda44aa))
+
 ## [v0.6.1](https://github.com/monkescience/yeet/compare/v0.6.0...v0.6.1) (2026-04-26)
 
 ### Features
