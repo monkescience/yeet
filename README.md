@@ -119,26 +119,19 @@ yeet resolves the target repository from these sources, highest priority first:
 4. the `origin` remote
 
 Automatic provider detection intentionally only classifies the public hosts `github.com` and
-`gitlab.com`. For custom or enterprise domains, set the provider and repository explicitly; this
-avoids sending provider tokens to an arbitrary host based only on hostname text:
+`gitlab.com`. For custom or enterprise domains, set the provider explicitly; this avoids
+sending provider tokens to an arbitrary host based only on hostname text. Repository host and
+path are discovered from `repository.remote`/`origin`; set `repository:` only when overriding
+remote discovery or when no usable remote exists:
 
 ```yaml
 # GitHub Enterprise
 provider: github
-
-repository:
-  host: github.company.com
-  owner: platform
-  repo: yeet
 ```
 
 ```yaml
-# GitLab subgroup
+# GitLab self-managed
 provider: gitlab
-
-repository:
-  host: gitlab.company.com
-  project: group/subgroup/service
 ```
 
 ### Targets
@@ -314,10 +307,6 @@ Set the provider explicitly when using custom or enterprise hosts:
 
 ```yaml
 provider: github
-repository:
-  host: github.company.com
-  owner: platform
-  repo: app
 ```
 <!-- END_YEET_RELEASE_NOTES -->
 ````
@@ -444,8 +433,8 @@ category so you can pick the next fix quickly:
 
 - `configuration file not found`: create `.yeet.yaml` with `yeet init` at the repo root or pass `--config`.
 - `invalid configuration`: fix invalid values in `.yeet.yaml` before rerunning.
-- `repository resolution failed`: set `provider` and/or `repository` explicitly when the remote
-  host is unsupported or auto-detection cannot classify it.
+- `repository resolution failed`: set `provider` explicitly for custom or enterprise hosts; set
+  `repository` too when remote discovery cannot provide the host and path.
 - `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or
   `GITLAB_TOKEN`/`GL_TOKEN`) and, for self-hosted providers, verify `GITHUB_URL` or `GITLAB_URL`.
 - `release execution failed: merge blocked`: the release PR/MR is still draft, has conflicts,
