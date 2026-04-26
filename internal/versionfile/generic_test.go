@@ -2,6 +2,7 @@ package versionfile_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -102,6 +103,29 @@ func TestApplyGenericMarkers(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.AssertFile(t, "testdata/calver_aliases/expected.txt", updated)
+	})
+
+	t.Run("replaces custom calver version and micro markers", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a four-part calver format with full-version and micro markers
+		content := strings.Join([]string{
+			`version = "2026.04.25.3" # x-yeet-version`,
+			`micro = 3 # x-yeet-micro`,
+		}, "\n")
+
+		// when: applying marker replacements with a four-part calver version
+		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.04.26.1")
+
+		// then: the whole version and final micro segment are updated
+		expected := strings.Join([]string{
+			`version = "2026.04.26.1" # x-yeet-version`,
+			`micro = 1 # x-yeet-micro`,
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
 	})
 
 	t.Run("replaces calver aliases in block markers", func(t *testing.T) {

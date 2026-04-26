@@ -19,7 +19,7 @@ const (
 	markerScopeMonth   markerScope = "month"
 	markerScopeMicro   markerScope = "micro"
 
-	versionPartCount = 3
+	minimumVersionPartCount = 3
 )
 
 var (
@@ -33,7 +33,7 @@ var (
 	ErrNoMarkersFound = errors.New("file has no yeet markers")
 )
 
-var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[-\w.]+)?`)
+var versionPattern = regexp.MustCompile(`\d+(?:\.\d+){2,}(?:-[\w.]+)?(?:\+[-\w.]+)?`)
 
 var majorPattern = regexp.MustCompile(`\d+\b`)
 
@@ -170,17 +170,16 @@ func normalizeScope(scope markerScope) markerScope {
 }
 
 func splitVersion(version string) (string, string, string) {
-	parts := strings.SplitN(version, ".", versionPartCount)
-	if len(parts) < versionPartCount {
+	if idx := strings.IndexAny(version, "-+"); idx >= 0 {
+		version = version[:idx]
+	}
+
+	parts := strings.Split(version, ".")
+	if len(parts) < minimumVersionPartCount {
 		return "", "", ""
 	}
 
-	patch := parts[2]
-	if idx := strings.IndexAny(patch, "-+"); idx >= 0 {
-		patch = patch[:idx]
-	}
-
-	return parts[0], parts[1], patch
+	return parts[0], parts[1], parts[len(parts)-1]
 }
 
 // replaceForScope returns the possibly-updated line along with whether the
