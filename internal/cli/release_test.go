@@ -115,6 +115,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: a repository config that resolves directly to GitHub without auth tokens
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
+		clearBranchEnv(t)
 		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Provider = config.ProviderGitHub
 			cfg.Repository.Owner = "platform"
@@ -136,6 +137,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: repository coordinates on a host yeet cannot classify automatically
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
+		clearBranchEnv(t)
 		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Repository.Host = "code.company.com"
 			cfg.Repository.Owner = "platform"
@@ -155,6 +157,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: repository coordinates on an unknown host plus an explicit provider flag
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
+		clearBranchEnv(t)
 		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Repository.Host = "code.company.com"
 			cfg.Repository.Owner = "platform"
@@ -176,6 +179,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: a gitlab config overridden by explicit github flags
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
+		clearBranchEnv(t)
 		writeTestConfig(t, func(cfg *config.Config) {
 			cfg.Provider = config.ProviderGitLab
 			cfg.Repository.Host = "gitlab.company.com"
@@ -554,4 +558,12 @@ func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 
 	err = os.WriteFile(config.DefaultFile, data, 0o644)
 	testastic.NoError(t, err)
+}
+
+func clearBranchEnv(t *testing.T) {
+	t.Helper()
+
+	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
+		t.Setenv(envName, "")
+	}
 }
