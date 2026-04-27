@@ -1,0 +1,10 @@
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: beta

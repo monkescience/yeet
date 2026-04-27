@@ -32,6 +32,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 	}
 
 	releaseNotes := releaseNotesFromPullRequest(mergedPR)
+	prerelease := manifest.Prerelease || r.isPrerelease()
 
 	releases := make([]*provider.Release, 0, len(manifest.Targets))
 	for _, targetManifest := range manifest.Targets {
@@ -41,6 +42,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 			targetManifest.ChangelogFile,
 			releaseRefForPullRequest(mergedPR, r.cfg.Branch),
 			releaseNotes,
+			prerelease,
 		)
 		if releaseErr != nil {
 			return nil, releaseErr
@@ -67,7 +69,7 @@ func (p *releasePublisher) ensureReleasesForResult(
 	for _, plan := range result.Plans {
 		releaseBody := plan.Changelog
 
-		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody)
+		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody, p.releaser.isPrerelease())
 		if err != nil {
 			return nil, err
 		}
@@ -81,6 +83,7 @@ func (p *releasePublisher) ensureReleasesForResult(
 func (p *releasePublisher) releaseForTag(
 	ctx context.Context,
 	tag, changelogFile, ref, releaseNotes string,
+	prerelease bool,
 ) (*provider.Release, error) {
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
@@ -98,20 +101,22 @@ func (p *releasePublisher) releaseForTag(
 
 	releaseBody = insertReleaseNotes(releaseBody, releaseNotes)
 
-	return p.ensureReleaseForTag(ctx, tag, ref, releaseBody)
+	return p.ensureReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
 func (p *releasePublisher) createReleaseForTag(
 	ctx context.Context,
 	tag, ref, releaseBody string,
+	prerelease bool,
 ) (*provider.Release, error) {
 	r := p.releaser
 
 	releaseInfo, err := r.publisher.CreateRelease(ctx, provider.ReleaseOptions{
-		TagName: tag,
-		Ref:     ref,
-		Name:    tag,
-		Body:    releaseBody,
+		TagName:    tag,
+		Ref:        ref,
+		Name:       tag,
+		Body:       releaseBody,
+		Prerelease: prerelease,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create release: %w", err)
@@ -125,6 +130,7 @@ func (p *releasePublisher) createReleaseForTag(
 func (p *releasePublisher) ensureReleaseForTag(
 	ctx context.Context,
 	tag, ref, releaseBody string,
+	prerelease bool,
 ) (*provider.Release, error) {
 	r := p.releaser
 
@@ -143,7 +149,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 	}
 
 	if tagExists {
-		return p.createReleaseForTag(ctx, tag, "", releaseBody)
+		return p.createReleaseForTag(ctx, tag, "", releaseBody, prerelease)
 	}
 
 	creationRef := strings.TrimSpace(ref)
@@ -151,7 +157,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 		creationRef = r.cfg.Branch
 	}
 
-	return p.createReleaseForTag(ctx, tag, creationRef, releaseBody)
+	return p.createReleaseForTag(ctx, tag, creationRef, releaseBody, prerelease)
 }
 
 func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {

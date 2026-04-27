@@ -879,7 +879,14 @@ func (a *releaseAnalyzer) nextVersionPlan(
 
 	current := currentVersionWithInitial(target, currentVersion)
 
-	return resolveNextVersion(strategy, target.Versioning, current, bumpType, releaseAsVersion)
+	return resolveNextVersion(
+		strategy,
+		target.Versioning,
+		current,
+		bumpType,
+		releaseAsVersion,
+		a.releaser.activePrereleaseIdentifier(),
+	)
 }
 
 func resolveNextVersion(
@@ -888,7 +895,12 @@ func resolveNextVersion(
 	current string,
 	bump commit.BumpType,
 	releaseAsVersion string,
+	prereleaseIdentifier string,
 ) (string, commit.BumpType, bool, error) {
+	if prereleaseIdentifier != "" && versioning == config.VersioningSemver {
+		return resolveNextPrereleaseVersion(strategy, current, bump, releaseAsVersion, prereleaseIdentifier)
+	}
+
 	if releaseAsVersion != "" && versioning == config.VersioningSemver {
 		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
 		if err != nil {
@@ -1003,7 +1015,38 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 		return "", false
 	}
 
+	if target.Versioning == config.VersioningSemver && !a.semverRefAllowed(currentVersion) {
+		return "", false
+	}
+
 	return currentVersion, true
+}
+
+func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
+	parsedVersion, err := semver.StrictNewVersion(currentVersion)
+	if err != nil {
+		return false
+	}
+
+	prerelease := strings.TrimSpace(parsedVersion.Prerelease())
+
+	channelName := strings.TrimSpace(a.releaser.cfg.ActiveChannel)
+	if channelName == "" {
+		return prerelease == ""
+	}
+
+	if prerelease == "" {
+		return true
+	}
+
+	channel, exists := a.releaser.cfg.Release.Channels[channelName]
+	if !exists {
+		return false
+	}
+
+	channelPrerelease := strings.TrimSpace(channel.Prerelease)
+
+	return prerelease == channelPrerelease || strings.HasPrefix(prerelease, channelPrerelease+".")
 }
 
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {

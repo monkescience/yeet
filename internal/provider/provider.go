@@ -42,10 +42,11 @@ type ReleasePROptions struct {
 }
 
 type ReleaseOptions struct {
-	TagName string
-	Ref     string
-	Name    string
-	Body    string
+	TagName    string
+	Ref        string
+	Name       string
+	Body       string
+	Prerelease bool
 }
 
 type MergeMethod string

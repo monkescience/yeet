@@ -19,13 +19,19 @@ import (
 const (
 	releaseHelpExample = `  yeet release --dry-run
 	  yeet release --target api --target web --dry-run
+	  yeet release --channel beta
 	  yeet release --auto-merge
 	  yeet release --provider github --owner platform --repo yeet --dry-run`
 	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
 	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks; " +
 		"still blocks draft/conflicts; provider rules may still apply"
-	releaseTargetHelp = "limit analysis to one or more configured targets; repeatable"
+	releaseTargetHelp  = "limit analysis to one or more configured targets; repeatable"
+	releaseChannelHelp = "run a configured prerelease channel; defaults to the channel matching the current branch"
 )
+
+var ErrUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
+
+var ErrUnknownReleaseChannel = errors.New("unknown release channel")
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	flags := &releaseFlagValues{}
@@ -66,6 +72,7 @@ type releaseFlagValues struct {
 	autoMerge       bool
 	autoMergeForce  bool
 	autoMergeMethod string
+	channel         string
 	targets         []string
 }
 
@@ -98,6 +105,7 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 			config.AutoMergeMethodAuto,
 		),
 	)
+	cmd.Flags().StringVar(&flags.channel, "channel", "", releaseChannelHelp)
 	cmd.Flags().StringArrayVar(&flags.targets, "target", nil, releaseTargetHelp)
 }
 
@@ -122,6 +130,8 @@ func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) rele
 		autoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
 		autoMergeMethod:      flags.autoMergeMethod,
 		autoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
+		channel:              flags.channel,
+		channelSet:           cmd.Flags().Changed("channel"),
 		targets:              append([]string(nil), flags.targets...),
 	}
 }
@@ -146,22 +156,15 @@ type releaseRunOptions struct {
 	autoMergeForceSet    bool
 	autoMergeMethod      string
 	autoMergeMethodSet   bool
+	channel              string
+	channelSet           bool
 	targets              []string
 }
 
 func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
-	cfg, resolvedConfigPath, err := loadConfig(configPath)
+	cfg, err := releaseConfigForRun(ctx, configPath, options)
 	if err != nil {
-		return wrapReleaseConfigError(resolvedConfigPath, err)
-	}
-
-	logReleaseCommand(ctx, resolvedConfigPath, options)
-
-	applyReleaseOptions(cfg, options)
-
-	err = cfg.Validate()
-	if err != nil {
-		return fmt.Errorf("invalid release options: %w", err)
+		return err
 	}
 
 	repository, err := resolveRepository(ctx, cfg, getGitRemoteURL)
@@ -186,6 +189,38 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return wrapReleaseExecutionError(err)
 	}
 
+	return handleReleaseResult(ctx, output, result, options.dryRun)
+}
+
+func releaseConfigForRun(ctx context.Context, configPath string, options releaseRunOptions) (*config.Config, error) {
+	cfg, resolvedConfigPath, err := loadConfig(configPath)
+	if err != nil {
+		return nil, wrapReleaseConfigError(resolvedConfigPath, err)
+	}
+
+	logReleaseCommand(ctx, resolvedConfigPath, options)
+
+	applyReleaseOptions(cfg, options)
+
+	err = cfg.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("invalid release options: %w", err)
+	}
+
+	currentBranch, branchErr := currentGitBranch()
+	if branchErr != nil && !options.dryRun && len(cfg.Release.Channels) > 0 {
+		return nil, fmt.Errorf("resolve current branch: %w", branchErr)
+	}
+
+	err = resolveReleaseMode(cfg, currentBranch, options)
+	if err != nil {
+		return nil, fmt.Errorf("invalid release options: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
 	if len(result.Plans) == 0 {
 		if len(result.Releases) > 0 {
 			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Releases[0].TagName)
@@ -198,7 +233,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return nil
 	}
 
-	if options.dryRun {
+	if dryRun {
 		printDryRun(output, result)
 
 		return nil
@@ -260,9 +295,81 @@ func logReleaseCommand(ctx context.Context, configPath string, options releaseRu
 		options.repositoryRepoSet,
 		"project_override_set",
 		options.repositoryProjectSet,
+		"channel",
+		options.channel,
+		"channel_set",
+		options.channelSet,
 		"targets",
 		options.targets,
 	)
+}
+
+func resolveReleaseMode(cfg *config.Config, currentBranch string, options releaseRunOptions) error {
+	currentBranch = strings.TrimSpace(currentBranch)
+
+	if options.channelSet {
+		return resolveExplicitReleaseChannel(cfg, currentBranch, options)
+	}
+
+	if currentBranch == cfg.Branch {
+		cfg.ActiveChannel = ""
+
+		return nil
+	}
+
+	if currentBranch == "" && len(cfg.Release.Channels) == 0 {
+		cfg.ActiveChannel = ""
+
+		return nil
+	}
+
+	for channelName, channel := range cfg.Release.Channels {
+		if currentBranch != strings.TrimSpace(channel.Branch) {
+			continue
+		}
+
+		cfg.Branch = strings.TrimSpace(channel.Branch)
+		cfg.ActiveChannel = strings.TrimSpace(channelName)
+
+		return nil
+	}
+
+	if options.dryRun {
+		cfg.ActiveChannel = ""
+
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%w: %q; configure it as branch or release.channels.<name>.branch, or run --dry-run",
+		ErrUnconfiguredReleaseBranch,
+		currentBranch,
+	)
+}
+
+func resolveExplicitReleaseChannel(cfg *config.Config, currentBranch string, options releaseRunOptions) error {
+	channelName := strings.TrimSpace(options.channel)
+
+	channel, exists := cfg.Release.Channels[channelName]
+	if !exists {
+		return fmt.Errorf("%w: %q", ErrUnknownReleaseChannel, channelName)
+	}
+
+	channelBranch := strings.TrimSpace(channel.Branch)
+	if !options.dryRun && strings.TrimSpace(currentBranch) != channelBranch {
+		return fmt.Errorf(
+			"%w: channel %q must run on branch %q, got %q",
+			ErrUnconfiguredReleaseBranch,
+			channelName,
+			channelBranch,
+			currentBranch,
+		)
+	}
+
+	cfg.Branch = channelBranch
+	cfg.ActiveChannel = channelName
+
+	return nil
 }
 
 func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) {

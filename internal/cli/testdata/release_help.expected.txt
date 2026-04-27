@@ -11,6 +11,7 @@ Usage:
 Examples:
   yeet release --dry-run
 	  yeet release --target api --target web --dry-run
+	  yeet release --channel beta
 	  yeet release --auto-merge
 	  yeet release --provider github --owner platform --repo yeet --dry-run
 
@@ -18,6 +19,7 @@ Flags:
       --auto-merge                 automatically merge the release PR/MR and finalize the release in the same run
       --auto-merge-force           attempt auto-merge while bypassing yeet readiness checks; still blocks draft/conflicts; provider rules may still apply
       --auto-merge-method string   merge method for auto-merge: auto|squash|rebase|merge (defaults to config value; built-in default: auto)
+      --channel string             run a configured prerelease channel; defaults to the channel matching the current branch
       --dry-run                    show the planned release without creating a PR/MR
   -h, --help                       help for release
       --host string                override repository host, such as github.com or gitlab.company.com

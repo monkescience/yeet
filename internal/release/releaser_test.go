@@ -179,6 +179,166 @@ func TestReleaseUsesLatestVersionRef(t *testing.T) {
 	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[1])
 }
 
+func TestPrereleaseChannels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stable release ignores prerelease refs", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a stable release with a newer prerelease tag present
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestVersionRef = "v1.3.0-beta.1"
+		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v1.2.3": {{
+				Hash:    "abcdef1234567890",
+				Message: "fix: patch bug",
+			}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating the stable release
+		result, err := r.Release(context.Background(), true)
+
+		// then: the prerelease tag is ignored as a stable baseline
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.3", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "1.2.4", result.Plans[0].NextVersion)
+	})
+
+	t.Run("first channel release appends prerelease identifier", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel on the beta branch
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a prerelease
+		result, err := r.Release(context.Background(), true)
+
+		// then: the next version is a beta prerelease
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.3", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "1.3.0-beta.1", result.Plans[0].NextVersion)
+		testastic.Equal(t, "v1.3.0-beta.1", result.Plans[0].NextTag)
+	})
+
+	t.Run("channel release increments existing prerelease", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel with an existing beta tag
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		stub := newProviderStub()
+		stub.latestVersionRef = "v1.2.3"
+		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v1.3.0-beta.1": {{
+				Hash:    "abcdef1234567890",
+				Message: "fix: patch bug",
+			}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating the next beta release
+		result, err := r.Release(context.Background(), true)
+
+		// then: the prerelease counter increments for the same base version
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.3.0-beta.1", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "1.3.0-beta.2", result.Plans[0].NextVersion)
+		testastic.Equal(t, "v1.3.0-beta.2", result.Plans[0].NextTag)
+	})
+
+	t.Run("channel release writes channel changelog", func(t *testing.T) {
+		// given: a beta channel release with a version file
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.VersionFiles = []string{"VERSION"}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.files[providerFileKey("beta", "VERSION")] = "version = \"1.2.3\" # x-yeet-version\n"
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: creating the prerelease PR
+		_, err := r.Release(context.Background(), false)
+
+		// then: only the beta changelog is updated
+		testastic.NoError(t, err)
+
+		updatedFiles := make(map[string]string, len(stub.updates))
+		for _, update := range stub.updates {
+			updatedFiles[update.path] = update.content
+		}
+
+		testastic.Contains(t, updatedFiles["CHANGELOG.beta.md"], "v1.3.0-beta.1")
+		testastic.Contains(t, updatedFiles["VERSION"], "1.3.0-beta.1")
+	})
+
+	t.Run("auto-merged channel release creates provider prerelease", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled for a beta channel
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.Release.AutoMerge = true
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add export command",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running the prerelease flow end-to-end
+		result, err := r.Release(context.Background(), false)
+
+		// then: provider release creation is marked as a prerelease
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.3.0-beta.1", result.Releases[0].TagName)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.True(t, stub.createReleaseOpts[0].Prerelease)
+	})
+}
+
 func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T) {
 	t.Parallel()
 

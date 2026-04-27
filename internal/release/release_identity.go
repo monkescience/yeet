@@ -17,6 +17,8 @@ const (
 
 type releaseManifest struct {
 	BaseBranch string                 `json:"base_branch"`
+	Channel    string                 `json:"channel,omitempty"`
+	Prerelease bool                   `json:"prerelease,omitempty"`
 	Targets    []releaseManifestEntry `json:"targets"`
 }
 

@@ -143,8 +143,48 @@
         "pr_body_footer": {
           "type": "string",
           "description": "Optional markdown appended after changelog in release PR/MR body."
+        },
+        "channels": {
+          "type": "object",
+          "description": "Named prerelease channels. Each channel runs only on its configured branch and creates semver prerelease versions.",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "not": {
+              "const": "stable"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/release_channel"
+          },
+          "default": {}
         }
       }
+    },
+    "release_channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "type": "string",
+          "description": "Branch that owns this prerelease channel.",
+          "minLength": 1
+        },
+        "prerelease": {
+          "type": "string",
+          "description": "Semver prerelease identifier, such as alpha, beta, or rc.",
+          "minLength": 1
+        },
+        "changelog_file": {
+          "type": "string",
+          "description": "Optional channel changelog path. By default yeet derives CHANGELOG.<channel>.md from each target changelog file.",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "branch",
+        "prerelease"
+      ]
     },
     "bump_types": {
       "type": "object",

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/commit"
@@ -81,6 +82,11 @@ func New(cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
 	}
 
+	targets, err = targetsForActiveChannel(cfg, targets)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Releaser{
 		cfg:       cfg,
 		targets:   targets,
@@ -91,6 +97,56 @@ func New(cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
 		files:     deps,
 		publisher: deps,
 	}, nil
+}
+
+func targetsForActiveChannel(
+	cfg *config.Config,
+	targets map[string]config.ResolvedTarget,
+) (map[string]config.ResolvedTarget, error) {
+	channelName := strings.TrimSpace(cfg.ActiveChannel)
+	if channelName == "" {
+		return targets, nil
+	}
+
+	channel, exists := cfg.Release.Channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("%w: unknown active release channel %q", config.ErrInvalidConfig, channelName)
+	}
+
+	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
+	for targetID, target := range targets {
+		if target.Versioning != config.VersioningSemver {
+			return nil, fmt.Errorf(
+				"%w: prerelease channel %q supports semver targets only; target %q uses %q",
+				config.ErrInvalidConfig,
+				channelName,
+				targetID,
+				target.Versioning,
+			)
+		}
+
+		if strings.TrimSpace(channel.ChangelogFile) != "" && len(targets) == 1 {
+			target.Changelog.File = strings.TrimSpace(channel.ChangelogFile)
+		} else {
+			target.Changelog.File = channelChangelogFile(target.Changelog.File, channelName)
+		}
+
+		channelTargets[targetID] = target
+	}
+
+	return channelTargets, nil
+}
+
+func channelChangelogFile(changelogFile string, channelName string) string {
+	dir, file := path.Split(changelogFile)
+	ext := path.Ext(file)
+
+	base := strings.TrimSuffix(file, ext)
+	if base == "" {
+		return changelogFile
+	}
+
+	return dir + base + "." + channelName + ext
 }
 
 // Release performs the full release flow: analyze commits, calculate version, generate changelog, create PR.
@@ -155,7 +211,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 // Tag creates a release tag and VCS release from a merged release PR.
 func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result, error) {
-	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody)
+	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody, false)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +235,24 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 
 func (r *Releaser) strategyForTarget(target config.ResolvedTarget) versionStrategy {
 	return versionStrategyForResolvedTarget(target)
+}
+
+func (r *Releaser) activePrereleaseIdentifier() string {
+	channelName := strings.TrimSpace(r.cfg.ActiveChannel)
+	if channelName == "" {
+		return ""
+	}
+
+	channel, exists := r.cfg.Release.Channels[channelName]
+	if !exists {
+		return ""
+	}
+
+	return strings.TrimSpace(channel.Prerelease)
+}
+
+func (r *Releaser) isPrerelease() bool {
+	return r.activePrereleaseIdentifier() != ""
 }
 
 func releaseBumpOrder(bumpType commit.BumpType) int {

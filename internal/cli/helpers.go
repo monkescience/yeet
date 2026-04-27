@@ -29,6 +29,7 @@ var (
 	ErrGitRemoteNotFound   = errors.New("git remote not found")
 	ErrGitRemoteHasNoURL   = errors.New("git remote has no url")
 	ErrGitRemoteURLBlank   = errors.New("git remote url is blank")
+	ErrDetachedHead        = errors.New("git head is detached")
 )
 
 const (
@@ -522,6 +523,34 @@ func getGitRemoteURL(_ context.Context, remote string) (string, error) {
 	}
 
 	return rewriteGitRemoteURL(remoteURL, repositoryConfig), nil
+}
+
+func currentGitBranch() (string, error) {
+	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
+		branch := strings.TrimSpace(os.Getenv(envName))
+		if branch != "" {
+			return branch, nil
+		}
+	}
+
+	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("open git repository: %w", err)
+	}
+
+	head, err := repository.Head()
+	if err != nil {
+		return "", fmt.Errorf("read git head: %w", err)
+	}
+
+	if !head.Name().IsBranch() {
+		return "", fmt.Errorf("%w: %s", ErrDetachedHead, head.Hash())
+	}
+
+	return head.Name().Short(), nil
 }
 
 func rewriteGitRemoteURL(remoteURL string, repositoryConfig *gitconfig.Config) string {

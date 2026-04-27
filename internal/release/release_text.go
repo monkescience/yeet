@@ -18,7 +18,11 @@ const releaseNotesStartMarker = "<!-- BEGIN_YEET_RELEASE_NOTES -->"
 const releaseNotesEndMarker = "<!-- END_YEET_RELEASE_NOTES -->"
 
 func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
-	manifestMarker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
+	manifest := releaseManifestForPlans(result.BaseBranch, result.Plans)
+	manifest.Channel = strings.TrimSpace(r.cfg.ActiveChannel)
+	manifest.Prerelease = r.isPrerelease()
+
+	manifestMarker, err := releaseManifestMarker(manifest)
 	if err != nil {
 		return provider.ReleasePROptions{}, err
 	}

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/version"
 	"go.yaml.in/yaml/v4"
@@ -64,6 +65,7 @@ type Config struct {
 	Changelog                  ChangelogConfig    `yaml:"changelog"`
 	CalVer                     CalVerConfig       `yaml:"calver"`
 	Targets                    map[string]Target  `yaml:"targets"`
+	ActiveChannel              string             `yaml:"-"`
 }
 
 type TargetType string
@@ -111,12 +113,19 @@ type RepositoryConfig struct {
 }
 
 type ReleaseConfig struct {
-	SubjectIncludeBranch bool            `yaml:"subject_include_branch"`
-	AutoMerge            bool            `yaml:"auto_merge"`
-	AutoMergeForce       bool            `yaml:"auto_merge_force"`
-	AutoMergeMethod      AutoMergeMethod `yaml:"auto_merge_method"`
-	PRBodyHeader         string          `yaml:"pr_body_header"`
-	PRBodyFooter         string          `yaml:"pr_body_footer"`
+	SubjectIncludeBranch bool                            `yaml:"subject_include_branch"`
+	AutoMerge            bool                            `yaml:"auto_merge"`
+	AutoMergeForce       bool                            `yaml:"auto_merge_force"`
+	AutoMergeMethod      AutoMergeMethod                 `yaml:"auto_merge_method"`
+	PRBodyHeader         string                          `yaml:"pr_body_header"`
+	PRBodyFooter         string                          `yaml:"pr_body_footer"`
+	Channels             map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
+}
+
+type ReleaseChannelConfig struct {
+	Branch        string `yaml:"branch"`
+	Prerelease    string `yaml:"prerelease"`
+	ChangelogFile string `yaml:"changelog_file,omitempty"`
 }
 
 type ChangelogConfig struct {
@@ -287,6 +296,11 @@ func (c *Config) Validate() error {
 	}
 
 	err = validateReleaseConfig(c.Release)
+	if err != nil {
+		return err
+	}
+
+	err = validateReleaseChannelBranches(c.Branch, c.Release.Channels)
 	if err != nil {
 		return err
 	}
@@ -905,6 +919,100 @@ func validateReleaseConfig(release ReleaseConfig) error {
 			AutoMergeMethodMerge,
 			release.AutoMergeMethod,
 		)
+	}
+
+	err := validateReleaseChannels(release.Channels)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateReleaseChannelBranches(stableBranch string, channels map[string]ReleaseChannelConfig) error {
+	stableBranch = strings.TrimSpace(stableBranch)
+	for name, channel := range channels {
+		branch := strings.TrimSpace(channel.Branch)
+		if branch == "" || stableBranch == "" || branch != stableBranch {
+			continue
+		}
+
+		return fmt.Errorf(
+			"%w: release.channels.%s.branch %q duplicates stable branch",
+			ErrInvalidConfig,
+			strings.TrimSpace(name),
+			branch,
+		)
+	}
+
+	return nil
+}
+
+func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
+	seenBranches := make(map[string]string, len(channels))
+	seenPrereleaseIDs := make(map[string]string, len(channels))
+
+	for name, channel := range channels {
+		channelName := strings.TrimSpace(name)
+		if channelName == "" {
+			return fmt.Errorf("%w: release.channels keys must not be empty", ErrInvalidConfig)
+		}
+
+		if strings.EqualFold(channelName, "stable") {
+			return fmt.Errorf("%w: release.channels.%s must not use reserved name stable", ErrInvalidConfig, channelName)
+		}
+
+		branch := strings.TrimSpace(channel.Branch)
+		if branch == "" {
+			return fmt.Errorf("%w: release.channels.%s.branch must not be empty", ErrInvalidConfig, channelName)
+		}
+
+		if otherChannel, exists := seenBranches[branch]; exists {
+			return fmt.Errorf(
+				"%w: release.channels.%s.branch %q duplicates release.channels.%s.branch",
+				ErrInvalidConfig,
+				channelName,
+				branch,
+				otherChannel,
+			)
+		}
+
+		seenBranches[branch] = channelName
+
+		prerelease := strings.TrimSpace(channel.Prerelease)
+		if prerelease == "" {
+			return fmt.Errorf("%w: release.channels.%s.prerelease must not be empty", ErrInvalidConfig, channelName)
+		}
+
+		err := validatePrereleaseIdentifier(prerelease)
+		if err != nil {
+			return fmt.Errorf("%w: release.channels.%s.prerelease: %w", ErrInvalidConfig, channelName, err)
+		}
+
+		if otherChannel, exists := seenPrereleaseIDs[prerelease]; exists {
+			return fmt.Errorf(
+				"%w: release.channels.%s.prerelease %q duplicates release.channels.%s.prerelease",
+				ErrInvalidConfig,
+				channelName,
+				prerelease,
+				otherChannel,
+			)
+		}
+
+		seenPrereleaseIDs[prerelease] = channelName
+
+		if channel.ChangelogFile != "" && strings.TrimSpace(channel.ChangelogFile) == "" {
+			return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
+		}
+	}
+
+	return nil
+}
+
+func validatePrereleaseIdentifier(identifier string) error {
+	_, err := semver.StrictNewVersion("1.0.0-" + identifier)
+	if err != nil {
+		return fmt.Errorf("invalid semver prerelease identifier %q: %w", identifier, err)
 	}
 
 	return nil

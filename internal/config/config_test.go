@@ -25,6 +25,7 @@ func TestDefault(t *testing.T) {
 	testastic.False(t, cfg.Release.AutoMerge)
 	testastic.False(t, cfg.Release.AutoMergeForce)
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
+	testastic.Equal(t, 0, len(cfg.Release.Channels))
 	testastic.Equal(t, "## ٩(^ᴗ^)۶ release created", cfg.Release.PRBodyHeader)
 	testastic.Equal(t, "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._", cfg.Release.PRBodyFooter)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
@@ -54,6 +55,22 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 		testastic.Equal(t, "main", cfg.Branch)
+	})
+
+	t.Run("config with prerelease channels", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a prerelease channel
+		data, err := os.ReadFile("testdata/prerelease_channels/input.yaml")
+		testastic.NoError(t, err)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: channel settings are parsed and validated
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", cfg.Release.Channels["beta"].Branch)
+		testastic.Equal(t, "beta", cfg.Release.Channels["beta"].Prerelease)
 	})
 
 	t.Run("valid full config", func(t *testing.T) {

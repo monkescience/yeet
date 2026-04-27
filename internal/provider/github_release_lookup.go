@@ -38,9 +38,10 @@ func (g *GitHub) TagExists(ctx context.Context, tag string) (bool, error) {
 func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	targetCommitish := strings.TrimSpace(opts.Ref)
 	releaseRequest := &github.RepositoryRelease{
-		TagName: new(opts.TagName),
-		Name:    new(opts.Name),
-		Body:    new(opts.Body),
+		TagName:    new(opts.TagName),
+		Name:       new(opts.Name),
+		Body:       new(opts.Body),
+		Prerelease: new(opts.Prerelease),
 	}
 
 	if targetCommitish != "" {

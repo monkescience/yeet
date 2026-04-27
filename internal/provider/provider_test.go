@@ -1062,6 +1062,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 				TargetCommitish string `json:"target_commitish"`
 				Name            string `json:"name"`
 				Body            string `json:"body"`
+				Prerelease      bool   `json:"prerelease"`
 			}
 
 			err := json.NewDecoder(r.Body).Decode(&request)
@@ -1070,6 +1071,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 			testastic.Equal(t, "main", request.TargetCommitish)
 			testastic.Equal(t, "v1.2.3", request.Name)
 			testastic.Equal(t, "release notes", request.Body)
+			testastic.True(t, request.Prerelease)
 
 			writeJSON(t, w, map[string]any{
 				"tag_name":         request.TagName,
@@ -1091,13 +1093,14 @@ func TestGitHubCreateRelease(t *testing.T) {
 
 	// when: creating a release with an explicit ref
 	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
-		TagName: "v1.2.3",
-		Ref:     "main",
-		Name:    "v1.2.3",
-		Body:    "release notes",
+		TagName:    "v1.2.3",
+		Ref:        "main",
+		Name:       "v1.2.3",
+		Body:       "release notes",
+		Prerelease: true,
 	})
 
-	// then: target_commitish is forwarded to GitHub
+	// then: target_commitish and prerelease flag are forwarded to GitHub
 	testastic.NoError(t, err)
 	testastic.Equal(t, "v1.2.3", release.TagName)
 	testastic.Equal(t, "release notes", release.Body)

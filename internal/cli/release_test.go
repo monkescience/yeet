@@ -346,6 +346,81 @@ func TestApplyReleaseOptions(t *testing.T) {
 	})
 }
 
+func TestResolveReleaseMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stable branch uses stable mode", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a stable branch and a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving release mode on main
+		err := resolveReleaseMode(cfg, "main", releaseRunOptions{})
+
+		// then: stable mode is selected
+		testastic.NoError(t, err)
+		testastic.Equal(t, "main", cfg.Branch)
+		testastic.Equal(t, "", cfg.ActiveChannel)
+	})
+
+	t.Run("channel branch selects channel mode", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving release mode on beta
+		err := resolveReleaseMode(cfg, "beta", releaseRunOptions{})
+
+		// then: beta mode is selected and branch is scoped to beta
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", cfg.Branch)
+		testastic.Equal(t, "beta", cfg.ActiveChannel)
+	})
+
+	t.Run("unconfigured branch fails for mutating release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with no feature branch release mode
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving release mode on an unconfigured branch
+		err := resolveReleaseMode(cfg, "feature/demo", releaseRunOptions{})
+
+		// then: mutating release is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrUnconfiguredReleaseBranch)
+	})
+
+	t.Run("unconfigured branch is allowed for dry run", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with no feature branch release mode
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving release mode for dry-run on an unconfigured branch
+		err := resolveReleaseMode(cfg, "feature/demo", releaseRunOptions{dryRun: true})
+
+		// then: dry-run falls back to stable branch planning
+		testastic.NoError(t, err)
+		testastic.Equal(t, "main", cfg.Branch)
+		testastic.Equal(t, "", cfg.ActiveChannel)
+	})
+}
+
 func TestWrapReleaseExecutionError(t *testing.T) {
 	t.Run("merge blocked suggests the next action", func(t *testing.T) {
 		// given: an auto-merge attempt blocked by provider readiness rules

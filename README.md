@@ -323,6 +323,29 @@ provider: github
 
 Anything between those markers is preserved when `yeet release` updates the release PR/MR. Markdown, including fenced code blocks, is supported. Rerun `yeet release` after editing the block to write the notes into the generated `CHANGELOG.md` entry; merged PR/MR notes are also copied into the final GitHub/GitLab release notes.
 
+### Prerelease channels
+
+Prerelease channels are branch-scoped and semver-only. Configure each channel under `release.channels`:
+
+```yaml
+branch: main
+
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: beta
+    rc:
+      branch: rc
+      prerelease: rc
+```
+
+On `main`, `yeet release` runs the stable release flow. On `beta`, it creates or updates a beta release PR/MR targeting `beta`; after that PR/MR is merged, the next run creates a provider prerelease such as `v1.3.0-beta.1`. Stable releases ignore prerelease tags when choosing the stable baseline.
+
+Prerelease channels write to channel-specific changelogs by default, so stable `CHANGELOG.md` entries stay clean. For `CHANGELOG.md`, beta writes `CHANGELOG.beta.md`; for `services/api/CHANGELOG.md`, beta writes `services/api/CHANGELOG.beta.md`. Version files are still updated to the prerelease version on the channel branch.
+
+`yeet release` fails on branches that are not configured as `branch` or a `release.channels.<name>.branch`. Use `--dry-run` for exploratory runs from other branches, or pass `--channel beta` to explicitly select a configured channel.
+
 ## Authentication
 
 yeet needs a provider API token whenever it creates or updates PRs/MRs, applies release labels, or
