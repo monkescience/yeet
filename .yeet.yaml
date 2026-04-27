@@ -3,6 +3,15 @@
 version_files:
   - README.md
 
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: beta
+    rc:
+      branch: rc
+      prerelease: rc
+
 targets:
   yeet:
     type: path
