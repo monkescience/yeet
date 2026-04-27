@@ -22,7 +22,6 @@ env:
 
 jobs:
   publish:
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -67,6 +66,7 @@ jobs:
           SCOOP_BUCKET_TOKEN: ${{ steps.generate-scoop-token.outputs.token }}
 
       - name: Enable auto-merge on Homebrew tap PR
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
         env:
           GH_TOKEN: ${{ steps.generate-tap-token.outputs.token }}
         run: |
@@ -76,6 +76,7 @@ jobs:
           fi
 
       - name: Enable auto-merge on Scoop bucket PR
+        if: ${{ !contains(env.RELEASE_TAG, '-') }}
         env:
           GH_TOKEN: ${{ steps.generate-scoop-token.outputs.token }}
         run: |
