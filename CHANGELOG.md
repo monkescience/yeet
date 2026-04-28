@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.6.4](https://github.com/monkescience/yeet/compare/v0.6.3...v0.6.4) (2026-04-28)
+
+### Bug Fixes
+
+- **release:** append custom notes after changelog ([effeebf](https://github.com/monkescience/yeet/commit/effeebf7e5f08fb97d85d311c2845bd854db51c8))
+
 ## [v0.6.3](https://github.com/monkescience/yeet/compare/v0.6.2...v0.6.3) (2026-04-28)
 
 ### Features
