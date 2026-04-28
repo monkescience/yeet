@@ -50,6 +50,15 @@ func testManifestBody(tag, changelogFile string) string {
 	return marker
 }
 
+func gitLabNormalizeYeetMarkers(body string) string {
+	return strings.NewReplacer(
+		"<!-- yeet-release-manifest", "<!--yeet-release-manifest",
+		"\n-->", "-->",
+		"<!-- BEGIN_YEET_RELEASE_NOTES -->", "<!--BEGIN_YEET_RELEASE_NOTES-->",
+		"<!-- END_YEET_RELEASE_NOTES -->", "<!--END_YEET_RELEASE_NOTES-->",
+	).Replace(body)
+}
+
 type fileUpdate struct {
 	branch  string
 	path    string

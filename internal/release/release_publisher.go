@@ -31,7 +31,11 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		return nil, err
 	}
 
-	releaseNotes := releaseNotesFromPullRequest(mergedPR)
+	releaseNotes, err := releaseNotesFromPullRequest(mergedPR)
+	if err != nil {
+		return nil, fmt.Errorf("extract release notes from pull request #%d: %w", mergedPR.Number, err)
+	}
+
 	prerelease := manifest.Prerelease || r.isPrerelease()
 
 	releases := make([]*provider.Release, 0, len(manifest.Targets))

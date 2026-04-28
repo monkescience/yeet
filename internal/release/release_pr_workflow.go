@@ -36,7 +36,13 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
-		result.ReleaseNotes = releaseNotesFromPullRequest(existing)
+
+		releaseNotes, notesErr := releaseNotesFromPullRequest(existing)
+		if notesErr != nil {
+			return nil, fmt.Errorf("extract release notes from pull request #%d: %w", existing.Number, notesErr)
+		}
+
+		result.ReleaseNotes = releaseNotes
 		applyReleaseNotesToResult(result)
 
 		prOpts, prErr := r.releasePROptions(result, existing.Branch)

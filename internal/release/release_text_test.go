@@ -232,6 +232,67 @@ func TestCombinedPRChangelog(t *testing.T) {
 	})
 }
 
+func TestExtractReleaseNotesBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts notes from GitLab UI normalized markers", func(t *testing.T) {
+		t.Parallel()
+
+		// given: release notes markers whose inner whitespace was stripped by GitLab
+		body := "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n" +
+			"### Upgrade notes\n\nRestart workers.\n<!--END_YEET_RELEASE_NOTES-->"
+
+		// when: extracting release notes from the body
+		notes, err := extractReleaseNotesBlock(body)
+
+		// then: the custom notes are recovered
+		testastic.NoError(t, err)
+		testastic.Equal(t, "### Upgrade notes\n\nRestart workers.", notes)
+	})
+
+	t.Run("allows an absent release notes block", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a body with no release notes markers
+		body := "## Release\n\nNo editable notes block."
+
+		// when: extracting release notes from the body
+		notes, err := extractReleaseNotesBlock(body)
+
+		// then: no notes are returned and no parse error is raised
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", notes)
+	})
+
+	t.Run("fails when start marker is missing", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a body with only an end release notes marker
+		body := "## Release\n\n### Upgrade notes\n\nRestart workers.\n<!--END_YEET_RELEASE_NOTES-->"
+
+		// when: extracting release notes from the body
+		_, err := extractReleaseNotesBlock(body)
+
+		// then: yeet refuses to silently drop the notes
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseNotesBlock)
+	})
+
+	t.Run("fails when end marker is missing", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a body with only a start release notes marker
+		body := "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n### Upgrade notes\n\nRestart workers."
+
+		// when: extracting release notes from the body
+		_, err := extractReleaseNotesBlock(body)
+
+		// then: yeet refuses to silently drop the notes
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseNotesBlock)
+	})
+}
+
 func TestChangelogEntryByTag(t *testing.T) {
 	t.Parallel()
 

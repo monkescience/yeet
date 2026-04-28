@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/provider"
@@ -30,6 +31,8 @@ type releaseManifestEntry struct {
 }
 
 var ErrInvalidReleaseManifest = errors.New("invalid release manifest")
+
+var releaseManifestMarkerOpenRE = regexp.MustCompile(`<!--\s*yeet-release-manifest\b\s*`)
 
 func releaseRefForPullRequest(pullRequest *provider.PullRequest, defaultRef string) string {
 	mergeCommitSHA := strings.TrimSpace(pullRequest.MergeCommitSHA)
@@ -93,19 +96,19 @@ func releaseManifestFromPullRequest(pullRequest *provider.PullRequest) (releaseM
 }
 
 func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
-	start := strings.Index(body, releaseManifestMarkerPrefix)
-	if start == -1 {
+	start := releaseManifestMarkerOpenRE.FindStringIndex(body)
+	if start == nil {
 		return releaseManifest{}, false, nil
 	}
 
-	start += len(releaseManifestMarkerPrefix)
+	manifestStart := start[1]
 
-	end := strings.Index(body[start:], releaseManifestMarkerSuffix)
+	end := strings.Index(body[manifestStart:], releaseManifestMarkerSuffix)
 	if end == -1 {
 		return releaseManifest{}, true, ErrInvalidReleaseManifest
 	}
 
-	manifestBody := strings.TrimSpace(body[start : start+end])
+	manifestBody := strings.TrimSpace(body[manifestStart : manifestStart+end])
 	if manifestBody == "" {
 		return releaseManifest{}, true, ErrInvalidReleaseManifest
 	}

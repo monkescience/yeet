@@ -1112,6 +1112,44 @@ repository:
 		testastic.Contains(t, updatedChangelog, manualNotes)
 		testastic.NotContains(t, updatedChangelog, "BEGIN_YEET_RELEASE_NOTES")
 	})
+
+	t.Run("existing release PR notes survive GitLab UI marker normalization", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing pending release PR whose editable notes markers were normalized by GitLab
+		cfg := config.Default()
+		manualNotes := "### Upgrade notes\n\nRestart workers after deploying."
+
+		existingPR := &provider.PullRequest{
+			Number: 42,
+			Title:  "chore: release 1.2.4",
+			Body: "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n" +
+				manualNotes +
+				"\n<!--END_YEET_RELEASE_NOTES-->\n",
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-main",
+		}
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{existingPR}
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: updating the existing release PR
+		result, err := r.Release(context.Background(), false)
+
+		// then: the notes are recovered and committed into the changelog entry
+		testastic.NoError(t, err)
+		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
+
+		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
+		testastic.Contains(t, updatedChangelog, manualNotes)
+	})
 }
 
 func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
@@ -1293,6 +1331,79 @@ repository:
 		testastic.Equal(t, 1, len(releases))
 		testastic.Contains(t, releases[0].Body, manualNotes)
 		testastic.NotContains(t, releases[0].Body, "BEGIN_YEET_RELEASE_NOTES")
+	})
+
+	t.Run("includes merged PR release notes after GitLab UI marker normalization", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR with manifest and notes markers normalized by GitLab
+		cfg := config.Default()
+		manualNotes := "### Upgrade notes\n\nRestart workers after deploying."
+		manifest := gitLabNormalizeYeetMarkers(testManifestBody("v1.2.3", cfg.Changelog.File))
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 42,
+			URL:    "https://example.com/pr/42",
+			Body: "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n" +
+				manualNotes +
+				"\n<!--END_YEET_RELEASE_NOTES-->\n\n" + manifest,
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing merged release PR
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: the release is created with the recovered manual notes
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Contains(t, releases[0].Body, manualNotes)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+	})
+
+	t.Run("fails when merged PR release notes block is broken", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR with a start notes marker but no end marker
+		cfg := config.Default()
+		manifest := testManifestBody("v1.2.3", cfg.Changelog.File)
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 42,
+			URL:    "https://example.com/pr/42",
+			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
+				"### Upgrade notes\n\nRestart workers after deploying.\n\n" + manifest,
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing merged release PR
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: the release is not created with incomplete notes
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseNotesBlock)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
 	})
 
 	t.Run("creates release from manifest marker on versioned branch", func(t *testing.T) {

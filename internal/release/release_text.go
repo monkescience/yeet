@@ -1,7 +1,9 @@
 package release
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/provider"
@@ -16,6 +18,13 @@ type prSection struct {
 const releaseNotesStartMarker = "<!-- BEGIN_YEET_RELEASE_NOTES -->"
 
 const releaseNotesEndMarker = "<!-- END_YEET_RELEASE_NOTES -->"
+
+var ErrInvalidReleaseNotesBlock = errors.New("invalid release notes block")
+
+var (
+	releaseNotesStartMarkerRE = regexp.MustCompile(`<!--\s*BEGIN_YEET_RELEASE_NOTES\s*-->`)
+	releaseNotesEndMarkerRE   = regexp.MustCompile(`<!--\s*END_YEET_RELEASE_NOTES\s*-->`)
+)
 
 func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
 	manifest := releaseManifestForPlans(result.BaseBranch, result.Plans)
@@ -345,26 +354,32 @@ func appendMarkdownBlock(body *strings.Builder, markdown string) {
 	body.WriteString(trimmedMarkdown)
 }
 
-func releaseNotesFromPullRequest(pullRequest *provider.PullRequest) string {
+func releaseNotesFromPullRequest(pullRequest *provider.PullRequest) (string, error) {
 	if pullRequest == nil {
-		return ""
+		return "", nil
 	}
 
 	return extractReleaseNotesBlock(pullRequest.Body)
 }
 
-func extractReleaseNotesBlock(body string) string {
-	_, afterStart, found := strings.Cut(body, releaseNotesStartMarker)
-	if !found {
-		return ""
+func extractReleaseNotesBlock(body string) (string, error) {
+	start := releaseNotesStartMarkerRE.FindStringIndex(body)
+	if start == nil {
+		if releaseNotesEndMarkerRE.MatchString(body) {
+			return "", ErrInvalidReleaseNotesBlock
+		}
+
+		return "", nil
 	}
 
-	notes, _, found := strings.Cut(afterStart, releaseNotesEndMarker)
-	if !found {
-		return ""
+	end := releaseNotesEndMarkerRE.FindStringIndex(body[start[1]:])
+	if end == nil {
+		return "", ErrInvalidReleaseNotesBlock
 	}
 
-	return strings.TrimSpace(notes)
+	notesEnd := start[1] + end[0]
+
+	return strings.TrimSpace(body[start[1]:notesEnd]), nil
 }
 
 func applyReleaseNotesToResult(result *Result) {
