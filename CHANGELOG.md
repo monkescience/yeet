@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.6.3](https://github.com/monkescience/yeet/compare/v0.6.2...v0.6.3) (2026-04-28)
+
+### Features
+
+- **release:** add prerelease channels ([6ccf678](https://github.com/monkescience/yeet/commit/6ccf6787ccad23bdf0299b74f078cd4d7d69859c))
+### Bug Fixes
+
+- **release:** tolerate normalized release markers ([4e9d33c](https://github.com/monkescience/yeet/commit/4e9d33ccdd3e8c14631dc354db58fd963c1dac9f))
+
 ## [v0.6.2](https://github.com/monkescience/yeet/compare/v0.6.1...v0.6.2) (2026-04-26)
 
 ### Bug Fixes
