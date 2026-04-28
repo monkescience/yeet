@@ -403,11 +403,11 @@ func insertReleaseNotes(changelogBody, notes string) string {
 		return changelogBody
 	}
 
-	return insertMarkdownAfterFirstHeading(changelogBody, trimmedNotes)
+	return appendMarkdown(changelogBody, trimmedNotes)
 }
 
 func insertReleaseNotesBlock(changelogBody, notes string) string {
-	return insertMarkdownAfterFirstHeading(changelogBody, renderReleaseNotesBlock(notes))
+	return appendMarkdown(changelogBody, renderReleaseNotesBlock(notes))
 }
 
 func renderReleaseNotesBlock(notes string) string {
@@ -419,40 +419,20 @@ func renderReleaseNotesBlock(notes string) string {
 	return releaseNotesStartMarker + "\n" + trimmedNotes + "\n" + releaseNotesEndMarker
 }
 
-func insertMarkdownAfterFirstHeading(markdown, insertion string) string {
+func appendMarkdown(markdown, insertion string) string {
 	trimmedInsertion := strings.TrimSpace(insertion)
 	if trimmedInsertion == "" {
 		return markdown
 	}
 
 	normalizedMarkdown := strings.ReplaceAll(markdown, "\r\n", "\n")
-	lines := strings.Split(normalizedMarkdown, "\n")
-
-	for idx, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		if !strings.HasPrefix(strings.TrimSpace(line), "## ") {
-			break
-		}
-
-		heading := strings.TrimRight(strings.Join(lines[:idx+1], "\n"), "\n")
-
-		rest := strings.TrimLeft(strings.Join(lines[idx+1:], "\n"), "\n")
-		if rest == "" {
-			return heading + "\n\n" + trimmedInsertion + "\n"
-		}
-
-		return heading + "\n\n" + trimmedInsertion + "\n\n" + rest
-	}
 
 	trimmedMarkdown := strings.TrimSpace(normalizedMarkdown)
 	if trimmedMarkdown == "" {
 		return trimmedInsertion + "\n"
 	}
 
-	return trimmedInsertion + "\n\n" + trimmedMarkdown
+	return trimmedMarkdown + "\n\n" + trimmedInsertion
 }
 
 func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {

@@ -293,6 +293,56 @@ func TestExtractReleaseNotesBlock(t *testing.T) {
 	})
 }
 
+func TestInsertReleaseNotesOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("appends custom notes after generated changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generated changelog and manually edited release notes
+		changelog := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+`)
+		notes := "### Action Required\n\nRestart workers."
+
+		// when: inserting the custom release notes
+		body := insertReleaseNotes(changelog, notes)
+
+		// then: generated notes stay first and custom notes are appended
+		generatedIndex := strings.Index(body, "### Bug Fixes")
+		customIndex := strings.Index(body, "### Action Required")
+
+		testastic.True(t, generatedIndex >= 0)
+		testastic.True(t, customIndex > generatedIndex)
+	})
+
+	t.Run("appends editable block after generated changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generated changelog and existing editable release notes
+		changelog := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Features
+
+- add feature (abc1234)
+`)
+		notes := "### Upgrade Notes\n\nRun migrations."
+
+		// when: inserting the editable release notes block
+		body := insertReleaseNotesBlock(changelog, notes)
+
+		// then: generated notes stay first and the editable block is appended
+		generatedIndex := strings.Index(body, "### Features")
+		blockIndex := strings.Index(body, releaseNotesStartMarker)
+
+		testastic.True(t, generatedIndex >= 0)
+		testastic.True(t, blockIndex > generatedIndex)
+	})
+}
+
 func TestChangelogEntryByTag(t *testing.T) {
 	t.Parallel()
 
