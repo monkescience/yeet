@@ -309,3 +309,71 @@ func TestChangelogEntryByTag(t *testing.T) {
 		testastic.ErrorIs(t, err, ErrChangelogEntryNotFound)
 	})
 }
+
+func TestPreserveManualChangelogSections(t *testing.T) {
+	t.Parallel()
+
+	t.Run("preserves multiple manual sections in order", func(t *testing.T) {
+		t.Parallel()
+
+		// given: regenerated release notes and an existing changelog entry with manual sections
+		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+`)
+		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+
+### Migration Notes
+
+Run database migrations before deploying workers.
+
+### Rollback Notes
+
+Redeploy the previous worker image if queue latency spikes.
+`)
+
+		// when: preserving manual sections from the existing changelog entry
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+
+		// then: all manual sections are appended in their original order
+		migrationIndex := strings.Index(updatedEntry, "### Migration Notes")
+		rollbackIndex := strings.Index(updatedEntry, "### Rollback Notes")
+
+		testastic.Contains(t, updatedEntry, "### Bug Fixes")
+		testastic.True(t, migrationIndex > strings.Index(updatedEntry, "### Bug Fixes"))
+		testastic.True(t, rollbackIndex > migrationIndex)
+	})
+
+	t.Run("does not preserve edits inside regenerated sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a user edited the generated Bug Fixes section on the release branch
+		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+`)
+		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- custom rewrite of the generated note (abc1234)
+- extra hand-written fix note
+`)
+
+		// when: preserving manual sections from the existing changelog entry
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+
+		// then: regenerated sections remain authoritative on rerun
+		testastic.Contains(t, updatedEntry, "- patch issue (abc1234)")
+		testastic.NotContains(t, updatedEntry, "custom rewrite")
+		testastic.NotContains(t, updatedEntry, "extra hand-written fix note")
+	})
+}
