@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -37,13 +38,10 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
 
-		releaseNotes, notesErr := releaseNotesFromPullRequest(existing)
-		if notesErr != nil {
-			return nil, fmt.Errorf("extract release notes from pull request #%d: %w", existing.Number, notesErr)
+		err = w.preserveExistingChangelogEdits(ctx, existing.Branch, result)
+		if err != nil {
+			return nil, err
 		}
-
-		result.ReleaseNotes = releaseNotes
-		applyReleaseNotesToResult(result)
 
 		prOpts, prErr := r.releasePROptions(result, existing.Branch)
 		if prErr != nil {
@@ -61,6 +59,52 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	}
 
 	return w.createNew(ctx, releaseBranch, prOpts, result)
+}
+
+func (w *releasePRWorkflow) preserveExistingChangelogEdits(
+	ctx context.Context,
+	releaseBranch string,
+	result *Result,
+) error {
+	if result == nil {
+		return nil
+	}
+
+	r := w.releaser
+
+	for idx := range result.Plans {
+		plan := &result.Plans[idx]
+
+		target, exists := r.targets[plan.ID]
+		if !exists {
+			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
+		}
+
+		existingChangelog, err := r.files.GetFile(ctx, releaseBranch, target.Changelog.File)
+		if err != nil {
+			if errors.Is(err, provider.ErrFileNotFound) {
+				continue
+			}
+
+			return fmt.Errorf("get release branch changelog file %s: %w", target.Changelog.File, err)
+		}
+
+		existingEntry, err := changelogEntryByTag(existingChangelog, plan.NextTag)
+		if err != nil {
+			if errors.Is(err, ErrChangelogEntryNotFound) {
+				continue
+			}
+
+			return err
+		}
+
+		plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry)
+		if plan.PRChangelog != "" {
+			plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry)
+		}
+	}
+
+	return nil
 }
 
 func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {

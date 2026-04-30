@@ -986,7 +986,9 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore: release "+result.Plans[0].NextVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.AssertFile(t, "testdata/release_subject_default_pr_body.expected.md", result.PullRequest.Body)
+		testastic.Contains(t, result.PullRequest.Body, releasePRGuidance)
+		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-manifest")
+		testastic.NotContains(t, result.PullRequest.Body, "BEGIN_YEET_RELEASE_NOTES")
 		testastic.NotContains(t, result.Plans[0].Changelog,
 			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._")
 
@@ -1028,10 +1030,10 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 	})
 }
 
-func TestReleaseEditableReleaseNotes(t *testing.T) {
+func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 	t.Parallel()
 
-	t.Run("new release PR includes editable notes block without committing empty markers", func(t *testing.T) {
+	t.Run("new release PR includes changelog guidance without editable notes markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: one releasable commit and no existing release PR
@@ -1048,20 +1050,22 @@ func TestReleaseEditableReleaseNotes(t *testing.T) {
 		// when: creating a release PR
 		result, err := r.Release(context.Background(), false)
 
-		// then: the PR body has an editable notes block, but the committed changelog stays clean
+		// then: the PR body tells users to edit the changelog and has no editable notes block
 		testastic.NoError(t, err)
-		testastic.Contains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
-		testastic.Contains(t, result.PullRequest.Body, "<!-- END_YEET_RELEASE_NOTES -->")
+		testastic.Contains(t, result.PullRequest.Body, "edit the matching entry in `CHANGELOG.md`")
+		testastic.Contains(t, result.PullRequest.Body, "This PR/MR body is a preview")
+		testastic.NotContains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
+		testastic.NotContains(t, result.PullRequest.Body, "<!-- END_YEET_RELEASE_NOTES -->")
 		testastic.NotContains(t, result.Plans[0].Changelog, "BEGIN_YEET_RELEASE_NOTES")
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
 		testastic.NotContains(t, updatedChangelog, "BEGIN_YEET_RELEASE_NOTES")
 	})
 
-	t.Run("existing release PR notes are preserved and written to changelog", func(t *testing.T) {
+	t.Run("existing release PR body notes are ignored when updating changelog", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an existing pending release PR with manually edited markdown notes
+		// given: an existing pending release PR with old manually edited markdown notes
 		cfg := config.Default()
 
 		manualNotes := strings.TrimSpace(`### Action Required
@@ -1100,32 +1104,30 @@ repository:
 		// when: updating the existing release PR
 		result, err := r.Release(context.Background(), false)
 
-		// then: markdown notes remain editable in the PR body and are committed into the changelog entry
+		// then: old PR body notes do not affect the generated changelog entry
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, stub.updatePRCalls)
-		testastic.Contains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
-		testastic.Contains(t, result.PullRequest.Body, manualNotes)
-		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
+		testastic.NotContains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
+		testastic.NotContains(t, result.PullRequest.Body, manualNotes)
+		testastic.NotContains(t, result.Plans[0].Changelog, manualNotes)
 		testastic.NotContains(t, result.Plans[0].Changelog, "BEGIN_YEET_RELEASE_NOTES")
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
-		testastic.Contains(t, updatedChangelog, manualNotes)
+		testastic.NotContains(t, updatedChangelog, manualNotes)
 		testastic.NotContains(t, updatedChangelog, "BEGIN_YEET_RELEASE_NOTES")
 	})
 
-	t.Run("existing release PR notes survive GitLab UI marker normalization", func(t *testing.T) {
+	t.Run("existing release branch changelog manual section is preserved on rerun", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an existing pending release PR whose editable notes markers were normalized by GitLab
+		// given: an existing pending release PR whose release branch changelog was manually edited
 		cfg := config.Default()
-		manualNotes := "### Upgrade notes\n\nRestart workers after deploying."
+		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
 
 		existingPR := &provider.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
-			Body: "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n" +
-				manualNotes +
-				"\n<!--END_YEET_RELEASE_NOTES-->\n",
+			Body:   "## Release\n\nPreview only.",
 			URL:    "https://example.com/pr/42",
 			Branch: "yeet/release-main",
 		}
@@ -1137,18 +1139,29 @@ repository:
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch bug (abcdef1)
+
+` + manualNotes + `
+`)
 
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: updating the existing release PR
 		result, err := r.Release(context.Background(), false)
 
-		// then: the notes are recovered and committed into the changelog entry
+		// then: manual changelog-only content remains in the updated changelog entry
 		testastic.NoError(t, err)
 		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
 		testastic.Contains(t, updatedChangelog, manualNotes)
+		testastic.Contains(t, result.PullRequest.Body, manualNotes)
 	})
 }
 
@@ -1284,10 +1297,10 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.NotContains(t, releases[0].Body, "## [v1.2.2]")
 	})
 
-	t.Run("includes merged PR release notes when changelog was not updated", func(t *testing.T) {
+	t.Run("ignores merged PR body release notes when changelog was not updated", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a merged pending release PR with manual notes that were not committed to CHANGELOG.md
+		// given: a merged pending release PR with old manual notes that were not committed to CHANGELOG.md
 		cfg := config.Default()
 
 		manualNotes := strings.TrimSpace(`### Action Required
@@ -1326,28 +1339,27 @@ repository:
 		// when: finalizing merged release PR
 		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
-		// then: provider release notes include the manual markdown without marker comments
+		// then: provider release notes come only from the matching changelog entry
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Contains(t, releases[0].Body, manualNotes)
+		testastic.Contains(t, releases[0].Body, "### Features")
+		testastic.NotContains(t, releases[0].Body, manualNotes)
 		testastic.NotContains(t, releases[0].Body, "BEGIN_YEET_RELEASE_NOTES")
 	})
 
-	t.Run("includes merged PR release notes after GitLab UI marker normalization", func(t *testing.T) {
+	t.Run("includes manual changelog notes in provider release", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a merged pending release PR with manifest and notes markers normalized by GitLab
+		// given: a merged pending release PR with manual notes committed to CHANGELOG.md
 		cfg := config.Default()
-		manualNotes := "### Upgrade notes\n\nRestart workers after deploying."
+		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
 		manifest := gitLabNormalizeYeetMarkers(testManifestBody("v1.2.3", cfg.Changelog.File))
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
-			Body: "## Release\n\n<!--BEGIN_YEET_RELEASE_NOTES-->\n" +
-				manualNotes +
-				"\n<!--END_YEET_RELEASE_NOTES-->\n\n" + manifest,
+			Body:   "## Release\n\n" + manifest,
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
@@ -1357,6 +1369,8 @@ repository:
 ### Features
 
 - add feature (abc1234)
+
+` + manualNotes + `
 `)
 
 		r := newTestReleaser(t, cfg, stub)
@@ -1364,14 +1378,14 @@ repository:
 		// when: finalizing merged release PR
 		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
-		// then: the release is created with the recovered manual notes
+		// then: the release is created with the manual changelog notes
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
 		testastic.Contains(t, releases[0].Body, manualNotes)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 	})
 
-	t.Run("fails when merged PR release notes block is broken", func(t *testing.T) {
+	t.Run("ignores malformed old PR body notes block", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a merged pending release PR with a start notes marker but no end marker
@@ -1398,12 +1412,13 @@ repository:
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: finalizing merged release PR
-		_, err := r.finalizeMergedReleasePRs(context.Background())
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
-		// then: the release is not created with incomplete notes
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseNotesBlock)
-		testastic.Equal(t, 0, stub.createReleaseCalls)
+		// then: old malformed release notes markers do not block changelog-based finalization
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.NotContains(t, releases[0].Body, "Upgrade notes")
 	})
 
 	t.Run("creates release from manifest marker on versioned branch", func(t *testing.T) {
