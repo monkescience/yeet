@@ -14,6 +14,7 @@
 Final GitHub/GitLab release notes now come only from the committed changelog entry. Move any custom notes from the release PR/MR body into the matching `CHANGELOG.md` entry before merging.
 
 Add custom notes as separate `###` sections, such as `### Migration Notes`, so rerunning `yeet release` preserves them. Generated conventional-commit sections like `### Features` and `### Bug Fixes` may be regenerated on rerun.
+
 ## [v0.6.4](https://github.com/monkescience/yeet/compare/v0.6.3...v0.6.4) (2026-04-28)
 
 ### Bug Fixes

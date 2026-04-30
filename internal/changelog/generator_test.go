@@ -640,4 +640,18 @@ func TestPrepend(t *testing.T) {
 
 		testastic.Less(t, newIdx, oldIdx)
 	})
+
+	t.Run("separates entries when new entry has no trailing newline", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generated entry whose manual sections removed the trailing newline
+		existing := "# Changelog\n\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
+		newEntry := "## v1.1.0 (2026-02-28)\n\n### Features\n\n- new stuff"
+
+		// when: prepending the entry
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: adjacent release entries remain separated by a blank line
+		testastic.Contains(t, result, "- new stuff\n\n## v1.0.0")
+	})
 }

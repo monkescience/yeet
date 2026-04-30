@@ -94,19 +94,21 @@ func Render(entry Entry) string {
 func Prepend(existing, newEntry string) string {
 	const header = "# Changelog\n\n"
 
+	entry := strings.TrimRight(newEntry, "\n")
+
 	if existing == "" {
-		return header + newEntry
+		return header + entry + "\n"
 	}
 
 	// If there's an existing header, insert after it.
 	if strings.HasPrefix(existing, "# ") {
 		idx := strings.Index(existing, "\n\n")
 		if idx >= 0 {
-			return existing[:idx+2] + newEntry + "\n" + existing[idx+2:]
+			return existing[:idx+2] + entry + "\n\n" + strings.TrimLeft(existing[idx+2:], "\n")
 		}
 	}
 
-	return header + newEntry + "\n" + existing
+	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")
 }
 
 func (g *Generator) groupBySection(commits []commit.Commit) map[string][]commit.Commit {
