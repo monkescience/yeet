@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.7.1](https://github.com/monkescience/yeet/compare/v0.7.0...v0.7.1) (2026-04-30)
+
+### Bug Fixes
+
+- **changelog:** separate prepended release entries ([b7fb76f](https://github.com/monkescience/yeet/commit/b7fb76fd002492e734fb96cb57044b6dfa7ebffd))
+
 ## [v0.7.0](https://github.com/monkescience/yeet/compare/v0.6.4...v0.7.0) (2026-04-30)
 
 ### ⚠ BREAKING CHANGES
