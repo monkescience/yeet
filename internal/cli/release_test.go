@@ -425,6 +425,190 @@ func TestResolveReleaseMode(t *testing.T) {
 	})
 }
 
+func TestResolveExplicitReleaseChannel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unknown channel is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with one beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: requesting a channel that does not exist
+		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "alpha", channelSet: true})
+
+		// then: the unknown channel error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrUnknownReleaseChannel)
+	})
+
+	t.Run("matching branch activates the channel", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving the explicit channel on its branch
+		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "beta", channelSet: true})
+
+		// then: the channel becomes active and the branch is scoped
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", cfg.Branch)
+		testastic.Equal(t, "beta", cfg.ActiveChannel)
+	})
+
+	t.Run("branch mismatch is rejected for mutating release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: requesting beta from a non-beta branch
+		err := resolveExplicitReleaseChannel(cfg, "main", releaseRunOptions{channel: "beta", channelSet: true})
+
+		// then: the unconfigured branch error is returned
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, ErrUnconfiguredReleaseBranch)
+	})
+
+	t.Run("branch mismatch is allowed for dry run", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: dry-running the explicit channel from a different branch
+		err := resolveExplicitReleaseChannel(
+			cfg,
+			"main",
+			releaseRunOptions{channel: "beta", channelSet: true, dryRun: true},
+		)
+
+		// then: the channel is activated despite the branch mismatch
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", cfg.Branch)
+		testastic.Equal(t, "beta", cfg.ActiveChannel)
+	})
+
+	t.Run("channel name whitespace is trimmed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a beta channel
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving with surrounding whitespace in the channel option
+		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "  beta  ", channelSet: true})
+
+		// then: the channel is found and activated
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", cfg.ActiveChannel)
+	})
+}
+
+func TestHandleReleaseResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no plans and no releases is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an empty result
+		result := &release.Result{}
+
+		var buf bytes.Buffer
+
+		// when: handling the result
+		err := handleReleaseResult(context.Background(), &buf, result, false)
+
+		// then: nothing is written and no error is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", buf.String())
+	})
+
+	t.Run("finalized release without plans does not write output", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a result with finalized releases but no new plans
+		result := &release.Result{
+			Releases: []*provider.Release{{TagName: "v1.2.3"}},
+		}
+
+		var buf bytes.Buffer
+
+		// when: handling the result
+		err := handleReleaseResult(context.Background(), &buf, result, false)
+
+		// then: the writer is untouched (the message goes through slog) and no error is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", buf.String())
+	})
+
+	t.Run("dry run with plans writes the dry-run output", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a result with one plan and dry-run enabled
+		result := &release.Result{
+			Plans: []release.TargetPlan{
+				{
+					ID:             "default",
+					CurrentVersion: "1.0.0",
+					NextVersion:    "1.1.0",
+					NextTag:        "v1.1.0",
+					BumpType:       commit.BumpMinor,
+					CommitCount:    3,
+					Changelog:      "### Features\n\n- something new\n",
+				},
+			},
+		}
+
+		var buf bytes.Buffer
+
+		// when: handling the result in dry-run mode
+		err := handleReleaseResult(context.Background(), &buf, result, true)
+
+		// then: the writer receives the dry-run summary
+		testastic.NoError(t, err)
+
+		output := ansi.Strip(buf.String())
+		testastic.True(t, len(output) > 0)
+		testastic.Contains(t, output, "v1.1.0")
+	})
+
+	t.Run("non dry run with plans does not write output", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a result with one plan and dry-run disabled
+		result := &release.Result{
+			Plans: []release.TargetPlan{
+				{ID: "default", NextTag: "v1.1.0"},
+			},
+		}
+
+		var buf bytes.Buffer
+
+		// when: handling the result without dry-run
+		err := handleReleaseResult(context.Background(), &buf, result, false)
+
+		// then: the writer is untouched and no error is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", buf.String())
+	})
+}
+
 func TestWrapReleaseExecutionError(t *testing.T) {
 	t.Run("merge blocked suggests the next action", func(t *testing.T) {
 		// given: an auto-merge attempt blocked by provider readiness rules

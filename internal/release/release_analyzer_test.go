@@ -159,3 +159,77 @@ func TestCalVerVersionRefLess(t *testing.T) {
 		testastic.True(t, result)
 	})
 }
+
+func TestOrderedPlans(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty map yields empty slice", func(t *testing.T) {
+		t.Parallel()
+
+		// given: no plans
+		plans := map[string]TargetPlan{}
+
+		// when: ordering
+		ordered := orderedPlans(plans)
+
+		// then: the slice is empty
+		testastic.Equal(t, 0, len(ordered))
+	})
+
+	t.Run("single entry is returned as is", func(t *testing.T) {
+		t.Parallel()
+
+		// given: one plan
+		plans := map[string]TargetPlan{
+			"only": {ID: "only", Type: "service"},
+		}
+
+		// when: ordering
+		ordered := orderedPlans(plans)
+
+		// then: that plan is the sole element
+		testastic.Equal(t, 1, len(ordered))
+		testastic.Equal(t, "only", ordered[0].ID)
+	})
+
+	t.Run("sorts by type before id", func(t *testing.T) {
+		t.Parallel()
+
+		// given: plans with mixed types and ids
+		plans := map[string]TargetPlan{
+			"svc-b": {ID: "svc-b", Type: "service"},
+			"lib-a": {ID: "lib-a", Type: "library"},
+			"svc-a": {ID: "svc-a", Type: "service"},
+			"lib-b": {ID: "lib-b", Type: "library"},
+		}
+
+		// when: ordering
+		ordered := orderedPlans(plans)
+
+		// then: type is the primary key, id breaks ties
+		testastic.Equal(t, 4, len(ordered))
+		testastic.Equal(t, "lib-a", ordered[0].ID)
+		testastic.Equal(t, "lib-b", ordered[1].ID)
+		testastic.Equal(t, "svc-a", ordered[2].ID)
+		testastic.Equal(t, "svc-b", ordered[3].ID)
+	})
+
+	t.Run("same type sorts by id lexicographically", func(t *testing.T) {
+		t.Parallel()
+
+		// given: plans sharing a type
+		plans := map[string]TargetPlan{
+			"gamma": {ID: "gamma", Type: "service"},
+			"alpha": {ID: "alpha", Type: "service"},
+			"beta":  {ID: "beta", Type: "service"},
+		}
+
+		// when: ordering
+		ordered := orderedPlans(plans)
+
+		// then: ids appear in ascending order
+		testastic.Equal(t, "alpha", ordered[0].ID)
+		testastic.Equal(t, "beta", ordered[1].ID)
+		testastic.Equal(t, "gamma", ordered[2].ID)
+	})
+}
