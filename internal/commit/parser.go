@@ -3,6 +3,7 @@ package commit
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -89,20 +90,22 @@ func Parse(hash, rawMessage string) Commit {
 }
 
 func parseBody(c *Commit, lines []string) {
-	var bodyLines []string
+	footerStart := slices.IndexFunc(lines, func(line string) bool {
+		return isFooter(strings.TrimSpace(line))
+	})
 
-	inFooters := false
+	if footerStart == -1 {
+		c.Body = strings.TrimSpace(strings.Join(lines, "\n"))
 
-	for _, line := range lines {
+		return
+	}
+
+	c.Body = strings.TrimSpace(strings.Join(lines[:footerStart], "\n"))
+
+	for _, line := range lines[footerStart:] {
 		trimmed := strings.TrimSpace(line)
 
-		if !inFooters && trimmed == "" {
-			continue
-		}
-
 		if isFooter(trimmed) {
-			inFooters = true
-
 			footer := parseFooter(trimmed)
 			c.Footers = append(c.Footers, footer)
 
@@ -113,19 +116,9 @@ func parseBody(c *Commit, lines []string) {
 			continue
 		}
 
-		if inFooters && len(c.Footers) > 0 {
-			last := &c.Footers[len(c.Footers)-1]
-			last.Value += "\n" + line
-
-			continue
-		}
-
-		if !inFooters {
-			bodyLines = append(bodyLines, line)
-		}
+		last := &c.Footers[len(c.Footers)-1]
+		last.Value += "\n" + line
 	}
-
-	c.Body = strings.TrimSpace(strings.Join(bodyLines, "\n"))
 }
 
 func isFooter(line string) bool {
@@ -245,14 +238,9 @@ func FilterByTypes(commits []Commit, types []string) []Commit {
 	var filtered []Commit
 
 	for _, c := range commits {
-		if _, ok := typeSet[c.Type]; ok {
+		_, typeMatches := typeSet[c.Type]
+		if typeMatches || c.Breaking {
 			filtered = append(filtered, c)
-		}
-
-		if c.Breaking {
-			if _, ok := typeSet[c.Type]; !ok {
-				filtered = append(filtered, c)
-			}
 		}
 	}
 
