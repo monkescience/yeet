@@ -62,12 +62,12 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 		action := gitlab.FileUpdate
 
 		_, err := g.GetFile(ctx, base, path)
-		if err != nil {
-			if errors.Is(err, ErrFileNotFound) {
-				action = gitlab.FileCreate
-			} else {
-				return fmt.Errorf("get file %s on branch %s: %w", path, base, err)
-			}
+		if err != nil && !errors.Is(err, ErrFileNotFound) {
+			return fmt.Errorf("get file %s on branch %s: %w", path, base, err)
+		}
+
+		if errors.Is(err, ErrFileNotFound) {
+			action = gitlab.FileCreate
 		}
 
 		pathValue := path

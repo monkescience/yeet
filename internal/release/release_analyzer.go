@@ -962,11 +962,11 @@ func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context, target config.
 	refs := make([]string, 0)
 
 	preferredRef, err := r.history.GetLatestVersionRef(ctx)
-	if err != nil {
-		if !errors.Is(err, provider.ErrNoVersionRef) {
-			return nil, fmt.Errorf("get latest version ref: %w", err)
-		}
-	} else {
+	if err != nil && !errors.Is(err, provider.ErrNoVersionRef) {
+		return nil, fmt.Errorf("get latest version ref: %w", err)
+	}
+
+	if err == nil {
 		refs = append(refs, preferredRef)
 	}
 
