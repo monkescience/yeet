@@ -30,3 +30,11 @@ func (g *GitLab) RepoURL() string {
 func (g *GitLab) PathPrefix() string {
 	return "/-"
 }
+
+func gitLabNextPage(resp *gitlab.Response) int {
+	if resp == nil {
+		return 0
+	}
+
+	return int(resp.NextPage)
+}

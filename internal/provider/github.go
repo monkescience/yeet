@@ -37,3 +37,11 @@ func (g *GitHub) RepoURL() string {
 func (g *GitHub) PathPrefix() string {
 	return ""
 }
+
+func gitHubNextPage(resp *github.Response) int {
+	if resp == nil {
+		return 0
+	}
+
+	return resp.NextPage
+}

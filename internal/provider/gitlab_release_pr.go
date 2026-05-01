@@ -63,15 +63,20 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 	pendingMRs := make([]*PullRequest, 0)
 
-	for range maxPaginationPages {
-		mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("list merge requests: %w", err)
-		}
+	err := paginate(ctx, "listing open pending release MRs",
+		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
+			options.Page = int64(page)
 
-		for _, mr := range mrs {
+			mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("list merge requests: %w", err)
+			}
+
+			return mrs, gitLabNextPage(resp), nil
+		},
+		func(mr *gitlab.BasicMergeRequest) (bool, error) {
 			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
-				continue
+				return false, nil
 			}
 
 			pendingMRs = append(pendingMRs, &PullRequest{
@@ -81,19 +86,15 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 				URL:    mr.WebURL,
 				Branch: mr.SourceBranch,
 			})
-		}
 
-		if resp.NextPage == 0 {
-			return pendingMRs, nil
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: exceeded %d pages listing open pending release MRs",
-		ErrPaginationLimitExceeded, maxPaginationPages,
-	)
+	return pendingMRs, nil
 }
 
 func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
@@ -111,38 +112,45 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
 
-	for range maxPaginationPages {
-		mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("list merge requests: %w", err)
-		}
+	var found *PullRequest
 
-		for _, mr := range mrs {
-			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
-				continue
+	err := paginate(ctx, "listing merged release MRs",
+		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
+			options.Page = int64(page)
+
+			mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.pid, options, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("list merge requests: %w", err)
 			}
 
-			return &PullRequest{
+			return mrs, gitLabNextPage(resp), nil
+		},
+		func(mr *gitlab.BasicMergeRequest) (bool, error) {
+			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
+				return false, nil
+			}
+
+			found = &PullRequest{
 				Number:         int(mr.IID),
 				Title:          mr.Title,
 				Body:           mr.Description,
 				URL:            mr.WebURL,
 				Branch:         mr.SourceBranch,
 				MergeCommitSHA: gitLabMergeCommitSHA(mr),
-			}, nil
-		}
+			}
 
-		if resp.NextPage == 0 {
-			return nil, ErrNoPR
-		}
-
-		options.Page = resp.NextPage
+			return true, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: exceeded %d pages listing merged release MRs",
-		ErrPaginationLimitExceeded, maxPaginationPages,
-	)
+	if found == nil {
+		return nil, ErrNoPR
+	}
+
+	return found, nil
 }
 
 func (g *GitLab) MarkReleasePRPending(ctx context.Context, number int) error {

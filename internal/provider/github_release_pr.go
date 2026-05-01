@@ -54,20 +54,25 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 	pendingPRs := make([]*PullRequest, 0)
 
-	for range maxPaginationPages {
-		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
-		if err != nil {
-			return nil, fmt.Errorf("list pull requests: %w", err)
-		}
+	err := paginate(ctx, "listing open pending release PRs",
+		func(page int) ([]*github.PullRequest, int, error) {
+			options.Page = page
 
-		for _, pr := range prs {
+			prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list pull requests: %w", err)
+			}
+
+			return prs, gitHubNextPage(resp), nil
+		},
+		func(pr *github.PullRequest) (bool, error) {
 			branch := pr.GetHead().GetRef()
 			if !strings.HasPrefix(branch, releaseBranchPrefix) {
-				continue
+				return false, nil
 			}
 
 			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
-				continue
+				return false, nil
 			}
 
 			pendingPRs = append(pendingPRs, &PullRequest{
@@ -77,21 +82,18 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 				URL:    pr.GetHTMLURL(),
 				Branch: branch,
 			})
-		}
 
-		if resp.NextPage == 0 {
-			return pendingPRs, nil
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: exceeded %d pages listing open pending release PRs",
-		ErrPaginationLimitExceeded, maxPaginationPages,
-	)
+	return pendingPRs, nil
 }
 
+//nolint:funlen // Pagination closure layout inflates line count without adding complexity.
 func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "closed",
@@ -103,52 +105,59 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		},
 	}
 
-	for range maxPaginationPages {
-		prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
-		if err != nil {
-			return nil, fmt.Errorf("list pull requests: %w", err)
-		}
+	var found *PullRequest
 
-		for _, pr := range prs {
+	err := paginate(ctx, "listing merged release PRs",
+		func(page int) ([]*github.PullRequest, int, error) {
+			options.Page = page
+
+			prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list pull requests: %w", err)
+			}
+
+			return prs, gitHubNextPage(resp), nil
+		},
+		func(pr *github.PullRequest) (bool, error) {
 			if pr.GetMergedAt().IsZero() {
-				continue
+				return false, nil
 			}
 
 			branch := pr.GetHead().GetRef()
 			if !strings.HasPrefix(branch, releaseBranchPrefix) {
-				continue
+				return false, nil
 			}
 
 			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
-				continue
+				return false, nil
 			}
 
 			fullPR, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, pr.GetNumber())
 			if err != nil {
-				return nil, fmt.Errorf("get pull request #%d: %w", pr.GetNumber(), err)
+				return false, fmt.Errorf("get pull request #%d: %w", pr.GetNumber(), err)
 			}
 
-			return &PullRequest{
+			found = &PullRequest{
 				Number:         pr.GetNumber(),
 				Title:          pr.GetTitle(),
 				Body:           pr.GetBody(),
 				URL:            pr.GetHTMLURL(),
 				Branch:         branch,
 				MergeCommitSHA: fullPR.GetMergeCommitSHA(),
-			}, nil
-		}
+			}
 
-		if resp.NextPage == 0 {
-			return nil, ErrNoPR
-		}
-
-		options.Page = resp.NextPage
+			return true, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: exceeded %d pages listing merged release PRs",
-		ErrPaginationLimitExceeded, maxPaginationPages,
-	)
+	if found == nil {
+		return nil, ErrNoPR
+	}
+
+	return found, nil
 }
 
 func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
@@ -197,37 +206,44 @@ func (g *GitHub) CommitPullRequestBody(ctx context.Context, hash string) (string
 
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
 
-	for range maxPaginationPages {
-		prs, resp, err := g.client.PullRequests.ListPullRequestsWithCommit(
-			ctx,
-			g.repo.Owner,
-			g.repo.Name,
-			commitHash,
-			options,
-		)
-		if err != nil {
-			return "", false, fmt.Errorf("list pull requests for commit %q: %w", commitHash, err)
-		}
+	var (
+		body  string
+		found bool
+	)
 
-		for _, pr := range prs {
-			if strings.TrimSpace(pr.GetMergeCommitSHA()) != commitHash {
-				continue
+	err := paginate(ctx, fmt.Sprintf("listing pull requests for commit %q", commitHash),
+		func(page int) ([]*github.PullRequest, int, error) {
+			options.Page = page
+
+			prs, resp, err := g.client.PullRequests.ListPullRequestsWithCommit(
+				ctx,
+				g.repo.Owner,
+				g.repo.Name,
+				commitHash,
+				options,
+			)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list pull requests for commit %q: %w", commitHash, err)
 			}
 
-			return pr.GetBody(), true, nil
-		}
+			return prs, gitHubNextPage(resp), nil
+		},
+		func(pr *github.PullRequest) (bool, error) {
+			if strings.TrimSpace(pr.GetMergeCommitSHA()) != commitHash {
+				return false, nil
+			}
 
-		if resp == nil || resp.NextPage == 0 {
-			return "", false, nil
-		}
+			body = pr.GetBody()
+			found = true
 
-		options.Page = resp.NextPage
+			return true, nil
+		},
+	)
+	if err != nil {
+		return "", false, err
 	}
 
-	return "", false, fmt.Errorf(
-		"%w: exceeded %d pages listing pull requests for commit %q",
-		ErrPaginationLimitExceeded, maxPaginationPages, commitHash,
-	)
+	return body, found, nil
 }
 
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {

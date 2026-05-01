@@ -37,29 +37,31 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
 	tags := make([]string, 0)
 
-	for range maxPaginationPages {
-		pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
-		if err != nil {
-			return nil, fmt.Errorf("list tags: %w", err)
-		}
+	err := paginate(ctx, "listing tags",
+		func(page int) ([]*github.RepositoryTag, int, error) {
+			options.Page = page
 
-		for _, tag := range pageTags {
-			name := strings.TrimSpace(tag.GetName())
-			if name == "" {
-				continue
+			pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list tags: %w", err)
 			}
 
-			tags = append(tags, name)
-		}
+			return pageTags, gitHubNextPage(resp), nil
+		},
+		func(tag *github.RepositoryTag) (bool, error) {
+			name := strings.TrimSpace(tag.GetName())
+			if name != "" {
+				tags = append(tags, name)
+			}
 
-		if resp == nil || resp.NextPage == 0 {
-			return tags, nil
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("%w: exceeded %d pages listing tags", ErrPaginationLimitExceeded, maxPaginationPages)
+	return tags, nil
 }
 
 const maxConcurrentPathFetches = 5
@@ -93,32 +95,36 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 	boundaryFound := false
 
-	for range maxPaginationPages {
-		commits, resp, err := g.client.Repositories.ListCommits(ctx, g.repo.Owner, g.repo.Name, opts)
-		if err != nil {
-			return nil, fmt.Errorf("list commits: %w", err)
-		}
+	err := paginate(ctx, "listing commits",
+		func(page int) ([]*github.RepositoryCommit, int, error) {
+			opts.Page = page
 
-		for _, c := range commits {
+			commits, resp, err := g.client.Repositories.ListCommits(ctx, g.repo.Owner, g.repo.Name, opts)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list commits: %w", err)
+			}
+
+			return commits, gitHubNextPage(resp), nil
+		},
+		func(c *github.RepositoryCommit) (bool, error) {
 			sha := c.GetSHA()
 
 			if resolvedBoundarySHA != "" && sha == resolvedBoundarySHA {
 				boundaryFound = true
 
-				break
+				return true, nil
 			}
 
 			entries = append(entries, CommitEntry{
 				Hash:    sha,
 				Message: c.GetCommit().GetMessage(),
 			})
-		}
 
-		if boundaryFound || resp == nil || resp.NextPage == 0 {
-			break
-		}
-
-		opts.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	if resolvedBoundarySHA != "" && !boundaryFound {
@@ -183,13 +189,18 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 	paths := make([]string, 0)
 	seen := make(map[string]struct{})
 
-	for range maxPaginationPages {
-		commitDetails, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, sha, options)
-		if err != nil {
-			return nil, fmt.Errorf("get changed files for commit %q: %w", sha, err)
-		}
+	err := paginate(ctx, fmt.Sprintf("listing commit paths for %q", sha),
+		func(page int) ([]*github.CommitFile, int, error) {
+			options.Page = page
 
-		for _, changedFile := range commitDetails.Files {
+			commitDetails, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, sha, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("get changed files for commit %q: %w", sha, err)
+			}
+
+			return commitDetails.Files, gitHubNextPage(resp), nil
+		},
+		func(changedFile *github.CommitFile) (bool, error) {
 			for _, candidatePath := range []string{changedFile.GetFilename(), changedFile.GetPreviousFilename()} {
 				normalizedPath := strings.TrimSpace(candidatePath)
 				if normalizedPath == "" {
@@ -203,17 +214,13 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 				seen[normalizedPath] = struct{}{}
 				paths = append(paths, normalizedPath)
 			}
-		}
 
-		if resp == nil || resp.NextPage == 0 {
-			return paths, nil
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf(
-		"%w: exceeded %d pages listing commit paths for %q",
-		ErrPaginationLimitExceeded, maxPaginationPages, sha,
-	)
+	return paths, nil
 }

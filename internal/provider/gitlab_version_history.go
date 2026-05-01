@@ -38,29 +38,31 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	}
 	tags := make([]string, 0)
 
-	for range maxPaginationPages {
-		pageTags, resp, err := g.client.Tags.ListTags(g.pid, options, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("list tags: %w", err)
-		}
+	err := paginate(ctx, "listing tags",
+		func(page int) ([]*gitlab.Tag, int, error) {
+			options.Page = int64(page)
 
-		for _, tag := range pageTags {
-			name := strings.TrimSpace(tag.Name)
-			if name == "" {
-				continue
+			pageTags, resp, err := g.client.Tags.ListTags(g.pid, options, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("list tags: %w", err)
 			}
 
-			tags = append(tags, name)
-		}
+			return pageTags, gitLabNextPage(resp), nil
+		},
+		func(tag *gitlab.Tag) (bool, error) {
+			name := strings.TrimSpace(tag.Name)
+			if name != "" {
+				tags = append(tags, name)
+			}
 
-		if resp == nil || resp.NextPage == 0 {
-			return tags, nil
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("%w: exceeded %d pages listing tags", ErrPaginationLimitExceeded, maxPaginationPages)
+	return tags, nil
 }
 
 //nolint:funlen // Commit pagination and concurrent path fetching are clearer kept together.
@@ -90,30 +92,34 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 	boundaryFound := false
 
-	for range maxPaginationPages {
-		commits, resp, err := g.client.Commits.ListCommits(g.pid, opts, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("list commits: %w", err)
-		}
+	err := paginate(ctx, "listing commits",
+		func(page int) ([]*gitlab.Commit, int, error) {
+			opts.Page = int64(page)
 
-		for _, c := range commits {
+			commits, resp, err := g.client.Commits.ListCommits(g.pid, opts, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("list commits: %w", err)
+			}
+
+			return commits, gitLabNextPage(resp), nil
+		},
+		func(c *gitlab.Commit) (bool, error) {
 			if resolvedBoundaryID != "" && c.ID == resolvedBoundaryID {
 				boundaryFound = true
 
-				break
+				return true, nil
 			}
 
 			entries = append(entries, CommitEntry{
 				Hash:    c.ID,
 				Message: c.Message,
 			})
-		}
 
-		if boundaryFound || resp == nil || resp.NextPage == 0 {
-			break
-		}
-
-		opts.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	if resolvedBoundaryID != "" && !boundaryFound {
@@ -181,13 +187,18 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 	paths := make([]string, 0)
 	seen := make(map[string]struct{})
 
-	for {
-		diffs, resp, err := g.client.Commits.GetCommitDiff(g.pid, sha, options, gitlab.WithContext(ctx))
-		if err != nil {
-			return nil, fmt.Errorf("get changed files for commit %q: %w", sha, err)
-		}
+	err := paginate(ctx, fmt.Sprintf("listing commit paths for %q", sha),
+		func(page int) ([]*gitlab.Diff, int, error) {
+			options.Page = int64(page)
 
-		for _, diff := range diffs {
+			diffs, resp, err := g.client.Commits.GetCommitDiff(g.pid, sha, options, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("get changed files for commit %q: %w", sha, err)
+			}
+
+			return diffs, gitLabNextPage(resp), nil
+		},
+		func(diff *gitlab.Diff) (bool, error) {
 			for _, candidatePath := range []string{diff.NewPath, diff.OldPath} {
 				normalizedPath := strings.TrimSpace(candidatePath)
 				if normalizedPath == "" {
@@ -201,13 +212,12 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 				seen[normalizedPath] = struct{}{}
 				paths = append(paths, normalizedPath)
 			}
-		}
 
-		if resp == nil || resp.NextPage == 0 {
-			break
-		}
-
-		options.Page = resp.NextPage
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return paths, nil
