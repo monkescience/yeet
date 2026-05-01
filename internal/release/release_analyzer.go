@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -691,14 +692,10 @@ func filterEntriesForTargets(entries []provider.CommitEntry, targets []config.Re
 	filteredEntries := make([]provider.CommitEntry, 0, len(entries))
 
 	for _, entry := range entries {
-		for _, target := range targets {
-			if !entryBelongsToTarget(entry, target) {
-				continue
-			}
-
+		if slices.ContainsFunc(targets, func(target config.ResolvedTarget) bool {
+			return entryBelongsToTarget(entry, target)
+		}) {
 			filteredEntries = append(filteredEntries, entry)
-
-			break
 		}
 	}
 
@@ -772,17 +769,11 @@ func entryBelongsToTarget(entry provider.CommitEntry, target config.ResolvedTarg
 			continue
 		}
 
-		excluded := false
+		isExcluded := slices.ContainsFunc(target.ExcludePaths, func(excludePath string) bool {
+			return config.RepoPathContains(excludePath, normalizedPath)
+		})
 
-		for _, excludePath := range target.ExcludePaths {
-			if config.RepoPathContains(excludePath, normalizedPath) {
-				excluded = true
-
-				break
-			}
-		}
-
-		if !excluded {
+		if !isExcluded {
 			return true
 		}
 	}
