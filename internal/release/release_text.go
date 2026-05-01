@@ -296,9 +296,9 @@ func splitDerivedChangelogBody(changelogBody string, includedTargets []string) (
 		return strings.TrimSpace(changelogBody), childBodies
 	}
 
-	childHeaders := make(map[string]string, len(includedTargets))
+	headerToTargetID := make(map[string]string, len(includedTargets))
 	for _, includedTargetID := range includedTargets {
-		childHeaders[includedTargetID] = "### " + includedTargetID
+		headerToTargetID["### "+includedTargetID] = includedTargetID
 	}
 
 	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
@@ -308,13 +308,11 @@ func splitDerivedChangelogBody(changelogBody string, includedTargets []string) (
 	}, 0, len(includedTargets))
 
 	for idx, line := range lines {
-		for includedTargetID, header := range childHeaders {
-			if strings.TrimSpace(line) == header {
-				sections = append(sections, struct {
-					TargetID string
-					Start    int
-				}{TargetID: includedTargetID, Start: idx})
-			}
+		if includedTargetID, ok := headerToTargetID[strings.TrimSpace(line)]; ok {
+			sections = append(sections, struct {
+				TargetID string
+				Start    int
+			}{TargetID: includedTargetID, Start: idx})
 		}
 	}
 
