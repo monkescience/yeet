@@ -201,19 +201,22 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 			return commitDetails.Files, gitHubNextPage(resp), nil
 		},
 		func(changedFile *github.CommitFile) (bool, error) {
-			for _, candidatePath := range []string{changedFile.GetFilename(), changedFile.GetPreviousFilename()} {
+			addPath := func(candidatePath string) {
 				normalizedPath := strings.TrimSpace(candidatePath)
 				if normalizedPath == "" {
-					continue
+					return
 				}
 
 				if _, exists := seen[normalizedPath]; exists {
-					continue
+					return
 				}
 
 				seen[normalizedPath] = struct{}{}
 				paths = append(paths, normalizedPath)
 			}
+
+			addPath(changedFile.GetFilename())
+			addPath(changedFile.GetPreviousFilename())
 
 			return false, nil
 		},

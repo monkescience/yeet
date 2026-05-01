@@ -199,19 +199,22 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 			return diffs, gitLabNextPage(resp), nil
 		},
 		func(diff *gitlab.Diff) (bool, error) {
-			for _, candidatePath := range []string{diff.NewPath, diff.OldPath} {
+			addPath := func(candidatePath string) {
 				normalizedPath := strings.TrimSpace(candidatePath)
 				if normalizedPath == "" {
-					continue
+					return
 				}
 
 				if _, exists := seen[normalizedPath]; exists {
-					continue
+					return
 				}
 
 				seen[normalizedPath] = struct{}{}
 				paths = append(paths, normalizedPath)
 			}
+
+			addPath(diff.NewPath)
+			addPath(diff.OldPath)
 
 			return false, nil
 		},

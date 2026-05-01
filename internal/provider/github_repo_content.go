@@ -1,11 +1,12 @@
 package provider
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 
 	"github.com/google/go-github/v84/github"
 )
@@ -105,21 +106,13 @@ func (g *GitHub) createTreeForFiles(
 	baseTreeSHA string,
 	files map[string]string,
 ) (*github.Tree, error) {
-	paths := make([]string, 0, len(files))
+	entries := make([]*github.TreeEntry, 0, len(files))
 
-	for path := range files {
-		paths = append(paths, path)
-	}
-
-	sort.Strings(paths)
-
-	entries := make([]*github.TreeEntry, 0, len(paths))
-
-	for _, path := range paths {
+	for path, content := range files {
 		pathValue := path
 		mode := "100644"
 		typeValue := "blob"
-		contentValue := files[path]
+		contentValue := content
 
 		entries = append(entries, &github.TreeEntry{
 			Path:    &pathValue,
@@ -128,6 +121,10 @@ func (g *GitHub) createTreeForFiles(
 			Content: &contentValue,
 		})
 	}
+
+	slices.SortFunc(entries, func(a, b *github.TreeEntry) int {
+		return cmp.Compare(a.GetPath(), b.GetPath())
+	})
 
 	tree, _, err := g.client.Git.CreateTree(ctx, g.repo.Owner, g.repo.Name, baseTreeSHA, entries)
 	if err != nil {
