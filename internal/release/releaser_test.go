@@ -676,7 +676,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub.mergedPR = &provider.PullRequest{
 			Number: 3,
 			URL:    "https://example.com/pr/3",
-			Body:   testManifestBody("v0.1.0", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
@@ -713,7 +713,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub.mergedPR = &provider.PullRequest{
 			Number: 4,
 			URL:    "https://example.com/pr/4",
-			Body:   testManifestBody("v0.1.0", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
@@ -1261,7 +1261,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub.mergedPR = &provider.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
@@ -1315,7 +1315,7 @@ repository:
 ` + "```" + `
 `)
 
-		manifest := testManifestBody("v1.2.3", cfg.Changelog.File)
+		manifest := testManifestBody(t, "v1.2.3", cfg.Changelog.File)
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
 			Number: 42,
@@ -1353,7 +1353,7 @@ repository:
 		// given: a merged pending release PR with manual notes committed to CHANGELOG.md
 		cfg := config.Default()
 		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
-		manifest := gitLabNormalizeYeetMarkers(testManifestBody("v1.2.3", cfg.Changelog.File))
+		manifest := gitLabNormalizeYeetMarkers(testManifestBody(t, "v1.2.3", cfg.Changelog.File))
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
@@ -1390,7 +1390,7 @@ repository:
 
 		// given: a merged pending release PR with a start notes marker but no end marker
 		cfg := config.Default()
-		manifest := testManifestBody("v1.2.3", cfg.Changelog.File)
+		manifest := testManifestBody(t, "v1.2.3", cfg.Changelog.File)
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
@@ -1431,7 +1431,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number: 33,
 			URL:    "https://example.com/pr/33",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-v1.2.3",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
@@ -1468,7 +1468,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number: 9,
 			URL:    "https://example.com/pr/9",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 
@@ -1501,7 +1501,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number: 10,
 			URL:    "https://example.com/pr/10",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 
@@ -1531,7 +1531,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number: 11,
 			URL:    "https://example.com/pr/11",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
@@ -1567,7 +1567,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number:         13,
 			URL:            "https://example.com/pr/13",
-			Body:           testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch:         "yeet/release-main",
 			MergeCommitSHA: "merged-sha",
 		}
@@ -1643,7 +1643,7 @@ repository:
 		stub.mergedPR = &provider.PullRequest{
 			Number: 12,
 			URL:    "https://example.com/pr/12",
-			Body:   testManifestBody("v1.2.3", cfg.Changelog.File),
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.2 (2026-02-20)"

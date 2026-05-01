@@ -9,10 +9,6 @@ import (
 	"github.com/google/go-github/v84/github"
 )
 
-const releasePendingLabelColor = "FBCA04"
-
-const releaseTaggedLabelColor = "0E8A16"
-
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
 	pr, _, err := g.client.PullRequests.Create(ctx, g.repo.Owner, g.repo.Name, &github.NewPullRequest{
 		Title: new(opts.Title),
@@ -294,12 +290,12 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 }
 
 func (g *GitHub) ensureReleaseLabels(ctx context.Context) error {
-	err := g.ensureLabel(ctx, ReleaseLabelPending, releasePendingLabelColor, "release PR is pending tagging")
+	err := g.ensureLabel(ctx, ReleaseLabelPending, releaseLabelPendingColor, releaseLabelPendingDescription)
 	if err != nil {
 		return err
 	}
 
-	err = g.ensureLabel(ctx, ReleaseLabelTagged, releaseTaggedLabelColor, "release PR already tagged")
+	err = g.ensureLabel(ctx, ReleaseLabelTagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	if err != nil {
 		return err
 	}

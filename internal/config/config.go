@@ -205,6 +205,34 @@ func Parse(data []byte) (*Config, error) {
 	return cfg, nil
 }
 
+func defaultBumpTypes() BumpTypesConfig {
+	return BumpTypesConfig{
+		Minor: []string{"feat"},
+		Patch: []string{"fix", "perf"},
+	}
+}
+
+func defaultChangelogInclude() []string {
+	return []string{"feat", "fix", "perf", "revert"}
+}
+
+func defaultChangelogSections() map[string]string {
+	return map[string]string{
+		"feat":     "Features",
+		"fix":      "Bug Fixes",
+		"perf":     "Performance Improvements",
+		"revert":   "Reverts",
+		"docs":     "Documentation",
+		"style":    "Styles",
+		"refactor": "Code Refactoring",
+		"test":     "Tests",
+		"build":    "Build System",
+		"ci":       "Continuous Integration",
+		"chore":    "Miscellaneous Chores",
+		"breaking": "Breaking Changes",
+	}
+}
+
 func Default() *Config {
 	return &Config{
 		Versioning:                 VersioningSemver,
@@ -212,10 +240,7 @@ func Default() *Config {
 		Provider:                   ProviderAuto,
 		PreMajorBreakingBumpsMinor: true,
 		PreMajorFeaturesBumpPatch:  true,
-		BumpTypes: BumpTypesConfig{
-			Minor: []string{"feat"},
-			Patch: []string{"fix", "perf"},
-		},
+		BumpTypes:                  defaultBumpTypes(),
 		Repository: RepositoryConfig{
 			Remote: "origin",
 		},
@@ -228,22 +253,9 @@ func Default() *Config {
 			PRBodyFooter:         "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		},
 		Changelog: ChangelogConfig{
-			File:    "CHANGELOG.md",
-			Include: []string{"feat", "fix", "perf", "revert"},
-			Sections: map[string]string{
-				"feat":     "Features",
-				"fix":      "Bug Fixes",
-				"perf":     "Performance Improvements",
-				"revert":   "Reverts",
-				"docs":     "Documentation",
-				"style":    "Styles",
-				"refactor": "Code Refactoring",
-				"test":     "Tests",
-				"build":    "Build System",
-				"ci":       "Continuous Integration",
-				"chore":    "Miscellaneous Chores",
-				"breaking": "Breaking Changes",
-			},
+			File:     "CHANGELOG.md",
+			Include:  defaultChangelogInclude(),
+			Sections: defaultChangelogSections(),
 		},
 		CalVer: CalVerConfig{
 			Format: version.DefaultCalVerFormat,

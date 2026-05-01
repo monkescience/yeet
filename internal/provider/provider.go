@@ -33,6 +33,15 @@ const ReleaseLabelPending = "autorelease: pending"
 
 const ReleaseLabelTagged = "autorelease: tagged"
 
+// Label colors are stored without a leading "#" so callers can prepend it when
+// the provider's API requires the prefix (GitLab) or omit it (GitHub).
+const (
+	releaseLabelPendingColor       = "FBCA04"
+	releaseLabelTaggedColor        = "0E8A16"
+	releaseLabelPendingDescription = "release PR is pending tagging"
+	releaseLabelTaggedDescription  = "release PR already tagged"
+)
+
 type ReleasePROptions struct {
 	Title         string
 	Body          string
@@ -69,7 +78,12 @@ type CommitEntry struct {
 	Paths   []string
 }
 
-type versionHistoryProvider interface {
+// Provider is the contract every VCS provider implementation satisfies.
+// Granular consumer-side interfaces live in the release package; this
+// composite serves the CLI factory that returns a single concrete provider.
+//
+//nolint:interfacebloat // intentional aggregate; granular interfaces live consumer-side in package release.
+type Provider interface {
 	// GetLatestVersionRef returns the preferred release/tag baseline candidate.
 	GetLatestVersionRef(ctx context.Context) (string, error)
 	// ListTags returns repository tags.
@@ -77,18 +91,14 @@ type versionHistoryProvider interface {
 	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
 	// When includePaths is true, each entry includes the list of changed file paths.
 	GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error)
-}
 
-type releaseLookupProvider interface {
 	// GetReleaseByTag returns the release for the exact tag.
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
 	// TagExists reports whether the exact tag already exists.
 	TagExists(ctx context.Context, tag string) (bool, error)
 	// CreateRelease creates a release with a tag.
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
-}
 
-type releasePRProvider interface {
 	// CreateReleasePR creates a release PR/MR.
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	// UpdateReleasePR updates an existing release PR/MR.
@@ -105,30 +115,18 @@ type releasePRProvider interface {
 	MarkReleasePRTagged(ctx context.Context, number int) error
 	// CommitPullRequestBody returns the merged PR/MR body associated with the commit hash.
 	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
-}
 
-type repoContentProvider interface {
 	// CreateBranch creates a new branch from the base branch.
 	CreateBranch(ctx context.Context, name, base string) error
 	// GetFile reads a file content from a branch.
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
-}
 
-type repoMetadataProvider interface {
 	// RepoURL returns the HTTPS base URL for the repository.
 	RepoURL() string
 	// PathPrefix returns the path prefix for commit/compare URLs (empty for GitHub, "/-" for GitLab).
 	PathPrefix() string
-}
-
-type Provider interface {
-	versionHistoryProvider
-	releaseLookupProvider
-	releasePRProvider
-	repoContentProvider
-	repoMetadataProvider
 }
 
 type RepoInfo struct {

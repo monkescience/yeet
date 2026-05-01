@@ -10,10 +10,6 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-const gitlabReleasePendingLabelColor = "#FBCA04"
-
-const gitlabReleaseTaggedLabelColor = "#0E8A16"
-
 const gitlabMergeRequestOpenedState = "opened"
 
 const gitlabMergeRequestMergedState = "merged"
@@ -285,12 +281,12 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 }
 
 func (g *GitLab) ensureReleaseLabels(ctx context.Context) error {
-	err := g.ensureLabel(ctx, ReleaseLabelPending, gitlabReleasePendingLabelColor, "release PR is pending tagging")
+	err := g.ensureLabel(ctx, ReleaseLabelPending, "#"+releaseLabelPendingColor, releaseLabelPendingDescription)
 	if err != nil {
 		return err
 	}
 
-	err = g.ensureLabel(ctx, ReleaseLabelTagged, gitlabReleaseTaggedLabelColor, "release PR already tagged")
+	err = g.ensureLabel(ctx, ReleaseLabelTagged, "#"+releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	if err != nil {
 		return err
 	}

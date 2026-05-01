@@ -33,7 +33,9 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies
 	return r
 }
 
-func testManifestBody(tag, changelogFile string) string {
+func testManifestBody(t *testing.T, tag, changelogFile string) string {
+	t.Helper()
+
 	marker, err := releaseManifestMarker(releaseManifest{
 		BaseBranch: "main",
 		Targets: []releaseManifestEntry{{
@@ -44,7 +46,7 @@ func testManifestBody(tag, changelogFile string) string {
 		}},
 	})
 	if err != nil {
-		panic("testManifestBody: " + err.Error())
+		t.Fatalf("releaseManifestMarker returned unexpected error: %v", err)
 	}
 
 	return marker
