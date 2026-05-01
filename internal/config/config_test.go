@@ -27,7 +27,12 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
 	testastic.Equal(t, 0, len(cfg.Release.Channels))
 	testastic.Equal(t, "## ٩(^ᴗ^)۶ release created", cfg.Release.PRBodyHeader)
-	testastic.Equal(t, "_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._", cfg.Release.PRBodyFooter)
+	testastic.Equal(
+		t,
+		"_Auto-generated preview — edit `CHANGELOG.md` to customize release notes._\n\n"+
+			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
+		cfg.Release.PRBodyFooter,
+	)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))

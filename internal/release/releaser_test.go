@@ -986,7 +986,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore: release "+result.Plans[0].NextVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.Contains(t, result.PullRequest.Body, releasePRGuidance)
+		testastic.Contains(t, result.PullRequest.Body, "Auto-generated preview")
 		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-manifest")
 		testastic.NotContains(t, result.PullRequest.Body, "BEGIN_YEET_RELEASE_NOTES")
 		testastic.NotContains(t, result.Plans[0].Changelog,
@@ -1052,8 +1052,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// then: the PR body tells users to edit the changelog and has no editable notes block
 		testastic.NoError(t, err)
-		testastic.Contains(t, result.PullRequest.Body, "edit the matching entry in `CHANGELOG.md`")
-		testastic.Contains(t, result.PullRequest.Body, "This PR/MR body is a preview")
+		testastic.Contains(t, result.PullRequest.Body, "edit `CHANGELOG.md` to customize release notes")
+		testastic.Contains(t, result.PullRequest.Body, "Auto-generated preview")
 		testastic.NotContains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
 		testastic.NotContains(t, result.PullRequest.Body, "<!-- END_YEET_RELEASE_NOTES -->")
 		testastic.NotContains(t, result.Plans[0].Changelog, "BEGIN_YEET_RELEASE_NOTES")
