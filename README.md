@@ -121,13 +121,25 @@ Supported date tokens are `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`, `DD`, and 
 
 yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to generate one with sensible defaults, or pass `--config` to write to a custom path. The generated file includes a YAML language server schema modeline for editor validation and autocomplete.
 
+The default `yeet init` output is intentionally minimal — a single path target named after the repository directory, with everything else inheriting from schema defaults:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
+
+targets:
+  myrepo:        # auto-derived from the repo directory name; falls back to "root"
+    type: path
+    path: .
+    tag_prefix: v
+```
+
 All available options, defaults, and descriptions are defined in the [JSON schema](yeet.schema.json). YAML-aware editors that support `# yaml-language-server: $schema=...` modelines will provide validation and autocomplete automatically. You can pin the schema URL to a release tag for stricter reproducibility.
 
 ### Repository targeting
 
 yeet resolves the target repository from these sources, highest priority first:
 
-1. CLI flags (`--provider`, `--host`, `--owner`, `--repo`, `--project`)
+1. CLI flags (`--provider`, `--remote`, `--host`, `--owner`, `--repo`, `--project`)
 2. explicit `.yeet.yaml` values under `repository:`
 3. the configured `repository.remote`
 4. the `origin` remote
@@ -146,6 +158,18 @@ provider: github
 ```yaml
 # GitLab self-managed
 provider: gitlab
+```
+
+When remote discovery cannot supply the host and path — or you want to override it — set `repository:` explicitly. All sub-keys are optional; provide only what you need to override:
+
+```yaml
+provider: github
+repository:
+  remote: upstream            # which git remote to inspect (default: origin)
+  host: github.example.com    # override host for enterprise / mirrors
+  owner: acme                 # github-style: owner + repo
+  repo: widgets
+  # project: group/sub/widgets  # gitlab-style alternative to owner+repo
 ```
 
 ### Targets
@@ -180,6 +204,8 @@ targets:
 
 Path targets support `exclude_paths` to ignore commits under specific subdirectories.
 Derived targets aggregate included path targets and optionally match direct commits via `path`.
+
+Each target can override these top-level settings: `versioning`, `pre_major_breaking_bumps_minor`, `pre_major_features_bump_patch`, `version_files`, `changelog`, and `calver`. Anything not overridden inherits the top-level value.
 
 ### Bump types
 
@@ -325,9 +351,14 @@ Commit overrides are read from the original merged PR/MR body. Manual edits to t
 ```yaml
 release:
   subject_include_branch: true       # include target branch in PR/MR subject
+  auto_merge: true                   # equivalent to --auto-merge
+  auto_merge_force: false            # equivalent to --auto-merge-force
+  auto_merge_method: squash          # auto|squash|rebase|merge (default: auto)
   pr_body_header: "## Release"       # markdown before changelog in PR/MR body
   pr_body_footer: "_Automated._"     # markdown after changelog in PR/MR body
 ```
+
+`auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults; `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
 
 The default `pr_body_footer` carries an "auto-generated preview" notice alongside the yeet
 attribution. Overriding `pr_body_footer` replaces both; setting it to an empty string removes the
