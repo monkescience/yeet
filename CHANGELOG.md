@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.8.0](https://github.com/monkescience/yeet/compare/v0.7.2...v0.8.0) (2026-05-02)
+
+### ⚠ BREAKING CHANGES
+
+- **versionfile:** validate marker scopes against versioning scheme ([da46040](https://github.com/monkescience/yeet/commit/da46040428dd2b797ed601a308e88bc27a64c769))
+### Features
+
+- **versionfile:** validate marker scopes against versioning scheme ([da46040](https://github.com/monkescience/yeet/commit/da46040428dd2b797ed601a308e88bc27a64c769))
+### Bug Fixes
+
+- **deps:** update module github.com/google/go-github/v84 to v85 (#81) ([9b20342](https://github.com/monkescience/yeet/commit/9b203429c343e924a2f62b206d869adbcd290a87))
+- **deps:** update module github.com/monkescience/testastic to v0.3.4 (#79) ([e5b18b4](https://github.com/monkescience/yeet/commit/e5b18b47ea6a88f74b7bb1501b03c43b87731fb3))
+
+### Migration Notes
+
+`version_files` markers are now validated against the project's versioning scheme. Calver projects that previously used the positional aliases `x-yeet-major`, `x-yeet-minor`, or `x-yeet-patch` must rename them to the calver-native scopes; the validator's error names the replacement.
+
+Allowed marker scopes:
+
+| Scheme | Allowed scopes |
+|---|---|
+| semver | `version`, `major`, `minor`, `patch` |
+| calver | `version`, `year`, `micro`, plus `month` / `week` / `day` only when the configured calver format includes that token |
+
+Rename map for calver projects: `major` → `year`, `minor` → `month` (or `week` if the format uses `WW`), `patch` → `micro`. Block markers (`x-yeet-start-<scope>` … `x-yeet-end`) follow the same rules.
+
 ## [v0.7.2](https://github.com/monkescience/yeet/compare/v0.7.1...v0.7.2) (2026-05-01)
 
 ### Bug Fixes
