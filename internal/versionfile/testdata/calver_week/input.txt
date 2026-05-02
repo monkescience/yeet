@@ -1,0 +1,3 @@
+YEAR=2025 # x-yeet-year
+WEEK=11 # x-yeet-week
+MICRO=9 # x-yeet-micro

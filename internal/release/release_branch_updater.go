@@ -10,6 +10,7 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/version"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
 
@@ -38,13 +39,18 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 
 		files[target.Changelog.File] = changelogContent
 
+		scheme, schemeErr := markerScheme(target)
+		if schemeErr != nil {
+			return fmt.Errorf("build marker scheme for target %s: %w", plan.ID, schemeErr)
+		}
+
 		for _, path := range target.VersionFiles {
 			content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, path)
 			if fileErr != nil {
 				return fmt.Errorf("get version file %s: %w", path, fileErr)
 			}
 
-			updatedContent, changed, markerErr := versionfile.ApplyGenericMarkers(content, plan.NextVersion)
+			updatedContent, changed, markerErr := versionfile.ApplyGenericMarkers(content, plan.NextVersion, scheme)
 			if markerErr != nil {
 				return fmt.Errorf("update version file %s: %w", path, markerErr)
 			}
@@ -102,6 +108,19 @@ func setBranchFileContent(files map[string]string, path, content string) error {
 	files[path] = content
 
 	return nil
+}
+
+func markerScheme(target config.ResolvedTarget) (versionfile.Scheme, error) {
+	if target.Versioning != config.VersioningCalVer {
+		return versionfile.SemVerScheme(), nil
+	}
+
+	calver, err := version.NewCalVerScheme(target.CalVer.Format)
+	if err != nil {
+		return versionfile.Scheme{}, fmt.Errorf("compile calver format: %w", err)
+	}
+
+	return versionfile.CalVerScheme(calver), nil
 }
 
 func prependChangelogEntry(existing, changelogEntry string) string {

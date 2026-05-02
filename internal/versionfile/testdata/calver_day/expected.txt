@@ -1,0 +1,4 @@
+YEAR=2026 # x-yeet-year
+MONTH=03 # x-yeet-month
+DAY=05 # x-yeet-day
+MICRO=1 # x-yeet-micro

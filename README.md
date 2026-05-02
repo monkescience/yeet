@@ -203,7 +203,7 @@ Types not listed produce no version bump. Breaking changes always bump major reg
 `yeet release` updates only files listed in `version_files`. Each file must contain yeet markers.
 
 ```txt
-# inline markers
+# inline markers (semver project)
 VERSION = "0.7.2" # x-yeet-version
 MAJOR = 0 # x-yeet-major
 MINOR = 7 # x-yeet-minor
@@ -216,13 +216,31 @@ appVersion: "0.7.2"
 # x-yeet-end
 ```
 
-For calver repositories, yeet also supports aliases:
+The marker surface depends on the project's versioning scheme. yeet validates each
+marker against the configured scheme and the configured calver format; a marker
+that doesn't apply to the scheme returns an error with a suggested replacement.
 
-- `x-yeet-year` (alias of `x-yeet-major`)
-- `x-yeet-month` (alias of `x-yeet-minor`)
-- `x-yeet-micro` (alias of `x-yeet-patch`)
-- `x-yeet-start-year|month|micro` for calver block markers
-- `x-yeet-end` closes the block
+| Scheme | Allowed scopes |
+|---|---|
+| semver | `version`, `major`, `minor`, `patch` |
+| calver | `version`, `year`, `micro`, plus `month` / `week` / `day` only when the configured format includes that token |
+
+Examples by calver format:
+
+- `YYYY.0M.MICRO` (default): `version`, `year`, `month`, `micro`
+- `YYYY.WW.MICRO`: `version`, `year`, `week`, `micro`
+- `YYYY.0M.0D.MICRO`: `version`, `year`, `month`, `day`, `micro`
+- `YYYY.MICRO`: `version`, `year`, `micro`
+
+Block markers use the same scope names: `x-yeet-start-<scope>` opens the block,
+`x-yeet-end` closes it. Substitution width follows the format token — for example,
+`0M` zero-pads the month to two digits, `MM` does not.
+
+Earlier yeet releases accepted `x-yeet-major|minor|patch` in calver projects via
+positional aliasing. That behavior was removed: existing calver files using those
+markers must be migrated to the calver-native scopes (`major`→`year`,
+`minor`→`month` or `week`, `patch`→`micro`). The error message names the
+replacement to use.
 
 ### Changelog
 

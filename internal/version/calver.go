@@ -162,6 +162,7 @@ const (
 )
 
 type calverFormat struct {
+	raw      string
 	parts    []calverFormatPart
 	tokens   []calverToken
 	hasMonth bool
@@ -198,7 +199,7 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 		return calverFormat{}, fmt.Errorf("%w: calver format must not be empty", ErrInvalidVersion)
 	}
 
-	compiled := calverFormat{}
+	compiled := calverFormat{raw: format}
 	seen := make(map[calverToken]bool)
 
 	for idx := 0; idx < len(format); {
