@@ -11,7 +11,7 @@ require (
 	github.com/go-git/go-git/v5 v5.18.0
 	github.com/google/go-github/v84 v84.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
-	github.com/monkescience/testastic v0.3.0
+	github.com/monkescience/testastic v0.3.4
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go/v2 v2.20.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
