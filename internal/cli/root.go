@@ -44,7 +44,7 @@ func rootCmd() *cobra.Command {
 	options := &bootstrapOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "yeet",
+		Use:   build.ServiceName,
 		Short: "Automate releases based on conventional commits",
 		Long: `yeet analyzes conventional commits to automatically determine the next
 version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.

@@ -46,7 +46,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		State:     "open",
 		Base:      baseBranch,
 		Sort:      "updated",
-		Direction: "desc",
+		Direction: sortDirectionDesc,
 		ListOptions: github.ListOptions{
 			PerPage: 100, //nolint:mnd // reasonable API page size
 		},
@@ -99,7 +99,7 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		State:     "closed",
 		Base:      baseBranch,
 		Sort:      "updated",
-		Direction: "desc",
+		Direction: sortDirectionDesc,
 		ListOptions: github.ListOptions{
 			PerPage: 100, //nolint:mnd // reasonable API page size
 		},

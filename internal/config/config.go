@@ -26,6 +26,15 @@ const SchemaDirective = "# yaml-language-server: $schema=" + DefaultSchemaURL
 
 const githubProjectSegments = 2
 
+// Conventional commit types referenced in defaults. Defined as constants so
+// the same literal isn't repeated across bump-type and changelog defaults.
+const (
+	commitTypeFeat   = "feat"
+	commitTypeFix    = "fix"
+	commitTypePerf   = "perf"
+	commitTypeRevert = "revert"
+)
+
 type VersioningStrategy string
 
 const (
@@ -207,29 +216,29 @@ func Parse(data []byte) (*Config, error) {
 
 func defaultBumpTypes() BumpTypesConfig {
 	return BumpTypesConfig{
-		Minor: []string{"feat"},
-		Patch: []string{"fix", "perf"},
+		Minor: []string{commitTypeFeat},
+		Patch: []string{commitTypeFix, commitTypePerf},
 	}
 }
 
 func defaultChangelogInclude() []string {
-	return []string{"feat", "fix", "perf", "revert"}
+	return []string{commitTypeFeat, commitTypeFix, commitTypePerf, commitTypeRevert}
 }
 
 func defaultChangelogSections() map[string]string {
 	return map[string]string{
-		"feat":     "Features",
-		"fix":      "Bug Fixes",
-		"perf":     "Performance Improvements",
-		"revert":   "Reverts",
-		"docs":     "Documentation",
-		"style":    "Styles",
-		"refactor": "Code Refactoring",
-		"test":     "Tests",
-		"build":    "Build System",
-		"ci":       "Continuous Integration",
-		"chore":    "Miscellaneous Chores",
-		"breaking": "Breaking Changes",
+		commitTypeFeat:   "Features",
+		commitTypeFix:    "Bug Fixes",
+		commitTypePerf:   "Performance Improvements",
+		commitTypeRevert: "Reverts",
+		"docs":           "Documentation",
+		"style":          "Styles",
+		"refactor":       "Code Refactoring",
+		"test":           "Tests",
+		"build":          "Build System",
+		"ci":             "Continuous Integration",
+		"chore":          "Miscellaneous Chores",
+		"breaking":       "Breaking Changes",
 	}
 }
 

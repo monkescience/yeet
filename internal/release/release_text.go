@@ -90,7 +90,7 @@ func buildPRSections(plans []TargetPlan) []prSection {
 	sections := make([]prSection, 0, len(plans))
 
 	for _, plan := range plans {
-		if plan.Type != "derived" {
+		if plan.Type != targetTypeDerived {
 			continue
 		}
 
@@ -106,7 +106,7 @@ func buildPRSections(plans []TargetPlan) []prSection {
 	}
 
 	for _, plan := range plans {
-		if plan.Type == "derived" {
+		if plan.Type == targetTypeDerived {
 			continue
 		}
 

@@ -532,7 +532,7 @@ func (a *releaseAnalyzer) newTargetPlan(
 		CurrentVersion: currentVersion,
 		BumpType:       bumpType,
 		Files: map[string]string{
-			"changelog_file": target.Changelog.File,
+			changelogFileKey: target.Changelog.File,
 		},
 		commitHashes: uniqueEntryHashes(entries),
 	}

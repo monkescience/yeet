@@ -49,7 +49,7 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
 	state := gitlabMergeRequestOpenedState
 	orderBy := "updated_at"
-	sortDirection := "desc"
+	sortDirection := sortDirectionDesc
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
@@ -100,7 +100,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
 	state := gitlabMergeRequestMergedState
 	orderBy := "updated_at"
-	sortDirection := "desc"
+	sortDirection := sortDirectionDesc
 	labels := gitlab.LabelOptions{ReleaseLabelPending}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{

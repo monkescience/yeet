@@ -30,6 +30,14 @@ type releaseManifestEntry struct {
 	ChangelogFile string `json:"changelog_file"`
 }
 
+// changelogFileKey is the TargetPlan.Files map key under which the per-target
+// changelog file path is stored.
+const changelogFileKey = "changelog_file"
+
+// targetTypeDerived mirrors config.TargetTypeDerived as an untyped string for
+// comparisons against the stringly-typed TargetPlan.Type field.
+const targetTypeDerived = "derived"
+
 var ErrInvalidReleaseManifest = errors.New("invalid release manifest")
 
 var releaseManifestMarkerOpenRE = regexp.MustCompile(`<!--\s*yeet-release-manifest\b\s*`)
@@ -62,7 +70,7 @@ func releaseManifestForPlans(baseBranch string, plans []TargetPlan) releaseManif
 			ID:            plan.ID,
 			Type:          plan.Type,
 			Tag:           plan.NextTag,
-			ChangelogFile: plan.Files["changelog_file"],
+			ChangelogFile: plan.Files[changelogFileKey],
 		})
 	}
 
