@@ -9,7 +9,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/go-git/go-git/v5 v5.18.0
-	github.com/google/go-github/v84 v84.0.0
 	github.com/google/go-github/v85 v85.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/monkescience/testastic v0.3.4

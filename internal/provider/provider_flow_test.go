@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	githubapi "github.com/google/go-github/v84/github"
+	githubapi "github.com/google/go-github/v85/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
