@@ -614,6 +614,654 @@ func TestValidate(t *testing.T) {
 		// then: validation passes
 		testastic.NoError(t, err)
 	})
+
+	t.Run("blank repository host fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository host set to whitespace only
+		cfg := config.Default()
+		cfg.Repository.Host = "   "
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the blank host
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.host")
+	})
+
+	t.Run("blank repository owner fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository owner set to whitespace only
+		cfg := config.Default()
+		cfg.Repository.Owner = "   "
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the blank owner
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.owner")
+	})
+
+	t.Run("blank repository repo fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository repo set to whitespace only
+		cfg := config.Default()
+		cfg.Repository.Repo = "   "
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the blank repo
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.repo")
+	})
+
+	t.Run("blank repository project fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository project set to whitespace only
+		cfg := config.Default()
+		cfg.Repository.Project = "   "
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the blank project
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project")
+	})
+
+	t.Run("github owner with slash fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github provider with subgroup-style owner
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.Owner = "group/sub"
+		cfg.Repository.Repo = "service"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: github does not allow nested owner paths
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.owner")
+	})
+
+	t.Run("repository project must match owner and repo when project is owner-repo style", func(t *testing.T) {
+		t.Parallel()
+
+		// given: repository config where project does not equal owner/repo
+		cfg := config.Default()
+		cfg.Repository.Owner = "platform"
+		cfg.Repository.Repo = "yeet"
+		cfg.Repository.Project = "platform/other"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: mismatch is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.project must match")
+	})
+
+	t.Run("release channel name must not be empty", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel with a whitespace-only name
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"   ": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty channel name is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "release.channels")
+	})
+
+	t.Run("release channel name stable is reserved", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel named "stable" (case-insensitive)
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"Stable": {Branch: "release", Prerelease: "rc"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: reserved name is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "stable")
+	})
+
+	t.Run("release channel branch must not be empty", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel with an empty branch
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "   ", Prerelease: "beta"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty branch is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "branch must not be empty")
+	})
+
+	t.Run("release channels with duplicate branches fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two channels pointing at the same branch
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"alpha": {Branch: "release", Prerelease: "alpha"},
+			"beta":  {Branch: "release", Prerelease: "beta"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: duplicate branch is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "duplicates")
+	})
+
+	t.Run("release channel prerelease must not be empty", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel with an empty prerelease identifier
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "   "},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty prerelease is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "prerelease must not be empty")
+	})
+
+	t.Run("release channel invalid prerelease identifier fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel with a prerelease identifier semver rejects
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "not valid!"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: invalid identifier is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "prerelease")
+	})
+
+	t.Run("release channels with duplicate prerelease identifiers fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two channels with the same prerelease identifier
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"alpha": {Branch: "alpha", Prerelease: "rc"},
+			"beta":  {Branch: "beta", Prerelease: "rc"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: duplicate prerelease identifier is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "duplicates")
+	})
+
+	t.Run("release channel branch must not duplicate stable branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel branch that collides with the stable branch
+		cfg := config.Default()
+		cfg.Branch = "main"
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "main", Prerelease: "beta"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: stable-branch collision is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "duplicates stable branch")
+	})
+
+	t.Run("duplicate target tag prefix fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two targets sharing a tag prefix
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: shared tag prefix is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "tag_prefix")
+	})
+
+	t.Run("derived target with unknown include fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target referencing a non-existent target
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"root": {
+				Type:      config.TargetTypeDerived,
+				Path:      ".",
+				TagPrefix: "v",
+				Includes:  []string{"missing"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: unknown include is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "does not refer to a defined target")
+	})
+
+	t.Run("derived target including derived target fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target whose include is itself derived
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"inner": {
+				Type:      config.TargetTypeDerived,
+				Path:      "services",
+				TagPrefix: "inner-v",
+				Includes:  []string{"leaf"},
+			},
+			"leaf": {
+				Type:      config.TargetTypePath,
+				Path:      "services/leaf",
+				TagPrefix: "leaf-v",
+			},
+			"outer": {
+				Type:      config.TargetTypeDerived,
+				Path:      ".",
+				TagPrefix: "v",
+				Includes:  []string{"inner"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: derived-of-derived include is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must refer to a path target")
+	})
+
+	t.Run("target with empty type fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target without a type
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: missing target type is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.app.type")
+	})
+
+	t.Run("target with empty id fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target keyed under whitespace
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"   ": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty target ID is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "target IDs")
+	})
+
+	t.Run("path target with empty path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a path target with no path set
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty path is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "path must not be empty")
+	})
+
+	t.Run("path target with includes fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a path target that also lists includes
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Includes:  []string{"web"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: includes on a path target are rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "includes is only valid for derived targets")
+	})
+
+	t.Run("derived target with no includes fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target without includes
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"root": {
+				Type:      config.TargetTypeDerived,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty includes is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "includes must not be empty")
+	})
+
+	t.Run("target with empty version_files entry fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target whose version_files contains an empty path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:         config.TargetTypePath,
+				Path:         ".",
+				TagPrefix:    "v",
+				VersionFiles: []string{"  "},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty version_files entry is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "version_files")
+	})
+
+	t.Run("target with empty changelog file fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding changelog file to empty
+		cfg := config.Default()
+		cfg.Changelog.File = ""
+		cfg.Changelog.Include = nil
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+			},
+		}
+
+		// when: validating (top-level changelog blocks before target reaches its check)
+		err := cfg.Validate()
+
+		// then: top-level changelog.file empty error first
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "changelog.file")
+	})
+
+	t.Run("target inherits empty top-level changelog include is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target inheriting an empty top-level changelog include list
+		cfg := config.Default()
+		cfg.Changelog.Include = nil
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the empty include
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "changelog.include")
+	})
+
+	t.Run("target with relative parent path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target whose path escapes the repo
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: "../outside", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: parent paths are rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must be repo-relative")
+	})
+
+	t.Run("target with absolute slash path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with an absolute Unix-style path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: "/etc/yeet", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: absolute path is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must be repo-relative")
+	})
+
+	t.Run("target with empty path string fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target whose path is whitespace only
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: "   ", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: blank path is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must not be empty")
+	})
+
+	t.Run("exclude path outside target path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a non-root target with an exclude path that is not inside it
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:         config.TargetTypePath,
+				Path:         "services/api",
+				TagPrefix:    "api-v",
+				ExcludePaths: []string{"services/web"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: excludes outside the target are rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "must be inside")
+	})
+
+	t.Run("exclude path with parent traversal fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an exclude path that escapes the repo via ".."
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:         config.TargetTypePath,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"../outside"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: parent traversal is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "exclude_paths")
+	})
+
+	t.Run("exclude path empty entry fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an exclude path entry that normalizes to empty
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:         config.TargetTypePath,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"   "},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: empty exclude entry is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "exclude_paths")
+	})
 }
 
 func TestBumpTypesConfig_ToBumpMapping(t *testing.T) {
@@ -1049,4 +1697,361 @@ func TestPreMajorOptions(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.ErrorContains(t, err, "targets.app.calver.format")
 	})
+}
+
+func TestLoad(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing file returns wrapped read error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a path that does not exist
+		path := "testdata/does_not_exist.yaml"
+
+		// when: loading the config
+		_, err := config.Load(path)
+
+		// then: load returns a contextual error
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "read config file")
+	})
+
+	t.Run("loads valid file from disk", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a path to a known-good fixture
+		path := "testdata/minimal/input.yaml"
+
+		// when: loading the config
+		cfg, err := config.Load(path)
+
+		// then: it succeeds
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
+	})
+}
+
+func TestResolvedTargets_Merging(t *testing.T) {
+	t.Parallel()
+
+	t.Run("target overrides changelog file path", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding the top-level changelog file path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					File: "docs/RELEASES.md",
+				},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target uses the override
+		testastic.NoError(t, err)
+		testastic.Equal(t, "docs/RELEASES.md", resolved["app"].Changelog.File)
+	})
+
+	t.Run("target overrides changelog include list", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding the include list
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					Include: []string{"feat", "fix"},
+				},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: include is replaced (not merged)
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{"feat", "fix"}, resolved["app"].Changelog.Include)
+	})
+
+	t.Run("target merges changelog sections over defaults", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding only one section label
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					Sections: map[string]string{"feat": "Shiny New Things"},
+				},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target keeps inherited sections and overrides only the specified one
+		testastic.NoError(t, err)
+		testastic.Equal(t, "Shiny New Things", resolved["app"].Changelog.Sections["feat"])
+		testastic.Equal(t, "Bug Fixes", resolved["app"].Changelog.Sections["fix"])
+	})
+
+	t.Run("target overrides reference patterns", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level patterns and a target with its own pattern list
+		cfg := config.Default()
+		cfg.Changelog.References = config.ReferencesConfig{
+			Patterns: []config.ReferencePattern{{Pattern: `JIRA-\d+`, URL: "https://jira/{value}"}},
+			Footers:  map[string]string{"Refs": "https://jira/{value}"},
+		}
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					References: config.ReferencesConfig{
+						Patterns: []config.ReferencePattern{{Pattern: `#\d+`, URL: ""}},
+					},
+				},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target patterns replace the inherited list and footers stay inherited
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(resolved["app"].Changelog.References.Patterns))
+		testastic.Equal(t, `#\d+`, resolved["app"].Changelog.References.Patterns[0].Pattern)
+		testastic.Equal(t, "https://jira/{value}", resolved["app"].Changelog.References.Footers["Refs"])
+	})
+
+	t.Run("target overrides calver format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver target overriding the top-level format
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:       config.TargetTypePath,
+				Path:       ".",
+				TagPrefix:  "v",
+				Versioning: config.VersioningCalVer,
+				CalVer:     config.CalVerConfig{Format: "YYYY.MM.MICRO"},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target keeps its own format
+		testastic.NoError(t, err)
+		testastic.Equal(t, "YYYY.MM.MICRO", resolved["app"].CalVer.Format)
+	})
+
+	t.Run("target overrides version_files entirely", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level version files and a target overriding them
+		cfg := config.Default()
+		cfg.VersionFiles = []string{"VERSION"}
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:         config.TargetTypePath,
+				Path:         ".",
+				TagPrefix:    "v",
+				VersionFiles: []string{"package.json"},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target uses its own list (not merged)
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{"package.json"}, resolved["app"].VersionFiles)
+	})
+
+	t.Run("target inherits top-level versioning when unset", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level set to calver, target leaves versioning unset
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: target inherits calver
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.VersioningCalVer, resolved["app"].Versioning)
+	})
+
+	t.Run("target tag prefix is trimmed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag prefix with surrounding whitespace
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "  v  ",
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: tag prefix is normalized
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v", resolved["app"].TagPrefix)
+	})
+
+	t.Run("normalizes nested target path slashes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target path with redundant separators
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services//api/",
+				TagPrefix: "api-v",
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets()
+
+		// then: path is cleaned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "services/api", resolved["api"].Path)
+	})
+
+	t.Run("derived target with non-overlapping include skips ownership conflict", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target whose included path is excluded
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: ownership is unambiguous
+		testastic.NoError(t, err)
+	})
+
+	t.Run("derived target without exclude overlapping included path fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived root target that does not exclude the included path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"root": {
+				Type:      config.TargetTypeDerived,
+				Path:      ".",
+				TagPrefix: "v",
+				Includes:  []string{"api"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: overlap with the include is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "direct path ownership overlaps")
+	})
+
+	t.Run("disjoint targets do not overlap", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two targets in unrelated paths
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation passes
+		testastic.NoError(t, err)
+	})
+}
+
+func TestRepoPathContains(t *testing.T) {
+	t.Parallel()
+
+	// given: a base path and candidates with various relationships
+	cases := map[string]struct {
+		base, candidate string
+		want            bool
+	}{
+		"root contains everything":  {".", "anything", true},
+		"identical paths":           {"services/api", "services/api", true},
+		"prefix containment":        {"services", "services/api", true},
+		"prefix substring no match": {"service", "services/api", false},
+		"unrelated paths":           {"apps", "services/api", false},
+		"candidate above base":      {"services/api", "services", false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// when: checking containment
+			got := config.RepoPathContains(tc.base, tc.candidate)
+
+			// then: result matches expectation
+			testastic.Equal(t, tc.want, got)
+		})
+	}
 }

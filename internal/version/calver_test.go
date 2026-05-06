@@ -53,6 +53,13 @@ func TestValidateCalVerFormat(t *testing.T) {
 		"YYYY.QQ.MICRO",
 		"YYYY.0M.MICRO.MICRO",
 		"0M.MICRO",
+		"YYYY.MM.0M.MICRO",
+		"YYYY.0M.WW.MICRO",
+		"0Y.WW.0W.MICRO",
+		"YYYY.0M.DD.0D.MICRO",
+		"YYYY.YY.0M.MICRO",
+		".YYYY.0M.MICRO",
+		"   ",
 	}
 
 	for _, format := range invalidFormats {
@@ -381,5 +388,423 @@ func TestCalVerNext(t *testing.T) {
 		// then: micro resets for the new day
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2026.02.03.1", next)
+	})
+
+	t.Run("week format increments within same week", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy fixed mid-week
+		cv := &version.CalVer{
+			Format: "YYYY.0W.MICRO",
+			Prefix: "v",
+			Now:    fixedDate(2026, time.February, 4),
+		}
+
+		// when: calculating next within the same week
+		next, err := cv.Next("2026.05.2", commit.BumpPatch)
+
+		// then: micro increments
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.05.3", next)
+	})
+
+	t.Run("week format resets on new week", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy moved into the next week
+		cv := &version.CalVer{
+			Format: "YYYY.0W.MICRO",
+			Prefix: "v",
+			Now:    fixedDate(2026, time.February, 8),
+		}
+
+		// when: calculating next after the week rolls over
+		next, err := cv.Next("2026.05.4", commit.BumpPatch)
+
+		// then: micro resets
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.06.1", next)
+	})
+
+	t.Run("week format resets on new year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy on the first day of a new year
+		cv := &version.CalVer{
+			Format: "YYYY.0W.MICRO",
+			Prefix: "v",
+			Now:    fixedDate(2027, time.January, 1),
+		}
+
+		// when: calculating next from the previous year's final week
+		next, err := cv.Next("2026.53.4", commit.BumpPatch)
+
+		// then: micro resets and year rolls over
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2027.01.1", next)
+	})
+
+	t.Run("year-pad format renders padded year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy using the 0Y year-pad token
+		cv := &version.CalVer{
+			Format: "0Y.0M.MICRO",
+			Prefix: "v",
+			Now:    fixedTime(2026, time.February),
+		}
+
+		// when: rendering the first version of the period
+		next, err := cv.Next("", commit.BumpMinor)
+
+		// then: year is padded to two digits
+		testastic.NoError(t, err)
+		testastic.Equal(t, "26.02.1", next)
+	})
+
+	t.Run("year-pad format pads single-digit year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a 0Y format computed for an early-millennium year
+		cv := &version.CalVer{
+			Format: "0Y.0M.MICRO",
+			Prefix: "v",
+			Now:    fixedTime(2007, time.March),
+		}
+
+		// when: rendering the first version of the period
+		next, err := cv.Next("", commit.BumpMinor)
+
+		// then: year is zero-padded to two digits
+		testastic.NoError(t, err)
+		testastic.Equal(t, "07.03.1", next)
+	})
+
+	t.Run("non-padded day format renders unpadded day", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy using non-padded day token
+		cv := &version.CalVer{
+			Format: "YYYY.MM.DD.MICRO",
+			Prefix: "v",
+			Now:    fixedDate(2026, time.February, 3),
+		}
+
+		// when: rendering the first version of the period
+		next, err := cv.Next("", commit.BumpMinor)
+
+		// then: month and day are not zero-padded
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.2.3.1", next)
+	})
+
+	t.Run("rejects unparseable current version", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy and an unparseable current value
+		cv := &version.CalVer{
+			Prefix: "v",
+			Now:    fixedTime(2026, time.February),
+		}
+
+		// when: calculating next from a malformed current
+		_, err := cv.Next("not a calver", commit.BumpPatch)
+
+		// then: the parse error surfaces
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects invalid configured format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy with an invalid format
+		cv := &version.CalVer{
+			Format: "YYYY.0M",
+			Prefix: "v",
+			Now:    fixedTime(2026, time.February),
+		}
+
+		// when: calculating next
+		_, err := cv.Next("", commit.BumpMinor)
+
+		// then: format validation surfaces
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+}
+
+func TestCalVerLess(t *testing.T) {
+	t.Parallel()
+
+	cv := &version.CalVer{Prefix: "v"}
+
+	t.Run("earlier calendar period is less", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two valid versions where left is earlier
+		// when: comparing left and right
+		got := cv.Less("2026.01.5", "2026.02.1", "ignored", "ignored")
+
+		// then: left sorts first
+		testastic.True(t, got)
+	})
+
+	t.Run("later calendar period is greater", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two valid versions where left is later
+		// when: comparing left and right
+		got := cv.Less("2027.01.1", "2026.12.9", "ignored", "ignored")
+
+		// then: left does not sort first
+		testastic.False(t, got)
+	})
+
+	t.Run("equal versions fall back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: identical versions with refs that order alphabetically
+		// when: comparing
+		got := cv.Less("2026.02.1", "2026.02.1", "abc", "xyz")
+
+		// then: ref tiebreak is used
+		testastic.True(t, got)
+	})
+
+	t.Run("unparseable left version falls back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unparseable left and a valid right
+		// when: comparing
+		got := cv.Less("garbage", "2026.02.1", "abc", "xyz")
+
+		// then: ref ordering decides
+		testastic.True(t, got)
+	})
+
+	t.Run("unparseable right version falls back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid left and an unparseable right
+		// when: comparing
+		got := cv.Less("2026.02.1", "garbage", "zzz", "aaa")
+
+		// then: ref ordering decides
+		testastic.False(t, got)
+	})
+
+	t.Run("invalid format falls back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a strategy with an invalid format
+		cvBad := &version.CalVer{Format: "YYYY.0M", Prefix: "v"}
+
+		// when: comparing
+		got := cvBad.Less("2026.02.1", "2026.02.2", "abc", "xyz")
+
+		// then: ref ordering decides
+		testastic.True(t, got)
+	})
+}
+
+func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rejects trailing data", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with characters past the format
+		cv := &version.CalVer{Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.02.1-extra")
+
+		// then: the trailing data is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects empty segment", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag with consecutive separators
+		cv := &version.CalVer{Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026..1")
+
+		// then: the empty segment is rejected
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects missing literal separator", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag missing the trailing separator before MICRO
+		cv := &version.CalVer{Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026021")
+
+		// then: parsing fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects invalid date in day format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag with February 30
+		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.02.30.1")
+
+		// then: validateParts rejects the impossible date
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		testastic.ErrorContains(t, err, "invalid date")
+	})
+
+	t.Run("rejects out-of-range day", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag with day 32
+		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.01.32.1")
+
+		// then: parsing rejects the day
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects out-of-range week", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag with week 54
+		cv := &version.CalVer{Format: "YYYY.0W.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.54.1")
+
+		// then: parsing rejects the week
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects week zero", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver tag with week 0
+		cv := &version.CalVer{Format: "YYYY.0W.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.00.1")
+
+		// then: parsing rejects the week
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects short year missing required digits", func(t *testing.T) {
+		t.Parallel()
+
+		// given: YYYY format with three-digit year
+		cv := &version.CalVer{Format: "YYYY.0M.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v202.02.1")
+
+		// then: year token enforces four digits
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects negative short year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: YY format with a negative year segment
+		cv := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v-1.02.1")
+
+		// then: parsing rejects the negative year
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects non-numeric segment", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag where the month segment is not numeric
+		cv := &version.CalVer{Prefix: "v"}
+
+		// when: parsing
+		_, err := cv.Current("v2026.foo.1")
+
+		// then: parsing fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("uses non-padded day format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: YYYY.MM.DD.MICRO with valid input
+		cv := &version.CalVer{Format: "YYYY.MM.DD.MICRO", Prefix: "v"}
+
+		// when: parsing
+		v, err := cv.Current("v2026.2.3.7")
+
+		// then: the version round-trips through render
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.2.3.7", v)
+	})
+
+	t.Run("uses week-pad format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: 0Y.0W.MICRO with valid input
+		cv := &version.CalVer{Format: "0Y.0W.MICRO", Prefix: "v"}
+
+		// when: parsing
+		v, err := cv.Current("v26.05.2")
+
+		// then: the version round-trips through render
+		testastic.NoError(t, err)
+		testastic.Equal(t, "26.05.2", v)
+	})
+
+	t.Run("uses non-padded week format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: YYYY.WW.MICRO with valid input
+		cv := &version.CalVer{Format: "YYYY.WW.MICRO", Prefix: "v"}
+
+		// when: parsing
+		v, err := cv.Current("v2026.5.2")
+
+		// then: the version round-trips through render
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.5.2", v)
+	})
+
+	t.Run("now defaults to time.Now when unset", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver strategy without an injected clock
+		cv := &version.CalVer{Prefix: "v"}
+
+		// when: calculating next from empty current with a bump
+		next, err := cv.Next("", commit.BumpMinor)
+
+		// then: the call succeeds (the resulting year matches the real clock)
+		testastic.NoError(t, err)
+		testastic.True(t, next != "")
 	})
 }
