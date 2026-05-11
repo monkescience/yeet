@@ -48,8 +48,7 @@
       "type": "array",
       "description": "Default version files for targets that do not override them.",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "$ref": "#/$defs/version_file"
       },
       "default": []
     },
@@ -160,6 +159,82 @@
           "default": {}
         }
       }
+    },
+    "version_file": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Repo-relative file path updated with comment-based yeet markers.",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "description": "Version file update rule. Use format=json with json_pointer for JSON files that cannot contain comment markers.",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Repo-relative file path to update.",
+              "minLength": 1
+            },
+            "format": {
+              "type": "string",
+              "description": "How yeet locates the version value in the file.",
+              "enum": [
+                "markers",
+                "json"
+              ]
+            },
+            "json_pointer": {
+              "type": "string",
+              "description": "RFC 6901 JSON Pointer to the string version value. Required when format is json.",
+              "pattern": "^(/([^~/]|~0|~1)*)+$"
+            }
+          },
+          "required": [
+            "path",
+            "format"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "format": {
+                    "const": "json"
+                  }
+                },
+                "required": [
+                  "format"
+                ]
+              },
+              "then": {
+                "required": [
+                  "json_pointer"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "format": {
+                    "const": "markers"
+                  }
+                },
+                "required": [
+                  "format"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "json_pointer"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "release_channel": {
       "type": "object",
@@ -363,8 +438,7 @@
           "type": "array",
           "description": "Files whose version strings are updated on release. Overrides the top-level version_files for this target.",
           "items": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/$defs/version_file"
           }
         },
         "changelog": {
@@ -425,8 +499,7 @@
           "type": "array",
           "description": "Files whose version strings are updated on release. Overrides the top-level version_files for this target.",
           "items": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/$defs/version_file"
           }
         },
         "changelog": {

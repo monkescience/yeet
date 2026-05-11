@@ -1,0 +1,10 @@
+[
+  {
+    "name": "api",
+    "current": "1.2.3"
+  },
+  {
+    "name": "web",
+    "current": "2.0.0"
+  }
+]

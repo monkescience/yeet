@@ -8,10 +8,8 @@ linters:
     tagliatelle:
       case:
         rules:
-          json: snake
+          json: ""
           yaml: snake
-          xml: snake
-          bson: snake
 
   exclusions:
     rules:

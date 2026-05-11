@@ -44,24 +44,24 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 			return fmt.Errorf("build marker scheme for target %s: %w", plan.ID, schemeErr)
 		}
 
-		for _, path := range target.VersionFiles {
-			content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, path)
+		for _, versionFile := range target.VersionFiles {
+			content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, versionFile.Path)
 			if fileErr != nil {
-				return fmt.Errorf("get version file %s: %w", path, fileErr)
+				return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
 			}
 
-			updatedContent, changed, markerErr := versionfile.ApplyGenericMarkers(content, plan.NextVersion, scheme)
+			updatedContent, changed, markerErr := applyVersionFile(content, plan.NextVersion, scheme, versionFile)
 			if markerErr != nil {
-				return fmt.Errorf("update version file %s: %w", path, markerErr)
+				return fmt.Errorf("update version file %s: %w", versionFile.Path, markerErr)
 			}
 
 			if !changed {
-				slog.InfoContext(ctx, "version file already at target version", "path", path)
+				slog.InfoContext(ctx, "version file already at target version", "path", versionFile.Path)
 
 				continue
 			}
 
-			err = setBranchFileContent(files, path, updatedContent)
+			err = setBranchFileContent(files, versionFile.Path, updatedContent)
 			if err != nil {
 				return err
 			}
@@ -74,6 +74,29 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 	}
 
 	return nil
+}
+
+func applyVersionFile(
+	content string,
+	nextVersion string,
+	scheme versionfile.Scheme,
+	versionFile config.VersionFile,
+) (string, bool, error) {
+	if versionFile.Format == config.VersionFileFormatJSON {
+		updated, changed, err := versionfile.ApplyJSONPointer(content, nextVersion, versionFile.JSONPointer)
+		if err != nil {
+			return content, false, fmt.Errorf("apply json pointer: %w", err)
+		}
+
+		return updated, changed, nil
+	}
+
+	updated, changed, err := versionfile.ApplyGenericMarkers(content, nextVersion, scheme)
+	if err != nil {
+		return content, false, fmt.Errorf("apply markers: %w", err)
+	}
+
+	return updated, changed, nil
 }
 
 func (u *releaseBranchUpdater) releaseChangelogFileContent(

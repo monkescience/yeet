@@ -1,0 +1,8 @@
+version_files:
+  - path: package.json
+    format: json
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

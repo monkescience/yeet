@@ -277,7 +277,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		cfg := config.Default()
 		cfg.Branch = "beta"
 		cfg.ActiveChannel = "beta"
-		cfg.VersionFiles = []string{"VERSION"}
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -1761,7 +1761,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// given: releaser with one configured version file containing yeet markers
 		cfg := config.Default()
-		cfg.VersionFiles = []string{"VERSION.txt"}
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
 
 		stub := newProviderStub()
 		branch := "yeet/release-v1.2.4"
@@ -1787,12 +1787,95 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.Equal(t, "version=1.2.4 # x-yeet-version", stub.files[providerFileKey(branch, "VERSION.txt")])
 	})
 
+	t.Run("updates configured json version file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: releaser with one configured JSON version file using an explicit pointer
+		cfg := config.Default()
+		cfg.VersionFiles = []config.VersionFile{{
+			Path:        "package.json",
+			Format:      config.VersionFileFormatJSON,
+			JSONPointer: "/version",
+		}}
+
+		stub := newProviderStub()
+		branch := "yeet/release-v1.2.4"
+		stub.files[providerFileKey(cfg.Branch, "package.json")] = strings.Join([]string{
+			`{`,
+			`  "name": "app",`,
+			`  "version": "1.2.3"`,
+			`}`,
+		}, "\n")
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result := &Result{
+			Plans: []TargetPlan{{
+				ID:          "default",
+				NextVersion: "1.2.4",
+				NextTag:     "v1.2.4",
+				Changelog:   "## v1.2.4 (2026-03-01)\n",
+			}},
+		}
+
+		// when: updating release branch files
+		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+
+		// then: changelog and JSON version file are updated
+		expected := strings.Join([]string{
+			`{`,
+			`  "name": "app",`,
+			`  "version": "1.2.4"`,
+			`}`,
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(stub.updates))
+		testastic.Equal(t, expected, stub.files[providerFileKey(branch, "package.json")])
+	})
+
+	t.Run("updates configured calver json version file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: calver releaser with one configured JSON version file using an explicit pointer
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.VersionFiles = []config.VersionFile{{
+			Path:        "package.json",
+			Format:      config.VersionFileFormatJSON,
+			JSONPointer: "/version",
+		}}
+
+		stub := newProviderStub()
+		branch := "yeet/release-v2026.03.1"
+		stub.files[providerFileKey(cfg.Branch, "package.json")] = `{"name":"app","version":"2026.02.7"}`
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result := &Result{
+			Plans: []TargetPlan{{
+				ID:          "default",
+				NextVersion: "2026.03.1",
+				NextTag:     "v2026.03.1",
+				Changelog:   "## v2026.03.1 (2026-03-01)\n",
+			}},
+		}
+
+		// when: updating release branch files
+		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+
+		// then: changelog and JSON version file are updated with the calver string
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(stub.updates))
+		testastic.Equal(t, `{"name":"app","version":"2026.03.1"}`, stub.files[providerFileKey(branch, "package.json")])
+	})
+
 	t.Run("fails when configured version file has no yeet markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: releaser with one configured version file without markers
 		cfg := config.Default()
-		cfg.VersionFiles = []string{"VERSION.txt"}
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
 
 		stub := newProviderStub()
 		branch := "yeet/release-v1.2.4"
@@ -1921,7 +2004,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// given: releaser with a missing configured version file
 		cfg := config.Default()
-		cfg.VersionFiles = []string{"VERSION.txt"}
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
 
 		r := newTestReleaser(t, cfg, newProviderStub())
 

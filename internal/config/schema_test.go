@@ -18,7 +18,12 @@ type schemaDocument struct {
 }
 
 type schemaDefs struct {
-	Release releaseDefinition `json:"release"`
+	Release     releaseDefinition     `json:"release"`
+	VersionFile versionFileDefinition `json:"version_file"`
+}
+
+type versionFileDefinition struct {
+	OneOf []json.RawMessage `json:"oneOf"`
 }
 
 type releaseDefinition struct {
@@ -76,6 +81,24 @@ func TestConfigSchema(t *testing.T) {
 			[]string{"auto", "squash", "rebase", "merge"},
 			doc.Defs.Release.Properties.AutoMergeMethod.Enum,
 		)
+	})
+
+	t.Run("contains string and object version file forms", func(t *testing.T) {
+		t.Parallel()
+
+		// given: parsed schema document
+		schemaPath := schemaFilePath(t)
+
+		data, readErr := os.ReadFile(schemaPath)
+		testastic.NoError(t, readErr)
+
+		var doc schemaDocument
+
+		unmarshalErr := json.Unmarshal(data, &doc)
+		testastic.NoError(t, unmarshalErr)
+
+		// then: version_files accepts legacy string paths and structured entries
+		testastic.Equal(t, 2, len(doc.Defs.VersionFile.OneOf))
 	})
 }
 

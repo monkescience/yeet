@@ -69,12 +69,56 @@ type Config struct {
 	PreMajorFeaturesBumpPatch  bool               `yaml:"pre_major_features_bump_patch"`
 	BumpTypes                  BumpTypesConfig    `yaml:"bump_types"`
 	Repository                 RepositoryConfig   `yaml:"repository"`
-	VersionFiles               []string           `yaml:"version_files,omitempty"`
+	VersionFiles               []VersionFile      `yaml:"version_files,omitempty"`
 	Release                    ReleaseConfig      `yaml:"release"`
 	Changelog                  ChangelogConfig    `yaml:"changelog"`
 	CalVer                     CalVerConfig       `yaml:"calver"`
 	Targets                    map[string]Target  `yaml:"targets"`
 	ActiveChannel              string             `yaml:"-"`
+}
+
+type VersionFileFormat string
+
+const (
+	VersionFileFormatMarkers VersionFileFormat = "markers"
+	VersionFileFormatJSON    VersionFileFormat = "json"
+)
+
+type VersionFile struct {
+	Path        string            `yaml:"path"`
+	Format      VersionFileFormat `yaml:"format,omitempty"`
+	JSONPointer string            `yaml:"json_pointer,omitempty"`
+}
+
+func (v *VersionFile) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		var path string
+
+		err := value.Decode(&path)
+		if err != nil {
+			return fmt.Errorf("decode version file path: %w", err)
+		}
+
+		*v = VersionFile{Path: path, Format: VersionFileFormatMarkers}
+
+		return nil
+	}
+
+	type versionFile VersionFile
+
+	var decoded versionFile
+
+	err := value.Decode(&decoded)
+	if err != nil {
+		return fmt.Errorf("decode version file: %w", err)
+	}
+
+	*v = VersionFile(decoded)
+	if v.Format == "" {
+		v.Format = VersionFileFormatMarkers
+	}
+
+	return nil
 }
 
 type TargetType string
@@ -91,7 +135,7 @@ type Target struct {
 	Versioning                 VersioningStrategy `yaml:"versioning,omitempty"`
 	PreMajorBreakingBumpsMinor *bool              `yaml:"pre_major_breaking_bumps_minor,omitempty"`
 	PreMajorFeaturesBumpPatch  *bool              `yaml:"pre_major_features_bump_patch,omitempty"`
-	VersionFiles               []string           `yaml:"version_files,omitempty"`
+	VersionFiles               []VersionFile      `yaml:"version_files,omitempty"`
 	Changelog                  ChangelogConfig    `yaml:"changelog,omitempty"`
 	CalVer                     CalVerConfig       `yaml:"calver,omitempty"`
 	ExcludePaths               []string           `yaml:"exclude_paths,omitempty"`
@@ -106,7 +150,7 @@ type ResolvedTarget struct {
 	Versioning                 VersioningStrategy
 	PreMajorBreakingBumpsMinor bool
 	PreMajorFeaturesBumpPatch  bool
-	VersionFiles               []string
+	VersionFiles               []VersionFile
 	Changelog                  ChangelogConfig
 	CalVer                     CalVerConfig
 	ExcludePaths               []string
@@ -185,6 +229,10 @@ var ErrInvalidConfig = errors.New("invalid config")
 var ErrEmptyRepoPath = errors.New("must not be empty")
 
 var ErrPathMustBeRepoRelative = errors.New("must be repo-relative")
+
+var errJSONPointerMustStartWithSlash = errors.New("must start with /")
+
+var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
@@ -311,9 +359,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	for _, path := range c.VersionFiles {
-		if strings.TrimSpace(path) == "" {
-			return fmt.Errorf("%w: version_files must not contain empty paths", ErrInvalidConfig)
+	for _, versionFile := range c.VersionFiles {
+		err = validateVersionFile("version_files", versionFile)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -429,13 +478,10 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	for _, path := range resolved.VersionFiles {
-		if strings.TrimSpace(path) == "" {
-			return ResolvedTarget{}, fmt.Errorf(
-				"%w: targets.%s.version_files must not contain empty paths",
-				ErrInvalidConfig,
-				targetID,
-			)
+	for _, versionFile := range resolved.VersionFiles {
+		err := validateVersionFile("targets."+targetID+".version_files", versionFile)
+		if err != nil {
+			return ResolvedTarget{}, err
 		}
 	}
 
@@ -603,8 +649,8 @@ func validateResolvedTargetVersionFileOwnership(targets map[string]ResolvedTarge
 
 	for _, id := range targetIDs {
 		target := targets[id]
-		for _, versionFilePath := range target.VersionFiles {
-			normalizedVersionFilePath := strings.TrimSpace(versionFilePath)
+		for _, versionFile := range target.VersionFiles {
+			normalizedVersionFilePath := strings.TrimSpace(versionFile.Path)
 
 			otherID, exists := versionFileOwners[normalizedVersionFilePath]
 			if exists && otherID != id {
@@ -767,6 +813,69 @@ func validateCalVerConfig(path string, calver CalVerConfig) error {
 	return nil
 }
 
+func validateVersionFile(configPath string, versionFile VersionFile) error {
+	if strings.TrimSpace(versionFile.Path) == "" {
+		return fmt.Errorf("%w: %s must not contain empty paths", ErrInvalidConfig, configPath)
+	}
+
+	switch versionFile.Format {
+	case "", VersionFileFormatMarkers:
+		if strings.TrimSpace(versionFile.JSONPointer) != "" {
+			return fmt.Errorf(
+				"%w: %s json_pointer requires format %q",
+				ErrInvalidConfig,
+				configPath,
+				VersionFileFormatJSON,
+			)
+		}
+	case VersionFileFormatJSON:
+		if strings.TrimSpace(versionFile.JSONPointer) == "" {
+			return fmt.Errorf(
+				"%w: %s json_pointer is required for format %q",
+				ErrInvalidConfig,
+				configPath,
+				VersionFileFormatJSON,
+			)
+		}
+
+		err := validateJSONPointerSyntax(versionFile.JSONPointer)
+		if err != nil {
+			return fmt.Errorf("%w: %s json_pointer: %w", ErrInvalidConfig, configPath, err)
+		}
+	default:
+		return fmt.Errorf(
+			"%w: %s format must be %q or %q, got %q",
+			ErrInvalidConfig,
+			configPath,
+			VersionFileFormatMarkers,
+			VersionFileFormatJSON,
+			versionFile.Format,
+		)
+	}
+
+	return nil
+}
+
+func validateJSONPointerSyntax(pointer string) error {
+	if pointer == "" || pointer[0] != '/' {
+		return errJSONPointerMustStartWithSlash
+	}
+
+	for i := 0; i < len(pointer); i++ {
+		if pointer[i] != '~' {
+			continue
+		}
+
+		if i+1 >= len(pointer) || (pointer[i+1] != '0' && pointer[i+1] != '1') {
+			return errJSONPointerInvalidEscape
+		}
+
+		i++
+	}
+
+	return nil
+}
+
 func resolveBool(override *bool, defaultValue bool) bool {
 	if override != nil {
 		return *override
@@ -775,7 +884,7 @@ func resolveBool(override *bool, defaultValue bool) bool {
 	return defaultValue
 }
 
-func resolveVersionFiles(overridePaths, defaultPaths []string) []string {
+func resolveVersionFiles(overridePaths, defaultPaths []VersionFile) []VersionFile {
 	if len(overridePaths) > 0 {
 		return slices.Clone(overridePaths)
 	}

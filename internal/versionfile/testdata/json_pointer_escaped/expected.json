@@ -1,0 +1,7 @@
+{
+  "channels": {
+    "app/stable": {
+      "next~candidate": "2.0.0"
+    }
+  }
+}

@@ -226,7 +226,7 @@ Types not listed produce no version bump. Breaking changes always bump major reg
 
 ### Version files
 
-`yeet release` updates only files listed in `version_files`. Each file must contain yeet markers.
+`yeet release` updates only files listed in `version_files`. String entries use comment-based yeet markers.
 
 ```txt
 # inline markers (semver project)
@@ -241,6 +241,17 @@ image: ghcr.io/acme/app:0.8.1
 appVersion: "0.8.1"
 # x-yeet-end
 ```
+
+JSON files cannot contain comments, so configure them with an object entry instead. JSON entries require both `format: json` and `json_pointer`.
+
+```yaml
+version_files:
+  - path: package.json
+    format: json
+    json_pointer: /version
+```
+
+The pointer must resolve to a JSON string. Nested values use standard RFC 6901 JSON Pointer syntax, for example `/packages/0/version`. The version file update preserves the existing JSON formatting and only replaces the targeted string value.
 
 The marker surface depends on the project's versioning scheme. yeet validates each
 marker against the configured scheme and the configured calver format; a marker
