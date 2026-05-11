@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.8.2](https://github.com/monkescience/yeet/compare/v0.8.1...v0.8.2) (2026-05-11)
+
+### Features
+
+- **version-files:** support json pointers ([14bd2af](https://github.com/monkescience/yeet/commit/14bd2afac5d35a3e7768ede6d8d2b82c76a218f7))
+### Bug Fixes
+
+- **deps:** update go-git to v5.19.0 ([9f0a477](https://github.com/monkescience/yeet/commit/9f0a477120cd5283f6e32059c05084ca3d4f72e8))
+
 ## [v0.8.1](https://github.com/monkescience/yeet/compare/v0.8.0...v0.8.1) (2026-05-04)
 
 ### Bug Fixes
