@@ -1,0 +1,11 @@
+[
+  {
+    "iid": 42,
+    "title": "chore: release v1.2.3",
+    "description": "release body",
+    "web_url": "https://example.com/pulls/42",
+    "source_branch": "yeet/release-main",
+    "state": "merged",
+    "merge_commit_sha": "merge-sha"
+  }
+]

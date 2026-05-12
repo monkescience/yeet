@@ -1,0 +1,10 @@
+[
+  {
+    "id": "head-sha",
+    "message": "feat: add release flow"
+  },
+  {
+    "id": "base-sha",
+    "message": "chore: previous release"
+  }
+]

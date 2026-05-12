@@ -1,0 +1,11 @@
+{
+  "sha": "head-sha",
+  "files": [
+    {
+      "filename": "CHANGELOG.md"
+    },
+    {
+      "filename": "VERSION.txt"
+    }
+  ]
+}

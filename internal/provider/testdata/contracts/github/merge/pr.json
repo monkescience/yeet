@@ -1,0 +1,11 @@
+{
+  "number": 42,
+  "state": "open",
+  "merged": false,
+  "draft": false,
+  "mergeable_state": "clean",
+  "head": {
+    "sha": "head-sha",
+    "ref": "yeet/release-main"
+  }
+}

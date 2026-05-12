@@ -1,0 +1,14 @@
+[
+  {
+    "sha": "head-sha",
+    "commit": {
+      "message": "feat: add release flow"
+    }
+  },
+  {
+    "sha": "base-sha",
+    "commit": {
+      "message": "chore: previous release"
+    }
+  }
+]

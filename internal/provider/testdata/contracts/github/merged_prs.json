@@ -1,0 +1,17 @@
+[
+  {
+    "number": 42,
+    "title": "chore: release v1.2.3",
+    "body": "release body",
+    "html_url": "https://example.com/pulls/42",
+    "merged_at": "2026-05-11T00:00:00Z",
+    "head": {
+      "ref": "yeet/release-main"
+    },
+    "labels": [
+      {
+        "name": "autorelease: pending"
+      }
+    ]
+  }
+]

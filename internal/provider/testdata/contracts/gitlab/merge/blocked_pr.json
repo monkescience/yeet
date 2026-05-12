@@ -1,0 +1,8 @@
+{
+  "iid": 42,
+  "state": "opened",
+  "draft": false,
+  "has_conflicts": false,
+  "detailed_merge_status": "not_approved",
+  "sha": "head-sha"
+}

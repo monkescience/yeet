@@ -1,0 +1,12 @@
+[
+  {
+    "iid": 1,
+    "description": "wrong body",
+    "merge_commit_sha": "other-sha"
+  },
+  {
+    "iid": 2,
+    "description": "override body",
+    "merge_commit_sha": "merge-sha"
+  }
+]

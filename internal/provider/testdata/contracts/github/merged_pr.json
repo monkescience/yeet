@@ -1,0 +1,10 @@
+{
+  "number": 42,
+  "title": "chore: release v1.2.3",
+  "body": "release body",
+  "html_url": "https://example.com/pulls/42",
+  "merge_commit_sha": "merge-sha",
+  "head": {
+    "ref": "yeet/release-main"
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "iid": 42,
+    "title": "chore: release v1.2.3",
+    "description": "release body",
+    "web_url": "https://example.com/pulls/42",
+    "source_branch": "yeet/release-main",
+    "state": "opened"
+  },
+  {
+    "iid": 7,
+    "title": "feature work",
+    "description": "",
+    "web_url": "https://example.com/pulls/7",
+    "source_branch": "feature/work",
+    "state": "opened"
+  }
+]
