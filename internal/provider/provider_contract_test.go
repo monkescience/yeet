@@ -14,11 +14,12 @@ import (
 )
 
 type providerContractHarness struct {
-	name               string
-	newProvider        func(t *testing.T, server *httptest.Server) provider.Provider
-	handler            func(t *testing.T, scenario providerContractScenario) http.Handler
-	expectedRepoURL    func(serverURL string) string
-	expectedPathPrefix string
+	name                 string
+	newProvider          func(t *testing.T, server *httptest.Server) provider.Provider
+	handler              func(t *testing.T, scenario providerContractScenario) http.Handler
+	expectedRepoURL      func(serverURL string) string
+	expectedReleasePRURL string
+	expectedPathPrefix   string
 }
 
 type providerContractScenario string
@@ -189,7 +190,7 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractReleaseTitle, pr.Title)
 				testastic.Equal(t, providerContractReleaseBody, pr.Body)
 				testastic.Equal(t, providerContractReleaseBranch, pr.Branch)
-				testastic.Equal(t, "https://example.com/pulls/42", pr.URL)
+				testastic.Equal(t, harness.expectedReleasePRURL, pr.URL)
 			})
 
 			t.Run("updates release pull request", func(t *testing.T) {
@@ -435,25 +436,28 @@ func TestProviderContract(t *testing.T) {
 func providerContractHarnesses() []providerContractHarness {
 	return []providerContractHarness{
 		{
-			name:               "github",
-			newProvider:        newGitHubContractProvider,
-			handler:            newGitHubContractHandler,
-			expectedRepoURL:    func(serverURL string) string { return serverURL + "/o/r" },
-			expectedPathPrefix: "",
+			name:                 "github",
+			newProvider:          newGitHubContractProvider,
+			handler:              newGitHubContractHandler,
+			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL: "https://example.com/pulls/42",
+			expectedPathPrefix:   "",
 		},
 		{
-			name:               "gitlab",
-			newProvider:        newGitLabContractProvider,
-			handler:            newGitLabContractHandler,
-			expectedRepoURL:    func(serverURL string) string { return serverURL + "/o/r" },
-			expectedPathPrefix: "/-",
+			name:                 "gitlab",
+			newProvider:          newGitLabContractProvider,
+			handler:              newGitLabContractHandler,
+			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL: "https://example.com/pulls/42",
+			expectedPathPrefix:   "/-",
 		},
 		{
-			name:               "azuredevops",
-			newProvider:        newAzureDevOpsContractProvider,
-			handler:            newAzureDevOpsContractHandler,
-			expectedRepoURL:    azureDevOpsContractExpectedRepoURL,
-			expectedPathPrefix: "",
+			name:                 "azuredevops",
+			newProvider:          newAzureDevOpsContractProvider,
+			handler:              newAzureDevOpsContractHandler,
+			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
+			expectedReleasePRURL: "https://example.com/o/r/pullrequest/42",
+			expectedPathPrefix:   "",
 		},
 	}
 }

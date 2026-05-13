@@ -2,7 +2,10 @@
   "pullRequestId": 42,
   "title": "chore: release v1.2.3",
   "description": "release body",
-  "url": "https://example.com/pulls/42",
+  "url": "https://example.com/_apis/git/repositories/r/pullRequests/42",
   "sourceRefName": "refs/heads/release-main",
-  "targetRefName": "refs/heads/main"
+  "targetRefName": "refs/heads/main",
+  "repository": {
+    "webUrl": "https://example.com/o/r"
+  }
 }
