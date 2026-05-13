@@ -176,27 +176,30 @@ func (a *AzureDevOps) fetchAzureDevOpsCommits(
 	return nil, fmt.Errorf("%w: exceeded %d pages listing commits", ErrPaginationLimitExceeded, maxPaginationPages)
 }
 
+// buildAzureDevOpsCommitCriteria configures the SDK's GitQueryCommitsCriteria
+// for a "commits since boundary on branch" query. Azure DevOps inverts the
+// usual naming: CompareVersion is where it starts walking history (the head),
+// and ItemVersion is the boundary it stops at. Swapping them returns nothing.
 func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCommitsCriteria {
 	criteria := &git.GitQueryCommitsCriteria{}
 
-	branchType := git.GitVersionTypeValues.Branch
+	if boundaryRef != "" {
+		itemType := git.GitVersionTypeValues.Tag
+		if isAzureDevOpsCommitSHA(boundaryRef) {
+			itemType = git.GitVersionTypeValues.Commit
+		}
 
-	if branch != "" {
 		criteria.ItemVersion = &git.GitVersionDescriptor{
-			Version:     new(branch),
-			VersionType: &branchType,
+			Version:     new(boundaryRef),
+			VersionType: &itemType,
 		}
 	}
 
-	if boundaryRef != "" {
-		compareType := git.GitVersionTypeValues.Tag
-		if isAzureDevOpsCommitSHA(boundaryRef) {
-			compareType = git.GitVersionTypeValues.Commit
-		}
-
+	if branch != "" {
+		branchType := git.GitVersionTypeValues.Branch
 		criteria.CompareVersion = &git.GitVersionDescriptor{
-			Version:     new(boundaryRef),
-			VersionType: &compareType,
+			Version:     new(branch),
+			VersionType: &branchType,
 		}
 	}
 
