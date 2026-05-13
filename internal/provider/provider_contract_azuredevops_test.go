@@ -483,10 +483,29 @@ func azureDevOpsGetFileHandler(t *testing.T) http.HandlerFunc {
 func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
+	var resetCalled bool
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "branch_ref.json"))
+		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "base_ref.json"))
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
+			var request []struct {
+				Name        string `json:"name"`
+				OldObjectID string `json:"oldObjectId"`
+				NewObjectID string `json:"newObjectId"`
+			}
+			decodeJSONRequest(t, r, &request)
+			testastic.Equal(t, 1, len(request))
+			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
+			testastic.Equal(t, "release-tip", request[0].OldObjectID)
+			testastic.Equal(t, "base-sha", request[0].NewObjectID)
+
+			resetCalled = true
+
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "ref_reset.json"))
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("items"):
 			path := r.URL.Query().Get("path")
 			switch path {
@@ -498,6 +517,18 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 				fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 			}
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
+			testastic.True(t, resetCalled)
+
+			var push struct {
+				RefUpdates []struct {
+					Name        string `json:"name"`
+					OldObjectID string `json:"oldObjectId"`
+				} `json:"refUpdates"`
+			}
+			decodeJSONRequest(t, r, &push)
+			testastic.Equal(t, 1, len(push.RefUpdates))
+			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, push.RefUpdates[0].Name)
+			testastic.Equal(t, "base-sha", push.RefUpdates[0].OldObjectID)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "push.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)

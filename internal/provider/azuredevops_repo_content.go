@@ -127,12 +127,12 @@ func (a *AzureDevOps) UpdateFiles(
 	files map[string]string,
 	message string,
 ) error {
-	branchTip, err := a.ensureBranchExists(ctx, branch, base)
+	branchTip, err := a.resetBranchToBase(ctx, branch, base)
 	if err != nil {
 		return err
 	}
 
-	changes, err := a.buildPushChanges(ctx, branch, files)
+	changes, err := a.buildPushChanges(ctx, base, files)
 	if err != nil {
 		return err
 	}
@@ -168,26 +168,56 @@ func (a *AzureDevOps) UpdateFiles(
 	return nil
 }
 
-// ensureBranchExists returns the current branch tip SHA, creating the branch
-// from base when it does not yet exist.
-func (a *AzureDevOps) ensureBranchExists(ctx context.Context, branch, base string) (string, error) {
-	branchTip, err := a.branchTipSHA(ctx, branch)
-	if err == nil {
-		return branchTip, nil
+// resetBranchToBase points the release branch ref at the base branch tip so
+// each release rewrite produces a single commit on top of base, mirroring
+// GitHub and GitLab. Returns the resulting branch tip (i.e. the base tip).
+func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string) (string, error) {
+	baseTip, err := a.branchTipSHA(ctx, base)
+	if err != nil {
+		return "", fmt.Errorf("get base branch %q tip: %w", base, err)
 	}
 
-	if !errors.Is(err, errAzureDevOpsBranchMissing) {
+	branchTip, err := a.branchTipSHA(ctx, branch)
+	if errors.Is(err, errAzureDevOpsBranchMissing) {
+		createErr := a.CreateBranch(ctx, branch, base)
+		if createErr != nil {
+			return "", createErr
+		}
+
+		return baseTip, nil
+	}
+
+	if err != nil {
 		return "", fmt.Errorf("get branch %q tip: %w", branch, err)
 	}
 
-	baseTip, baseErr := a.branchTipSHA(ctx, base)
-	if baseErr != nil {
-		return "", fmt.Errorf("get base branch %q tip: %w", base, baseErr)
+	if branchTip == baseTip {
+		return baseTip, nil
 	}
 
-	err = a.CreateBranch(ctx, branch, base)
+	gitClient, err := a.client(ctx)
 	if err != nil {
 		return "", err
+	}
+
+	refUpdates := []git.GitRefUpdate{{
+		Name:        new("refs/heads/" + branch),
+		OldObjectId: &branchTip,
+		NewObjectId: &baseTip,
+	}}
+
+	results, err := gitClient.UpdateRefs(ctx, git.UpdateRefsArgs{
+		RefUpdates:   &refUpdates,
+		RepositoryId: &a.repo,
+		Project:      &a.project,
+	})
+	if err != nil {
+		return "", fmt.Errorf("reset branch %q to base: %w", branch, err)
+	}
+
+	err = validateAzureDevOpsRefUpdateResults(branch, results)
+	if err != nil {
+		return "", fmt.Errorf("reset branch %q to base: %w", branch, err)
 	}
 
 	return baseTip, nil
