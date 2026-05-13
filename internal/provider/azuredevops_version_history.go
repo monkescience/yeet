@@ -178,7 +178,11 @@ func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCom
 	}
 
 	if boundaryRef != "" {
-		compareType := git.GitVersionTypeValues.Commit
+		compareType := git.GitVersionTypeValues.Tag
+		if isAzureDevOpsCommitSHA(boundaryRef) {
+			compareType = git.GitVersionTypeValues.Commit
+		}
+
 		criteria.CompareVersion = &git.GitVersionDescriptor{
 			Version:     new(boundaryRef),
 			VersionType: &compareType,

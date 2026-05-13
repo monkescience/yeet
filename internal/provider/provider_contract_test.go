@@ -19,6 +19,7 @@ type providerContractHarness struct {
 	handler              func(t *testing.T, scenario providerContractScenario) http.Handler
 	expectedRepoURL      func(serverURL string) string
 	expectedReleasePRURL func(serverURL string) string
+	expectedReleaseURL   func(serverURL string) string
 	expectedPathPrefix   string
 }
 
@@ -153,7 +154,7 @@ func TestProviderContract(t *testing.T) {
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractTag, release.TagName)
 				testastic.Equal(t, "release notes", release.Body)
-				testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+				testastic.Equal(t, harness.expectedReleaseURL(server.URL), release.URL)
 			})
 
 			t.Run("reports tag existence", func(t *testing.T) {
@@ -320,7 +321,7 @@ func TestProviderContract(t *testing.T) {
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractTag, release.TagName)
 				testastic.Equal(t, "release notes", release.Body)
-				testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+				testastic.Equal(t, harness.expectedReleaseURL(server.URL), release.URL)
 			})
 
 			t.Run("reads file content", func(t *testing.T) {
@@ -442,6 +443,7 @@ func providerContractHarnesses() []providerContractHarness {
 			handler:              newGitHubContractHandler,
 			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
 			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
+			expectedReleaseURL:   func(_ string) string { return "https://example.com/releases/v1.2.3" },
 			expectedPathPrefix:   "",
 		},
 		{
@@ -450,6 +452,7 @@ func providerContractHarnesses() []providerContractHarness {
 			handler:              newGitLabContractHandler,
 			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
 			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
+			expectedReleaseURL:   func(_ string) string { return "https://example.com/releases/v1.2.3" },
 			expectedPathPrefix:   "/-",
 		},
 		{
@@ -458,7 +461,10 @@ func providerContractHarnesses() []providerContractHarness {
 			handler:              newAzureDevOpsContractHandler,
 			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
 			expectedReleasePRURL: func(s string) string { return azureDevOpsContractExpectedRepoURL(s) + "/pullrequest/42" },
-			expectedPathPrefix:   "",
+			expectedReleaseURL: func(s string) string {
+				return azureDevOpsContractExpectedRepoURL(s) + "?version=GT" + providerContractTag
+			},
+			expectedPathPrefix: "",
 		},
 	}
 }

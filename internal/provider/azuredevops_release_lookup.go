@@ -23,13 +23,13 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 	annotated, err := a.getAnnotatedTag(ctx, objectID)
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
-			return &Release{TagName: tag, Name: tag}, nil
+			return &Release{TagName: tag, Name: tag, URL: a.tagWebURL(tag)}, nil
 		}
 
 		return nil, fmt.Errorf("get annotated tag %q: %w", tag, err)
 	}
 
-	return azureDevOpsAnnotatedTagRelease(tag, annotated), nil
+	return a.azureDevOpsAnnotatedTagRelease(tag, annotated), nil
 }
 
 func (a *AzureDevOps) TagExists(ctx context.Context, tag string) (bool, error) {
@@ -83,7 +83,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*
 		return nil, fmt.Errorf("create annotated tag: %w", err)
 	}
 
-	release := azureDevOpsAnnotatedTagRelease(opts.TagName, created)
+	release := a.azureDevOpsAnnotatedTagRelease(opts.TagName, created)
 	release.Name = opts.Name
 
 	return release, nil
@@ -180,7 +180,7 @@ func (a *AzureDevOps) resolveAzureDevOpsObjectID(ctx context.Context, ref string
 	return *first.CommitId, nil
 }
 
-func azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *Release {
+func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *Release {
 	name := derefString(tag.Name)
 	if name == "" {
 		name = tagName
@@ -190,8 +190,12 @@ func azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *R
 		TagName: tagName,
 		Name:    name,
 		Body:    derefString(tag.Message),
-		URL:     derefString(tag.Url),
+		URL:     a.tagWebURL(tagName),
 	}
+}
+
+func (a *AzureDevOps) tagWebURL(tag string) string {
+	return fmt.Sprintf("%s?version=GT%s", a.RepoURL(), tag)
 }
 
 func isAzureDevOpsCommitSHA(ref string) bool {

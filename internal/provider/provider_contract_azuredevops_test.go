@@ -227,6 +227,7 @@ func azureDevOpsGetCommitsSinceHandler(t *testing.T) http.HandlerFunc {
 		case isAzureDevOpsCommitsListRequest(r):
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
 			testastic.Equal(t, providerContractTag, r.URL.Query().Get("searchCriteria.compareVersion.version"))
+			testastic.Equal(t, "tag", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
