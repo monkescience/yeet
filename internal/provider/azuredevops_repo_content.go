@@ -27,17 +27,14 @@ func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error
 		return err
 	}
 
-	push := git.GitPush{
-		RefUpdates: &[]git.GitRefUpdate{{
-			Name:        new("refs/heads/" + name),
-			OldObjectId: new(azureDevOpsZeroObjectID),
-			NewObjectId: &baseSHA,
-		}},
-		Commits: &[]git.GitCommitRef{},
-	}
+	refUpdates := []git.GitRefUpdate{{
+		Name:        new("refs/heads/" + name),
+		OldObjectId: new(azureDevOpsZeroObjectID),
+		NewObjectId: &baseSHA,
+	}}
 
-	_, err = gitClient.CreatePush(ctx, git.CreatePushArgs{
-		Push:         &push,
+	results, err := gitClient.UpdateRefs(ctx, git.UpdateRefsArgs{
+		RefUpdates:   &refUpdates,
 		RepositoryId: &a.repo,
 		Project:      &a.project,
 	})
@@ -49,7 +46,39 @@ func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error
 		return fmt.Errorf("create branch %q: %w", name, err)
 	}
 
+	err = validateAzureDevOpsRefUpdateResults(name, results)
+	if err != nil {
+		return fmt.Errorf("create branch %q: %w", name, err)
+	}
+
 	return nil
+}
+
+func validateAzureDevOpsRefUpdateResults(branch string, results *[]git.GitRefUpdateResult) error {
+	if results == nil || len(*results) == 0 {
+		return fmt.Errorf("%w: missing result", errAzureDevOpsRefUpdateFailed)
+	}
+
+	for _, result := range *results {
+		if result.Success != nil && *result.Success {
+			return nil
+		}
+
+		if result.UpdateStatus != nil && *result.UpdateStatus == git.GitRefUpdateStatusValues.Succeeded {
+			return nil
+		}
+	}
+
+	result := (*results)[0]
+	if result.CustomMessage != nil && *result.CustomMessage != "" {
+		return fmt.Errorf("%w: %s", errAzureDevOpsRefUpdateFailed, *result.CustomMessage)
+	}
+
+	if result.UpdateStatus != nil && *result.UpdateStatus != "" {
+		return fmt.Errorf("%w: %s", errAzureDevOpsRefUpdateFailed, *result.UpdateStatus)
+	}
+
+	return fmt.Errorf("%w for %q", errAzureDevOpsRefUpdateFailed, branch)
 }
 
 func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string, error) {
@@ -220,7 +249,10 @@ func (a *AzureDevOps) azureDevOpsFileChangeType(
 	return "", fmt.Errorf("probe file %q on branch %q: %w", path, branch, err)
 }
 
-var errAzureDevOpsBranchMissing = errors.New("branch missing")
+var (
+	errAzureDevOpsBranchMissing   = errors.New("branch missing")
+	errAzureDevOpsRefUpdateFailed = errors.New("ref update failed")
+)
 
 func (a *AzureDevOps) branchTipSHA(ctx context.Context, branch string) (string, error) {
 	gitClient, err := a.client(ctx)

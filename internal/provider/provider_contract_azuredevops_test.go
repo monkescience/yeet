@@ -415,8 +415,18 @@ func azureDevOpsCreateBranchHandler(t *testing.T) http.HandlerFunc {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "empty_refs.json"))
-		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "push.json"))
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
+			var request []struct {
+				Name        string `json:"name"`
+				OldObjectID string `json:"oldObjectId"`
+				NewObjectID string `json:"newObjectId"`
+			}
+			decodeJSONRequest(t, r, &request)
+			testastic.Equal(t, 1, len(request))
+			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
+			testastic.Equal(t, "0000000000000000000000000000000000000000", request[0].OldObjectID)
+			testastic.Equal(t, "base-sha", request[0].NewObjectID)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
