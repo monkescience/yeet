@@ -40,7 +40,7 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 		Number: derefInt(created.PullRequestId),
 		Title:  derefString(created.Title),
 		Body:   derefString(created.Description),
-		URL:    azureDevOpsPullRequestWebURL(created),
+		URL:    a.pullRequestWebURL(derefInt(created.PullRequestId)),
 		Branch: opts.ReleaseBranch,
 	}, nil
 }
@@ -91,7 +91,7 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch 
 			Number: derefInt(pr.PullRequestId),
 			Title:  derefString(pr.Title),
 			Body:   derefString(pr.Description),
-			URL:    azureDevOpsPullRequestWebURL(&pr),
+			URL:    a.pullRequestWebURL(derefInt(pr.PullRequestId)),
 			Branch: branch,
 		})
 	}
@@ -119,7 +119,7 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 			Number:         derefInt(pr.PullRequestId),
 			Title:          derefString(pr.Title),
 			Body:           derefString(pr.Description),
-			URL:            azureDevOpsPullRequestWebURL(&pr),
+			URL:            a.pullRequestWebURL(derefInt(pr.PullRequestId)),
 			Branch:         branch,
 			MergeCommitSHA: azureDevOpsMergeCommit(&pr),
 		}, nil
@@ -399,12 +399,8 @@ func azureDevOpsHasLabel(labels *[]core.WebApiTagDefinition, target string) bool
 	return false
 }
 
-func azureDevOpsPullRequestWebURL(pr *git.GitPullRequest) string {
-	if pr == nil || pr.PullRequestId == nil || pr.Repository == nil || pr.Repository.WebUrl == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%s/pullrequest/%d", *pr.Repository.WebUrl, *pr.PullRequestId)
+func (a *AzureDevOps) pullRequestWebURL(id int) string {
+	return fmt.Sprintf("%s/pullrequest/%d", a.RepoURL(), id)
 }
 
 func azureDevOpsMergeCommit(pr *git.GitPullRequest) string {

@@ -4,8 +4,5 @@
   "description": "release body",
   "url": "https://example.com/_apis/git/repositories/r/pullRequests/42",
   "sourceRefName": "refs/heads/release-main",
-  "targetRefName": "refs/heads/main",
-  "repository": {
-    "webUrl": "https://example.com/o/r"
-  }
+  "targetRefName": "refs/heads/main"
 }

@@ -18,7 +18,7 @@ type providerContractHarness struct {
 	newProvider          func(t *testing.T, server *httptest.Server) provider.Provider
 	handler              func(t *testing.T, scenario providerContractScenario) http.Handler
 	expectedRepoURL      func(serverURL string) string
-	expectedReleasePRURL string
+	expectedReleasePRURL func(serverURL string) string
 	expectedPathPrefix   string
 }
 
@@ -190,7 +190,7 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractReleaseTitle, pr.Title)
 				testastic.Equal(t, providerContractReleaseBody, pr.Body)
 				testastic.Equal(t, providerContractReleaseBranch, pr.Branch)
-				testastic.Equal(t, harness.expectedReleasePRURL, pr.URL)
+				testastic.Equal(t, harness.expectedReleasePRURL(server.URL), pr.URL)
 			})
 
 			t.Run("updates release pull request", func(t *testing.T) {
@@ -440,7 +440,7 @@ func providerContractHarnesses() []providerContractHarness {
 			newProvider:          newGitHubContractProvider,
 			handler:              newGitHubContractHandler,
 			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL: "https://example.com/pulls/42",
+			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
 			expectedPathPrefix:   "",
 		},
 		{
@@ -448,7 +448,7 @@ func providerContractHarnesses() []providerContractHarness {
 			newProvider:          newGitLabContractProvider,
 			handler:              newGitLabContractHandler,
 			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL: "https://example.com/pulls/42",
+			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
 			expectedPathPrefix:   "/-",
 		},
 		{
@@ -456,7 +456,7 @@ func providerContractHarnesses() []providerContractHarness {
 			newProvider:          newAzureDevOpsContractProvider,
 			handler:              newAzureDevOpsContractHandler,
 			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
-			expectedReleasePRURL: "https://example.com/o/r/pullrequest/42",
+			expectedReleasePRURL: func(s string) string { return azureDevOpsContractExpectedRepoURL(s) + "/pullrequest/42" },
 			expectedPathPrefix:   "",
 		},
 	}
