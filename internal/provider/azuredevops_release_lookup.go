@@ -194,6 +194,9 @@ func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.Gi
 	}
 }
 
+// tagWebURL returns the Azure DevOps "browse repo at tag" URL. The query
+// string trips charmlog's logfmt quoting, which Azure pipeline logs then
+// mis-linkify by appending the closing quote as %22; manual copy works.
 func (a *AzureDevOps) tagWebURL(tag string) string {
 	return fmt.Sprintf("%s?version=GT%s", a.RepoURL(), tag)
 }
