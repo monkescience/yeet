@@ -293,12 +293,12 @@ func (a *AzureDevOps) attachPullRequestLabel(ctx context.Context, number int, la
 }
 
 func (a *AzureDevOps) detachPullRequestLabel(ctx context.Context, number int, label string) error {
-	pr, err := a.getPullRequest(ctx, number)
+	labels, err := a.pullRequestLabels(ctx, number)
 	if err != nil {
 		return fmt.Errorf("get labels for pull request !%d: %w", number, err)
 	}
 
-	labelID, ok, err := azureDevOpsPullRequestLabelID(pr.Labels, label)
+	labelID, ok, err := azureDevOpsPullRequestLabelID(labels, label)
 	if err != nil {
 		return fmt.Errorf("resolve label %q on pull request !%d: %w", label, number, err)
 	}
@@ -329,12 +329,30 @@ func (a *AzureDevOps) detachPullRequestLabel(ctx context.Context, number int, la
 	return nil
 }
 
-func azureDevOpsPullRequestLabelID(labels *[]core.WebApiTagDefinition, target string) (string, bool, error) {
-	if labels == nil {
-		return "", false, nil
+func (a *AzureDevOps) pullRequestLabels(ctx context.Context, number int) ([]core.WebApiTagDefinition, error) {
+	gitClient, err := a.client(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, label := range *labels {
+	labels, err := gitClient.GetPullRequestLabels(ctx, git.GetPullRequestLabelsArgs{
+		RepositoryId:  &a.repo,
+		Project:       &a.project,
+		PullRequestId: &number,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get pull request labels !%d: %w", number, err)
+	}
+
+	if labels == nil {
+		return nil, nil
+	}
+
+	return *labels, nil
+}
+
+func azureDevOpsPullRequestLabelID(labels []core.WebApiTagDefinition, target string) (string, bool, error) {
+	for _, label := range labels {
 		if label.Name == nil || *label.Name != target {
 			continue
 		}

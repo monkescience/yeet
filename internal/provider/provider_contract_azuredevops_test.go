@@ -360,8 +360,8 @@ func azureDevOpsMarkReleasePRHandler(t *testing.T) http.HandlerFunc {
 			decodeJSONRequest(t, r, &request)
 			testastic.NotEqual(t, "", request.Name)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "label.json"))
-		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
-			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "pull_request.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "labels.json"))
 		case r.Method == http.MethodDelete &&
 			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000043"):
 			w.WriteHeader(http.StatusNoContent)
