@@ -3,14 +3,24 @@ package provider
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/google/go-github/v85/github"
+)
+
+const (
+	gitHubFallbackTaggerName  = "yeet-bot"
+	gitHubFallbackTaggerEmail = "noreply@yeet.dev"
 )
 
 type GitHub struct {
 	client  *github.Client
 	repo    RepoInfo
 	baseURL string
+
+	taggerOnce  sync.Once
+	taggerName  string
+	taggerEmail string
 }
 
 func NewGitHub(client *github.Client, owner, repo string) *GitHub {

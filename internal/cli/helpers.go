@@ -20,16 +20,17 @@ import (
 )
 
 var (
-	ErrUnsupportedProvider = errors.New("unsupported provider")
-	ErrMissingToken        = errors.New("missing auth token")
-	ErrGitHubRepoRequired  = errors.New("resolve github repository: owner and repo are required")
-	ErrGitHubOwnerInvalid  = errors.New("resolve github repository: owner must not contain '/'")
-	ErrGitLabProjectNeeded = errors.New("resolve gitlab repository: project or owner/repo are required")
-	ErrRepositoryConflict  = errors.New("resolve repository: project does not match owner/repo")
-	ErrGitRemoteNotFound   = errors.New("git remote not found")
-	ErrGitRemoteHasNoURL   = errors.New("git remote has no url")
-	ErrGitRemoteURLBlank   = errors.New("git remote url is blank")
-	ErrDetachedHead        = errors.New("git head is detached")
+	ErrUnsupportedProvider     = errors.New("unsupported provider")
+	ErrMissingToken            = errors.New("missing auth token")
+	ErrGitHubRepoRequired      = errors.New("resolve github repository: owner and repo are required")
+	ErrGitHubOwnerInvalid      = errors.New("resolve github repository: owner must not contain '/'")
+	ErrGitLabProjectNeeded     = errors.New("resolve gitlab repository: project or owner/repo are required")
+	ErrAzureDevOpsCoordsNeeded = errors.New("resolve azuredevops repository: organization, project, and repo are required")
+	ErrRepositoryConflict      = errors.New("resolve repository: project does not match owner/repo")
+	ErrGitRemoteNotFound       = errors.New("git remote not found")
+	ErrGitRemoteHasNoURL       = errors.New("git remote has no url")
+	ErrGitRemoteURLBlank       = errors.New("git remote url is blank")
+	ErrDetachedHead            = errors.New("git head is detached")
 )
 
 const (
@@ -198,6 +199,8 @@ func createProvider(repository *provider.RepositoryDescriptor) (provider.Provide
 		return createGitHubProvider(repository)
 	case config.ProviderGitLab:
 		return createGitLabProvider(repository)
+	case config.ProviderAzureDevOps:
+		return createAzureDevOpsProvider(repository)
 	case config.ProviderAuto:
 		return nil, fmt.Errorf(
 			"%w: %s (provider auto must be resolved before creation)",
@@ -278,6 +281,62 @@ func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.
 	return provider.NewGitLab(client, repository.Project), nil
 }
 
+func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*provider.AzureDevOps, error) {
+	systemAccessToken := os.Getenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN")
+	pat := os.Getenv("AZURE_DEVOPS_EXT_PAT")
+
+	if systemAccessToken == "" && pat == "" {
+		return nil, fmt.Errorf(
+			"%w: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT environment variable is required",
+			ErrMissingToken,
+		)
+	}
+
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("AZURE_DEVOPS_URL")), "/")
+
+	host := strings.TrimSpace(repository.Host)
+	if host != "" && baseURL == "" {
+		baseURL = "https://" + host
+	}
+
+	if baseURL == "" {
+		baseURL = "https://" + provider.DefaultAzureDevOpsHost
+	}
+
+	collection := strings.TrimSpace(repository.Collection)
+	if collection == "" {
+		collection = strings.TrimSpace(repository.Organization)
+	}
+
+	organization := strings.TrimSpace(repository.Organization)
+	project := strings.TrimSpace(repository.Project)
+	repo := strings.TrimSpace(repository.Repo)
+	httpClient := newRetryableHTTPClient()
+
+	if systemAccessToken != "" {
+		return provider.NewAzureDevOpsWithSystemAccessToken(
+			httpClient,
+			baseURL,
+			systemAccessToken,
+			organization,
+			collection,
+			project,
+			repo,
+		), nil
+	}
+
+	return provider.NewAzureDevOps(
+		httpClient,
+		baseURL,
+		pat,
+		organization,
+		collection,
+		project,
+		repo,
+	), nil
+}
+
+//nolint:funlen // Repository resolution centralizes per-provider defaulting and validation.
 func resolveRepository(
 	ctx context.Context,
 	cfg *config.Config,
@@ -323,6 +382,14 @@ func resolveRepository(
 		if repository.Host == "" {
 			repository.Host = provider.DefaultGitLabHost
 		}
+	case config.ProviderAzureDevOps:
+		if repository.Host == "" {
+			repository.Host = provider.DefaultAzureDevOpsHost
+		}
+
+		if repository.Collection == "" {
+			repository.Collection = repository.Organization
+		}
 	case config.ProviderAuto:
 		// auto is resolved via remote detection; no default host needed.
 	}
@@ -340,7 +407,7 @@ func resolveRepository(
 func unsupportedAutoProviderError(host string, err error) error {
 	return fmt.Errorf(
 		"resolve repository provider for host %q: %w; "+
-			"auto-detection only supports github.com and gitlab.com; "+
+			"auto-detection only supports github.com, gitlab.com, and dev.azure.com; "+
 			"set provider, [repository], or pass explicit flags for custom domains",
 		host,
 		err,
@@ -349,12 +416,14 @@ func unsupportedAutoProviderError(host string, err error) error {
 
 func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
 	return &provider.RepositoryDescriptor{
-		Provider: normalizedRepositoryProvider(cfg.Provider),
-		Host:     strings.TrimSpace(cfg.Repository.Host),
-		Owner:    strings.TrimSpace(cfg.Repository.Owner),
-		Repo:     strings.TrimSpace(cfg.Repository.Repo),
-		Project:  strings.TrimSpace(cfg.Repository.Project),
-		Remote:   strings.TrimSpace(cfg.Repository.Remote),
+		Provider:     normalizedRepositoryProvider(cfg.Provider),
+		Host:         strings.TrimSpace(cfg.Repository.Host),
+		Owner:        strings.TrimSpace(cfg.Repository.Owner),
+		Repo:         strings.TrimSpace(cfg.Repository.Repo),
+		Project:      strings.TrimSpace(cfg.Repository.Project),
+		Organization: strings.TrimSpace(cfg.Repository.Organization),
+		Collection:   strings.TrimSpace(cfg.Repository.Collection),
+		Remote:       strings.TrimSpace(cfg.Repository.Remote),
 	}
 }
 
@@ -393,6 +462,14 @@ func mergeRepositoryDescriptor(
 
 	mergeRepositoryCoordinates(base, override)
 
+	if override.Organization != "" {
+		base.Organization = override.Organization
+	}
+
+	if override.Collection != "" {
+		base.Collection = override.Collection
+	}
+
 	if override.Remote != "" {
 		base.Remote = override.Remote
 	}
@@ -427,6 +504,8 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 	repository.Owner = strings.TrimSpace(repository.Owner)
 	repository.Repo = strings.TrimSpace(repository.Repo)
 	repository.Project = strings.Trim(strings.TrimSpace(repository.Project), "/")
+	repository.Organization = strings.TrimSpace(repository.Organization)
+	repository.Collection = strings.TrimSpace(repository.Collection)
 	repository.Remote = strings.TrimSpace(repository.Remote)
 
 	if repository.Project == "" && repository.Owner != "" && repository.Repo != "" {
@@ -463,6 +542,10 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 	case config.ProviderGitLab:
 		if repository.Project == "" {
 			return ErrGitLabProjectNeeded
+		}
+	case config.ProviderAzureDevOps:
+		if repository.Organization == "" || repository.Project == "" || repository.Repo == "" {
+			return ErrAzureDevOpsCoordsNeeded
 		}
 	case config.ProviderAuto:
 		return fmt.Errorf(

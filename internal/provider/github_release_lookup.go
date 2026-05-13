@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v85/github"
 )
@@ -37,6 +39,12 @@ func (g *GitHub) TagExists(ctx context.Context, tag string) (bool, error) {
 
 func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	targetCommitish := strings.TrimSpace(opts.Ref)
+
+	err := g.ensureAnnotatedTag(ctx, opts.TagName, targetCommitish, opts.Body)
+	if err != nil {
+		return nil, err
+	}
+
 	releaseRequest := &github.RepositoryRelease{
 		TagName:    new(opts.TagName),
 		Name:       new(opts.Name),
@@ -56,6 +64,94 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 	}
 
 	return gitHubRelease(rel), nil
+}
+
+// ensureAnnotatedTag creates an annotated tag carrying the release body so the
+// changelog lives in portable git data, mirroring release-please behavior. It
+// is idempotent: if the tag ref already exists the call is a no-op.
+func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
+	if strings.TrimSpace(tagName) == "" || strings.TrimSpace(ref) == "" {
+		return nil
+	}
+
+	exists, err := g.TagExists(ctx, tagName)
+	if err != nil {
+		return fmt.Errorf("check tag %q: %w", tagName, err)
+	}
+
+	if exists {
+		return nil
+	}
+
+	objectSHA, err := g.resolveCommitSHA(ctx, ref)
+	if err != nil {
+		return fmt.Errorf("resolve tag target %q: %w", ref, err)
+	}
+
+	tagger := g.resolveTaggerIdentity(ctx)
+
+	tagObject, _, err := g.client.Git.CreateTag(ctx, g.repo.Owner, g.repo.Name, github.CreateTag{
+		Tag:     tagName,
+		Message: message,
+		Object:  objectSHA,
+		Type:    "commit",
+		Tagger:  tagger,
+	})
+	if err != nil {
+		return fmt.Errorf("create annotated tag %q: %w", tagName, err)
+	}
+
+	_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, github.CreateRef{
+		Ref: "refs/tags/" + tagName,
+		SHA: tagObject.GetSHA(),
+	})
+	if err != nil {
+		var ghErr *github.ErrorResponse
+		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
+			return nil
+		}
+
+		return fmt.Errorf("create tag ref %q: %w", tagName, err)
+	}
+
+	return nil
+}
+
+func (g *GitHub) resolveTaggerIdentity(ctx context.Context) *github.CommitAuthor {
+	g.taggerOnce.Do(func() {
+		user, _, err := g.client.Users.Get(ctx, "")
+		if err != nil || user == nil {
+			g.taggerName = gitHubFallbackTaggerName
+			g.taggerEmail = gitHubFallbackTaggerEmail
+
+			return
+		}
+
+		name := strings.TrimSpace(user.GetName())
+		if name == "" {
+			name = strings.TrimSpace(user.GetLogin())
+		}
+
+		if name == "" {
+			name = gitHubFallbackTaggerName
+		}
+
+		email := strings.TrimSpace(user.GetEmail())
+		if email == "" {
+			email = gitHubFallbackTaggerEmail
+		}
+
+		g.taggerName = name
+		g.taggerEmail = email
+	})
+
+	now := time.Now().UTC()
+
+	return &github.CommitAuthor{
+		Name:  new(g.taggerName),
+		Email: new(g.taggerEmail),
+		Date:  &github.Timestamp{Time: now},
+	}
 }
 
 func gitHubRelease(release *github.RepositoryRelease) *Release {

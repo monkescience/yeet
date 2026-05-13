@@ -1,0 +1,16 @@
+{
+  "changes": [
+    {
+      "item": {
+        "path": "/CHANGELOG.md"
+      },
+      "changeType": "edit"
+    },
+    {
+      "item": {
+        "path": "/VERSION.txt"
+      },
+      "changeType": "add"
+    }
+  ]
+}

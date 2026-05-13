@@ -47,9 +47,10 @@ const (
 type ProviderType string
 
 const (
-	ProviderAuto   ProviderType = "auto"
-	ProviderGitHub ProviderType = "github"
-	ProviderGitLab ProviderType = "gitlab"
+	ProviderAuto        ProviderType = "auto"
+	ProviderGitHub      ProviderType = "github"
+	ProviderGitLab      ProviderType = "gitlab"
+	ProviderAzureDevOps ProviderType = "azuredevops"
 )
 
 type AutoMergeMethod string
@@ -158,11 +159,13 @@ type ResolvedTarget struct {
 }
 
 type RepositoryConfig struct {
-	Remote  string `yaml:"remote"`
-	Host    string `yaml:"host"`
-	Owner   string `yaml:"owner"`
-	Repo    string `yaml:"repo"`
-	Project string `yaml:"project"`
+	Remote       string `yaml:"remote"`
+	Host         string `yaml:"host"`
+	Owner        string `yaml:"owner"`
+	Repo         string `yaml:"repo"`
+	Project      string `yaml:"project"`
+	Organization string `yaml:"organization"`
+	Collection   string `yaml:"collection"`
 }
 
 type ReleaseConfig struct {
@@ -321,6 +324,7 @@ func Default() *Config {
 	}
 }
 
+//nolint:funlen // Top-level validation deliberately enumerates every field check.
 func (c *Config) Validate() error {
 	if c.Versioning != VersioningSemver && c.Versioning != VersioningCalVer {
 		return fmt.Errorf("%w: versioning must be %q or %q, got %q",
@@ -331,9 +335,12 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%w: branch must not be empty", ErrInvalidConfig)
 	}
 
-	if c.Provider != ProviderAuto && c.Provider != ProviderGitHub && c.Provider != ProviderGitLab {
-		return fmt.Errorf("%w: provider must be %q, %q, or %q, got %q",
-			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, c.Provider)
+	if c.Provider != ProviderAuto &&
+		c.Provider != ProviderGitHub &&
+		c.Provider != ProviderGitLab &&
+		c.Provider != ProviderAzureDevOps {
+		return fmt.Errorf("%w: provider must be %q, %q, %q, or %q, got %q",
+			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, ProviderAzureDevOps, c.Provider)
 	}
 
 	err := validateBumpTypes(c.BumpTypes)
@@ -940,12 +947,15 @@ func mergeCalVerConfig(defaultConfig, overrideConfig CalVerConfig) CalVerConfig 
 	return merged
 }
 
+//nolint:gocognit,funlen // Per-provider coordinate validation is clearer in one pass.
 func validateRepositoryConfig(provider ProviderType, repository RepositoryConfig) error {
 	remote := strings.TrimSpace(repository.Remote)
 	host := strings.TrimSpace(repository.Host)
 	owner := strings.TrimSpace(repository.Owner)
 	repo := strings.TrimSpace(repository.Repo)
 	project := normalizeRepositoryProjectPath(repository.Project)
+	organization := strings.TrimSpace(repository.Organization)
+	collection := strings.TrimSpace(repository.Collection)
 
 	if remote == "" {
 		return fmt.Errorf("%w: repository.remote must not be empty", ErrInvalidConfig)
@@ -965,6 +975,30 @@ func validateRepositoryConfig(provider ProviderType, repository RepositoryConfig
 
 	if repository.Project != "" && project == "" {
 		return fmt.Errorf("%w: repository.project must not be blank", ErrInvalidConfig)
+	}
+
+	if repository.Organization != "" && organization == "" {
+		return fmt.Errorf("%w: repository.organization must not be blank", ErrInvalidConfig)
+	}
+
+	if repository.Collection != "" && collection == "" {
+		return fmt.Errorf("%w: repository.collection must not be blank", ErrInvalidConfig)
+	}
+
+	if provider == ProviderAzureDevOps {
+		if organization == "" {
+			return fmt.Errorf("%w: repository.organization is required for azuredevops", ErrInvalidConfig)
+		}
+
+		if project == "" {
+			return fmt.Errorf("%w: repository.project is required for azuredevops", ErrInvalidConfig)
+		}
+
+		if repo == "" {
+			return fmt.Errorf("%w: repository.repo is required for azuredevops", ErrInvalidConfig)
+		}
+
+		return nil
 	}
 
 	hasOwnerRepoMismatch := (owner == "") != (repo == "")

@@ -1056,6 +1056,54 @@ func TestGitHubCreateRelease(t *testing.T) {
 	// given: a GitHub provider backed by a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/main":
+			writeJSON(t, w, map[string]any{"sha": "head-sha-123"})
+		case r.Method == http.MethodGet && r.URL.Path == "/user":
+			writeJSON(t, w, map[string]any{
+				"login": "yeet-tester",
+				"name":  "Yeet Tester",
+				"email": "tester@yeet.dev",
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/tags":
+			var request struct {
+				Tag     string `json:"tag"`
+				Message string `json:"message"`
+				Object  string `json:"object"`
+				Type    string `json:"type"`
+			}
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			testastic.NoError(t, err)
+			testastic.Equal(t, "v1.2.3", request.Tag)
+			testastic.Equal(t, "release notes", request.Message)
+			testastic.Equal(t, "head-sha-123", request.Object)
+			testastic.Equal(t, "commit", request.Type)
+
+			writeJSON(t, w, map[string]any{
+				"tag":     request.Tag,
+				"sha":     "tag-object-sha",
+				"message": request.Message,
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+			var request struct {
+				Ref string `json:"ref"`
+				SHA string `json:"sha"`
+			}
+
+			err := json.NewDecoder(r.Body).Decode(&request)
+			testastic.NoError(t, err)
+			testastic.Equal(t, "refs/tags/v1.2.3", request.Ref)
+			testastic.Equal(t, "tag-object-sha", request.SHA)
+
+			writeJSON(t, w, map[string]any{
+				"ref": request.Ref,
+				"object": map[string]any{
+					"sha":  request.SHA,
+					"type": "tag",
+				},
+			})
 		case isGitHubCreateReleaseRequest(r):
 			var request struct {
 				TagName         string `json:"tag_name"`
