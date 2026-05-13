@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	git "github.com/go-git/go-git/v5"
-	gitconfig "github.com/go-git/go-git/v5/config"
+	git "github.com/go-git/go-git/v6"
+	gitconfig "github.com/go-git/go-git/v6/config"
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
@@ -504,8 +504,8 @@ func TestGetGitRemoteURL(t *testing.T) {
 
 		repositoryConfig.URLs = map[string]*gitconfig.URL{
 			"ssh://git@example.com/": {
-				Name:      "ssh://git@example.com/",
-				InsteadOf: "https://example.com/",
+				Name:       "ssh://git@example.com/",
+				InsteadOfs: []string{"https://example.com/"},
 			},
 		}
 
@@ -519,6 +519,27 @@ func TestGetGitRemoteURL(t *testing.T) {
 		// then: the rewritten URL matches git behavior
 		testastic.NoError(t, getErr)
 		testastic.Equal(t, "ssh://git@example.com/platform/yeet.git", remoteURL)
+	})
+
+	t.Run("reads repositories with worktree config enabled", func(t *testing.T) {
+		// given: a repository shaped like modern CI checkouts that enable worktree-specific config
+		repositoryPath := t.TempDir()
+		initializeRepositoryWithRemote(t, repositoryPath, "origin", "https://dev.azure.com/org/project/_git/repo")
+		configPath := filepath.Join(repositoryPath, ".git", "config")
+		configContent, err := os.ReadFile(configPath)
+		testastic.NoError(t, err)
+
+		configContent = append(configContent, []byte("\n[extensions]\n\tworktreeConfig = true\n")...)
+		err = os.WriteFile(configPath, configContent, 0o644)
+		testastic.NoError(t, err)
+		t.Chdir(repositoryPath)
+
+		// when: reading the remote URL
+		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+
+		// then: worktreeConfig does not block repository discovery
+		testastic.NoError(t, getErr)
+		testastic.Equal(t, "https://dev.azure.com/org/project/_git/repo", remoteURL)
 	})
 
 	t.Run("fails when remote is missing", func(t *testing.T) {

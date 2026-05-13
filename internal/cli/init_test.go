@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	git "github.com/go-git/go-git/v5"
+	git "github.com/go-git/go-git/v6"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/spf13/cobra"
