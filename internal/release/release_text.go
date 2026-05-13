@@ -34,10 +34,6 @@ func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provi
 	}, nil
 }
 
-func compareURL(repoURL, pathPrefix, fromRef, toRef string) string {
-	return fmt.Sprintf("%s%s/compare/%s...%s", repoURL, pathPrefix, fromRef, toRef)
-}
-
 func (r *Releaser) releaseSubject(result *Result) string {
 	plans := result.Plans
 	if len(plans) == 1 {

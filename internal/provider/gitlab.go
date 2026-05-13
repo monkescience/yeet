@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
@@ -29,6 +30,10 @@ func (g *GitLab) RepoURL() string {
 
 func (g *GitLab) PathPrefix() string {
 	return "/-"
+}
+
+func (g *GitLab) CompareURL(fromRef, toRef string) string {
+	return fmt.Sprintf("%s/-/compare/%s...%s", g.RepoURL(), fromRef, toRef)
 }
 
 func gitLabNextPage(resp *gitlab.Response) int {

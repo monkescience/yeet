@@ -119,6 +119,10 @@ func (s *repoMetadataStub) PathPrefix() string {
 	return s.pathPrefix
 }
 
+func (s *repoMetadataStub) CompareURL(fromRef, toRef string) string {
+	return fmt.Sprintf("%s%s/compare/%s...%s", s.repoURL, s.pathPrefix, fromRef, toRef)
+}
+
 type versionHistoryStub struct {
 	latestVersionRef    string
 	latestVersionRefErr error

@@ -101,6 +101,25 @@ func (a *AzureDevOps) PathPrefix() string {
 	return ""
 }
 
+// CompareURL returns Azure DevOps's branchCompare web URL. Azure uses query
+// parameters with prefixed version refs: GC for commit SHAs, GT for tag names.
+func (a *AzureDevOps) CompareURL(fromRef, toRef string) string {
+	return fmt.Sprintf(
+		"%s/branchCompare?baseVersion=%s&targetVersion=%s",
+		a.RepoURL(),
+		azureDevOpsCompareRef(fromRef),
+		azureDevOpsCompareRef(toRef),
+	)
+}
+
+func azureDevOpsCompareRef(ref string) string {
+	if isAzureDevOpsCommitSHA(ref) {
+		return "GC" + ref
+	}
+
+	return "GT" + ref
+}
+
 // client returns the underlying git client, initializing it on first use.
 // Construction performs an HTTP roundtrip to fetch resource areas, which is why
 // it cannot happen in NewAzureDevOps (no context available there).

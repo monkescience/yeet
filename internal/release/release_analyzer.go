@@ -596,12 +596,13 @@ func renderTargetChangelog(
 		Include:    target.Changelog.Include,
 		RepoURL:    releaser.metadata.RepoURL(),
 		PathPrefix: releaser.metadata.PathPrefix(),
+		CompareURL: releaser.metadata.CompareURL,
 		References: target.Changelog.References,
 	}
 
 	entry := gen.Generate(nextTag, ref, commits)
 	if ref != "" && compareTarget != "" {
-		entry.CompareURL = compareURL(releaser.metadata.RepoURL(), releaser.metadata.PathPrefix(), ref, compareTarget)
+		entry.CompareURL = releaser.metadata.CompareURL(ref, compareTarget)
 	}
 
 	return changelog.Render(entry)
@@ -652,7 +653,7 @@ func renderDerivedChangelog(
 		}
 
 		if compareTarget != "" {
-			entry.CompareURL = compareURL(releaser.metadata.RepoURL(), releaser.metadata.PathPrefix(), ref, compareTarget)
+			entry.CompareURL = releaser.metadata.CompareURL(ref, compareTarget)
 		}
 	}
 
