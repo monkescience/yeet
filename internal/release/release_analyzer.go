@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"strconv"
@@ -344,6 +345,7 @@ func filterPlansByID(plans map[string]TargetPlan, includedIDs map[string]struct{
 	return filteredPlans
 }
 
+//nolint:funlen // Direct target planning is straight-through; debug logs make it longer but no clearer to split.
 func (a *releaseAnalyzer) planDirectTarget(
 	ctx context.Context,
 	target config.ResolvedTarget,
@@ -353,6 +355,13 @@ func (a *releaseAnalyzer) planDirectTarget(
 		return TargetPlan{}, false, err
 	}
 
+	slog.DebugContext(ctx, "planning target",
+		"target", target.ID,
+		"current_version", currentVersion,
+		"boundary_ref", ref,
+		"branch", a.releaser.cfg.Branch,
+	)
+
 	entries, err := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
 	if err != nil {
 		return TargetPlan{}, false, err
@@ -360,10 +369,18 @@ func (a *releaseAnalyzer) planDirectTarget(
 
 	filteredEntries := filterEntriesForTarget(entries, target)
 
+	slog.DebugContext(ctx, "commits since boundary",
+		"target", target.ID,
+		"total", len(entries),
+		"filtered", len(filteredEntries),
+	)
+
 	commits, err := a.parseCommits(ctx, filteredEntries)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
+
+	logParsedCommits(ctx, target.ID, commits)
 
 	bumpType := commit.DetermineBump(commits, a.bumpMapping)
 
@@ -371,6 +388,14 @@ func (a *releaseAnalyzer) planDirectTarget(
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
+
+	slog.DebugContext(ctx, "release plan decision",
+		"target", target.ID,
+		"bump_type", bumpType,
+		"next_bump_type", nextBumpType,
+		"next_version", nextVersion,
+		"should_release", shouldRelease,
+	)
 
 	if !shouldRelease {
 		return TargetPlan{}, false, nil
@@ -734,6 +759,18 @@ func changelogBodyWithoutHeading(renderedEntry string) string {
 	}
 
 	return strings.TrimSpace(renderedEntry)
+}
+
+func logParsedCommits(ctx context.Context, targetID string, commits []commit.Commit) {
+	for _, parsed := range commits {
+		slog.DebugContext(ctx, "parsed commit",
+			"target", targetID,
+			"hash", parsed.Hash,
+			"type", parsed.Type,
+			"breaking", parsed.Breaking,
+			"description", parsed.Description,
+		)
+	}
 }
 
 func filterEntriesForTarget(entries []provider.CommitEntry, target config.ResolvedTarget) []provider.CommitEntry {
