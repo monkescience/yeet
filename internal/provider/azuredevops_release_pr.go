@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 )
 
 const azureDevOpsPRPageSize = 100
+
+var errAzureDevOpsLabelIDMissing = errors.New("azure devops label id missing")
 
 func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
 	gitClient, err := a.client(ctx)
@@ -283,6 +286,20 @@ func (a *AzureDevOps) attachPullRequestLabel(ctx context.Context, number int, la
 }
 
 func (a *AzureDevOps) detachPullRequestLabel(ctx context.Context, number int, label string) error {
+	pr, err := a.getPullRequest(ctx, number)
+	if err != nil {
+		return fmt.Errorf("get labels for pull request !%d: %w", number, err)
+	}
+
+	labelID, ok, err := azureDevOpsPullRequestLabelID(pr.Labels, label)
+	if err != nil {
+		return fmt.Errorf("resolve label %q on pull request !%d: %w", label, number, err)
+	}
+
+	if !ok {
+		return nil
+	}
+
 	gitClient, err := a.client(ctx)
 	if err != nil {
 		return err
@@ -292,7 +309,7 @@ func (a *AzureDevOps) detachPullRequestLabel(ctx context.Context, number int, la
 		RepositoryId:  &a.repo,
 		Project:       &a.project,
 		PullRequestId: &number,
-		LabelIdOrName: &label,
+		LabelIdOrName: &labelID,
 	})
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
@@ -303,6 +320,26 @@ func (a *AzureDevOps) detachPullRequestLabel(ctx context.Context, number int, la
 	}
 
 	return nil
+}
+
+func azureDevOpsPullRequestLabelID(labels *[]core.WebApiTagDefinition, target string) (string, bool, error) {
+	if labels == nil {
+		return "", false, nil
+	}
+
+	for _, label := range *labels {
+		if label.Name == nil || *label.Name != target {
+			continue
+		}
+
+		if label.Id == nil {
+			return "", false, fmt.Errorf("%w: %q", errAzureDevOpsLabelIDMissing, target)
+		}
+
+		return label.Id.String(), true, nil
+	}
+
+	return "", false, nil
 }
 
 func (a *AzureDevOps) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {

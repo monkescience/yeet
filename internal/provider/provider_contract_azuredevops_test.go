@@ -31,14 +31,13 @@ func azureDevOpsContractRepoAPI(suffix string) string {
 	)
 }
 
-// azureDevOpsContractProjectAPI returns the project-scoped API path prefix
-// (e.g. GetPullRequestById, which is not repo-scoped in the SDK route table).
-func azureDevOpsContractProjectAPI(suffix string) string {
+// azureDevOpsContractPullRequestAPI returns the project-scoped PR API path used
+// by GetPullRequestById, which is not repo-scoped in the SDK route table.
+func azureDevOpsContractPullRequestAPI() string {
 	return fmt.Sprintf(
-		"/%s/%s/_apis/git/%s",
+		"/%s/%s/_apis/git/pullRequests/42",
 		azureDevOpsContractOrg,
 		azureDevOpsContractProject,
-		strings.TrimLeft(suffix, "/"),
 	)
 }
 
@@ -359,8 +358,13 @@ func azureDevOpsMarkReleasePRHandler(t *testing.T) http.HandlerFunc {
 			decodeJSONRequest(t, r, &request)
 			testastic.NotEqual(t, "", request.Name)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "label.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "pull_request.json"))
 		case r.Method == http.MethodDelete &&
-			strings.HasPrefix(r.URL.Path, azureDevOpsContractRepoAPI("pullRequests/42/labels/")):
+			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000043"):
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodDelete &&
+			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000044"):
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
@@ -373,7 +377,7 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractProjectAPI("pullRequests/42"):
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
 			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
 			var request struct {
@@ -547,7 +551,7 @@ func azureDevOpsBlockedMergeHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractProjectAPI("pullRequests/42") {
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("blocked_merge", "pull_request.json"))
 
 			return
@@ -561,7 +565,7 @@ func azureDevOpsUnsupportedMergeHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractProjectAPI("pullRequests/42") {
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("unsupported_merge", "pull_request.json"))
 
 			return
