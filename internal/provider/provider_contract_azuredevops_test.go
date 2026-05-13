@@ -335,14 +335,15 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAzureDevOpsPullRequestsListRequest(r) {
+		switch {
+		case isAzureDevOpsPullRequestsListRequest(r):
+			testastic.Equal(t, "completed", r.URL.Query().Get("searchCriteria.status"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_request.json"))
+		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-
-			return
 		}
-
-		testastic.Equal(t, "completed", r.URL.Query().Get("searchCriteria.status"))
-		writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
 	}
 }
 

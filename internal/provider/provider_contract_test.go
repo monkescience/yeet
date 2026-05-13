@@ -239,6 +239,7 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, 42, pr.Number)
 				testastic.Equal(t, providerContractPendingBranch, pr.Branch)
 				testastic.Equal(t, providerContractMergeSHA, pr.MergeCommitSHA)
+				testastic.Equal(t, providerContractReleaseBody, pr.Body)
 			})
 
 			t.Run("marks release pull request state", func(t *testing.T) {

@@ -115,13 +115,20 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 			continue
 		}
 
+		number := derefInt(pr.PullRequestId)
+
+		full, err := a.getPullRequest(ctx, number)
+		if err != nil {
+			return nil, err
+		}
+
 		return &PullRequest{
-			Number:         derefInt(pr.PullRequestId),
-			Title:          derefString(pr.Title),
-			Body:           derefString(pr.Description),
-			URL:            a.pullRequestWebURL(derefInt(pr.PullRequestId)),
+			Number:         number,
+			Title:          derefString(full.Title),
+			Body:           derefString(full.Description),
+			URL:            a.pullRequestWebURL(number),
 			Branch:         branch,
-			MergeCommitSHA: azureDevOpsMergeCommit(&pr),
+			MergeCommitSHA: azureDevOpsMergeCommit(full),
 		}, nil
 	}
 
