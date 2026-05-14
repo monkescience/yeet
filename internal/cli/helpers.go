@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v5"
-	gitconfig "github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v6"
+	gitconfig "github.com/go-git/go-git/v6/config"
 	"github.com/google/go-github/v85/github"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
@@ -579,8 +579,7 @@ func validateRepositoryCoordinates(repository *provider.RepositoryDescriptor) er
 
 func getGitRemoteURL(_ context.Context, remote string) (string, error) {
 	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
-		DetectDotGit:          true,
-		EnableDotGitCommonDir: true,
+		DetectDotGit: true,
 	})
 	if err != nil {
 		return "", fmt.Errorf("open git repository: %w", err)
@@ -617,8 +616,7 @@ func currentGitBranch() (string, error) {
 	}
 
 	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
-		DetectDotGit:          true,
-		EnableDotGitCommonDir: true,
+		DetectDotGit: true,
 	})
 	if err != nil {
 		return "", fmt.Errorf("open git repository: %w", err)
@@ -645,17 +643,19 @@ func rewriteGitRemoteURL(remoteURL string, repositoryConfig *gitconfig.Config) s
 	longestMatchLength := 0
 
 	for _, rule := range repositoryConfig.URLs {
-		insteadOf := strings.TrimSpace(rule.InsteadOf)
-		if insteadOf == "" || !strings.HasPrefix(remoteURL, insteadOf) {
-			continue
-		}
+		for _, insteadOfValue := range rule.InsteadOfs {
+			insteadOf := strings.TrimSpace(insteadOfValue)
+			if insteadOf == "" || !strings.HasPrefix(remoteURL, insteadOf) {
+				continue
+			}
 
-		if len(insteadOf) <= longestMatchLength {
-			continue
-		}
+			if len(insteadOf) <= longestMatchLength {
+				continue
+			}
 
-		rewrittenURL = rule.ApplyInsteadOf(remoteURL)
-		longestMatchLength = len(insteadOf)
+			rewrittenURL = rule.ApplyInsteadOf(remoteURL)
+			longestMatchLength = len(insteadOf)
+		}
 	}
 
 	return rewrittenURL
