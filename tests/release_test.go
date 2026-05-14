@@ -363,7 +363,7 @@ func TestReleaseChannelAndVersionFiles(t *testing.T) {
 			Host:         "github.com",
 			Owner:        "testorg",
 			Repo:         "testrepo",
-			VersionFiles: []string{"VERSION.txt"},
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
 		})
 
 		result := binary.RunWithOptions(t,
@@ -376,6 +376,161 @@ func TestReleaseChannelAndVersionFiles(t *testing.T) {
 		)
 
 		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
+func TestReleaseCalVer(t *testing.T) {
+	t.Run("github calver release creates pr", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v2025.11.1",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v2025.11.1"},
+			},
+			Files: map[string]string{
+				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.MICRO",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
+func TestReleaseJSONPointerVersionFile(t *testing.T) {
+	t.Run("github updates package json", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+			Files: map[string]string{
+				"package.json": `{"name":"yeet","version":"1.0.0"}`,
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			VersionFiles: []fixture.VersionFileOptions{
+				{Path: "package.json", Format: "json", JSONPointer: "/version"},
+			},
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
+func TestReleaseBreakingChange(t *testing.T) {
+	t.Run("github major bump on breaking change", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat!: redesign api\n\nBREAKING CHANGE: removed v1 endpoints"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "v2.0.0")
+	})
+}
+
+func TestReleaseMultiTarget(t *testing.T) {
+	t.Run("github filters to one target", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add api endpoint", Files: []string{"api/handler.go"}},
+				{SHA: "web-sha", Message: "feat: update web ui", Files: []string{"web/index.html"}},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0", Files: []string{"CHANGELOG.md"}},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Targets: []fixture.TargetOptions{
+				{Name: "api", Path: "api/", TagPrefix: "api/v"},
+				{Name: "web", Path: "web/", TagPrefix: "web/v"},
+			},
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--target", "api", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "api")
 	})
 }
 

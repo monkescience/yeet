@@ -38,6 +38,9 @@ type GitHubOptions struct {
 type GitHubCommit struct {
 	SHA     string
 	Message string
+	// Files are the changed file paths returned by the commit-detail
+	// endpoint when yeet asks for per-commit paths (multi-target mode).
+	Files []string
 }
 
 const (
@@ -161,12 +164,23 @@ func githubCommitDetail(ref string, opts GitHubOptions) map[string]any {
 		if c.SHA == ref {
 			return map[string]any{
 				githubKeySHA:    c.SHA,
-				githubKeyCommit: map[string]any{"message": c.Message},
+				githubKeyCommit: map[string]any{githubKeyMessage: c.Message},
+				"files":         githubFilesPayload(c.Files),
 			}
 		}
 	}
 
 	return map[string]any{githubKeySHA: ref}
+}
+
+func githubFilesPayload(paths []string) []map[string]any {
+	out := make([]map[string]any, 0, len(paths))
+
+	for _, path := range paths {
+		out = append(out, map[string]any{"filename": path})
+	}
+
+	return out
 }
 
 // registerGitHubWritePath attaches the handlers exercised by a non-dry-run
