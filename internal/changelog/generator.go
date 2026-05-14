@@ -75,6 +75,15 @@ func (g *Generator) Generate(version string, previousTag string, commits []commi
 		entry.CompareURL = g.CompareURL(previousTag, version)
 	}
 
+	slog.Debug("changelog: generated entry",
+		slog.String("version", version),
+		slog.String("previous_tag", previousTag),
+		slog.Int("commits_in", len(commits)),
+		slog.Int("commits_included", len(relevant)),
+		slog.Int("sections", len(grouped)),
+		slog.Int("bytes", len(entry.Body)),
+	)
+
 	return entry
 }
 
@@ -206,7 +215,10 @@ func (g *Generator) ensureCompiledPatterns() {
 
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
-			slog.Warn("invalid changelog reference pattern, skipping", "pattern", p.Pattern, "error", err)
+			slog.Warn("invalid changelog reference pattern, skipping",
+				slog.String("pattern", p.Pattern),
+				slog.Any("error", err),
+			)
 
 			continue
 		}

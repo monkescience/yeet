@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
@@ -33,6 +34,8 @@ func (g *GitLab) GetLatestVersionRef(ctx context.Context) (string, error) {
 }
 
 func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
+	slog.DebugContext(ctx, "gitlab: listing tags")
+
 	options := &gitlab.ListTagsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
@@ -62,6 +65,8 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
+	slog.DebugContext(ctx, "gitlab: listed tags", slog.Int("count", len(tags)))
+
 	return tags, nil
 }
 
@@ -87,6 +92,13 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 	if branch != "" {
 		opts.RefName = new(branch)
 	}
+
+	slog.DebugContext(ctx, "gitlab: fetching commits",
+		slog.String("boundary_ref", boundaryRef),
+		slog.String("boundary_id", resolvedBoundaryID),
+		slog.String("branch", branch),
+		slog.Bool("include_paths", includePaths),
+	)
 
 	var entries []CommitEntry
 
@@ -148,6 +160,8 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 			return nil, fmt.Errorf("fetch commit paths: %w", err)
 		}
 	}
+
+	slog.DebugContext(ctx, "gitlab: fetched commits", slog.Int("count", len(entries)))
 
 	return entries, nil
 }

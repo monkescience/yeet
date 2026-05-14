@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -13,12 +14,22 @@ import (
 )
 
 func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error {
+	slog.DebugContext(ctx, "azure devops: creating branch",
+		slog.String("branch", name),
+		slog.String("base", base),
+	)
+
 	baseSHA, err := a.branchTipSHA(ctx, base)
 	if err != nil {
 		return fmt.Errorf("get base branch %q tip: %w", base, err)
 	}
 
 	if existing, _ := a.branchTipSHA(ctx, name); existing != "" {
+		slog.DebugContext(ctx, "azure devops: branch already exists",
+			slog.String("branch", name),
+			slog.String("tip", existing),
+		)
+
 		return nil
 	}
 
@@ -40,6 +51,11 @@ func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error
 	})
 	if err != nil {
 		if isAzureDevOpsBranchAlreadyExists(err) {
+			slog.DebugContext(ctx, "azure devops: branch already exists",
+				slog.String("branch", name),
+				slog.Int("status", http.StatusConflict),
+			)
+
 			return nil
 		}
 
@@ -50,6 +66,11 @@ func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error
 	if err != nil {
 		return fmt.Errorf("create branch %q: %w", name, err)
 	}
+
+	slog.DebugContext(ctx, "azure devops: created branch",
+		slog.String("branch", name),
+		slog.String("base_sha", baseSHA),
+	)
 
 	return nil
 }
@@ -87,6 +108,11 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 		return "", err
 	}
 
+	slog.DebugContext(ctx, "azure devops: reading file",
+		slog.String("path", path),
+		slog.String("ref", branch),
+	)
+
 	branchType := git.GitVersionTypeValues.Branch
 	includeContent := true
 
@@ -102,6 +128,11 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 	})
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
+			slog.DebugContext(ctx, "azure devops: file not found",
+				slog.String("path", path),
+				slog.String("ref", branch),
+			)
+
 			return "", ErrFileNotFound
 		}
 
@@ -127,6 +158,12 @@ func (a *AzureDevOps) UpdateFiles(
 	files map[string]string,
 	message string,
 ) error {
+	slog.DebugContext(ctx, "azure devops: updating files",
+		slog.String("branch", branch),
+		slog.String("base", base),
+		slog.Int("files", len(files)),
+	)
+
 	branchTip, err := a.resetBranchToBase(ctx, branch, base)
 	if err != nil {
 		return err
@@ -164,6 +201,11 @@ func (a *AzureDevOps) UpdateFiles(
 	if err != nil {
 		return fmt.Errorf("push to branch %q: %w", branch, err)
 	}
+
+	slog.DebugContext(ctx, "azure devops: updated files",
+		slog.String("branch", branch),
+		slog.Int("files", len(files)),
+	)
 
 	return nil
 }

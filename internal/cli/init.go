@@ -41,7 +41,7 @@ func runInit(path string) error {
 		return fmt.Errorf("resolve init config path: %w", err)
 	}
 
-	slog.Debug("initializing config file", "path", resolvedPath)
+	slog.Debug("initializing config file", slog.String("path", resolvedPath))
 
 	_, statErr := os.Stat(resolvedPath)
 	if statErr == nil {
@@ -55,7 +55,7 @@ func runInit(path string) error {
 		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
 
-	slog.Info("created config file", "path", resolvedPath)
+	slog.Info("created config file", slog.String("path", resolvedPath))
 
 	return nil
 }

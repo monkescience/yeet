@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -12,14 +13,26 @@ import (
 )
 
 func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+	slog.DebugContext(ctx, "github: looking up release by tag", slog.String("tag", tag))
+
 	release, resp, err := g.client.Repositories.GetReleaseByTag(ctx, g.repo.Owner, g.repo.Name, tag)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			slog.DebugContext(ctx, "github: release not found",
+				slog.String("tag", tag),
+				slog.Int("status", resp.StatusCode),
+			)
+
 			return nil, ErrNoRelease
 		}
 
 		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
 	}
+
+	slog.DebugContext(ctx, "github: release found",
+		slog.String("tag", tag),
+		slog.String("url", release.GetHTMLURL()),
+	)
 
 	return gitHubRelease(release), nil
 }
@@ -39,6 +52,12 @@ func (g *GitHub) TagExists(ctx context.Context, tag string) (bool, error) {
 
 func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	targetCommitish := strings.TrimSpace(opts.Ref)
+
+	slog.DebugContext(ctx, "github: creating release",
+		slog.String("tag", opts.TagName),
+		slog.String("target_commitish", targetCommitish),
+		slog.Bool("prerelease", opts.Prerelease),
+	)
 
 	err := g.ensureAnnotatedTag(ctx, opts.TagName, targetCommitish, opts.Body)
 	if err != nil {
@@ -62,6 +81,11 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 	if err != nil {
 		return nil, fmt.Errorf("create release: %w", err)
 	}
+
+	slog.DebugContext(ctx, "github: created release",
+		slog.String("tag", rel.GetTagName()),
+		slog.String("url", rel.GetHTMLURL()),
+	)
 
 	return gitHubRelease(rel), nil
 }

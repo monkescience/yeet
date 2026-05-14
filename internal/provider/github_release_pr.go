@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -10,6 +11,11 @@ import (
 )
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+	slog.DebugContext(ctx, "github: creating pull request",
+		slog.String("head", opts.ReleaseBranch),
+		slog.String("base", opts.BaseBranch),
+	)
+
 	pr, _, err := g.client.PullRequests.Create(ctx, g.repo.Owner, g.repo.Name, &github.NewPullRequest{
 		Title: new(opts.Title),
 		Body:  new(opts.Body),
@@ -19,6 +25,11 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	if err != nil {
 		return nil, fmt.Errorf("create pull request: %w", err)
 	}
+
+	slog.DebugContext(ctx, "github: created pull request",
+		slog.Int("pr_number", pr.GetNumber()),
+		slog.String("url", pr.GetHTMLURL()),
+	)
 
 	return &PullRequest{
 		Number: pr.GetNumber(),
@@ -30,6 +41,8 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 }
 
 func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
+	slog.DebugContext(ctx, "github: updating pull request", slog.Int("pr_number", number))
+
 	_, _, err := g.client.PullRequests.Edit(ctx, g.repo.Owner, g.repo.Name, number, &github.PullRequest{
 		Title: new(opts.Title),
 		Body:  new(opts.Body),
@@ -37,6 +50,8 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	if err != nil {
 		return fmt.Errorf("update pull request #%d: %w", number, err)
 	}
+
+	slog.DebugContext(ctx, "github: updated pull request", slog.Int("pr_number", number))
 
 	return nil
 }
@@ -51,6 +66,11 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 			PerPage: 100, //nolint:mnd // reasonable API page size
 		},
 	}
+
+	slog.DebugContext(ctx, "github: listing open pending release PRs",
+		slog.String("base", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
 
 	pendingPRs := make([]*PullRequest, 0)
 
@@ -90,6 +110,8 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		return nil, err
 	}
 
+	slog.DebugContext(ctx, "github: listed open pending release PRs", slog.Int("count", len(pendingPRs)))
+
 	return pendingPRs, nil
 }
 
@@ -104,6 +126,11 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 			PerPage: 100, //nolint:mnd // reasonable API page size
 		},
 	}
+
+	slog.DebugContext(ctx, "github: searching merged release PRs",
+		slog.String("base", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
 
 	var found *PullRequest
 
@@ -156,6 +183,12 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 	if found == nil {
 		return nil, ErrNoPR
 	}
+
+	slog.DebugContext(ctx, "github: found merged release PR",
+		slog.Int("pr_number", found.Number),
+		slog.String("url", found.URL),
+		slog.String("merge_sha", found.MergeCommitSHA),
+	)
 
 	return found, nil
 }
@@ -246,7 +279,10 @@ func (g *GitHub) CommitPullRequestBody(ctx context.Context, hash string) (string
 	return body, found, nil
 }
 
+//nolint:funlen // Pre-merge readiness checks plus debug logging put this just over the limit.
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
+
 	pr, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
 	if err != nil {
 		return fmt.Errorf("get pull request #%d: %w", number, err)
@@ -301,6 +337,12 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 
 		return fmt.Errorf("%w: pull request #%d: %s", ErrMergeBlocked, number, message)
 	}
+
+	slog.DebugContext(ctx, "github: merged pull request",
+		slog.Int("pr_number", number),
+		slog.String("method", string(mergeMethod)),
+		slog.String("merge_sha", mergeResult.GetSHA()),
+	)
 
 	return nil
 }

@@ -356,10 +356,10 @@ func (a *releaseAnalyzer) planDirectTarget(
 	}
 
 	slog.DebugContext(ctx, "planning target",
-		"target", target.ID,
-		"current_version", currentVersion,
-		"boundary_ref", ref,
-		"branch", a.releaser.cfg.Branch,
+		slog.String("target", target.ID),
+		slog.String("current_version", currentVersion),
+		slog.String("boundary_ref", ref),
+		slog.String("branch", a.releaser.cfg.Branch),
 	)
 
 	entries, err := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
@@ -370,9 +370,9 @@ func (a *releaseAnalyzer) planDirectTarget(
 	filteredEntries := filterEntriesForTarget(entries, target)
 
 	slog.DebugContext(ctx, "commits since boundary",
-		"target", target.ID,
-		"total", len(entries),
-		"filtered", len(filteredEntries),
+		slog.String("target", target.ID),
+		slog.Int("total", len(entries)),
+		slog.Int("filtered", len(filteredEntries)),
 	)
 
 	commits, err := a.parseCommits(ctx, filteredEntries)
@@ -390,11 +390,11 @@ func (a *releaseAnalyzer) planDirectTarget(
 	}
 
 	slog.DebugContext(ctx, "release plan decision",
-		"target", target.ID,
-		"bump_type", bumpType,
-		"next_bump_type", nextBumpType,
-		"next_version", nextVersion,
-		"should_release", shouldRelease,
+		slog.String("target", target.ID),
+		slog.Any("bump_type", bumpType),
+		slog.Any("next_bump_type", nextBumpType),
+		slog.String("next_version", nextVersion),
+		slog.Bool("should_release", shouldRelease),
 	)
 
 	if !shouldRelease {
@@ -765,11 +765,11 @@ func changelogBodyWithoutHeading(renderedEntry string) string {
 func logParsedCommits(ctx context.Context, targetID string, commits []commit.Commit) {
 	for _, parsed := range commits {
 		slog.DebugContext(ctx, "parsed commit",
-			"target", targetID,
-			"hash", parsed.Hash,
-			"type", parsed.Type,
-			"breaking", parsed.Breaking,
-			"description", parsed.Description,
+			slog.String("target", targetID),
+			slog.String("hash", parsed.Hash),
+			slog.String("type", parsed.Type),
+			slog.Bool("breaking", parsed.Breaking),
+			slog.String("description", parsed.Description),
 		)
 	}
 }

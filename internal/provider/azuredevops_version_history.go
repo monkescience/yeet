@@ -21,7 +21,10 @@ func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	slog.DebugContext(ctx, "azure devops: tags listed", "count", len(tags), "tags", tags)
+	slog.DebugContext(ctx, "azure devops: tags listed",
+		slog.Int("count", len(tags)),
+		slog.Any("tags", tags),
+	)
 
 	if len(tags) == 0 {
 		return "", ErrNoVersionRef
@@ -97,9 +100,9 @@ func (a *AzureDevOps) GetCommitsSince(
 	branch = strings.TrimSpace(branch)
 
 	slog.DebugContext(ctx, "azure devops: fetching commits",
-		"branch", branch,
-		"boundary_ref", boundaryRef,
-		"include_paths", includePaths,
+		slog.String("branch", branch),
+		slog.String("boundary_ref", boundaryRef),
+		slog.Bool("include_paths", includePaths),
 	)
 
 	entries, err := a.fetchAzureDevOpsCommits(ctx, boundaryRef, branch)
@@ -107,7 +110,7 @@ func (a *AzureDevOps) GetCommitsSince(
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "azure devops: commits fetched", "count", len(entries))
+	slog.DebugContext(ctx, "azure devops: commits fetched", slog.Int("count", len(entries)))
 
 	if includePaths && len(entries) > 0 {
 		err = a.fillAzureDevOpsCommitPaths(ctx, entries)

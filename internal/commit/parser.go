@@ -2,6 +2,7 @@
 package commit
 
 import (
+	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
@@ -75,6 +76,11 @@ func Parse(hash, rawMessage string) Commit {
 
 	if matches == nil {
 		c.Description = header
+
+		slog.Debug("commit: non-conventional header, treating as no-bump",
+			slog.String("hash", hash),
+			slog.String("header", header),
+		)
 
 		return c
 	}

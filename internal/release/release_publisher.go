@@ -118,7 +118,10 @@ func (p *releasePublisher) createReleaseForTag(
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
-	slog.InfoContext(ctx, "created release", "tag", tag, "url", releaseInfo.URL)
+	slog.InfoContext(ctx, "created release",
+		slog.String("tag", tag),
+		slog.String("url", releaseInfo.URL),
+	)
 
 	return releaseInfo, nil
 }
@@ -168,7 +171,7 @@ func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string
 		return nil, false, nil
 	}
 
-	slog.InfoContext(ctx, "release already exists", "tag", tag)
+	slog.InfoContext(ctx, "release already exists", slog.String("tag", tag))
 
 	return releaseInfo, true, nil
 }
@@ -181,7 +184,7 @@ func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest 
 		return fmt.Errorf("mark release PR tagged: %w", err)
 	}
 
-	slog.InfoContext(ctx, "marked release PR tagged", "url", pullRequest.URL)
+	slog.InfoContext(ctx, "marked release PR tagged", slog.String("url", pullRequest.URL))
 
 	return nil
 }

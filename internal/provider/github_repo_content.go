@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"slices"
 
@@ -12,6 +13,11 @@ import (
 )
 
 func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
+	slog.DebugContext(ctx, "github: creating branch",
+		slog.String("branch", name),
+		slog.String("base", base),
+	)
+
 	baseRef, _, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "refs/heads/"+base)
 	if err != nil {
 		return fmt.Errorf("get base ref %s: %w", base, err)
@@ -24,16 +30,31 @@ func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
 	if err != nil {
 		var ghErr *github.ErrorResponse
 		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
+			slog.DebugContext(ctx, "github: branch already exists",
+				slog.String("branch", name),
+				slog.Int("status", ghErr.Response.StatusCode),
+			)
+
 			return nil
 		}
 
 		return fmt.Errorf("create branch %s: %w", name, err)
 	}
 
+	slog.DebugContext(ctx, "github: created branch",
+		slog.String("branch", name),
+		slog.String("base_sha", baseRef.GetObject().GetSHA()),
+	)
+
 	return nil
 }
 
 func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, error) {
+	slog.DebugContext(ctx, "github: reading file",
+		slog.String("path", path),
+		slog.String("ref", branch),
+	)
+
 	content, _, resp, err := g.client.Repositories.GetContents(
 		ctx,
 		g.repo.Owner,
@@ -43,6 +64,12 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 	)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			slog.DebugContext(ctx, "github: file not found",
+				slog.String("path", path),
+				slog.String("ref", branch),
+				slog.Int("status", resp.StatusCode),
+			)
+
 			return "", ErrFileNotFound
 		}
 
@@ -62,6 +89,12 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 }
 
 func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error {
+	slog.DebugContext(ctx, "github: updating files",
+		slog.String("branch", branch),
+		slog.String("base", base),
+		slog.Int("files", len(files)),
+	)
+
 	baseCommit, err := g.baseBranchCommit(ctx, base)
 	if err != nil {
 		return err
@@ -81,6 +114,11 @@ func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map
 	if err != nil {
 		return err
 	}
+
+	slog.DebugContext(ctx, "github: updated files",
+		slog.String("branch", branch),
+		slog.String("commit_sha", newCommit.GetSHA()),
+	)
 
 	return nil
 }

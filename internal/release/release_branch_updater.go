@@ -56,10 +56,18 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 			}
 
 			if !changed {
-				slog.InfoContext(ctx, "version file already at target version", "path", versionFile.Path)
+				slog.InfoContext(ctx, "version file already at target version",
+					slog.String("path", versionFile.Path),
+				)
 
 				continue
 			}
+
+			slog.DebugContext(ctx, "versionfile: rewrote",
+				slog.String("path", versionFile.Path),
+				slog.String("format", string(versionFile.Format)),
+				slog.String("next_version", plan.NextVersion),
+			)
 
 			err = setBranchFileContent(files, versionFile.Path, updatedContent)
 			if err != nil {

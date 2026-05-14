@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
@@ -15,6 +16,8 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 		return nil, ErrNoRelease
 	}
 
+	slog.DebugContext(ctx, "azure devops: looking up release by tag", slog.String("tag", tag))
+
 	objectID, err := a.lookupTagObjectID(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -23,11 +26,21 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 	annotated, err := a.getAnnotatedTag(ctx, objectID)
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
+			slog.DebugContext(ctx, "azure devops: tag exists but no annotation",
+				slog.String("tag", tag),
+				slog.String("object_id", objectID),
+			)
+
 			return &Release{TagName: tag, Name: tag, URL: a.tagWebURL(tag)}, nil
 		}
 
 		return nil, fmt.Errorf("get annotated tag %q: %w", tag, err)
 	}
+
+	slog.DebugContext(ctx, "azure devops: release found",
+		slog.String("tag", tag),
+		slog.String("object_id", objectID),
+	)
 
 	return a.azureDevOpsAnnotatedTagRelease(tag, annotated), nil
 }
@@ -55,6 +68,11 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*
 	if ref == "" {
 		return nil, fmt.Errorf("create release: %w: ref required", ErrEmptyCommitSHA)
 	}
+
+	slog.DebugContext(ctx, "azure devops: creating annotated tag",
+		slog.String("tag", opts.TagName),
+		slog.String("ref", ref),
+	)
 
 	objectID, err := a.resolveAzureDevOpsObjectID(ctx, ref)
 	if err != nil {
@@ -85,6 +103,11 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*
 
 	release := a.azureDevOpsAnnotatedTagRelease(opts.TagName, created)
 	release.Name = opts.Name
+
+	slog.DebugContext(ctx, "azure devops: created annotated tag",
+		slog.String("tag", opts.TagName),
+		slog.String("object_id", objectID),
+	)
 
 	return release, nil
 }

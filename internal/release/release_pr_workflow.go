@@ -129,7 +129,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		return fmt.Errorf("merge release PR: %w", err)
 	}
 
-	slog.InfoContext(ctx, "merged release PR", "url", result.PullRequest.URL)
+	slog.InfoContext(ctx, "merged release PR", slog.String("url", result.PullRequest.URL))
 
 	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, r.cfg.Branch)
 	if err != nil {
@@ -155,7 +155,7 @@ func (w *releasePRWorkflow) updateExisting(
 ) (*provider.PullRequest, error) {
 	r := w.releaser
 
-	slog.InfoContext(ctx, "updating existing release PR", "url", existing.URL)
+	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
 
 	err := r.prs.UpdateReleasePR(ctx, existing.Number, prOpts)
 	if err != nil {
@@ -206,7 +206,7 @@ func (w *releasePRWorkflow) createNew(
 		return nil, fmt.Errorf("mark release PR pending: %w", err)
 	}
 
-	slog.InfoContext(ctx, "created release PR", "url", pr.URL)
+	slog.InfoContext(ctx, "created release PR", slog.String("url", pr.URL))
 
 	return pr, nil
 }

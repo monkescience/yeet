@@ -169,7 +169,10 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	}
 
 	for _, finalizedRelease := range finalizedReleases {
-		slog.InfoContext(ctx, "finalized release", "tag", finalizedRelease.TagName, "url", finalizedRelease.URL)
+		slog.InfoContext(ctx, "finalized release",
+			slog.String("tag", finalizedRelease.TagName),
+			slog.String("url", finalizedRelease.URL),
+		)
 	}
 
 	result, err := newReleaseAnalyzer(r).analyze(ctx, selectedTargetIDs)
@@ -185,7 +188,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return result, nil
 	}
 
-	slog.InfoContext(ctx, "release analysis complete", "targets", len(result.Plans))
+	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(result.Plans)))
 
 	if dryRun {
 		return result, nil

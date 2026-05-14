@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path"
@@ -238,12 +239,25 @@ var errJSONPointerMustStartWithSlash = errors.New("must start with /")
 var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
 func Load(path string) (*Config, error) {
+	slog.Debug("config: loading file", slog.String("path", path))
+
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
 	if err != nil {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
-	return Parse(data)
+	cfg, err := Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Debug("config: loaded file",
+		slog.String("path", path),
+		slog.Int("bytes", len(data)),
+		slog.Int("targets", len(cfg.Targets)),
+	)
+
+	return cfg, nil
 }
 
 func Parse(data []byte) (*Config, error) {
@@ -414,6 +428,15 @@ func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
 	err := validateResolvedTargets(resolved)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, t := range resolved {
+		slog.Debug("config: resolved target",
+			slog.String("id", t.ID),
+			slog.String("type", string(t.Type)),
+			slog.String("path", t.Path),
+			slog.String("versioning", string(t.Versioning)),
+		)
 	}
 
 	return resolved, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -34,6 +35,8 @@ func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
 }
 
 func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
+	slog.DebugContext(ctx, "github: listing tags")
+
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
 	tags := make([]string, 0)
 
@@ -60,6 +63,8 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	slog.DebugContext(ctx, "github: listed tags", slog.Int("count", len(tags)))
 
 	return tags, nil
 }
@@ -90,6 +95,13 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 	} else if resolvedBoundarySHA != "" {
 		opts.SHA = "HEAD"
 	}
+
+	slog.DebugContext(ctx, "github: fetching commits",
+		slog.String("boundary_ref", boundaryRef),
+		slog.String("boundary_sha", resolvedBoundarySHA),
+		slog.String("branch", branch),
+		slog.Bool("include_paths", includePaths),
+	)
 
 	var entries []CommitEntry
 
@@ -154,18 +166,31 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 		}
 	}
 
+	slog.DebugContext(ctx, "github: fetched commits", slog.Int("count", len(entries)))
+
 	return entries, nil
 }
 
 func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, error) {
+	slog.DebugContext(ctx, "github: looking up latest release")
+
 	release, resp, err := g.client.Repositories.GetLatestRelease(ctx, g.repo.Owner, g.repo.Name)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			slog.DebugContext(ctx, "github: no latest release",
+				slog.Int("status", resp.StatusCode),
+			)
+
 			return nil, ErrNoRelease
 		}
 
 		return nil, fmt.Errorf("get latest release: %w", err)
 	}
+
+	slog.DebugContext(ctx, "github: latest release",
+		slog.String("tag", release.GetTagName()),
+		slog.String("url", release.GetHTMLURL()),
+	)
 
 	return release, nil
 }

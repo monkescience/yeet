@@ -223,7 +223,9 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
 	if len(result.Plans) == 0 {
 		if len(result.Releases) > 0 {
-			slog.InfoContext(ctx, "release finalized; no new release needed", "tag", result.Releases[0].TagName)
+			slog.InfoContext(ctx, "release finalized; no new release needed",
+				slog.String("tag", result.Releases[0].TagName),
+			)
 
 			return nil
 		}
@@ -277,30 +279,18 @@ func wrapReleaseExecutionError(err error) error {
 }
 
 func logReleaseCommand(ctx context.Context, configPath string, options releaseRunOptions) {
-	slog.DebugContext(ctx,
-		"running release command",
-		"config",
-		configPath,
-		"dry_run",
-		options.dryRun,
-		"provider_override_set",
-		options.providerSet,
-		"remote_override_set",
-		options.repositoryRemoteSet,
-		"host_override_set",
-		options.repositoryHostSet,
-		"owner_override_set",
-		options.repositoryOwnerSet,
-		"repo_override_set",
-		options.repositoryRepoSet,
-		"project_override_set",
-		options.repositoryProjectSet,
-		"channel",
-		options.channel,
-		"channel_set",
-		options.channelSet,
-		"targets",
-		options.targets,
+	slog.DebugContext(ctx, "running release command",
+		slog.String("config", configPath),
+		slog.Bool("dry_run", options.dryRun),
+		slog.Bool("provider_override_set", options.providerSet),
+		slog.Bool("remote_override_set", options.repositoryRemoteSet),
+		slog.Bool("host_override_set", options.repositoryHostSet),
+		slog.Bool("owner_override_set", options.repositoryOwnerSet),
+		slog.Bool("repo_override_set", options.repositoryRepoSet),
+		slog.Bool("project_override_set", options.repositoryProjectSet),
+		slog.String("channel", options.channel),
+		slog.Bool("channel_set", options.channelSet),
+		slog.Any("targets", options.targets),
 	)
 }
 

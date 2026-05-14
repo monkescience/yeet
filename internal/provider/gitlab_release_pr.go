@@ -15,6 +15,11 @@ const gitlabMergeRequestOpenedState = "opened"
 const gitlabMergeRequestMergedState = "merged"
 
 func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+	slog.DebugContext(ctx, "gitlab: creating merge request",
+		slog.String("source_branch", opts.ReleaseBranch),
+		slog.String("target_branch", opts.BaseBranch),
+	)
+
 	mr, _, err := g.client.MergeRequests.CreateMergeRequest(g.pid, &gitlab.CreateMergeRequestOptions{
 		Title:        new(opts.Title),
 		Description:  new(opts.Body),
@@ -24,6 +29,11 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	if err != nil {
 		return nil, fmt.Errorf("create merge request: %w", err)
 	}
+
+	slog.DebugContext(ctx, "gitlab: created merge request",
+		slog.Int("iid", int(mr.IID)),
+		slog.String("url", mr.WebURL),
+	)
 
 	return &PullRequest{
 		Number: int(mr.IID),
@@ -35,6 +45,8 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 }
 
 func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
+	slog.DebugContext(ctx, "gitlab: updating merge request", slog.Int("iid", number))
+
 	_, _, err := g.client.MergeRequests.UpdateMergeRequest(g.pid, int64(number), &gitlab.UpdateMergeRequestOptions{
 		Title:       new(opts.Title),
 		Description: new(opts.Body),
@@ -42,6 +54,8 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	if err != nil {
 		return fmt.Errorf("update merge request !%d: %w", number, err)
 	}
+
+	slog.DebugContext(ctx, "gitlab: updated merge request", slog.Int("iid", number))
 
 	return nil
 }
@@ -60,6 +74,11 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		Labels:       &labels,
 		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
+
+	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
 
 	pendingMRs := make([]*PullRequest, 0)
 
@@ -94,9 +113,12 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		return nil, err
 	}
 
+	slog.DebugContext(ctx, "gitlab: listed open pending release MRs", slog.Int("count", len(pendingMRs)))
+
 	return pendingMRs, nil
 }
 
+//nolint:funlen // Pagination closure layout inflates line count without adding complexity.
 func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
 	state := gitlabMergeRequestMergedState
 	orderBy := "updated_at"
@@ -111,6 +133,11 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		Labels:       &labels,
 		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
+
+	slog.DebugContext(ctx, "gitlab: searching merged release MRs",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
 
 	var found *PullRequest
 
@@ -149,6 +176,12 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 	if found == nil {
 		return nil, ErrNoPR
 	}
+
+	slog.DebugContext(ctx, "gitlab: found merged release MR",
+		slog.Int("iid", found.Number),
+		slog.String("url", found.URL),
+		slog.String("merge_sha", found.MergeCommitSHA),
+	)
 
 	return found, nil
 }
@@ -231,12 +264,14 @@ func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
 	}
 
 	slog.Warn("merge request has no merge or squash commit SHA, release will be tagged against branch tip",
-		"iid", mergeRequest.IID)
+		slog.Int64("iid", mergeRequest.IID))
 
 	return ""
 }
 
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
+
 	mr, _, err := g.client.MergeRequests.GetMergeRequest(g.pid, int64(number), nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("get merge request !%d: %w", number, err)
@@ -284,6 +319,11 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	if err != nil {
 		return fmt.Errorf("accept merge request !%d: %w", number, err)
 	}
+
+	slog.DebugContext(ctx, "gitlab: merged merge request",
+		slog.Int("iid", number),
+		slog.String("sha", sha),
+	)
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 
@@ -11,6 +12,11 @@ import (
 )
 
 func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
+	slog.DebugContext(ctx, "gitlab: creating branch",
+		slog.String("branch", name),
+		slog.String("base", base),
+	)
+
 	_, _, err := g.client.Branches.CreateBranch(g.pid, &gitlab.CreateBranchOptions{
 		Branch: new(name),
 		Ref:    new(base),
@@ -18,17 +24,32 @@ func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
 	if err != nil {
 		var glErr *gitlab.ErrorResponse
 		if errors.As(err, &glErr) && glErr.Response != nil && glErr.Response.StatusCode == http.StatusBadRequest {
+			slog.DebugContext(ctx, "gitlab: branch already exists",
+				slog.String("branch", name),
+				slog.Int("status", glErr.Response.StatusCode),
+			)
+
 			return nil
 		}
 
 		return fmt.Errorf("create branch %s: %w", name, err)
 	}
 
+	slog.DebugContext(ctx, "gitlab: created branch",
+		slog.String("branch", name),
+		slog.String("base", base),
+	)
+
 	return nil
 }
 
 func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, error) {
 	ref := branch
+
+	slog.DebugContext(ctx, "gitlab: reading file",
+		slog.String("path", path),
+		slog.String("ref", ref),
+	)
 
 	raw, _, err := g.client.RepositoryFiles.GetRawFile(
 		g.pid,
@@ -38,6 +59,11 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 	)
 	if err != nil {
 		if errors.Is(err, gitlab.ErrNotFound) {
+			slog.DebugContext(ctx, "gitlab: file not found",
+				slog.String("path", path),
+				slog.String("ref", ref),
+			)
+
 			return "", ErrFileNotFound
 		}
 
@@ -83,6 +109,12 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 
 	force := true
 
+	slog.DebugContext(ctx, "gitlab: updating files",
+		slog.String("branch", branch),
+		slog.String("base", base),
+		slog.Int("files", len(actions)),
+	)
+
 	_, _, err := g.client.Commits.CreateCommit(g.pid, &gitlab.CreateCommitOptions{
 		Branch:        new(branch),
 		CommitMessage: new(message),
@@ -93,6 +125,8 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	if err != nil {
 		return fmt.Errorf("force update branch %s: %w", branch, err)
 	}
+
+	slog.DebugContext(ctx, "gitlab: updated files", slog.String("branch", branch))
 
 	return nil
 }

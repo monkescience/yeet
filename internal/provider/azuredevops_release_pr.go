@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
@@ -19,6 +20,11 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 	if err != nil {
 		return nil, err
 	}
+
+	slog.DebugContext(ctx, "azure devops: creating pull request",
+		slog.String("source_branch", opts.ReleaseBranch),
+		slog.String("target_branch", opts.BaseBranch),
+	)
 
 	pr := git.GitPullRequest{
 		SourceRefName: new("refs/heads/" + opts.ReleaseBranch),
@@ -36,11 +42,18 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 		return nil, fmt.Errorf("create pull request: %w", err)
 	}
 
+	prNumber := derefInt(created.PullRequestId)
+
+	slog.DebugContext(ctx, "azure devops: created pull request",
+		slog.Int("pr_number", prNumber),
+		slog.String("url", a.pullRequestWebURL(prNumber)),
+	)
+
 	return &PullRequest{
-		Number: derefInt(created.PullRequestId),
+		Number: prNumber,
 		Title:  derefString(created.Title),
 		Body:   derefString(created.Description),
-		URL:    a.pullRequestWebURL(derefInt(created.PullRequestId)),
+		URL:    a.pullRequestWebURL(prNumber),
 		Branch: opts.ReleaseBranch,
 	}, nil
 }
@@ -50,6 +63,8 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts Rele
 	if err != nil {
 		return err
 	}
+
+	slog.DebugContext(ctx, "azure devops: updating pull request", slog.Int("pr_number", number))
 
 	update := git.GitPullRequest{
 		Title:       new(opts.Title),
@@ -66,10 +81,17 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts Rele
 		return fmt.Errorf("update pull request !%d: %w", number, err)
 	}
 
+	slog.DebugContext(ctx, "azure devops: updated pull request", slog.Int("pr_number", number))
+
 	return nil
 }
 
 func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+	slog.DebugContext(ctx, "azure devops: listing open pending release PRs",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
+
 	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Active, baseBranch)
 	if err != nil {
 		return nil, err
@@ -96,10 +118,17 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch 
 		})
 	}
 
+	slog.DebugContext(ctx, "azure devops: listed open pending release PRs", slog.Int("count", len(pending)))
+
 	return pending, nil
 }
 
 func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+	slog.DebugContext(ctx, "azure devops: searching merged release PRs",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", ReleaseLabelPending),
+	)
+
 	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Completed, baseBranch)
 	if err != nil {
 		return nil, err
@@ -122,14 +151,22 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 			return nil, err
 		}
 
-		return &PullRequest{
+		result := &PullRequest{
 			Number:         number,
 			Title:          derefString(full.Title),
 			Body:           derefString(full.Description),
 			URL:            a.pullRequestWebURL(number),
 			Branch:         branch,
 			MergeCommitSHA: azureDevOpsMergeCommit(full),
-		}, nil
+		}
+
+		slog.DebugContext(ctx, "azure devops: found merged release PR",
+			slog.Int("pr_number", result.Number),
+			slog.String("url", result.URL),
+			slog.String("merge_sha", result.MergeCommitSHA),
+		)
+
+		return result, nil
 	}
 
 	return nil, ErrNoPR
@@ -190,7 +227,10 @@ func (a *AzureDevOps) listPullRequests(
 	return nil, fmt.Errorf("%w: exceeded %d pages listing pull requests", ErrPaginationLimitExceeded, maxPaginationPages)
 }
 
+//nolint:funlen // Pre-merge readiness checks plus debug logging put this just over the limit.
 func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
+
 	pr, err := a.getPullRequest(ctx, number)
 	if err != nil {
 		return err
@@ -247,6 +287,11 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	if err != nil {
 		return fmt.Errorf("complete pull request !%d: %w", number, err)
 	}
+
+	slog.DebugContext(ctx, "azure devops: completed pull request",
+		slog.Int("pr_number", number),
+		slog.String("strategy", string(strategy)),
+	)
 
 	return nil
 }
