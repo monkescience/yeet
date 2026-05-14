@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           0.3.0 → 0.3.1 (minor)
+  Tag               v0.3.1
+  Commits           1
+
+  ────────────────────────────────
+
+## [v0.3.1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v0.3.0...v0.3.1) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- add a thing ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+
