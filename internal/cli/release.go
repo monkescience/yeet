@@ -12,7 +12,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
-	"github.com/monkescience/yeet/internal/ui" // lipgloss styles for dry-run output
+	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
 )
 

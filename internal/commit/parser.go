@@ -132,13 +132,11 @@ func isFooter(line string) bool {
 		return true
 	}
 
-	// Token: value format (token must be word characters or hyphens).
 	parts := strings.SplitN(line, ": ", 2) //nolint:mnd // footer format is "key: value"
 	if len(parts) == 2 && isToken(parts[0]) {
 		return true
 	}
 
-	// Token #value format.
 	parts = strings.SplitN(line, " #", 2) //nolint:mnd // footer format is "token #value"
 
 	return len(parts) == 2 && isToken(parts[0])

@@ -110,7 +110,6 @@ func Prepend(existing, newEntry string) string {
 		return header + entry + "\n"
 	}
 
-	// If there's an existing header, insert after it.
 	if strings.HasPrefix(existing, "# ") {
 		idx := strings.Index(existing, "\n\n")
 		if idx >= 0 {
@@ -153,7 +152,6 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 	for _, c := range breaking {
 		desc := c.Description
 
-		// Check for BREAKING CHANGE footer with more detail.
 		for _, f := range c.Footers {
 			if f.Key == "BREAKING CHANGE" || f.Key == "BREAKING-CHANGE" {
 				desc = f.Value
