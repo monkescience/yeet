@@ -163,7 +163,7 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 				Body:           mr.Description,
 				URL:            mr.WebURL,
 				Branch:         mr.SourceBranch,
-				MergeCommitSHA: gitLabMergeCommitSHA(mr),
+				MergeCommitSHA: gitLabMergeCommitSHA(ctx, mr),
 			}
 
 			return true, nil
@@ -257,13 +257,13 @@ func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string 
 	return strings.TrimSpace(mergeRequest.SquashCommitSHA)
 }
 
-func gitLabMergeCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
+func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) string {
 	commitSHA := gitLabMergeRequestCommitSHA(mergeRequest)
 	if commitSHA != "" {
 		return commitSHA
 	}
 
-	slog.Warn("merge request has no merge or squash commit SHA, release will be tagged against branch tip",
+	slog.WarnContext(ctx, "merge request has no merge or squash commit SHA, release will be tagged against branch tip",
 		slog.Int64("iid", mergeRequest.IID))
 
 	return ""

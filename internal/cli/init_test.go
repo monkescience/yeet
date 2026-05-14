@@ -127,7 +127,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(projectDir)
 
 		// when: initializing config
-		err = runInit(config.DefaultFile)
+		err = runInit(t.Context(), config.DefaultFile)
 		testastic.NoError(t, err)
 
 		// then: config is minimal, parseable, and names the target after the directory
@@ -154,7 +154,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(projectDir)
 
 		// when: initializing config
-		err = runInit(config.DefaultFile)
+		err = runInit(t.Context(), config.DefaultFile)
 		testastic.NoError(t, err)
 
 		// then: the target name falls back to "root"

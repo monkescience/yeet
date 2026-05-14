@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -29,19 +30,19 @@ func initCmd(options *bootstrapOptions) *cobra.Command {
 	different path.`,
 		Example: `  yeet init
   yeet init --config .yeet.release.yaml`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return runInit(options.configPath())
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runInit(cmd.Context(), options.configPath())
 		},
 	}
 }
 
-func runInit(path string) error {
+func runInit(ctx context.Context, path string) error {
 	resolvedPath, err := resolveInitConfigPath(path)
 	if err != nil {
 		return fmt.Errorf("resolve init config path: %w", err)
 	}
 
-	slog.Debug("initializing config file", slog.String("path", resolvedPath))
+	slog.DebugContext(ctx, "initializing config file", slog.String("path", resolvedPath))
 
 	_, statErr := os.Stat(resolvedPath)
 	if statErr == nil {
@@ -55,7 +56,7 @@ func runInit(path string) error {
 		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
 
-	slog.Info("created config file", slog.String("path", resolvedPath))
+	slog.InfoContext(ctx, "created config file", slog.String("path", resolvedPath))
 
 	return nil
 }

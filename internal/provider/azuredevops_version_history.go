@@ -21,11 +21,6 @@ func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	slog.DebugContext(ctx, "azure devops: tags listed",
-		slog.Int("count", len(tags)),
-		slog.Any("tags", tags),
-	)
-
 	if len(tags) == 0 {
 		return "", ErrNoVersionRef
 	}
@@ -34,6 +29,8 @@ func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
 }
 
 func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
+	slog.DebugContext(ctx, "azure devops: listing tags")
+
 	tags := make([]string, 0)
 
 	err := a.paginateTagRefs(ctx, func(ref git.GitRef) (bool, error) {
@@ -51,6 +48,8 @@ func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	slog.DebugContext(ctx, "azure devops: listed tags", slog.Int("count", len(tags)))
 
 	return tags, nil
 }
