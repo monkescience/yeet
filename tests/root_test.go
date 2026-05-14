@@ -7,11 +7,7 @@ import (
 )
 
 func TestRoot(t *testing.T) {
-	t.Parallel()
-
 	t.Run("verbose and quiet conflict", func(t *testing.T) {
-		t.Parallel()
-
 		result := binary.Run(t, "--verbose", "--quiet", "version")
 
 		testastic.Equal(t, 1, result.ExitCode)
@@ -20,8 +16,6 @@ func TestRoot(t *testing.T) {
 	})
 
 	t.Run("unknown subcommand", func(t *testing.T) {
-		t.Parallel()
-
 		result := binary.Run(t, "nope-not-a-command")
 
 		testastic.Equal(t, 1, result.ExitCode)
@@ -30,8 +24,6 @@ func TestRoot(t *testing.T) {
 	})
 
 	t.Run("no color smoke", func(t *testing.T) {
-		t.Parallel()
-
 		result := binary.Run(t, "--no-color", "version")
 
 		testastic.Equal(t, 0, result.ExitCode)

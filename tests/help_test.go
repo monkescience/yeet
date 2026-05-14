@@ -7,8 +7,6 @@ import (
 )
 
 func TestHelp(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name   string
 		args   []string
@@ -38,8 +36,6 @@ func TestHelp(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			result := binary.Run(t, tc.args...)
 
 			testastic.Equal(t, 0, result.ExitCode)
