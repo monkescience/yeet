@@ -226,12 +226,8 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 	baseURL := strings.TrimSpace(os.Getenv("GITHUB_URL"))
 
 	host := strings.TrimSpace(repository.Host)
-	if host != "" {
-		if strings.EqualFold(host, provider.DefaultGitHubHost) {
-			baseURL = ""
-		} else {
-			baseURL = fmt.Sprintf("https://%s/api/v3/", host)
-		}
+	if host != "" && !strings.EqualFold(host, provider.DefaultGitHubHost) {
+		baseURL = fmt.Sprintf("https://%s/api/v3/", host)
 	}
 
 	if baseURL != "" {
@@ -259,12 +255,8 @@ func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.
 	baseURL := strings.TrimSpace(os.Getenv("GITLAB_URL"))
 
 	host := strings.TrimSpace(repository.Host)
-	if host != "" {
-		if strings.EqualFold(host, provider.DefaultGitLabHost) {
-			baseURL = ""
-		} else {
-			baseURL = fmt.Sprintf("https://%s/api/v4", host)
-		}
+	if host != "" && !strings.EqualFold(host, provider.DefaultGitLabHost) {
+		baseURL = fmt.Sprintf("https://%s/api/v4", host)
 	}
 
 	var opts []gitlab.ClientOptionFunc

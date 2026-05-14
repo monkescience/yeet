@@ -114,13 +114,35 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 		ReportTimestamp: false,
 	})
 
-	if options.noColor {
-		logger.SetColorProfile(colorprofile.ASCII)
-	}
+	logger.SetColorProfile(resolveColorProfile(cmd.ErrOrStderr(), options.noColor))
 
 	slog.SetDefault(slog.New(logger))
 
 	return nil
+}
+
+// resolveColorProfile picks the color profile for an output stream based on
+// the explicit --no-color flag, the destination writer's TTY-ness, and
+// standard env vars (NO_COLOR, CLICOLOR, CLICOLOR_FORCE, TERM, COLORTERM).
+// When noColor is set, all color sequences are stripped; text decoration
+// like bold/faint is preserved (per the NO_COLOR spec). Otherwise the
+// profile follows colorprofile.Detect, which strips everything for
+// non-TTY destinations such as pipes, files, and CI.
+func resolveColorProfile(out io.Writer, noColor bool) colorprofile.Profile {
+	if noColor {
+		return colorprofile.Ascii
+	}
+
+	return colorprofile.Detect(out, os.Environ())
+}
+
+// newColorWriter wraps w in a color-aware writer that downsamples ANSI
+// sequences according to the resolved color profile.
+func newColorWriter(w io.Writer, noColor bool) *colorprofile.Writer {
+	return &colorprofile.Writer{
+		Forward: w,
+		Profile: resolveColorProfile(w, noColor),
+	}
 }
 
 func (options *bootstrapOptions) configPath() string {

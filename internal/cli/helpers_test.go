@@ -418,6 +418,33 @@ func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
 }
 
+func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv("GITHUB_URL", "https://example.test/api/v3/")
+
+	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
+		Host:  provider.DefaultGitHubHost,
+		Owner: "platform",
+		Repo:  "yeet",
+	})
+
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://example.test/platform/yeet", githubProvider.RepoURL())
+}
+
+func TestCreateGitLabProviderHonorsGitLabURLOnDefaultHost(t *testing.T) {
+	t.Setenv("GITLAB_TOKEN", "test-token")
+	t.Setenv("GITLAB_URL", "https://example.test/api/v4")
+
+	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
+		Host:    provider.DefaultGitLabHost,
+		Project: "group/subgroup/service",
+	})
+
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://example.test/group/subgroup/service", gitlabProvider.RepoURL())
+}
+
 func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 

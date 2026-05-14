@@ -49,7 +49,7 @@ marks the PR/MR as tagged.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
 				cmd.Context(),
-				cmd.OutOrStdout(),
+				newColorWriter(cmd.OutOrStdout(), bootstrap.noColor),
 				bootstrap.configPath(),
 				releaseOptionsFromCommand(cmd, *flags),
 			)
