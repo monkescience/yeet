@@ -5,6 +5,7 @@ package fixture
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -13,12 +14,20 @@ import (
 // ConfigOptions describes the values to render into a .yeet.yaml. Empty
 // fields are omitted so callers can mix and match defaults.
 type ConfigOptions struct {
-	Provider string
-	Branch   string
-	Owner    string
-	Repo     string
-	Project  string
-	Host     string
+	Provider     string
+	Branch       string
+	Owner        string
+	Repo         string
+	Project      string
+	Host         string
+	VersionFiles []string
+	Channels     map[string]ChannelOptions
+}
+
+// ChannelOptions describes a prerelease channel entry.
+type ChannelOptions struct {
+	Branch     string
+	Prerelease string
 }
 
 // WriteConfig renders a .yeet.yaml under a fresh t.TempDir() and returns the
@@ -38,39 +47,56 @@ func WriteConfig(t *testing.T, opts ConfigOptions) string {
 }
 
 func renderConfig(opts ConfigOptions) string {
-	out := ""
+	var b strings.Builder
 
-	if opts.Provider != "" {
-		out += "provider: " + opts.Provider + "\n"
+	writeScalar(&b, "provider: ", opts.Provider)
+	writeScalar(&b, "branch: ", opts.Branch)
+
+	b.WriteString("repository:\n")
+	writeScalar(&b, "  host: ", opts.Host)
+	writeScalar(&b, "  owner: ", opts.Owner)
+	writeScalar(&b, "  repo: ", opts.Repo)
+	writeScalar(&b, "  project: ", opts.Project)
+
+	if len(opts.VersionFiles) > 0 {
+		b.WriteString("version_files:\n")
+
+		for _, path := range opts.VersionFiles {
+			b.WriteString("  - ")
+			b.WriteString(path)
+			b.WriteString("\n")
+		}
 	}
 
-	if opts.Branch != "" {
-		out += "branch: " + opts.Branch + "\n"
+	if len(opts.Channels) > 0 {
+		b.WriteString("release:\n  channels:\n")
+
+		for name, channel := range opts.Channels {
+			b.WriteString("    ")
+			b.WriteString(name)
+			b.WriteString(":\n      branch: ")
+			b.WriteString(channel.Branch)
+			b.WriteString("\n")
+
+			if channel.Prerelease != "" {
+				b.WriteString("      prerelease: ")
+				b.WriteString(channel.Prerelease)
+				b.WriteString("\n")
+			}
+		}
 	}
 
-	out += "repository:\n"
+	b.WriteString("targets:\n  default:\n    type: path\n    path: .\n    tag_prefix: v\n")
 
-	if opts.Host != "" {
-		out += "  host: " + opts.Host + "\n"
+	return b.String()
+}
+
+func writeScalar(b *strings.Builder, prefix, value string) {
+	if value == "" {
+		return
 	}
 
-	if opts.Owner != "" {
-		out += "  owner: " + opts.Owner + "\n"
-	}
-
-	if opts.Repo != "" {
-		out += "  repo: " + opts.Repo + "\n"
-	}
-
-	if opts.Project != "" {
-		out += "  project: " + opts.Project + "\n"
-	}
-
-	out += "targets:\n"
-	out += "  default:\n"
-	out += "    type: path\n"
-	out += "    path: .\n"
-	out += "    tag_prefix: v\n"
-
-	return out
+	b.WriteString(prefix)
+	b.WriteString(value)
+	b.WriteString("\n")
 }

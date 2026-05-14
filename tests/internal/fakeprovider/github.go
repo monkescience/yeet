@@ -4,6 +4,7 @@
 package fakeprovider
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,6 +27,11 @@ type GitHubOptions struct {
 	// fixture: when true, the closed-pulls listing returns one merged PR with
 	// the autorelease:pending label so yeet enters the finalization path.
 	MergedPendingRelease bool
+	// Files maps repository-relative paths to their raw content. The contents
+	// endpoint serves these (base64-encoded) for matching paths. Paths not in
+	// the map return 404 except for CHANGELOG.md, which always has a default
+	// response.
+	Files map[string]string
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -59,7 +65,7 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	registerGitHubReleases(mux, prefix)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubPullsRead(mux, prefix, opts)
-	registerGitHubWritePath(mux, prefix)
+	registerGitHubWritePath(mux, prefix, opts)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -167,9 +173,9 @@ func githubCommitDetail(ref string, opts GitHubOptions) map[string]any {
 // release (creating a release branch, updating files, opening the PR, and
 // managing labels). All responses are canned — the test asserts side effects
 // via exit code / stdout rather than payload bodies.
-func registerGitHubWritePath(mux *http.ServeMux, prefix string) {
+func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	registerGitHubGitData(mux, prefix)
-	registerGitHubContent(mux, prefix)
+	registerGitHubContent(mux, prefix, opts)
 	registerGitHubPullsWrite(mux, prefix)
 	registerGitHubLabels(mux, prefix)
 
@@ -234,24 +240,35 @@ func registerGitHubGitData(mux *http.ServeMux, prefix string) {
 	})
 }
 
-func registerGitHubContent(mux *http.ServeMux, prefix string) {
+func registerGitHubContent(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/contents/{path...}", func(w http.ResponseWriter, r *http.Request) {
 		path := r.PathValue("path")
+
+		if content, ok := opts.Files[path]; ok {
+			writeJSON(w, githubFileContent(path, content))
+
+			return
+		}
+
 		if path == githubChangelog {
-			writeJSON(w, map[string]any{
-				githubKeyName: githubChangelog,
-				"path":        githubChangelog,
-				githubKeyType: "file",
-				"encoding":    "base64",
-				"content":     "IyMgQ2hhbmdlbG9nCgojIyBbdjEuMS4wXQoKKiBmZWF0OiBhZGQgYSB0aGluZwo=",
-				githubKeySHA:  "changelog-blob-sha",
-			})
+			writeJSON(w, githubFileContent(githubChangelog, "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n"))
 
 			return
 		}
 
 		http.Error(w, "not found", http.StatusNotFound)
 	})
+}
+
+func githubFileContent(path, raw string) map[string]any {
+	return map[string]any{
+		githubKeyName: path,
+		"path":        path,
+		githubKeyType: "file",
+		"encoding":    "base64",
+		"content":     base64.StdEncoding.EncodeToString([]byte(raw)),
+		githubKeySHA:  "blob-sha",
+	}
 }
 
 func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {

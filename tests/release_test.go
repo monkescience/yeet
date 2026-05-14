@@ -177,6 +177,79 @@ func TestReleaseAutoMerge(t *testing.T) {
 	})
 }
 
+func TestReleaseChannelAndVersionFiles(t *testing.T) {
+	t.Run("github prerelease channel creates pr", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+			},
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--channel", "beta", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=beta",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("github version files release creates pr", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+			Files: map[string]string{
+				"VERSION.txt": "1.0.0 # x-yeet-version\n",
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			VersionFiles: []string{"VERSION.txt"},
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
 func TestReleaseConfigErrors(t *testing.T) {
 	t.Run("missing config file", func(t *testing.T) {
 		tempDir := t.TempDir()
