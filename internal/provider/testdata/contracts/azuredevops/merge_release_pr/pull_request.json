@@ -1,0 +1,9 @@
+{
+  "pullRequestId": 42,
+  "status": "active",
+  "mergeStatus": "succeeded",
+  "isDraft": false,
+  "lastMergeSourceCommit": {
+    "commitId": "head-sha"
+  }
+}

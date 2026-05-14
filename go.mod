@@ -11,6 +11,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.0
 	github.com/google/go-github/v85 v85.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
+	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/monkescience/testastic v0.3.4
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go/v2 v2.20.1
@@ -37,6 +38,7 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect

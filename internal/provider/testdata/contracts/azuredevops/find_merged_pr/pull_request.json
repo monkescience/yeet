@@ -1,0 +1,17 @@
+{
+  "pullRequestId": 42,
+  "title": "chore: release v1.2.3",
+  "description": "release body",
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main",
+  "status": "completed",
+  "lastMergeCommit": {
+    "commitId": "merge-sha"
+  },
+  "labels": [
+    {
+      "name": "autorelease: pending",
+      "active": true
+    }
+  ]
+}

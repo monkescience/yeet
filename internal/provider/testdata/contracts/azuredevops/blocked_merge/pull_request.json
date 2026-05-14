@@ -1,0 +1,6 @@
+{
+  "pullRequestId": 42,
+  "status": "active",
+  "mergeStatus": "conflicts",
+  "isDraft": false
+}

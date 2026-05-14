@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "value": [
+    {
+      "name": "refs/heads/release-main",
+      "oldObjectId": "release-tip",
+      "newObjectId": "base-sha",
+      "success": true,
+      "updateStatus": "succeeded"
+    }
+  ]
+}

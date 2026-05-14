@@ -138,6 +138,14 @@ const DefaultGitHubHost = "github.com"
 
 const DefaultGitLabHost = "gitlab.com"
 
+const DefaultAzureDevOpsHost = "dev.azure.com"
+
+const azureDevOpsSSHHost = "ssh.dev.azure.com"
+
+const azureDevOpsLegacyHostSuffix = ".visualstudio.com"
+
+const providerNameAzureDevOps = "azuredevops"
+
 func ParseCommits(entries []CommitEntry) []commit.Commit {
 	commits := make([]commit.Commit, 0, len(entries))
 
@@ -204,12 +212,14 @@ var scpLikeRemotePattern = regexp.MustCompile(`^(?:[^@]+@)?([^:]+):(.+)$`)
 const minimumProjectSegments = 2
 
 type RepositoryDescriptor struct {
-	Provider string
-	Host     string
-	Owner    string
-	Repo     string
-	Project  string
-	Remote   string
+	Provider     string
+	Host         string
+	Owner        string
+	Repo         string
+	Project      string
+	Organization string
+	Collection   string
+	Remote       string
 }
 
 var ErrUnsupportedHost = errors.New("unsupported remote host")
@@ -220,7 +230,12 @@ func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
 		return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
 	}
 
-	parsed, err := parseRemoteURL(remoteURL)
+	parsed, err := parseAzureDevOpsRemote(remoteURL)
+	if err == nil {
+		return parsed, nil
+	}
+
+	parsed, err = parseRemoteURL(remoteURL)
 	if err == nil {
 		return parsed, nil
 	}
@@ -247,7 +262,19 @@ func DetectProviderType(host string) (string, error) {
 		return "gitlab", nil
 	}
 
+	if isAzureDevOpsHost(host) {
+		return providerNameAzureDevOps, nil
+	}
+
 	return "", fmt.Errorf("%w: %s", ErrUnsupportedHost, host)
+}
+
+func isAzureDevOpsHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+
+	return host == DefaultAzureDevOpsHost ||
+		host == azureDevOpsSSHHost ||
+		strings.HasSuffix(host, azureDevOpsLegacyHostSuffix)
 }
 
 func parseRemoteURL(remoteURL string) (*RepositoryDescriptor, error) {
@@ -305,4 +332,150 @@ func SplitProjectPath(project string) (string, string) {
 	}
 
 	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1]
+}
+
+// parseAzureDevOpsRemote handles ADO URL shapes that the generic parser cannot:
+//   - https://dev.azure.com/{org}/{project}/_git/{repo}
+//   - https://{org}@dev.azure.com/{org}/{project}/_git/{repo}
+//   - https://{org}.visualstudio.com/{project}/_git/{repo}
+//   - git@ssh.dev.azure.com:v3/{org}/{project}/{repo}
+//
+// Returns ErrUnknownRemote when the URL is not an ADO remote so callers can fall
+// through to the generic parsers.
+func parseAzureDevOpsRemote(remoteURL string) (*RepositoryDescriptor, error) {
+	parsed, err := parseAzureDevOpsHTTPRemote(remoteURL)
+	if err == nil {
+		return parsed, nil
+	}
+
+	parsed, err = parseAzureDevOpsSSHRemote(remoteURL)
+	if err == nil {
+		return parsed, nil
+	}
+
+	return nil, ErrUnknownRemote
+}
+
+func parseAzureDevOpsHTTPRemote(remoteURL string) (*RepositoryDescriptor, error) {
+	parsedURL, err := url.Parse(remoteURL)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	host := strings.ToLower(parsedURL.Host)
+	if !isAzureDevOpsHost(host) {
+		return nil, ErrUnknownRemote
+	}
+
+	path := normalizeRemotePath(parsedURL.Path)
+	if path == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	segments := strings.Split(path, "/")
+
+	if strings.HasSuffix(host, azureDevOpsLegacyHostSuffix) {
+		return azureDevOpsDescriptorFromLegacySegments(host, segments)
+	}
+
+	return azureDevOpsDescriptorFromCloudSegments(host, segments)
+}
+
+func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*RepositoryDescriptor, error) {
+	// Expect {org}/{project}/_git/{repo} (4 segments).
+	gitIdx := indexOf(segments, "_git")
+	if gitIdx < 2 || gitIdx != len(segments)-2 {
+		return nil, ErrUnknownRemote
+	}
+
+	repo := strings.TrimSpace(segments[gitIdx+1])
+	project := strings.TrimSpace(segments[gitIdx-1])
+	org := strings.TrimSpace(strings.Join(segments[:gitIdx-1], "/"))
+
+	if org == "" || project == "" || repo == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	return &RepositoryDescriptor{
+		Provider:     providerNameAzureDevOps,
+		Host:         host,
+		Organization: org,
+		Project:      project,
+		Repo:         repo,
+	}, nil
+}
+
+func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*RepositoryDescriptor, error) {
+	// Legacy subdomain form: org is the host subdomain; path is {project}/_git/{repo}.
+	org := strings.TrimSuffix(host, azureDevOpsLegacyHostSuffix)
+	if org == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	gitIdx := indexOf(segments, "_git")
+	if gitIdx != 1 || gitIdx != len(segments)-2 {
+		return nil, ErrUnknownRemote
+	}
+
+	project := strings.TrimSpace(segments[0])
+	repo := strings.TrimSpace(segments[gitIdx+1])
+
+	if project == "" || repo == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	return &RepositoryDescriptor{
+		Provider:     providerNameAzureDevOps,
+		Host:         host,
+		Organization: org,
+		Project:      project,
+		Repo:         repo,
+	}, nil
+}
+
+func parseAzureDevOpsSSHRemote(remoteURL string) (*RepositoryDescriptor, error) {
+	matches := scpLikeRemotePattern.FindStringSubmatch(remoteURL)
+	if matches == nil {
+		return nil, ErrUnknownRemote
+	}
+
+	host := strings.ToLower(matches[1])
+	if host != azureDevOpsSSHHost {
+		return nil, ErrUnknownRemote
+	}
+
+	path := normalizeRemotePath(matches[2])
+	segments := strings.Split(path, "/")
+
+	// Expect v3/{org}/{project}/{repo}.
+	const azureDevOpsSSHSegments = 4
+	if len(segments) != azureDevOpsSSHSegments || segments[0] != "v3" {
+		return nil, ErrUnknownRemote
+	}
+
+	org := strings.TrimSpace(segments[1])
+	project := strings.TrimSpace(segments[2])
+	repo := strings.TrimSpace(segments[3])
+
+	if org == "" || project == "" || repo == "" {
+		return nil, ErrUnknownRemote
+	}
+
+	return &RepositoryDescriptor{
+		Provider:     providerNameAzureDevOps,
+		Host:         DefaultAzureDevOpsHost,
+		Organization: org,
+		Project:      project,
+		Repo:         repo,
+	}, nil
+}
+
+func indexOf(haystack []string, needle string) int {
+	for i, s := range haystack {
+		if s == needle {
+			return i
+		}
+	}
+
+	return -1
 }

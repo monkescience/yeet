@@ -418,6 +418,49 @@ func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
 }
 
+func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
+
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+		Host:         "dev.azure.com",
+		Organization: "platform",
+		Project:      "release-tools",
+		Repo:         "yeet",
+	})
+
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
+}
+
+func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
+	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
+
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+		Host:         "dev.azure.com",
+		Organization: "platform",
+		Project:      "release-tools",
+		Repo:         "yeet",
+	})
+
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
+}
+
+func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
+	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "")
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
+
+	_, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+		Host:         "dev.azure.com",
+		Organization: "platform",
+		Project:      "release-tools",
+		Repo:         "yeet",
+	})
+
+	testastic.Error(t, err)
+	testastic.ErrorContains(t, err, "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT")
+}
+
 func TestGetGitRemoteURL(t *testing.T) {
 	t.Run("reads origin url from repository root", func(t *testing.T) {
 		// given: a repository with an origin remote

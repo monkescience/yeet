@@ -41,6 +41,7 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		TagName:     new(opts.TagName),
 		Name:        new(opts.Name),
 		Description: new(opts.Body),
+		TagMessage:  new(opts.Body),
 	}
 
 	if ref != "" {

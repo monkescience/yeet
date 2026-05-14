@@ -50,3 +50,48 @@ func paginate[T any](
 
 	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
 }
+
+// paginateAzureDevOps iterates a paginated ADO endpoint up to maxPaginationPages
+// times using the continuation-token model (X-MS-ContinuationToken header +
+// continuationToken query param). fetch is called with the current token ("" on
+// the first call) and returns the page items plus the next-page token (empty
+// when exhausted).
+func paginateAzureDevOps[T any](
+	ctx context.Context,
+	resource string,
+	fetch func(token string) (items []T, nextToken string, err error),
+	handle func(T) (stop bool, err error),
+) error {
+	token := ""
+
+	for range maxPaginationPages {
+		err := ctx.Err()
+		if err != nil {
+			return fmt.Errorf("paginate %s: %w", resource, err)
+		}
+
+		items, nextToken, err := fetch(token)
+		if err != nil {
+			return err
+		}
+
+		for _, item := range items {
+			stop, err := handle(item)
+			if err != nil {
+				return err
+			}
+
+			if stop {
+				return nil
+			}
+		}
+
+		if nextToken == "" {
+			return nil
+		}
+
+		token = nextToken
+	}
+
+	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
+}

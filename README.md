@@ -459,6 +459,34 @@ yeet release
 
 The token must be able to create merge requests, manage labels, and publish releases.
 
+### Azure DevOps
+
+In Azure Pipelines, map `System.AccessToken` to yeet's Azure DevOps-specific env var:
+
+```yaml
+env:
+  AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+```
+
+For local use or external CI, use the Azure DevOps CLI-compatible PAT variable:
+
+```sh
+export AZURE_DEVOPS_EXT_PAT=xxx
+yeet release --dry-run
+```
+
+For Azure DevOps Server/self-hosted, also set `AZURE_DEVOPS_URL`:
+
+```sh
+export AZURE_DEVOPS_EXT_PAT=xxx
+export AZURE_DEVOPS_URL=https://devops.example.com
+yeet release
+```
+
+The pipeline build service identity or PAT needs repository permissions to create branches,
+create/update pull requests, manage pull request labels, complete pull requests when auto-merge
+is enabled, and create tags.
+
 ## CI examples
 
 ### GitHub Actions with a GitHub App
@@ -528,6 +556,38 @@ release:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 ```
 
+### Azure Pipelines
+
+This example uses Azure Pipelines `System.AccessToken`. Map it explicitly into the step env;
+yeet sends it to Azure DevOps as bearer auth.
+
+```yaml
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+    fetchTags: true
+
+  - script: |
+      docker run --rm \
+        -v "$(Build.SourcesDirectory):/workspace" \
+        -w /workspace \
+        -e AZURE_DEVOPS_SYSTEM_ACCESSTOKEN \
+        ghcr.io/monkescience/yeet:v0.8.2 release # x-yeet-version
+    displayName: Run yeet
+    env:
+      AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+```
+
 ## Troubleshooting
 
 `yeet release` keeps wrapped errors for debugging, but the top-level message points at the failure
@@ -537,8 +597,9 @@ category so you can pick the next fix quickly:
 - `invalid configuration`: fix invalid values in `.yeet.yaml` before rerunning.
 - `repository resolution failed`: set `provider` explicitly for custom or enterprise hosts; set
   `repository` too when remote discovery cannot provide the host and path.
-- `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN` or
-  `GITLAB_TOKEN`/`GL_TOKEN`) and, for self-hosted providers, verify `GITHUB_URL` or `GITLAB_URL`.
+- `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN`,
+  `GITLAB_TOKEN`/`GL_TOKEN`, `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, or `AZURE_DEVOPS_EXT_PAT`)
+  and, for self-hosted providers, verify `GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`.
 - `release execution failed: merge blocked`: the release PR/MR is still draft, has conflicts,
   lacks required approvals/checks, or requests a merge method the provider settings do not allow.
 - `release execution failed: multiple pending release PRs/MRs found`: close or relabel stale

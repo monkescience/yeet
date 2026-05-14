@@ -1,0 +1,955 @@
+{
+  "count": 95,
+  "value": [
+    {
+      "id": "75cf11c5-979f-4038-a76e-058a06adf2bf",
+      "area": "git",
+      "resourceName": "pullRequestIterationStatuses",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/iterations/{iterationId}/statuses/{statusId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "2b6869c4-cb25-42b5-b7a3-0d3e6be0a11a",
+      "area": "git",
+      "resourceName": "deletedRepositories",
+      "routeTemplate": "{project}/_apis/{area}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "2.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "40c1f5b7-2bb6-4c28-b844-0f47cd6bb610",
+      "area": "git",
+      "resourceName": "branchStats",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/stats/branches/{*name}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "bcae1abb-c39d-4e1a-b803-10c552317b1b",
+      "area": "git",
+      "resourceName": "pullRequestCopilotReview",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/copilotreview",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "4720896c-594c-4a6d-b94c-12eddd80b34a",
+      "area": "git",
+      "resourceName": "refsFavoritesForProject",
+      "routeTemplate": "{project}/_apis/{area}/favorites/refsForProject",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "630fd2e4-fb88-4f85-ad21-13f3fd1fbca9",
+      "area": "git",
+      "resourceName": "itemsBatch",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "9b2552e4-9e48-4557-98ec-1982f699615f",
+      "area": "git",
+      "resourceName": "branchStats",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/stats/branches/{*name}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "b3a6eebe-9cf0-49ea-b6cb-1a4c5f5007b0",
+      "area": "git",
+      "resourceName": "pullRequestQuery",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "5bf884f5-3e07-42e9-afb8-1b872267bf16",
+      "area": "git",
+      "resourceName": "changes",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/commits/{commitId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "7f1a3b2c-4d5e-4f6a-9b8c-1d2e3f4a5b6c",
+      "area": "git",
+      "resourceName": "advsecCopilot",
+      "routeTemplate": "_apis/{area}/{resource}/author",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "11e0a184-7e28-4b77-9523-1d4d6dc29241",
+      "area": "git",
+      "resourceName": "trees",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{sha1}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "b32dc299-abe2-41e9-bd15-1e6856b95c9c",
+      "area": "git",
+      "resourceName": "branchStats",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/stats/branches",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "729f6437-6f92-44ec-8bee-273a7111063c",
+      "area": "git",
+      "resourceName": "trees",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{sha1}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "a663da97-81db-4eb3-8b83-287670f63073",
+      "area": "git",
+      "resourceName": "recycleBinRepositories",
+      "routeTemplate": "{project}/_apis/{area}/recycleBin/repositories/{repositoryId}",
+      "resourceVersion": 1,
+      "minVersion": "4.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "b2f3a4d5-6c7b-8e9d-0a1f-2c3d4e5f6a7b",
+      "area": "git",
+      "resourceName": "pullRequestCopilotReviewToken",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/copilotreview/token",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "01a46dea-7d46-4d40-bc84-319e7c260d99",
+      "area": "git",
+      "resourceName": "pullRequests",
+      "routeTemplate": "{project}/_apis/{area}/{resource}/{pullRequestId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "1df7833e-1eed-447b-81a3-390c74923900",
+      "area": "git",
+      "resourceName": "advsecEstimateProject",
+      "routeTemplate": "{project}/_apis/{area}/advsecEstimate",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "9777557b-f5a5-4a6b-94f8-39aff53b5b41",
+      "area": "git",
+      "resourceName": "pushes",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{pushId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "area": "git",
+      "resourceName": "pullRequestCopilotReviewTokenUsage",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/copilotreview/tokenusage",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "a7d8f9e3-2c4b-4f6d-8e1a-3b9c5d7f2e8a",
+      "area": "git",
+      "resourceName": "advsecPermissions",
+      "routeTemplate": "_apis/{area}/{resource}/RepositoriesBatch",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "2277ffbe-28d4-40d6-9c26-40baf26d1408",
+      "area": "git",
+      "resourceName": "advsecEstimateOrg",
+      "routeTemplate": "_apis/{area}/advsecEstimate",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "f1d5d07a-6b89-4384-bef6-446461e31a39",
+      "area": "git",
+      "resourceName": "limitedRefCriteria",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "2.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "965d9361-878b-413b-a494-45d5b5fd8ab7",
+      "area": "git",
+      "resourceName": "pullRequestAttachments",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/attachments/{fileName}",
+      "resourceVersion": 1,
+      "minVersion": "3.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "8af142a4-27c2-4168-9e82-46b8629aaa0d",
+      "area": "git",
+      "resourceName": "cherryPickRelationships",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryNameOrId}/{resource}/{commitId}",
+      "resourceVersion": 1,
+      "minVersion": "4.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "fb93c0db-47ed-4a31-8c20-47552878fb44",
+      "area": "git",
+      "resourceName": "items",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{*path}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "1703f858-b9d1-46af-ab62-483e9e1055b5",
+      "area": "git",
+      "resourceName": "forkSyncRequests",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryNameOrId}/forkSyncRequests/{forkSyncOperationId}",
+      "resourceVersion": 1,
+      "minVersion": "4.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "a92ec66c-5851-41a4-a96b-4a0860958844",
+      "area": "git",
+      "resourceName": "pullRequestWorkItems",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/pullRequests/{pullRequestId}/workitems",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "b5f6bb4f-8d1e-4d79-8d11-4c9172c99c35",
+      "area": "git",
+      "resourceName": "pullRequestStatuses",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/statuses/{statusId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "1d5702f2-90e2-4fe0-8794-4fcd822adb9b",
+      "area": "git",
+      "resourceName": "pullRequestReviewers",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/pullRequests/{pullRequestId}/reviewers/{reviewerId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "d5b216de-d8d5-4d32-ae76-51df755b16d3",
+      "area": "git",
+      "resourceName": "branchStats",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/stats/branches",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "c2570c3b-5b3f-41b8-98bf-5407bfde8d58",
+      "area": "git",
+      "resourceName": "commits",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{commitId}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "d840fb74-bbef-42d3-b250-564604c054a4",
+      "area": "git",
+      "resourceName": "pullRequestConflicts",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/conflicts/{conflictId}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "47320f83-8f30-4ba7-b912-576eadac424b",
+      "area": "git",
+      "resourceName": "hfsItems",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{*path}",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "033bad68-9a14-43d1-90e0-59cb8856fef6",
+      "area": "git",
+      "resourceName": "cherryPicks",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/cherryPicks/{cherryPickId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "6400dfb2-0bcb-462b-b992-5a57f8f1416c",
+      "area": "git",
+      "resourceName": "commitsBatch",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "e264ef02-4e92-4cfc-a4b1-5e71894d7b31",
+      "area": "git",
+      "resourceName": "treeDiffs",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/diffs/trees",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "7b28e929-2c99-405d-9c5c-6167a06e6816",
+      "area": "git",
+      "resourceName": "blobs",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{sha1}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "168b4bb9-d936-4cd9-8a5f-66d6f6b23192",
+      "area": "git",
+      "resourceName": "commits",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pushes/{pushId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "567ef866-886b-44cc-81e2-6cc075905ce5",
+      "area": "git",
+      "resourceName": "itemsBatch",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "4c36aadb-af42-45bb-80ca-6df5cd443e0d",
+      "area": "git",
+      "resourceName": "refs",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{*filter}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "5318bf6c-115f-4828-ba3e-73eca825c276",
+      "area": "git",
+      "resourceName": "pullRequests",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{pullRequestId}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "d8c00958-dedd-491f-93e6-73f3c06f5bba",
+      "area": "git",
+      "resourceName": "ImportRepositoryValidations",
+      "routeTemplate": "{project}/_apis/{area}/import/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "b43dd56f-a1b4-47a5-a857-73fc1b6c700c",
+      "area": "git",
+      "resourceName": "advsecEnablement",
+      "routeTemplate": "_apis/{area}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "7.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "985f7ae9-844f-4906-9897-7ef41516c0e2",
+      "area": "git",
+      "resourceName": "merges",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryNameOrId}/merges/{mergeOperationId}",
+      "resourceVersion": 1,
+      "minVersion": "5.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "965a3ec7-5ed8-455a-bdcb-835a5ea7fe7b",
+      "area": "git",
+      "resourceName": "pullRequestThreadComments",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads/{threadId}/comments/{commentId}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "d43911ee-6958-46b0-a42b-8445b8a0d004",
+      "area": "git",
+      "resourceName": "pullRequestIterations",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/iterations/{iterationId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "c4c5a7e6-e9f3-4730-a92b-84baacff694b",
+      "area": "git",
+      "resourceName": "fileDiffs",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "5.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "e74b530c-edfa-402b-88e2-8d04671134f7",
+      "area": "git",
+      "resourceName": "filePaths",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{*scopepath}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "7c0e3a89-6f12-4c4e-9a1c-8d3e5f6a7b9d",
+      "area": "git",
+      "resourceName": "pullRequestFilesDiff",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/filesdiff",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "52823034-34a8-4576-922c-8d8b77e9e4c4",
+      "area": "git",
+      "resourceName": "pullRequestCommits",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/commits",
+      "resourceVersion": 1,
+      "minVersion": "2.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "a5d28130-9cd2-40fa-9f08-902e7daa9efb",
+      "area": "git",
+      "resourceName": "pullRequests",
+      "routeTemplate": "{project}/_apis/{area}/{resource}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "428dd4fb-fda5-4722-af02-9313b80305da",
+      "area": "git",
+      "resourceName": "statuses",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/commits/{commitId}/{resource}",
+      "resourceVersion": 2,
+      "minVersion": "2.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "5c5e3ebc-37b0-4547-a957-945912d44922",
+      "area": "git",
+      "resourceName": "billableCommitters",
+      "routeTemplate": "{project}/_apis/{area}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "7.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "2d874a60-a811-4f62-9c9f-963a6ea0a55b",
+      "area": "git",
+      "resourceName": "refs",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{*filter}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "5dcec07b-a844-4efb-9fc1-968fd1f149db",
+      "area": "git",
+      "resourceName": "advsecEstimateRepo",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/advsecEstimate",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "0a637fcc-5370-4ce8-b0e8-98091f5f9482",
+      "area": "git",
+      "resourceName": "pullRequestWorkItems",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/workitems",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "5e8a8081-3851-4626-b677-9891cc04102e",
+      "area": "git",
+      "resourceName": "annotatedTags",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{objectId}",
+      "resourceVersion": 1,
+      "minVersion": "3.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "f88d498e-52c3-422a-a5f2-994f4265a25b",
+      "area": "git",
+      "resourceName": "templates",
+      "routeTemplate": "{project}/_apis/{area}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "01828ddc-3600-4a41-8633-99b3a73a0eb3",
+      "area": "git",
+      "resourceName": "importRequests",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/importRequests/{importRequestId}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "9393b4fb-4445-4919-972b-9ad16f442d83",
+      "area": "git",
+      "resourceName": "suggestions",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/suggestions",
+      "resourceVersion": 1,
+      "minVersion": "2.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "ab6e2e5d-a0b7-4153-b64a-a4efe0d49449",
+      "area": "git",
+      "resourceName": "pullRequestThreads",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads/{threadId}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "bc866058-5449-4715-9cf1-a510b6ff193c",
+      "area": "git",
+      "resourceName": "reverts",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/reverts/{revertId}",
+      "resourceVersion": 2,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "ea98d07b-3c87-4971-8ede-a613694ffb55",
+      "area": "git",
+      "resourceName": "pushes",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{pushId}",
+      "resourceVersion": 3,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "225f7195-f9c7-4d14-ab28-a83f7ff77e1f",
+      "area": "git",
+      "resourceName": "repositories",
+      "routeTemplate": "{project}/_apis/{area}/{resource}/{repositoryId}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "82aea7e8-9501-45dd-ac58-b069aa73b926",
+      "area": "git",
+      "resourceName": "repositoriesPaged",
+      "routeTemplate": "_apis/{area}/{projectId}/repositoriesPaged",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "88aea7e8-9501-45dd-ac58-b069aa73b926",
+      "area": "git",
+      "resourceName": "repositories",
+      "routeTemplate": "_apis/{area}/{projectId}/{resource}/{repositoryId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "9946fd70-0d40-406e-b686-b4744cbbcc37",
+      "area": "git",
+      "resourceName": "pullRequests",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{pullRequestId}",
+      "resourceVersion": 2,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "cffac033-c2f1-41a2-acb3-b765e50a8d29",
+      "area": "git",
+      "resourceName": "blobs",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{sha1}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "fed1587d-f1c8-475d-925c-b97f2c9dde50",
+      "area": "git",
+      "resourceName": "commitsBatch",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "4b6702c7-aa35-4b89-9c96-b9abf6d3e540",
+      "area": "git",
+      "resourceName": "pullRequestReviewers",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/reviewers/{reviewerId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "696f3a82-47c9-487f-9117-b9d00972ca84",
+      "area": "git",
+      "resourceName": "pullRequestShare",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/share",
+      "resourceVersion": 1,
+      "minVersion": "3.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "61b21a05-a60f-4910-a733-ba5347c2142d",
+      "area": "git",
+      "resourceName": "advsecPermissions",
+      "routeTemplate": "_apis/{area}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "7.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "48a52185-5b9e-4736-9dc1-bb1e2feac80b",
+      "area": "git",
+      "resourceName": "pullRequestProperties",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/properties",
+      "resourceVersion": 1,
+      "minVersion": "4.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "616a5255-74b3-40f5-ae1d-bbae2eec8db5",
+      "area": "git",
+      "resourceName": "repositoryStats",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/stats",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "10d7ae6d-1050-446d-852a-bd5d99f834bf",
+      "area": "git",
+      "resourceName": "revertConflicts",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/reverts/{revertId}/conflicts/{conflictId}",
+      "resourceVersion": 1,
+      "minVersion": "6.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "4216bdcf-b6b1-4d59-8b82-c34cc183fc8b",
+      "area": "git",
+      "resourceName": "pullRequestIterationChanges",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/iterations/{iterationId}/changes",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "2c420070-a0a2-49cc-9639-c9f271c5ff07",
+      "area": "git",
+      "resourceName": "policyConfigurations",
+      "routeTemplate": "{project}/_apis/{area}/policy/configurations",
+      "resourceVersion": 1,
+      "minVersion": "5.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "876f70af-5792-485a-a1c7-d0a7b2f42bbb",
+      "area": "git",
+      "resourceName": "refsFavorites",
+      "routeTemplate": "{project}/_apis/{area}/favorites/refs/{favoriteId}",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "158c0340-bf6f-489c-9625-d572a1480d57",
+      "area": "git",
+      "resourceName": "forks",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryNameOrId}/forks/{collectionId}",
+      "resourceVersion": 1,
+      "minVersion": "4.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "29ba9926-be39-4db5-bbdf-d6c9458195c6",
+      "area": "git",
+      "resourceName": "commitDiffs",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/diffs/commits",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "17f0a869-1589-43f0-9901-db1b2519087d",
+      "area": "git",
+      "resourceName": "hfsItems",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{*path}",
+      "resourceVersion": 1,
+      "minVersion": "7.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "433ab753-6ed9-4169-9841-dd3f7611834a",
+      "area": "git",
+      "resourceName": "items",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{*path}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "615588d5-c0c7-4b88-88f8-e625306446e8",
+      "area": "git",
+      "resourceName": "commitDiffs",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/diffs/commits",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "cc7a4cb0-7377-494a-80d4-ef4d607f6eb2",
+      "area": "git",
+      "resourceName": "commits",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/pushes/{pushId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "41a3de30-8d9e-4f79-a7e3-ef8cf1299454",
+      "area": "git",
+      "resourceName": "commits",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/{resource}/{commitId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "e7ea0883-095f-4926-b5fb-f24691c26fb9",
+      "area": "git",
+      "resourceName": "pullRequestCommits",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/iterations/{iterationId}/commits",
+      "resourceVersion": 1,
+      "minVersion": "3.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "1fe5aab2-d4c0-4b2f-a030-f3831e7aca26",
+      "area": "git",
+      "resourceName": "cherryPickConflicts",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/cherryPicks/{cherryPickId}/conflicts/{conflictId}",
+      "resourceVersion": 1,
+      "minVersion": "6.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "d5e42319-9c64-4acd-a906-f524a578a7fe",
+      "area": "git",
+      "resourceName": "refsBatch",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "2.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "7cf2abb6-c964-4f7e-9872-f78c66e72e9c",
+      "area": "git",
+      "resourceName": "mergeBases",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryNameOrId}/commits/{commitId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "4.1",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "5f2e2851-1389-425b-a00b-fb2adb3ef31b",
+      "area": "git",
+      "resourceName": "pullRequestCommentLikes",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/threads/{threadId}/comments/{commentId}/likes",
+      "resourceVersion": 1,
+      "minVersion": "4.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "f22387e3-984e-4c52-9c6d-fbb8f14c812d",
+      "area": "git",
+      "resourceName": "pullRequestLabels",
+      "routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/pullRequests/{pullRequestId}/labels/{labelIdOrName}",
+      "resourceVersion": 1,
+      "minVersion": "4.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
+    {
+      "id": "074db773-d674-4de9-a0dd-fcb6adddecf9",
+      "area": "git",
+      "resourceName": "changes",
+      "routeTemplate": "_apis/{area}/{projectId}/repositories/{repositoryId}/commits/{commitId}/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "1.0",
+      "releasedVersion": "1.0"
+    },
+    {
+      "id": "00d9565f-ed9c-4a06-9a50-00e7896ccab4",
+      "area": "Location",
+      "resourceName": "ConnectionData",
+      "routeTemplate": "_apis/{resource}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "e81700f7-3be2-46de-8624-2eb35882fcaa",
+      "area": "Location",
+      "resourceName": "ResourceAreas",
+      "routeTemplate": "_apis/{resource}/{areaId}",
+      "resourceVersion": 1,
+      "minVersion": "3.2",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    },
+    {
+      "id": "d810a47d-f4f4-4a62-a03f-fa1860585c4c",
+      "area": "Location",
+      "resourceName": "ServiceDefinitions",
+      "routeTemplate": "_apis/{resource}/{serviceType}/{identifier}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "0.0"
+    }
+  ]
+}
