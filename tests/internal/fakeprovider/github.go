@@ -30,7 +30,10 @@ type GitHubCommit struct {
 	Message string
 }
 
-const githubKeySHA = "sha"
+const (
+	githubKeySHA     = "sha"
+	githubKeyMessage = "message"
+)
 
 // NewGitHub starts an httptest.Server serving the minimum set of GitHub REST
 // endpoints exercised by `yeet release --dry-run` against a configured
@@ -110,7 +113,7 @@ func githubCommitsList(commits []GitHubCommit) []map[string]any {
 		out = append(out, map[string]any{
 			githubKeySHA: c.SHA,
 			"commit": map[string]any{
-				"message": c.Message,
+				githubKeyMessage: c.Message,
 			},
 		})
 	}
