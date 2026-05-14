@@ -144,32 +144,46 @@ yeet resolves the target repository from these sources, highest priority first:
 3. the configured `repository.remote`
 4. the `origin` remote
 
-Automatic provider detection intentionally only classifies the public hosts `github.com` and
-`gitlab.com`. For custom or enterprise domains, set the provider explicitly; this avoids
-sending provider tokens to an arbitrary host based only on hostname text. Repository host and
-path are discovered from `repository.remote`/`origin`; set `repository:` only when overriding
-remote discovery or when no usable remote exists:
+Automatic provider detection intentionally only classifies the public hosts `github.com`,
+`gitlab.com`, and `dev.azure.com`. For custom or enterprise domains, set the provider
+explicitly; this avoids sending provider tokens to an arbitrary host based only on hostname
+text. Repository host and path are discovered from `repository.remote`/`origin`; set
+`repository:` only when overriding remote discovery or when no usable remote exists.
+
+When `repository:` is set, exactly one provider sub-section may be set, and it must match
+the top-level `provider`. The available sub-sections are `repository.github`,
+`repository.gitlab`, and `repository.azuredevops`:
 
 ```yaml
-# GitHub Enterprise
-provider: github
-```
-
-```yaml
-# GitLab self-managed
-provider: gitlab
-```
-
-When remote discovery cannot supply the host and path — or you want to override it — set `repository:` explicitly. All sub-keys are optional; provide only what you need to override:
-
-```yaml
+# GitHub (including Enterprise)
 provider: github
 repository:
   remote: upstream            # which git remote to inspect (default: origin)
-  host: github.example.com    # override host for enterprise / mirrors
-  owner: acme                 # github-style: owner + repo
-  repo: widgets
-  # project: group/sub/widgets  # gitlab-style alternative to owner+repo
+  github:
+    host: github.example.com  # override host for enterprise / mirrors
+    owner: acme
+    repo: widgets
+```
+
+```yaml
+# GitLab (self-managed)
+provider: gitlab
+repository:
+  gitlab:
+    host: gitlab.example.com
+    project: group/sub/widgets   # full project path, including subgroups
+```
+
+```yaml
+# Azure DevOps
+provider: azuredevops
+repository:
+  azuredevops:
+    host: dev.azure.com
+    organization: contoso
+    project: MyProject
+    repo: widgets
+    # collection: DefaultCollection   # optional; defaults to organization
 ```
 
 ### Targets

@@ -29,8 +29,9 @@ func TestReleaseGitHubProjectOnly(t *testing.T) {
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  project: testorg/testrepo
+  github:
+    host: github.com
+    project: testorg/testrepo
 targets:
   default:
     type: path

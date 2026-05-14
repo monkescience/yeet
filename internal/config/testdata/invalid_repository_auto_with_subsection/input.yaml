@@ -1,0 +1,14 @@
+versioning: semver
+branch: main
+provider: auto
+repository:
+  remote: origin
+  github:
+    host: github.com
+    owner: platform
+    repo: yeet
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

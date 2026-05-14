@@ -32,9 +32,10 @@ func TestReleaseScalarVersionFile(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 version_files:
   - VERSION.txt
 targets:
@@ -80,9 +81,10 @@ func TestReleasePerTargetOverrides(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -133,9 +135,10 @@ func TestReleaseCustomBumpTypes(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 bump_types:
   minor: [feat]
   patch: [fix, perf, chore]
@@ -185,9 +188,10 @@ func TestReleaseDerivedExclude(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -241,9 +245,10 @@ branch: main
 pre_major_breaking_bumps_minor: false
 pre_major_features_bump_patch: false
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path

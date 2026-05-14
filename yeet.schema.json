@@ -23,11 +23,12 @@
     },
     "provider": {
       "type": "string",
-      "description": "VCS provider. Use \"auto\" to detect github.com or gitlab.com from repository host or remote. Custom domains require an explicit provider.",
+      "description": "VCS provider. Use \"auto\" to detect github.com, gitlab.com, or dev.azure.com from the git remote. Custom domains require an explicit provider and a matching repository.<provider> sub-section.",
       "enum": [
         "auto",
         "github",
-        "gitlab"
+        "gitlab",
+        "azuredevops"
       ],
       "default": "auto"
     },
@@ -74,7 +75,7 @@
   "$defs": {
     "repository": {
       "type": "object",
-      "description": "Repository coordinates. Provide host plus either owner+repo (GitHub-style) or project (GitLab-style). If omitted, yeet auto-detects from the git remote. Custom domains require an explicit provider.",
+      "description": "Repository coordinates. Set `remote` plus exactly one provider sub-section matching the top-level `provider`. If omitted, yeet auto-detects from the git remote. Custom domains require an explicit provider and the matching sub-section.",
       "additionalProperties": false,
       "properties": {
         "remote": {
@@ -83,24 +84,89 @@
           "minLength": 1,
           "default": "origin"
         },
+        "github": {
+          "$ref": "#/$defs/repository_github"
+        },
+        "gitlab": {
+          "$ref": "#/$defs/repository_gitlab"
+        },
+        "azuredevops": {
+          "$ref": "#/$defs/repository_azuredevops"
+        }
+      }
+    },
+    "repository_github": {
+      "type": "object",
+      "description": "GitHub repository coordinates. Used when provider is github.",
+      "additionalProperties": false,
+      "properties": {
         "host": {
           "type": "string",
-          "description": "Repository host name, such as github.com or gitlab.company.com.",
+          "description": "GitHub host, such as github.com or a GitHub Enterprise hostname.",
           "minLength": 1
         },
         "owner": {
           "type": "string",
-          "description": "Repository owner or namespace for GitHub-style repositories.",
+          "description": "Repository owner or organization.",
           "minLength": 1
         },
         "repo": {
           "type": "string",
-          "description": "Repository name for GitHub-style repositories.",
+          "description": "Repository name.",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "description": "Project path in owner/repo form. Optional shorthand for owner+repo.",
+          "minLength": 1
+        }
+      }
+    },
+    "repository_gitlab": {
+      "type": "object",
+      "description": "GitLab repository coordinates. Used when provider is gitlab.",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "GitLab host, such as gitlab.com or a self-hosted GitLab hostname.",
           "minLength": 1
         },
         "project": {
           "type": "string",
           "description": "Full GitLab project path, including any subgroups.",
+          "minLength": 1
+        }
+      }
+    },
+    "repository_azuredevops": {
+      "type": "object",
+      "description": "Azure DevOps repository coordinates. Used when provider is azuredevops.",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Azure DevOps host, typically dev.azure.com.",
+          "minLength": 1
+        },
+        "organization": {
+          "type": "string",
+          "description": "Azure DevOps organization name.",
+          "minLength": 1
+        },
+        "project": {
+          "type": "string",
+          "description": "Azure DevOps team project name.",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "description": "Repository name within the project.",
+          "minLength": 1
+        },
+        "collection": {
+          "type": "string",
+          "description": "Optional Azure DevOps collection. Defaults to the organization when omitted.",
           "minLength": 1
         }
       }

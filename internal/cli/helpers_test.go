@@ -23,8 +23,10 @@ func TestResolveRepository(t *testing.T) {
 
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitLab
-		cfg.Repository.Host = "gitlab.company.com"
-		cfg.Repository.Project = "group/subgroup/service"
+		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+			Host:    "gitlab.company.com",
+			Project: "group/subgroup/service",
+		}
 
 		remoteLookedUp := false
 
@@ -53,8 +55,10 @@ func TestResolveRepository(t *testing.T) {
 
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Owner = "platform"
-		cfg.Repository.Repo = "yeet"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+			Owner: "platform",
+			Repo:  "yeet",
+		}
 
 		remoteLookedUp := false
 
@@ -163,45 +167,28 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("explicit coordinates override remote coordinates", func(t *testing.T) {
 		t.Parallel()
 
+		// given: explicit github coordinates while the remote points to a different repo
 		cfg := config.Default()
-		cfg.Repository.Owner = "platform"
-		cfg.Repository.Repo = "yeet"
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+			Owner: "platform",
+			Repo:  "yeet",
+		}
 
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
-				return "git@gitlab.com:group/other.git", nil
+				return "git@github.com:other/repo.git", nil
 			},
 		)
 
+		// then: explicit config wins over remote detection
 		testastic.NoError(t, err)
-		testastic.Equal(t, "gitlab", repository.Provider)
+		testastic.Equal(t, "github", repository.Provider)
 		testastic.Equal(t, "platform", repository.Owner)
 		testastic.Equal(t, "yeet", repository.Repo)
 		testastic.Equal(t, "platform/yeet", repository.Project)
-	})
-
-	t.Run("fails when project conflicts with owner and repo", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := config.Default()
-		cfg.Provider = config.ProviderGitLab
-		cfg.Repository.Project = "group/subgroup/service"
-		cfg.Repository.Owner = "platform"
-		cfg.Repository.Repo = "yeet"
-
-		_, err := resolveRepository(
-			context.Background(),
-			cfg,
-			func(context.Context, string) (string, error) {
-				return "", errors.New("git remote lookup should not run")
-			},
-		)
-
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrRepositoryConflict)
-		testastic.ErrorContains(t, err, "project \"group/subgroup/service\" does not match owner/repo \"platform/yeet\"")
 	})
 }
 

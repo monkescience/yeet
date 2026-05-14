@@ -1075,9 +1075,10 @@ Set the provider explicitly for custom hosts:
 ` + "```yaml" + `
 provider: github
 repository:
-  host: github.company.com
-  owner: platform
-  repo: app
+  github:
+    host: github.company.com
+    owner: platform
+    repo: app
 ` + "```" + `
 `)
 
@@ -1310,8 +1311,9 @@ Set the provider explicitly for custom hosts:
 ` + "```yaml" + `
 provider: gitlab
 repository:
-  host: gitlab.company.com
-  project: group/subgroup/app
+  gitlab:
+    host: gitlab.company.com
+    project: group/subgroup/app
 ` + "```" + `
 `)
 

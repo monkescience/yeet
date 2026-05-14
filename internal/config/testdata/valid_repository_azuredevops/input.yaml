@@ -1,0 +1,16 @@
+versioning: semver
+branch: main
+provider: azuredevops
+repository:
+  remote: origin
+  azuredevops:
+    host: dev.azure.com
+    organization: contoso
+    project: MyProject
+    repo: yeet
+    collection: DefaultCollection
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

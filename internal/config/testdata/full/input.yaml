@@ -6,8 +6,9 @@ version_files:
   - cmd/yeet/version.txt
 repository:
   remote: upstream
-  host: gitlab.company.com
-  project: group/subgroup/service
+  gitlab:
+    host: gitlab.company.com
+    project: group/subgroup/service
 changelog:
   file: CHANGES.md
   include:

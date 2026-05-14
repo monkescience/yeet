@@ -21,6 +21,7 @@ type ConfigOptions struct {
 	Project           string
 	Host              string
 	Organization      string
+	Collection        string
 	Versioning        string
 	CalVerFormat      string
 	VersionFiles      []VersionFileOptions
@@ -135,12 +136,59 @@ func writeTop(b *strings.Builder, opts ConfigOptions) {
 }
 
 func writeRepository(b *strings.Builder, opts ConfigOptions) {
+	hasSubsectionField := opts.Host != "" ||
+		opts.Owner != "" ||
+		opts.Repo != "" ||
+		opts.Project != "" ||
+		opts.Organization != "" ||
+		opts.Collection != ""
+
+	if !hasSubsectionField {
+		return
+	}
+
 	b.WriteString("repository:\n")
-	writeScalar(b, "  host: ", opts.Host)
-	writeScalar(b, "  owner: ", opts.Owner)
-	writeScalar(b, "  repo: ", opts.Repo)
-	writeScalar(b, "  project: ", opts.Project)
-	writeScalar(b, "  organization: ", opts.Organization)
+
+	provider := opts.Provider
+	if provider == "" {
+		provider = inferProvider(opts)
+	}
+
+	switch provider {
+	case "github":
+		b.WriteString("  github:\n")
+		writeScalar(b, "    host: ", opts.Host)
+		writeScalar(b, "    owner: ", opts.Owner)
+		writeScalar(b, "    repo: ", opts.Repo)
+		writeScalar(b, "    project: ", opts.Project)
+	case "gitlab":
+		b.WriteString("  gitlab:\n")
+		writeScalar(b, "    host: ", opts.Host)
+		writeScalar(b, "    project: ", opts.Project)
+	case "azuredevops":
+		b.WriteString("  azuredevops:\n")
+		writeScalar(b, "    host: ", opts.Host)
+		writeScalar(b, "    organization: ", opts.Organization)
+		writeScalar(b, "    project: ", opts.Project)
+		writeScalar(b, "    repo: ", opts.Repo)
+		writeScalar(b, "    collection: ", opts.Collection)
+	}
+}
+
+func inferProvider(opts ConfigOptions) string {
+	if opts.Organization != "" {
+		return "azuredevops"
+	}
+
+	if opts.Owner != "" || opts.Repo != "" {
+		return "github"
+	}
+
+	if opts.Project != "" {
+		return "gitlab"
+	}
+
+	return ""
 }
 
 func writeVersionFiles(b *strings.Builder, files []VersionFileOptions) {

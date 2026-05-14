@@ -18,9 +18,10 @@ func TestReleaseRepositoryValidation(t *testing.T) {
 branch: main
 repository:
   remote: ""
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -46,9 +47,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: "   "
-  owner: testorg
-  repo: testrepo
+  github:
+    host: "   "
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -64,7 +66,7 @@ targets:
 
 		// then: yeet exits 1 and stderr names the blank host
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "repository.host")
+		testastic.Contains(t, result.Stderr, "repository.github.host")
 	})
 
 	t.Run("rejects azuredevops config without project", func(t *testing.T) {
@@ -74,9 +76,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: azuredevops
 branch: main
 repository:
-  host: dev.azure.com
-  organization: contoso
-  repo: yeet
+  azuredevops:
+    host: dev.azure.com
+    organization: contoso
+    repo: yeet
 targets:
   default:
     type: path
@@ -92,7 +95,7 @@ targets:
 
 		// then: yeet exits 1 and stderr says project is required
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "repository.project")
+		testastic.Contains(t, result.Stderr, "repository.azuredevops.project")
 	})
 
 	t.Run("rejects owner without repo for github", func(t *testing.T) {
@@ -102,8 +105,9 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
+  github:
+    host: github.com
+    owner: testorg
 targets:
   default:
     type: path
@@ -119,7 +123,7 @@ targets:
 
 		// then: yeet exits 1 and stderr says owner+repo must be set together
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "repository.owner")
+		testastic.Contains(t, result.Stderr, "repository.github.owner")
 	})
 
 	t.Run("rejects mismatched project vs owner/repo", func(t *testing.T) {
@@ -129,10 +133,11 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: alice
-  repo: tools
-  project: bob/tools
+  github:
+    host: github.com
+    owner: alice
+    repo: tools
+    project: bob/tools
 targets:
   default:
     type: path
@@ -148,7 +153,7 @@ targets:
 
 		// then: yeet exits 1 and stderr says project must match
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "repository.project")
+		testastic.Contains(t, result.Stderr, "repository.github.project")
 	})
 
 	t.Run("rejects github owner containing slash", func(t *testing.T) {
@@ -158,9 +163,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: nested/owner
-  repo: testrepo
+  github:
+    host: github.com
+    owner: nested/owner
+    repo: testrepo
 targets:
   default:
     type: path
@@ -186,9 +192,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -214,9 +221,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -242,9 +250,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -270,9 +279,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -301,8 +311,9 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  project: a/b/c
+  github:
+    host: github.com
+    project: a/b/c
 targets:
   default:
     type: path
@@ -328,9 +339,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -355,9 +367,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -388,9 +401,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -422,9 +436,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path
@@ -460,9 +475,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   services:
     type: path
@@ -492,9 +508,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   services:
     type: path
@@ -527,9 +544,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   api:
     type: path

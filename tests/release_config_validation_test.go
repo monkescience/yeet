@@ -35,9 +35,10 @@ func TestReleaseConfigValidation(t *testing.T) {
 branch: main
 versioning: bogus
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -66,9 +67,10 @@ versioning: calver
 calver:
   format: NOPE
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -96,9 +98,10 @@ branch: main
 bump_types:
   minor: [""]
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -126,9 +129,10 @@ branch: main
 changelog:
   include: []
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -158,9 +162,10 @@ release:
     beta:
       prerelease: beta
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -191,9 +196,10 @@ release:
       branch: stable
       prerelease: stable
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -227,9 +233,10 @@ release:
       branch: prerelease
       prerelease: rc
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -263,9 +270,10 @@ release:
       branch: rc
       prerelease: next
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -297,9 +305,10 @@ release:
       branch: beta
       prerelease: bad value
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -330,9 +339,10 @@ release:
       branch: main
       prerelease: beta
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -358,9 +368,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -388,9 +399,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 version_files:
   - path: package.json
     format: toml
@@ -420,9 +432,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 version_files:
   - path: package.json
     format: json
@@ -451,9 +464,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 version_files:
   - path: package.json
     format: json
@@ -485,9 +499,10 @@ branch: main
 release:
   auto_merge_method: wrongo
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -533,9 +548,10 @@ func TestReleaseExplicitConfigDiscovery(t *testing.T) {
 		configBody := `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path

@@ -1,0 +1,13 @@
+versioning: semver
+branch: main
+provider: github
+repository:
+  remote: origin
+  gitlab:
+    host: gitlab.company.com
+    project: group/sub/service
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

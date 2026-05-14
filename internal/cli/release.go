@@ -200,7 +200,10 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 
 	logReleaseCommand(ctx, resolvedConfigPath, options)
 
-	applyReleaseOptions(cfg, options)
+	err = applyReleaseOptions(cfg, options)
+	if err != nil {
+		return nil, fmt.Errorf("invalid release options: %w", err)
+	}
 
 	err = cfg.Validate()
 	if err != nil {
@@ -360,13 +363,18 @@ func resolveExplicitReleaseChannel(cfg *config.Config, currentBranch string, opt
 	return nil
 }
 
-func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) {
-	applyRepositoryReleaseOptions(cfg, options)
+func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) error {
+	err := applyRepositoryReleaseOptions(cfg, options)
+	if err != nil {
+		return err
+	}
 
 	applyReleaseBehaviorOptions(cfg, options)
+
+	return nil
 }
 
-func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions) {
+func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions) error {
 	previousProvider := cfg.Provider
 
 	if options.providerSet {
@@ -377,32 +385,138 @@ func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions
 		cfg.Repository.Remote = options.repositoryRemote
 	}
 
+	hasRepoFieldOverride := options.repositoryHostSet ||
+		options.repositoryOwnerSet ||
+		options.repositoryRepoSet ||
+		options.repositoryProjectSet
+
+	if cfg.Provider == config.ProviderAuto {
+		if hasRepoFieldOverride {
+			return fmt.Errorf(
+				"%w: repository field flags require an explicit --provider (auto cannot route them)",
+				config.ErrInvalidConfig,
+			)
+		}
+
+		cfg.Repository.GitHub = nil
+		cfg.Repository.GitLab = nil
+		cfg.Repository.AzureDevOps = nil
+
+		return nil
+	}
+
+	if providerChanged(previousProvider, cfg.Provider) {
+		cfg.Repository.GitHub = nil
+		cfg.Repository.GitLab = nil
+		cfg.Repository.AzureDevOps = nil
+	}
+
+	switch cfg.Provider {
+	case config.ProviderGitHub:
+		return applyGitHubReleaseOverrides(&cfg.Repository, options)
+	case config.ProviderGitLab:
+		return applyGitLabReleaseOverrides(&cfg.Repository, options)
+	case config.ProviderAzureDevOps:
+		return applyAzureDevOpsReleaseOverrides(&cfg.Repository, options)
+	case config.ProviderAuto:
+	}
+
+	return nil
+}
+
+func applyGitHubReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
+	if repository.GitHub == nil {
+		repository.GitHub = &config.GitHubRepositoryConfig{}
+	}
+
+	github := repository.GitHub
+
 	if options.repositoryHostSet {
-		cfg.Repository.Host = options.repositoryHost
-	} else if providerChanged(previousProvider, cfg.Provider) {
-		cfg.Repository.Host = ""
+		github.Host = options.repositoryHost
 	}
 
 	if options.repositoryOwnerSet {
-		cfg.Repository.Owner = options.repositoryOwner
+		github.Owner = options.repositoryOwner
 	}
 
 	if options.repositoryRepoSet {
-		cfg.Repository.Repo = options.repositoryRepo
+		github.Repo = options.repositoryRepo
 	}
 
 	if options.repositoryProjectSet {
-		cfg.Repository.Project = options.repositoryProject
+		github.Project = options.repositoryProject
 
-		clearRepositoryOwnerRepoForProject(cfg, options)
+		if !options.repositoryOwnerSet {
+			github.Owner = ""
+		}
+
+		if !options.repositoryRepoSet {
+			github.Repo = ""
+		}
 	}
 
 	if !options.repositoryProjectSet &&
 		(options.repositoryOwnerSet || options.repositoryRepoSet) &&
-		strings.TrimSpace(cfg.Repository.Owner) != "" &&
-		strings.TrimSpace(cfg.Repository.Repo) != "" {
-		cfg.Repository.Project = ""
+		strings.TrimSpace(github.Owner) != "" &&
+		strings.TrimSpace(github.Repo) != "" {
+		github.Project = ""
 	}
+
+	return nil
+}
+
+func applyGitLabReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
+	if options.repositoryOwnerSet || options.repositoryRepoSet {
+		return fmt.Errorf(
+			"%w: --owner/--repo are not valid for provider gitlab; use --project",
+			config.ErrInvalidConfig,
+		)
+	}
+
+	if repository.GitLab == nil {
+		repository.GitLab = &config.GitLabRepositoryConfig{}
+	}
+
+	gitlab := repository.GitLab
+
+	if options.repositoryHostSet {
+		gitlab.Host = options.repositoryHost
+	}
+
+	if options.repositoryProjectSet {
+		gitlab.Project = options.repositoryProject
+	}
+
+	return nil
+}
+
+func applyAzureDevOpsReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
+	if options.repositoryOwnerSet {
+		return fmt.Errorf(
+			"%w: --owner is not valid for provider azuredevops",
+			config.ErrInvalidConfig,
+		)
+	}
+
+	if repository.AzureDevOps == nil {
+		repository.AzureDevOps = &config.AzureDevOpsRepositoryConfig{}
+	}
+
+	azure := repository.AzureDevOps
+
+	if options.repositoryHostSet {
+		azure.Host = options.repositoryHost
+	}
+
+	if options.repositoryRepoSet {
+		azure.Repo = options.repositoryRepo
+	}
+
+	if options.repositoryProjectSet {
+		azure.Project = options.repositoryProject
+	}
+
+	return nil
 }
 
 func providerChanged(previous, next config.ProviderType) bool {
@@ -414,20 +528,6 @@ func providerChanged(previous, next config.ProviderType) bool {
 	}
 
 	return previousProvider != nextProvider
-}
-
-func clearRepositoryOwnerRepoForProject(cfg *config.Config, options releaseRunOptions) {
-	if options.repositoryProject == "" {
-		return
-	}
-
-	if !options.repositoryOwnerSet {
-		cfg.Repository.Owner = ""
-	}
-
-	if !options.repositoryRepoSet {
-		cfg.Repository.Repo = ""
-	}
 }
 
 func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) {

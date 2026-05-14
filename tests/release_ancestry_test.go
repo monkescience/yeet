@@ -71,9 +71,10 @@ func TestReleaseChannelChangelogFile(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 release:
   channels:
     beta:
@@ -121,9 +122,10 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 release:
   pr_body_header: "## Custom Release Header"
   pr_body_footer: "_yeet release footer_"
@@ -164,9 +166,10 @@ targets:
 		const configBody = `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 release:
   subject_include_branch: true
 targets:

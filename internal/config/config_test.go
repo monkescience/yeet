@@ -95,8 +95,9 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "develop", cfg.Branch)
 		testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
 		testastic.Equal(t, "upstream", cfg.Repository.Remote)
-		testastic.Equal(t, "gitlab.company.com", cfg.Repository.Host)
-		testastic.Equal(t, "group/subgroup/service", cfg.Repository.Project)
+		testastic.NotNil(t, cfg.Repository.GitLab)
+		testastic.Equal(t, "gitlab.company.com", cfg.Repository.GitLab.Host)
+		testastic.Equal(t, "group/subgroup/service", cfg.Repository.GitLab.Project)
 		testastic.True(t, cfg.Release.SubjectIncludeBranch)
 		testastic.True(t, cfg.Release.AutoMerge)
 		testastic.True(t, cfg.Release.AutoMergeForce)
@@ -265,6 +266,59 @@ func TestParse(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
+	t.Run("repository sub-section must match provider", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider github with a gitlab sub-section
+		data, err := os.ReadFile("testdata/invalid_repository_wrong_subsection/input.yaml")
+		testastic.NoError(t, err)
+
+		// when: parsing the config
+		_, err = config.Parse(data)
+
+		// then: parsing rejects the mismatched sub-section
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.gitlab set but provider is github")
+	})
+
+	t.Run("provider auto rejects any repository sub-section", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider auto plus a github sub-section
+		data, err := os.ReadFile("testdata/invalid_repository_auto_with_subsection/input.yaml")
+		testastic.NoError(t, err)
+
+		// when: parsing the config
+		_, err = config.Parse(data)
+
+		// then: parsing rejects the sub-section under auto
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "repository.github set but provider is auto")
+	})
+
+	t.Run("azuredevops happy path parses and hydrates", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider azuredevops with a fully-populated sub-section
+		data, err := os.ReadFile("testdata/valid_repository_azuredevops/input.yaml")
+		testastic.NoError(t, err)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: parse succeeds and flat fields are hydrated from the sub-section
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.ProviderAzureDevOps, cfg.Provider)
+		testastic.NotNil(t, cfg.Repository.AzureDevOps)
+		testastic.Equal(t, "dev.azure.com", cfg.Repository.AzureDevOps.Host)
+		testastic.Equal(t, "contoso", cfg.Repository.AzureDevOps.Organization)
+		testastic.Equal(t, "MyProject", cfg.Repository.AzureDevOps.Project)
+		testastic.Equal(t, "yeet", cfg.Repository.AzureDevOps.Repo)
+		testastic.Equal(t, "DefaultCollection", cfg.Repository.AzureDevOps.Collection)
+	})
+
 	t.Run("invalid yaml", func(t *testing.T) {
 		t.Parallel()
 
@@ -398,9 +452,10 @@ func TestValidate(t *testing.T) {
 	t.Run("repository owner and repo must be set together", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository config with only owner set
+		// given: github sub-section with only owner set
 		cfg := config.Default()
-		cfg.Repository.Owner = "platform"
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -413,11 +468,14 @@ func TestValidate(t *testing.T) {
 	t.Run("repository project must match owner and repo when both are set", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository config with conflicting explicit coordinates
+		// given: github sub-section with conflicting explicit coordinates
 		cfg := config.Default()
-		cfg.Repository.Owner = "platform"
-		cfg.Repository.Repo = "yeet"
-		cfg.Repository.Project = "group/subgroup/service"
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+			Owner:   "platform",
+			Repo:    "yeet",
+			Project: "other/yeet",
+		}
 
 		// when: validating
 		err := cfg.Validate()
@@ -425,7 +483,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project must match repository.owner/repo")
+		testastic.ErrorContains(t, err, "repository.github.project must match repository.github.owner/repo")
 	})
 
 	t.Run("github project must stay in owner repo form", func(t *testing.T) {
@@ -434,7 +492,7 @@ func TestValidate(t *testing.T) {
 		// given: explicit github provider with a subgroup-style project path
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Project = "group/subgroup/service"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "group/subgroup/service"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -442,7 +500,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
 	})
 
 	t.Run("github project in valid owner repo form passes", func(t *testing.T) {
@@ -451,7 +509,7 @@ func TestValidate(t *testing.T) {
 		// given: explicit github provider with a valid two-segment project
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Project = "owner/repo"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "owner/repo"}
 		cfg.Targets = map[string]config.Target{
 			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 		}
@@ -469,7 +527,7 @@ func TestValidate(t *testing.T) {
 		// given: explicit github provider with an empty owner segment
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Project = "/repo"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "/repo"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -477,7 +535,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
 	})
 
 	t.Run("github project with empty repo segment fails", func(t *testing.T) {
@@ -486,7 +544,7 @@ func TestValidate(t *testing.T) {
 		// given: explicit github provider with an empty repo segment
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Project = "owner/"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "owner/"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -494,7 +552,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project must be in owner/repo form for github")
+		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
 	})
 
 	t.Run("empty repository remote fails", func(t *testing.T) {
@@ -653,9 +711,10 @@ func TestValidate(t *testing.T) {
 	t.Run("blank repository host fails", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository host set to whitespace only
+		// given: github sub-section with host set to whitespace only
 		cfg := config.Default()
-		cfg.Repository.Host = "   "
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Host: "   ", Owner: "o", Repo: "r"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -663,15 +722,16 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank host
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.host")
+		testastic.ErrorContains(t, err, "repository.github.host")
 	})
 
 	t.Run("blank repository owner fails", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository owner set to whitespace only
+		// given: github sub-section with owner set to whitespace only
 		cfg := config.Default()
-		cfg.Repository.Owner = "   "
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "   "}
 
 		// when: validating
 		err := cfg.Validate()
@@ -679,15 +739,16 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank owner
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.owner")
+		testastic.ErrorContains(t, err, "repository.github.owner")
 	})
 
 	t.Run("blank repository repo fails", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository repo set to whitespace only
+		// given: github sub-section with repo set to whitespace only
 		cfg := config.Default()
-		cfg.Repository.Repo = "   "
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Repo: "   "}
 
 		// when: validating
 		err := cfg.Validate()
@@ -695,15 +756,16 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank repo
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.repo")
+		testastic.ErrorContains(t, err, "repository.github.repo")
 	})
 
 	t.Run("blank repository project fails", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository project set to whitespace only
+		// given: gitlab sub-section with project set to whitespace only
 		cfg := config.Default()
-		cfg.Repository.Project = "   "
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{Project: "   "}
 
 		// when: validating
 		err := cfg.Validate()
@@ -711,7 +773,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank project
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project")
+		testastic.ErrorContains(t, err, "repository.gitlab.project")
 	})
 
 	t.Run("github owner with slash fails", func(t *testing.T) {
@@ -720,8 +782,7 @@ func TestValidate(t *testing.T) {
 		// given: github provider with subgroup-style owner
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
-		cfg.Repository.Owner = "group/sub"
-		cfg.Repository.Repo = "service"
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "group/sub", Repo: "service"}
 
 		// when: validating
 		err := cfg.Validate()
@@ -729,17 +790,20 @@ func TestValidate(t *testing.T) {
 		// then: github does not allow nested owner paths
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.owner")
+		testastic.ErrorContains(t, err, "repository.github.owner")
 	})
 
 	t.Run("repository project must match owner and repo when project is owner-repo style", func(t *testing.T) {
 		t.Parallel()
 
-		// given: repository config where project does not equal owner/repo
+		// given: github sub-section where project does not equal owner/repo
 		cfg := config.Default()
-		cfg.Repository.Owner = "platform"
-		cfg.Repository.Repo = "yeet"
-		cfg.Repository.Project = "platform/other"
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+			Owner:   "platform",
+			Repo:    "yeet",
+			Project: "platform/other",
+		}
 
 		// when: validating
 		err := cfg.Validate()
@@ -747,7 +811,7 @@ func TestValidate(t *testing.T) {
 		// then: mismatch is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.project must match")
+		testastic.ErrorContains(t, err, "repository.github.project must match")
 	})
 
 	t.Run("release channel name must not be empty", func(t *testing.T) {

@@ -29,9 +29,10 @@ func TestReleaseConfigPerTargetReferences(t *testing.T) {
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path
@@ -80,9 +81,10 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 changelog:
   sections:
     feat: "🚀 Features"
@@ -123,9 +125,10 @@ targets:
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 changelog:
   sections: {}
 targets:
@@ -207,9 +210,10 @@ func TestReleaseChangelogNonDefaultFile(t *testing.T) {
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 changelog:
   file: CHANGES.md
 targets:
@@ -251,9 +255,10 @@ func TestReleaseConfigPerTargetChangelog(t *testing.T) {
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:
-  host: github.com
-  owner: testorg
-  repo: testrepo
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
 targets:
   default:
     type: path

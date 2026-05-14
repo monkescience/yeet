@@ -417,16 +417,36 @@ func unsupportedAutoProviderError(host string, err error) error {
 }
 
 func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
-	return &provider.RepositoryDescriptor{
-		Provider:     normalizedRepositoryProvider(cfg.Provider),
-		Host:         strings.TrimSpace(cfg.Repository.Host),
-		Owner:        strings.TrimSpace(cfg.Repository.Owner),
-		Repo:         strings.TrimSpace(cfg.Repository.Repo),
-		Project:      strings.TrimSpace(cfg.Repository.Project),
-		Organization: strings.TrimSpace(cfg.Repository.Organization),
-		Collection:   strings.TrimSpace(cfg.Repository.Collection),
-		Remote:       strings.TrimSpace(cfg.Repository.Remote),
+	descriptor := &provider.RepositoryDescriptor{
+		Provider: normalizedRepositoryProvider(cfg.Provider),
+		Remote:   strings.TrimSpace(cfg.Repository.Remote),
 	}
+
+	switch cfg.Provider {
+	case config.ProviderGitHub:
+		if cfg.Repository.GitHub != nil {
+			descriptor.Host = strings.TrimSpace(cfg.Repository.GitHub.Host)
+			descriptor.Owner = strings.TrimSpace(cfg.Repository.GitHub.Owner)
+			descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
+			descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
+		}
+	case config.ProviderGitLab:
+		if cfg.Repository.GitLab != nil {
+			descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
+			descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
+		}
+	case config.ProviderAzureDevOps:
+		if cfg.Repository.AzureDevOps != nil {
+			descriptor.Host = strings.TrimSpace(cfg.Repository.AzureDevOps.Host)
+			descriptor.Organization = strings.TrimSpace(cfg.Repository.AzureDevOps.Organization)
+			descriptor.Project = strings.TrimSpace(cfg.Repository.AzureDevOps.Project)
+			descriptor.Repo = strings.TrimSpace(cfg.Repository.AzureDevOps.Repo)
+			descriptor.Collection = strings.TrimSpace(cfg.Repository.AzureDevOps.Collection)
+		}
+	case config.ProviderAuto:
+	}
+
+	return descriptor
 }
 
 func normalizedRepositoryProvider(providerType config.ProviderType) string {
