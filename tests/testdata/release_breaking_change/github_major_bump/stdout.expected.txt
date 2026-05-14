@@ -1,0 +1,19 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 2.0.0 (major)
+  Tag               v2.0.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v2.0.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### ⚠ BREAKING CHANGES
+
+- removed v1 endpoints ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+### Features
+
+- redesign api ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+

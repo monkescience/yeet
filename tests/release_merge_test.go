@@ -1,0 +1,368 @@
+package integration_test
+
+import (
+	"testing"
+
+	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/tests/internal/fakeprovider"
+	"github.com/monkescience/yeet/tests/internal/fixture"
+)
+
+func TestReleaseAutoMergeMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github --auto-merge-method rebase merges via rebase", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitHub server with a releasable commit
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet picks the rebase strategy and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("github --auto-merge-method merge picks the merge-commit strategy", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitHub server with a releasable commit
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet picks the merge-commit strategy and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("gitlab --auto-merge-method rebase reports incompatible project setting", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitLab project whose merge_method is "merge" (not "rebase_merge")
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 and stderr names the incompatible merge_method
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "merge_method")
+	})
+
+	t.Run("gitlab --auto-merge-method squash succeeds when project allows squash", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a gitlab project whose squash_option permits squash
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method squash`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "squash",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet picks squash and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("gitlab --auto-merge-method merge succeeds for plain merge project", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a gitlab project whose merge_method is "merge"
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet picks merge and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("gitlab rejects multiple pending release MRs", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitLab server returning two open release MRs
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:         "group/service",
+			LatestTag:       "v1.0.0",
+			BoundarySHA:     "boundary-sha",
+			MultipleOpenPRs: true,
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 with the multi-MR error
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "multiple pending release")
+	})
+
+	t.Run("gitlab blocks --auto-merge when MR is gated", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitLab server reporting a merge-blocked MR
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:      "group/service",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			MergeBlocked: true,
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		// when: invoking `yeet release --auto-merge` against the gated MR
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--auto-merge", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 with a merge-blocked error
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "merge blocked")
+	})
+
+	t.Run("azuredevops --auto-merge-method rebase merges via rebase strategy", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake Azure server with a releasable commit
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			Commits: []fakeprovider.AzureCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+		)
+
+		// then: yeet picks Azure's rebase strategy and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("azuredevops --auto-merge-method merge merges via no-ff strategy", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake Azure server with a releasable commit
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			Commits: []fakeprovider.AzureCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+		)
+
+		// then: yeet picks Azure's NoFastForward strategy and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("azuredevops --auto-merge-method squash merges via squash", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake Azure server with a releasable commit
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			Commits: []fakeprovider.AzureCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		// when: invoking `yeet release --auto-merge --auto-merge-method squash`
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--auto-merge", "--auto-merge-method", "squash",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+		)
+
+		// then: yeet picks Azure's squash strategy and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}

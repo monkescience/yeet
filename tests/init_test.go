@@ -65,6 +65,6 @@ func TestInit(t *testing.T) {
 
 		// then: the binary exits 1 and stderr explains why
 		testastic.Equal(t, 1, second.ExitCode)
-		testastic.Contains(t, second.Stderr, "config file already exists")
+		testastic.AssertFile(t, "testdata/init/config_already_exists/stderr.expected.txt", second.Stderr)
 	})
 }

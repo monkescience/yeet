@@ -14,18 +14,26 @@ import (
 // ConfigOptions describes the values to render into a .yeet.yaml. Empty
 // fields are omitted so callers can mix and match defaults.
 type ConfigOptions struct {
-	Provider     string
-	Branch       string
-	Owner        string
-	Repo         string
-	Project      string
-	Host         string
-	Organization string
-	Versioning   string
-	CalVerFormat string
-	VersionFiles []VersionFileOptions
-	Channels     map[string]ChannelOptions
-	Targets      []TargetOptions
+	Provider          string
+	Branch            string
+	Owner             string
+	Repo              string
+	Project           string
+	Host              string
+	Organization      string
+	Versioning        string
+	CalVerFormat      string
+	VersionFiles      []VersionFileOptions
+	Channels          map[string]ChannelOptions
+	Targets           []TargetOptions
+	ReferencePatterns []ReferencePatternOptions
+	ReferenceFooters  map[string]string
+}
+
+// ReferencePatternOptions configures one entry under changelog.references.patterns.
+type ReferencePatternOptions struct {
+	Pattern string
+	URL     string
 }
 
 // TargetOptions describes one entry in the targets map. When empty, the
@@ -76,9 +84,42 @@ func renderConfig(opts ConfigOptions) string {
 	writeRepository(&b, opts)
 	writeVersionFiles(&b, opts.VersionFiles)
 	writeChannels(&b, opts.Channels)
+	writeChangelog(&b, opts)
 	writeTargets(&b, opts.Targets)
 
 	return b.String()
+}
+
+func writeChangelog(b *strings.Builder, opts ConfigOptions) {
+	if len(opts.ReferencePatterns) == 0 && len(opts.ReferenceFooters) == 0 {
+		return
+	}
+
+	b.WriteString("changelog:\n  references:\n")
+
+	if len(opts.ReferencePatterns) > 0 {
+		b.WriteString("    patterns:\n")
+
+		for _, pattern := range opts.ReferencePatterns {
+			b.WriteString("      - pattern: ")
+			b.WriteString(pattern.Pattern)
+			b.WriteString("\n        url: ")
+			b.WriteString(pattern.URL)
+			b.WriteString("\n")
+		}
+	}
+
+	if len(opts.ReferenceFooters) > 0 {
+		b.WriteString("    footers:\n")
+
+		for key, url := range opts.ReferenceFooters {
+			b.WriteString("      ")
+			b.WriteString(key)
+			b.WriteString(": ")
+			b.WriteString(url)
+			b.WriteString("\n")
+		}
+	}
 }
 
 func writeTop(b *strings.Builder, opts ConfigOptions) {

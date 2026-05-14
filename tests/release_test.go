@@ -40,9 +40,13 @@ func TestReleaseDryRun(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
-		// then: the binary exits 0 and prints the Dry Run banner
+		// then: the binary exits 0 and prints the planned release
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_dry_run/gitlab/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("azuredevops dry-run prints the planned release", func(t *testing.T) {
@@ -76,9 +80,13 @@ func TestReleaseDryRun(t *testing.T) {
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
-		// then: the binary exits 0 and prints the Dry Run banner
+		// then: the binary exits 0 and prints the planned release
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_dry_run/azuredevops/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github dry-run prints the planned release", func(t *testing.T) {
@@ -110,9 +118,13 @@ func TestReleaseDryRun(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: the binary exits 0 and prints the Dry Run banner
+		// then: the binary exits 0 and prints the planned release
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_dry_run/github/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -461,7 +473,11 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 
 		// then: yeet exits 1 with a "multiple pending release PRs" error on stderr
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "multiple pending release PRs/MRs")
+		testastic.AssertFile(
+			t,
+			"testdata/release_azure_full_flow/multiple_pending_prs/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("azuredevops blocks --auto-merge when merge is gated", func(t *testing.T) {
@@ -498,7 +514,11 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 
 		// then: yeet exits 1 with a "release PR merge blocked" error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "release PR merge blocked")
+		testastic.AssertFile(
+			t,
+			"testdata/release_azure_full_flow/merge_blocked/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -879,7 +899,11 @@ func TestReleaseBreakingChange(t *testing.T) {
 
 		// then: yeet plans v2.0.0 and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v2.0.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_breaking_change/github_major_bump/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -922,7 +946,11 @@ func TestReleaseMultiTarget(t *testing.T) {
 
 		// then: yeet plans only the `api` target and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "api")
+		testastic.AssertFile(
+			t,
+			"testdata/release_multi_target/github_filter_api/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -960,7 +988,11 @@ func TestReleasePreMajor(t *testing.T) {
 
 		// then: a feat on 0.x bumps to v0.3.1 (patch) rather than v0.4.0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v0.3.1")
+		testastic.AssertFile(
+			t,
+			"testdata/release_pre_major/github_feat_patch/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -1036,7 +1068,11 @@ func TestReleaseMergeErrors(t *testing.T) {
 
 		// then: yeet exits 1 with a multi-PR error on stderr
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "multiple pending release PRs/MRs")
+		testastic.AssertFile(
+			t,
+			"testdata/release_merge_errors/github_multiple_pending_prs/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -1075,7 +1111,11 @@ func TestReleaseMultiTagHistory(t *testing.T) {
 
 		// then: yeet plans the next minor relative to v1.2.0 (v1.3.0)
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v1.3.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_multi_tag_history/github_semver/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github calver picks the highest of multiple prior calver tags", func(t *testing.T) {
@@ -1444,7 +1484,11 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: yeet honours the override and plans v2.5.0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v2.5.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_as_footer/pins_planned_version/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github Release-As overrides a smaller computed bump", func(t *testing.T) {
@@ -1478,7 +1522,11 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: the explicit Release-As wins, yielding v3.0.0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v3.0.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_as_footer/overrides_smaller_bump/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -1524,7 +1572,11 @@ func TestReleaseCommitOverride(t *testing.T) {
 
 		// then: the changelog uses the overridden commit subjects, not the squashed message
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "overridden first commit")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_override/begin_end_block/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -1566,7 +1618,11 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 
 		// then: yeet exits 1 and names the offending marker in the suggestion
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "x-yeet-month")
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_errors/semver_rejects_calver_marker/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("calver target rejects a semver marker with a suggestion", func(t *testing.T) {
@@ -1606,7 +1662,11 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 
 		// then: yeet exits 1 and names the offending marker in the suggestion
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "x-yeet-major")
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_errors/calver_rejects_semver_marker/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("calver target updates month and micro markers in BUILD.txt", func(t *testing.T) {
@@ -1666,8 +1726,11 @@ func TestReleaseConfigErrors(t *testing.T) {
 
 		// then: yeet exits 1 with a "configuration file not found" hint to run init
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "configuration file not found")
-		testastic.Contains(t, result.Stderr, "run `yeet init` or pass --config")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_errors/missing_config_file/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("malformed yaml reports a parse error", func(t *testing.T) {
@@ -1687,8 +1750,11 @@ func TestReleaseConfigErrors(t *testing.T) {
 
 		// then: yeet exits 1 with an "invalid configuration / parse config" error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "invalid configuration")
-		testastic.Contains(t, result.Stderr, "parse config")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_errors/malformed_yaml/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github missing token surfaces the env-var requirement", func(t *testing.T) {
@@ -1715,8 +1781,11 @@ func TestReleaseConfigErrors(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the missing env vars
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "provider setup failed")
-		testastic.Contains(t, result.Stderr, "GITHUB_TOKEN or GH_TOKEN")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_errors/github_missing_token/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("unsupported remote host without explicit provider is rejected", func(t *testing.T) {
@@ -1738,8 +1807,11 @@ func TestReleaseConfigErrors(t *testing.T) {
 
 		// then: yeet exits 1 with an "unsupported remote host" error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "repository resolution failed")
-		testastic.Contains(t, result.Stderr, "unsupported remote host")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_errors/unsupported_remote_host/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 

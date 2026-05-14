@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            api
+  Version            → 0.0.1 (minor)
+  Tag               api/v0.0.1
+  Commits           1
+
+  ────────────────────────────────
+
+## api/v0.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- add api endpoint ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+

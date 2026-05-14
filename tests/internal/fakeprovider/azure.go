@@ -16,6 +16,9 @@ type AzureOptions struct {
 	Repo         string
 	// LatestTag is the most recent tag returned by the tags-fallback.
 	LatestTag string
+	// ExtraTags are additional historical tags returned alongside LatestTag
+	// from the tags listing. Used to drive the multi-ref ordering paths.
+	ExtraTags []string
 	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
 	BoundarySHA string
 	// Commits are returned (newest first) from the commits listing.
@@ -34,6 +37,10 @@ type AzureOptions struct {
 	// listing return a single pending release PR with this body so yeet drives
 	// the update-existing-PR workflow.
 	ExistingOpenReleasePRBody string
+	// Files maps repository-relative paths to their raw content. The items
+	// endpoint serves these for matching paths. Paths not in the map return
+	// 404 except for CHANGELOG.md, which always has a default response.
+	Files map[string]string
 }
 
 // AzureCommit is a tiny subset of the Azure DevOps commit payload yeet reads.
@@ -75,7 +82,7 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 
 	registerAzureHistory(mux, repoAPI, opts)
 	registerAzurePullRequests(mux, repoAPI, opts)
-	registerAzureWrite(mux, repoAPI)
+	registerAzureWrite(mux, repoAPI, opts)
 	registerAzureReleases(mux, opts.Organization, opts.Project)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +135,12 @@ func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
 			return
 		}
 
+		if filter == "tags/" || filter == "tags" {
+			writeJSON(w, azureTagRefsListPayload(opts))
+
+			return
+		}
+
 		if strings.HasPrefix(filter, "tags/") {
 			writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
 
@@ -135,6 +148,29 @@ func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
 		}
 
 		writeJSON(w, azureTagRefsPayload(opts))
+	}
+}
+
+func azureTagRefsListPayload(opts AzureOptions) map[string]any {
+	tags := make([]map[string]any, 0, 1+len(opts.ExtraTags))
+
+	if opts.LatestTag != "" {
+		tags = append(tags, map[string]any{
+			gitlabKeyName:    "refs/tags/" + opts.LatestTag,
+			azureKeyObjectID: opts.BoundarySHA,
+		})
+	}
+
+	for _, t := range opts.ExtraTags {
+		tags = append(tags, map[string]any{
+			gitlabKeyName:    "refs/tags/" + t,
+			azureKeyObjectID: opts.BoundarySHA,
+		})
+	}
+
+	return map[string]any{
+		azureKeyCount: len(tags),
+		azureKeyValue: tags,
 	}
 }
 
@@ -279,7 +315,7 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 	)
 }
 
-func registerAzureWrite(mux *http.ServeMux, repoAPI string) {
+func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 	mux.HandleFunc("POST "+repoAPI+"/refs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			azureKeyCount: 1,
@@ -307,6 +343,14 @@ func registerAzureWrite(mux *http.ServeMux, repoAPI string) {
 
 	mux.HandleFunc("GET "+repoAPI+"/items", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Query().Get("path"), "/")
+
+		if content, ok := opts.Files[path]; ok {
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte(content))
+
+			return
+		}
+
 		if path == "CHANGELOG.md" {
 			w.Header().Set("Content-Type", "text/plain")
 			_, _ = w.Write([]byte("## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n"))

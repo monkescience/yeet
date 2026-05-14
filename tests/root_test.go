@@ -20,7 +20,7 @@ func TestRoot(t *testing.T) {
 		// then: the binary exits 1 with a flag conflict on stderr
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Equal(t, "", result.Stdout)
-		testastic.Contains(t, result.Stderr, "--verbose and --quiet cannot be used together")
+		testastic.AssertFile(t, "testdata/root/verbose_quiet_conflict/stderr.expected.txt", result.Stderr)
 	})
 
 	t.Run("rejects unknown subcommand", func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestRoot(t *testing.T) {
 		// then: the binary exits 1 and stderr names the unknown command
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Equal(t, "", result.Stdout)
-		testastic.Contains(t, result.Stderr, `unknown command "nope-not-a-command"`)
+		testastic.AssertFile(t, "testdata/root/unknown_subcommand/stderr.expected.txt", result.Stderr)
 	})
 
 	t.Run("--no-color produces uncolored output", func(t *testing.T) {
@@ -48,6 +48,6 @@ func TestRoot(t *testing.T) {
 		// then: the version banner prints cleanly without ANSI codes
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Equal(t, "", result.Stderr)
-		testastic.Contains(t, result.Stdout, "version:")
+		testastic.AssertFile(t, "testdata/root/no_color_version/stdout.expected.txt", result.Stdout)
 	})
 }

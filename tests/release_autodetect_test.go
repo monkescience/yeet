@@ -47,7 +47,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: auto-detect resolves the GitHub coordinates and dry-run succeeds
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/github_https/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github scp-style ssh remote auto-detects owner/repo", func(t *testing.T) {
@@ -77,7 +81,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: scp parser yields the same owner/repo as the https variant
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/github_ssh/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("gitlab nested-group remote auto-detects full project path", func(t *testing.T) {
@@ -106,7 +114,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: yeet preserves the full nested project path
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/gitlab_nested_group/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("azuredevops cloud https remote auto-detects org/project/repo", func(t *testing.T) {
@@ -137,7 +149,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: the Azure URL parser yields org/project/repo and dry-run succeeds
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/azuredevops_https/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("azuredevops ssh remote auto-detects org/project/repo", func(t *testing.T) {
@@ -168,7 +184,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: the v3 ssh parser resolves the same coordinates as the https form
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/azuredevops_ssh/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("azuredevops legacy visualstudio remote auto-detects coordinates", func(t *testing.T) {
@@ -199,6 +219,10 @@ func TestReleaseAutoDetect(t *testing.T) {
 
 		// then: the legacy host parser still maps to the modern coordinates
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "Dry Run")
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/azuredevops_visualstudio/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
