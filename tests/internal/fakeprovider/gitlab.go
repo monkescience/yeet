@@ -25,6 +25,12 @@ type GitLabOptions struct {
 	Files map[string]string
 	// MergedPendingRelease toggles the merged-release-MR fixture.
 	MergedPendingRelease bool
+	// MultipleOpenPRs returns two pending release MRs from the open-merge-requests
+	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
+	MultipleOpenPRs bool
+	// MergeBlocked makes GET /merge_requests/{iid} return a draft MR, triggering
+	// ErrMergeBlocked on --auto-merge.
+	MergeBlocked bool
 	// ExistingOpenReleasePRBody, when non-empty, makes the open-merge-requests
 	// listing return a single pending release MR with this body so yeet drives
 	// the update-existing-MR workflow.
@@ -38,12 +44,18 @@ type GitLabCommit struct {
 	// Files are the changed file paths returned by the commit-diff endpoint
 	// when yeet asks for per-commit paths (multi-target mode).
 	Files []string
+	// AssociatedPRBody, when non-empty, is returned as the description of the
+	// merge request associated with this commit by
+	// /repository/commits/{sha}/merge_requests. Used to drive the
+	// commit-override path (BEGIN_COMMIT_OVERRIDE markers).
+	AssociatedPRBody string
 }
 
 const (
-	gitlabKeyID      = "id"
-	gitlabKeyMessage = "message"
-	gitlabKeyName    = "name"
+	gitlabKeyID       = "id"
+	gitlabKeyMessage  = "message"
+	gitlabKeyName     = "name"
+	gitlabStateOpened = "opened"
 )
 
 // NewGitLab starts an httptest.Server serving the minimum GitLab REST surface
@@ -90,7 +102,23 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 
 	mux.HandleFunc(
 		"GET "+prefix+"/repository/commits/{sha}/merge_requests",
-		func(w http.ResponseWriter, _ *http.Request) {
+		func(w http.ResponseWriter, r *http.Request) {
+			sha := r.PathValue("sha")
+			for _, c := range opts.Commits {
+				if c.SHA != sha || c.AssociatedPRBody == "" {
+					continue
+				}
+
+				mr := gitlabFakeMR()
+				mr["state"] = "merged"
+				mr["merge_commit_sha"] = sha
+				mr["description"] = c.AssociatedPRBody
+
+				writeJSON(w, []map[string]any{mr})
+
+				return
+			}
+
 			writeJSON(w, []any{})
 		},
 	)
@@ -130,7 +158,18 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) 
 			return
 		}
 
-		if state == "opened" && opts.ExistingOpenReleasePRBody != "" {
+		if state == gitlabStateOpened && opts.MultipleOpenPRs {
+			const (
+				firstIID  = 43
+				secondIID = 44
+			)
+
+			writeJSON(w, []map[string]any{gitlabPendingMR(firstIID), gitlabPendingMR(secondIID)})
+
+			return
+		}
+
+		if state == gitlabStateOpened && opts.ExistingOpenReleasePRBody != "" {
 			mr := gitlabFakeMR()
 			mr["description"] = opts.ExistingOpenReleasePRBody
 
@@ -147,7 +186,12 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) 
 	})
 
 	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabFakeMR())
+		mr := gitlabFakeMR()
+		if opts.MergeBlocked {
+			mr["draft"] = true
+		}
+
+		writeJSON(w, mr)
 	})
 
 	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
@@ -195,8 +239,8 @@ func registerGitLabContent(mux *http.ServeMux, prefix string, opts GitLabOptions
 }
 
 func registerGitLabLabels(mux *http.ServeMux, prefix string) {
-	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyName: r.PathValue(gitlabKeyName)})
+	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
 	})
 
 	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, _ *http.Request) {
@@ -252,10 +296,14 @@ func gitlabMergedPendingMR() map[string]any {
 }
 
 func gitlabFakeMR() map[string]any {
+	return gitlabPendingMR(gitlabFakeMRID)
+}
+
+func gitlabPendingMR(iid int) map[string]any {
 	return map[string]any{
-		"iid":              gitlabFakeMRID,
-		gitlabKeyID:        gitlabFakeMRID,
-		"state":            "opened",
+		"iid":              iid,
+		gitlabKeyID:        iid,
+		"state":            gitlabStateOpened,
 		"merge_status":     "can_be_merged",
 		"web_url":          "https://example.test/mr/42",
 		"source_branch":    fakeReleaseBranch,
@@ -264,6 +312,7 @@ func gitlabFakeMR() map[string]any {
 		"work_in_progress": false,
 		"sha":              "head-sha",
 		"merge_commit_sha": fakeMergeSHA,
+		"labels":           []string{fakePendingReleaseTag},
 	}
 }
 

@@ -1,0 +1,25 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 1.1.0 (minor)
+  Tag               v1.1.0
+  Commits           4
+
+  ────────────────────────────────
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- ship a thing ([feat-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/feat-sha))
+### Bug Fixes
+
+- fix a thing ([fix-sha](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/fix-sha))
+### Performance Improvements
+
+- speed up a thing ([perf-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/perf-sha))
+### Reverts
+
+- roll back the prior feat ([revert-](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/revert-sha))
+

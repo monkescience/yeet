@@ -2,13 +2,13 @@
 Dry Run
 
   Target            default
-  Version            → 0.0.1 (minor)
-  Tag               v0.0.1
+  Version           1.0.0 → 1.1.0 (minor)
+  Tag               v1.1.0
   Commits           2
 
   ────────────────────────────────
 
-## v0.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.0.0&targetVersion=GTv1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
 ### Features
 

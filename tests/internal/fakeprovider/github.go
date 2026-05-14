@@ -380,8 +380,8 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOpti
 }
 
 func registerGitHubLabels(mux *http.ServeMux, prefix string) {
-	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{githubKeyName: r.PathValue("name")})
+	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
 	})
 
 	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, _ *http.Request) {
