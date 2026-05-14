@@ -565,6 +565,111 @@ func TestReleaseMultiTarget(t *testing.T) {
 	})
 }
 
+func TestReleasePreMajor(t *testing.T) {
+	t.Run("github pre-1.0 feat bumps minor", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v0.3.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v0.3.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "v0.3.1")
+	})
+}
+
+func TestReleaseNoChanges(t *testing.T) {
+	t.Run("github reports no release needed", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "docs: tweak readme"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
+func TestReleaseMergeErrors(t *testing.T) {
+	t.Run("github reports multiple pending prs", func(t *testing.T) {
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:           "testorg",
+			Repo:            "testrepo",
+			LatestTag:       "v1.0.0",
+			BoundarySHA:     "boundary-sha",
+			MultipleOpenPRs: true,
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "multiple pending release PRs/MRs")
+	})
+}
+
 func TestReleaseConfigErrors(t *testing.T) {
 	t.Run("missing config file", func(t *testing.T) {
 		tempDir := t.TempDir()

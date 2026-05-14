@@ -32,6 +32,12 @@ type GitHubOptions struct {
 	// the map return 404 except for CHANGELOG.md, which always has a default
 	// response.
 	Files map[string]string
+	// MultipleOpenPRs returns two pending release PRs from the open-pulls
+	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
+	MultipleOpenPRs bool
+	// MergeBlocked makes /pulls/{number} return a draft PR, triggering
+	// ErrMergeBlocked on --auto-merge.
+	MergeBlocked bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -125,8 +131,21 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") == "closed" && opts.MergedPendingRelease {
+		state := r.URL.Query().Get("state")
+
+		if state == "closed" && opts.MergedPendingRelease {
 			writeJSON(w, []map[string]any{githubMergedPendingPR()})
+
+			return
+		}
+
+		if state == "open" && opts.MultipleOpenPRs {
+			const (
+				firstID  = 43
+				secondID = 44
+			)
+
+			writeJSON(w, []map[string]any{githubPendingPR(firstID), githubPendingPR(secondID)})
 
 			return
 		}
@@ -296,6 +315,10 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
 		writeJSON(w, githubFakePR())
 	})
 
+	mux.HandleFunc("GET "+prefix+"/pulls/{number}/files", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, []any{})
+	})
+
 	mux.HandleFunc("PUT "+prefix+"/pulls/{number}/merge", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{fakeStateMerged: true, githubKeySHA: fakeMergeSHA})
 	})
@@ -340,8 +363,12 @@ func githubMergedPendingPR() map[string]any {
 }
 
 func githubFakePR() map[string]any {
+	return githubPendingPR(githubFakePRID)
+}
+
+func githubPendingPR(number int) map[string]any {
 	return map[string]any{
-		"number":          githubFakePRID,
+		"number":          number,
 		"state":           "open",
 		"draft":           false,
 		fakeStateMerged:   false,
@@ -351,7 +378,8 @@ func githubFakePR() map[string]any {
 			githubKeyRef: fakeReleaseBranch,
 			githubKeySHA: "head-sha",
 		},
-		"base": map[string]any{githubKeyRef: "main"},
+		"base":   map[string]any{githubKeyRef: fakeBaseBranch},
+		"labels": []map[string]any{{githubKeyName: fakePendingReleaseTag}},
 	}
 }
 
