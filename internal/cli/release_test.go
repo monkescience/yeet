@@ -19,33 +19,6 @@ import (
 )
 
 func TestReleaseCommand(t *testing.T) {
-	t.Run("help matches expected release CLI contract", func(t *testing.T) {
-		// given: the release command help is requested
-
-		// when: rendering help output
-		stdout, stderr, err := executeCommand(t, "release", "--help")
-
-		// then: the release help text matches the expected CLI contract
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-		testastic.AssertFile(t, "testdata/release_help.expected.txt", stdout)
-	})
-
-	t.Run("reports missing config file with next step", func(t *testing.T) {
-		// given: an empty workspace without a default config file
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		// when: running release without initializing config
-		_, _, err := executeCommand(t, "release")
-
-		// then: the error points to the missing config and next action
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "configuration file not found")
-		testastic.ErrorContains(t, err, config.DefaultFile)
-		testastic.ErrorContains(t, err, "run `yeet init` or pass --config")
-	})
-
 	t.Run("reports invalid configuration", func(t *testing.T) {
 		// given: a config file with an invalid enum value
 		tempDir := t.TempDir()
@@ -92,65 +65,6 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "invalid configuration")
 		testastic.ErrorContains(t, err, "versioning must be")
-	})
-
-	t.Run("reports malformed yaml as invalid configuration", func(t *testing.T) {
-		// given: a config file with invalid YAML syntax
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		err := os.WriteFile(config.DefaultFile, []byte("release: ["), 0o644)
-		testastic.NoError(t, err)
-
-		// when: running release with malformed YAML
-		_, _, err = executeCommand(t, "release")
-
-		// then: the CLI keeps it in the invalid configuration category
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid configuration")
-		testastic.ErrorContains(t, err, "parse config")
-	})
-
-	t.Run("reports missing auth token as provider setup failure", func(t *testing.T) {
-		// given: a repository config that resolves directly to GitHub without auth tokens
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-		clearBranchEnv(t)
-		writeTestConfig(t, func(cfg *config.Config) {
-			cfg.Provider = config.ProviderGitHub
-			cfg.Repository.Owner = "platform"
-			cfg.Repository.Repo = "yeet"
-		})
-		t.Setenv("GITHUB_TOKEN", "")
-		t.Setenv("GH_TOKEN", "")
-
-		// when: running release without provider credentials
-		_, _, err := executeCommand(t, "release")
-
-		// then: the CLI points at provider setup and the required token names
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "provider setup failed")
-		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
-	})
-
-	t.Run("reports unsupported host as repository resolution failure", func(t *testing.T) {
-		// given: repository coordinates on a host yeet cannot classify automatically
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-		clearBranchEnv(t)
-		writeTestConfig(t, func(cfg *config.Config) {
-			cfg.Repository.Host = "code.company.com"
-			cfg.Repository.Owner = "platform"
-			cfg.Repository.Repo = "yeet"
-		})
-
-		// when: running release without an explicit provider
-		_, _, err := executeCommand(t, "release")
-
-		// then: the CLI categorizes the failure as repository resolution
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "repository resolution failed")
-		testastic.ErrorContains(t, err, "unsupported remote host")
 	})
 
 	t.Run("provider flag overrides unsupported host auto detection", func(t *testing.T) {

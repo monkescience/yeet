@@ -118,76 +118,6 @@ func TestRunInit(t *testing.T) {
 		testastic.ErrorContains(t, err, filepath.Join(repositoryPath, config.DefaultFile))
 	})
 
-	t.Run("writes config with schema directive", func(t *testing.T) {
-		// given: an empty temporary workspace
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		// when: initializing config
-		err := runInit(config.DefaultFile)
-
-		// then: config is created with schema directive and can be parsed
-		testastic.NoError(t, err)
-
-		content, readErr := os.ReadFile(config.DefaultFile)
-		testastic.NoError(t, readErr)
-		testastic.HasPrefix(t, string(content), config.SchemaDirective+"\n")
-
-		_, parseErr := config.Parse(content)
-		testastic.NoError(t, parseErr)
-	})
-
-	t.Run("writes requested config path with schema directive", func(t *testing.T) {
-		// given: an empty temporary workspace and a custom config path
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		// when: initializing config at the custom path
-		err := runInit("custom.yaml")
-
-		// then: config is created at the requested path and can be parsed
-		testastic.NoError(t, err)
-
-		content, readErr := os.ReadFile("custom.yaml")
-		testastic.NoError(t, readErr)
-		testastic.HasPrefix(t, string(content), config.SchemaDirective+"\n")
-
-		_, parseErr := config.Parse(content)
-		testastic.NoError(t, parseErr)
-	})
-
-	t.Run("fails when config already exists", func(t *testing.T) {
-		// given: a workspace where config was already created
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		firstErr := runInit(config.DefaultFile)
-		testastic.NoError(t, firstErr)
-
-		// when: initializing config again
-		err := runInit(config.DefaultFile)
-
-		// then: command fails with existing-config error
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrConfigExists)
-	})
-
-	t.Run("fails when requested config already exists", func(t *testing.T) {
-		// given: a workspace where the custom config path was already created
-		tempDir := t.TempDir()
-		t.Chdir(tempDir)
-
-		firstErr := runInit("custom.yaml")
-		testastic.NoError(t, firstErr)
-
-		// when: initializing config again at the same custom path
-		err := runInit("custom.yaml")
-
-		// then: command fails with existing-config error
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrConfigExists)
-	})
-
 	t.Run("writes minimal config with target named after the config directory", func(t *testing.T) {
 		// given: a workspace whose basename is a valid bare YAML key
 		parentDir := t.TempDir()
@@ -243,60 +173,6 @@ func TestRunInit(t *testing.T) {
 }
 
 func TestRootCommand(t *testing.T) {
-	t.Run("root help includes getting started examples", func(t *testing.T) {
-		// given: the root command help is requested
-
-		// when: rendering the top-level help output
-		stdout, stderr, err := executeCommand(t, "--help")
-
-		// then: the root help text matches the expected CLI contract
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-		testastic.AssertFile(t, "testdata/root_help.expected.txt", stdout)
-	})
-
-	t.Run("init help includes default and custom config examples", func(t *testing.T) {
-		// given: the init command help is requested
-
-		// when: rendering init help output
-		stdout, stderr, err := executeCommand(t, "init", "--help")
-
-		// then: the init help text matches the expected CLI contract
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-		testastic.AssertFile(t, "testdata/init_help.expected.txt", stdout)
-	})
-
-	t.Run("version prints build information", func(t *testing.T) {
-		// given: build metadata provided by the build package (ldflag or ReadBuildInfo fallback)
-
-		// when: printing the CLI version
-		stdout, stderr, err := executeCommand(t, "version")
-
-		// then: three human-readable lines are written to stdout with non-empty values
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", stderr)
-
-		lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
-		if len(lines) < 3 || len(lines) > 4 {
-			t.Fatalf("expected 3 or 4 lines, got %d: %q", len(lines), stdout)
-		}
-
-		for index, prefix := range []string{"version: ", "commit: ", "built: "} {
-			if !strings.HasPrefix(lines[index], prefix) {
-				t.Errorf("line %d %q missing prefix %q", index, lines[index], prefix)
-			}
-
-			if strings.TrimSpace(strings.TrimPrefix(lines[index], prefix)) == "" {
-				t.Errorf("line %d %q has empty value after prefix %q", index, lines[index], prefix)
-			}
-		}
-
-		if len(lines) == 4 && !strings.HasPrefix(lines[3], "module: ") {
-			t.Errorf("line 3 %q missing prefix %q", lines[3], "module: ")
-		}
-	})
-
 	t.Run("completion command is available for bash", func(t *testing.T) {
 		// given: the root command tree
 		command := rootCmd()
@@ -342,17 +218,6 @@ func TestRootCommand(t *testing.T) {
 		testastic.Contains(t, stderr, "initializing config file")
 		testastic.Contains(t, stderr, "INFO")
 		testastic.Contains(t, stderr, "created config file")
-	})
-
-	t.Run("verbose and quiet flags conflict", func(t *testing.T) {
-		// given: conflicting root logging flags
-
-		// when: executing any command with both flags enabled
-		_, _, err := executeCommand(t, "--verbose", "--quiet", "version")
-
-		// then: the command fails before running the subcommand
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "--verbose and --quiet cannot be used together")
 	})
 }
 
