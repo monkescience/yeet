@@ -12,6 +12,7 @@ dist/
 *.out
 coverage.txt
 coverage.html
+coverage/
 
 # IDE
 .idea/

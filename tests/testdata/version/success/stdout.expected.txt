@@ -1,0 +1,3 @@
+version: {{regex `.+`}}
+commit: {{regex `.+`}}
+built: {{regex `.+`}}
