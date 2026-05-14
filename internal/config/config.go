@@ -562,10 +562,8 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		}
 	}
 
-	if targetType == TargetTypeDerived {
-		if len(resolved.Includes) == 0 {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, targetID)
-		}
+	if targetType == TargetTypeDerived && len(resolved.Includes) == 0 {
+		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, targetID)
 	}
 
 	return resolved, nil

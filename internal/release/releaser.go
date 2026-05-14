@@ -161,10 +161,8 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		var err error
 
 		finalizedReleases, err = r.finalizeMergedReleasePRs(ctx)
-		if err != nil {
-			if !errors.Is(err, provider.ErrNoPR) {
-				return nil, err
-			}
+		if err != nil && !errors.Is(err, provider.ErrNoPR) {
+			return nil, err
 		}
 	}
 

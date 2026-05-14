@@ -221,25 +221,23 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 }
 
 func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
-	if len(result.Plans) == 0 {
-		if len(result.Releases) > 0 {
-			slog.InfoContext(ctx, "release finalized; no new release needed",
-				slog.String("tag", result.Releases[0].TagName),
-			)
-
-			return nil
+	if len(result.Plans) > 0 {
+		if dryRun {
+			printDryRun(output, result)
 		}
 
-		slog.InfoContext(ctx, "no release needed")
+		return nil
+	}
+
+	if len(result.Releases) > 0 {
+		slog.InfoContext(ctx, "release finalized; no new release needed",
+			slog.String("tag", result.Releases[0].TagName),
+		)
 
 		return nil
 	}
 
-	if dryRun {
-		printDryRun(output, result)
-
-		return nil
-	}
+	slog.InfoContext(ctx, "no release needed")
 
 	return nil
 }
@@ -399,10 +397,11 @@ func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions
 		clearRepositoryOwnerRepoForProject(cfg, options)
 	}
 
-	if !options.repositoryProjectSet && (options.repositoryOwnerSet || options.repositoryRepoSet) {
-		if strings.TrimSpace(cfg.Repository.Owner) != "" && strings.TrimSpace(cfg.Repository.Repo) != "" {
-			cfg.Repository.Project = ""
-		}
+	if !options.repositoryProjectSet &&
+		(options.repositoryOwnerSet || options.repositoryRepoSet) &&
+		strings.TrimSpace(cfg.Repository.Owner) != "" &&
+		strings.TrimSpace(cfg.Repository.Repo) != "" {
+		cfg.Repository.Project = ""
 	}
 }
 

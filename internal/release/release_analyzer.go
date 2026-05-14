@@ -1169,12 +1169,6 @@ func (a *releaseAnalyzer) commitsSince(
 	r := a.releaser
 
 	entries, err := r.history.GetCommitsSince(ctx, ref, branch, includePaths)
-	if err == nil {
-		a.commitCache[key] = entries
-
-		return entries, nil
-	}
-
 	if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
 		return nil, fmt.Errorf(
 			"previous release ref %q is not reachable from release branch %q; "+
@@ -1185,7 +1179,13 @@ func (a *releaseAnalyzer) commitsSince(
 		)
 	}
 
-	return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
+	if err != nil {
+		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
+	}
+
+	a.commitCache[key] = entries
+
+	return entries, nil
 }
 
 func semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {
