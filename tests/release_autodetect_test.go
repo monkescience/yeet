@@ -18,7 +18,12 @@ import (
 // down the auto-detect branch covered by internal/cli/helpers.go and
 // internal/provider/provider.go URL parsers.
 func TestReleaseAutoDetect(t *testing.T) {
-	t.Run("github https remote", func(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github https remote auto-detects owner/repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin is an https GitHub URL, plus a fake GitHub server
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:       "acme",
 			Repo:        "repo",
@@ -33,21 +38,22 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "https://github.com/acme/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"GITHUB_TOKEN=test-token",
-				"GITHUB_URL="+server.URL+"/api/v3/",
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: auto-detect resolves the GitHub coordinates and dry-run succeeds
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
-	t.Run("github scp-like ssh remote", func(t *testing.T) {
+	t.Run("github scp-style ssh remote auto-detects owner/repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin is an scp-style git@ URL
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:       "acme",
 			Repo:        "repo",
@@ -62,21 +68,22 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "git@github.com:acme/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"GITHUB_TOKEN=test-token",
-				"GITHUB_URL="+server.URL+"/api/v3/",
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: scp parser yields the same owner/repo as the https variant
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
-	t.Run("gitlab nested group remote", func(t *testing.T) {
+	t.Run("gitlab nested-group remote auto-detects full project path", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin points at a nested GitLab group
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
 			Project:     "group/sub/repo",
 			LatestTag:   "v1.0.0",
@@ -90,21 +97,22 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "https://gitlab.com/group/sub/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"GITLAB_TOKEN=test-token",
-				"GITLAB_URL="+server.URL+"/api/v4",
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
+		// then: yeet preserves the full nested project path
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
-	t.Run("azuredevops cloud https remote", func(t *testing.T) {
+	t.Run("azuredevops cloud https remote auto-detects org/project/repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin is an Azure DevOps cloud https URL
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
 			Organization: "contoso",
 			Project:      "platform",
@@ -120,21 +128,22 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "https://dev.azure.com/contoso/platform/_git/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"AZURE_DEVOPS_EXT_PAT=test-token",
-				"AZURE_DEVOPS_URL="+server.URL,
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
+		// then: the Azure URL parser yields org/project/repo and dry-run succeeds
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
-	t.Run("azuredevops ssh remote", func(t *testing.T) {
+	t.Run("azuredevops ssh remote auto-detects org/project/repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin is the v3 ssh form
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
 			Organization: "contoso",
 			Project:      "platform",
@@ -150,21 +159,22 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "git@ssh.dev.azure.com:v3/contoso/platform/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"AZURE_DEVOPS_EXT_PAT=test-token",
-				"AZURE_DEVOPS_URL="+server.URL,
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
+		// then: the v3 ssh parser resolves the same coordinates as the https form
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
-	t.Run("azuredevops legacy visualstudio remote", func(t *testing.T) {
+	t.Run("azuredevops legacy visualstudio remote auto-detects coordinates", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose origin uses the legacy *.visualstudio.com host
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
 			Organization: "contoso",
 			Project:      "platform",
@@ -180,16 +190,14 @@ func TestReleaseAutoDetect(t *testing.T) {
 		repoDir := fixture.WriteRepo(t, "https://contoso.visualstudio.com/platform/_git/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
+		// when: running `yeet release --dry-run` from inside that repo
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(
-				"AZURE_DEVOPS_EXT_PAT=test-token",
-				"AZURE_DEVOPS_URL="+server.URL,
-				"GITHUB_REF_NAME=main",
-			),
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
+		// then: the legacy host parser still maps to the modern coordinates
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})

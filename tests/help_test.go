@@ -7,40 +7,61 @@ import (
 )
 
 func TestHelp(t *testing.T) {
-	tests := []struct {
-		name   string
-		args   []string
-		golden string
-	}{
-		{
-			name:   "root",
-			args:   []string{"--help"},
-			golden: "testdata/help/root/stdout.expected.txt",
-		},
-		{
-			name:   "release",
-			args:   []string{"release", "--help"},
-			golden: "testdata/help/release/stdout.expected.txt",
-		},
-		{
-			name:   "init",
-			args:   []string{"init", "--help"},
-			golden: "testdata/help/init/stdout.expected.txt",
-		},
-		{
-			name:   "version",
-			args:   []string{"version", "--help"},
-			golden: "testdata/help/version/stdout.expected.txt",
-		},
-	}
+	t.Parallel()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := binary.Run(t, tc.args...)
+	t.Run("root --help shows the top-level usage", func(t *testing.T) {
+		t.Parallel()
 
-			testastic.Equal(t, 0, result.ExitCode)
-			testastic.Equal(t, "", result.Stderr)
-			testastic.AssertFile(t, tc.golden, result.Stdout)
-		})
-	}
+		// given: the yeet binary with no subcommand context
+
+		// when: running `yeet --help`
+		result := binary.Run(t, "--help")
+
+		// then: the root usage matches the golden file
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stderr)
+		testastic.AssertFile(t, "testdata/help/root/stdout.expected.txt", result.Stdout)
+	})
+
+	t.Run("release --help shows the release usage", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the yeet binary
+
+		// when: running `yeet release --help`
+		result := binary.Run(t, "release", "--help")
+
+		// then: the release usage matches the golden file
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stderr)
+		testastic.AssertFile(t, "testdata/help/release/stdout.expected.txt", result.Stdout)
+	})
+
+	t.Run("init --help shows the init usage", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the yeet binary
+
+		// when: running `yeet init --help`
+		result := binary.Run(t, "init", "--help")
+
+		// then: the init usage matches the golden file
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stderr)
+		testastic.AssertFile(t, "testdata/help/init/stdout.expected.txt", result.Stdout)
+	})
+
+	t.Run("version --help shows the version usage", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the yeet binary
+
+		// when: running `yeet version --help`
+		result := binary.Run(t, "version", "--help")
+
+		// then: the version usage matches the golden file
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stderr)
+		testastic.AssertFile(t, "testdata/help/version/stdout.expected.txt", result.Stdout)
+	})
 }
