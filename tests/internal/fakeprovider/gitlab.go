@@ -55,6 +55,7 @@ const (
 	gitlabKeyID       = "id"
 	gitlabKeyMessage  = "message"
 	gitlabKeyName     = "name"
+	gitlabKeyTagName  = "tag_name"
 	gitlabStateOpened = "opened"
 )
 
@@ -259,8 +260,8 @@ func registerGitLabReleases(mux *http.ServeMux, prefix string) {
 
 	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
-			"tag_name": fakeNextTag,
-			"_links":   map[string]any{"self": "https://example.test/releases/v1.1.0"},
+			gitlabKeyTagName: fakeNextTag,
+			"_links":         map[string]any{"self": "https://example.test/releases/v1.1.0"},
 		})
 	})
 

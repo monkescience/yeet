@@ -179,6 +179,303 @@ targets:
 		testastic.Contains(t, result.Stderr, "channel")
 	})
 
+	t.Run("rejects reserved stable release channel", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release channel using the reserved stable name
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+release:
+  channels:
+    stable:
+      branch: stable
+      prerelease: stable
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and explains that stable is reserved
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "reserved name stable")
+	})
+
+	t.Run("rejects duplicate release channel branches", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two prerelease channels pointing at the same branch
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+release:
+  channels:
+    beta:
+      branch: prerelease
+      prerelease: beta
+    rc:
+      branch: prerelease
+      prerelease: rc
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and names the duplicate branch
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "duplicates release.channels")
+	})
+
+	t.Run("rejects duplicate release channel prerelease identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two prerelease channels that would publish the same semver identifier
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: next
+    rc:
+      branch: rc
+      prerelease: next
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and names the duplicate prerelease identifier
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "prerelease")
+		testastic.Contains(t, result.Stderr, "duplicates")
+	})
+
+	t.Run("rejects invalid release channel prerelease identifier", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a prerelease identifier that semver cannot encode
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: bad value
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and reports an invalid semver prerelease identifier
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "invalid semver prerelease identifier")
+	})
+
+	t.Run("rejects channel branch matching stable branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a prerelease channel pointed at the stable release branch
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+release:
+  channels:
+    beta:
+      branch: main
+      prerelease: beta
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and names the stable-branch duplication
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "duplicates stable branch")
+	})
+
+	t.Run("rejects calver target with pre-major flags", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver target with semver-only pre-major behavior configured
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+    versioning: calver
+    pre_major_breaking_bumps_minor: true
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 instead of accepting a no-op semver-only setting
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "has no effect with calver")
+	})
+
+	t.Run("rejects unsupported version file format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a version file with an unknown format
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+version_files:
+  - path: package.json
+    format: toml
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and names the unsupported version file format
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "version_files")
+		testastic.Contains(t, result.Stderr, "format")
+	})
+
+	t.Run("rejects json version file without json pointer", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a JSON version file without a pointer to the version string
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+version_files:
+  - path: package.json
+    format: json
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and requires json_pointer for JSON files
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "json_pointer")
+	})
+
+	t.Run("rejects malformed json pointer escape", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a JSON pointer containing an escape sequence not allowed by RFC 6901
+		configPath := writeRawConfig(t, `provider: github
+branch: main
+repository:
+  host: github.com
+  owner: testorg
+  repo: testrepo
+version_files:
+  - path: package.json
+    format: json
+    json_pointer: /packages/~2/version
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet exits 1 and reports the bad JSON pointer escape
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "invalid escape")
+	})
+
 	t.Run("rejects unknown auto_merge_method", func(t *testing.T) {
 		t.Parallel()
 

@@ -45,7 +45,11 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 
 		// then: yeet auto-selects the beta channel and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "1.1.0-beta.1")
+		testastic.AssertFile(
+			t,
+			"testdata/release_branch_modes/github_auto_beta/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github rejects unknown --channel value", func(t *testing.T) {
@@ -83,6 +87,32 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 		// then: yeet exits 1 with an unknown-channel error
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Contains(t, result.Stderr, "unknown release channel")
+	})
+
+	t.Run("github rejects explicit channel from the wrong branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel configured for the beta branch, but the current branch is main
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+			},
+		})
+
+		// when: invoking `yeet release --channel beta` from main without --dry-run
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--channel", "beta", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet rejects the branch/channel mismatch before provider work starts
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "must run on branch")
 	})
 
 	t.Run("github rejects non-dry-run release from an unconfigured branch", func(t *testing.T) {

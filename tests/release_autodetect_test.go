@@ -88,6 +88,47 @@ func TestReleaseAutoDetect(t *testing.T) {
 		)
 	})
 
+	t.Run("github insteadOf remote rewrite auto-detects owner/repo and local branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo using a shorthand origin URL rewritten by url.insteadOf
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "acme",
+			Repo:        "repo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		repoDir := fixture.WriteRepoWithBranch(t, "gh:acme/repo.git", "main")
+		fixture.AddInsteadOfRewrite(t, repoDir, "https://github.com/", "gh:")
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
+
+		// when: running without CI branch env vars so yeet reads branch and remote config locally
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(
+				"GITHUB_TOKEN=test-token",
+				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=",
+				"CI_COMMIT_BRANCH=",
+				"BRANCH_NAME=",
+			),
+		)
+
+		// then: yeet rewrites gh: to github.com, detects acme/repo, and reads the local main branch
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release_autodetect/github_https/stdout.expected.txt",
+			result.Stdout,
+		)
+	})
+
 	t.Run("gitlab nested-group remote auto-detects full project path", func(t *testing.T) {
 		t.Parallel()
 

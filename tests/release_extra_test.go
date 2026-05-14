@@ -87,6 +87,45 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 	})
 }
 
+func TestReleaseProviderPagination(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github follows paginated commits before the release boundary", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitHub returns the releasable commit on page 1 and the boundary on page 2
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:           "testorg",
+			Repo:            "testrepo",
+			LatestTag:       "v1.0.0",
+			BoundarySHA:     "boundary-sha",
+			PaginateCommits: true,
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet follows the next-page link and stops at the boundary commit
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(t, "testdata/release_dry_run/github/stdout.expected.txt", result.Stdout)
+	})
+}
+
 func TestReleaseExistingOpenPRUpdate(t *testing.T) {
 	t.Parallel()
 

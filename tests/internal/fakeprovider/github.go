@@ -47,6 +47,12 @@ type GitHubOptions struct {
 	// include the yeet release-manifest marker so yeet recognizes the PR and
 	// drives the update-existing-PR workflow.
 	ExistingOpenReleasePRBody string
+	// ExistingRelease makes release-by-tag lookups return an already-created
+	// release so finalization can prove it is idempotent.
+	ExistingRelease bool
+	// PaginateCommits splits the commit list across two pages so tests can prove
+	// release analysis follows provider pagination before finding the boundary.
+	PaginateCommits bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -70,6 +76,8 @@ const (
 	githubKeyObject  = "object"
 	githubKeyName    = "name"
 	githubKeyType    = "type"
+	githubKeyTagName = "tag_name"
+	githubKeyHTMLURL = "html_url"
 	githubFakePRID   = 42
 	githubChangelog  = "CHANGELOG.md"
 )
@@ -84,7 +92,7 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 
 	mux := http.NewServeMux()
 
-	registerGitHubReleases(mux, prefix)
+	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubPullsRead(mux, prefix, opts)
 	registerGitHubWritePath(mux, prefix, opts)
@@ -101,20 +109,32 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	return server
 }
 
-func registerGitHubReleases(mux *http.ServeMux, prefix string) {
+func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "no release", http.StatusNotFound)
 	})
 
-	mux.HandleFunc("GET "+prefix+"/releases/tags/{tag}", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+prefix+"/releases/tags/{tag}", func(w http.ResponseWriter, r *http.Request) {
+		if opts.ExistingRelease {
+			writeJSON(w, map[string]any{
+				"id":             githubFakePRID,
+				githubKeyTagName: r.PathValue("tag"),
+				"name":           r.PathValue("tag"),
+				"body":           "existing release notes",
+				githubKeyHTMLURL: "https://example.test/releases/" + r.PathValue("tag"),
+			})
+
+			return
+		}
+
 		http.Error(w, "no release", http.StatusNotFound)
 	})
 
 	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			"id":               githubFakePRID,
-			"tag_name":         fakeNextTag,
-			"html_url":         "https://example.test/releases/v1.1.0",
+			githubKeyTagName:   fakeNextTag,
+			githubKeyHTMLURL:   "https://example.test/releases/v1.1.0",
 			"target_commitish": fakeBaseBranch,
 		})
 	})
@@ -129,7 +149,20 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 		writeJSON(w, githubTagsPayload(opts.LatestTag, opts.ExtraTags))
 	})
 
-	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, r *http.Request) {
+		if opts.PaginateCommits && len(opts.Commits) > 1 {
+			if r.URL.Query().Get("page") != "2" {
+				w.Header().Set("Link", `<https://api.github.com/?page=2>; rel="next"`)
+				writeJSON(w, githubCommitsList(opts.Commits[:1]))
+
+				return
+			}
+
+			writeJSON(w, githubCommitsList(opts.Commits[1:]))
+
+			return
+		}
+
 		writeJSON(w, githubCommitsList(opts.Commits))
 	})
 
@@ -428,7 +461,7 @@ func githubPendingPR(number int) map[string]any {
 		"draft":           false,
 		fakeStateMerged:   false,
 		"mergeable_state": "clean",
-		"html_url":        "https://example.test/pulls/42",
+		githubKeyHTMLURL:  "https://example.test/pulls/42",
 		"head": map[string]any{
 			githubKeyRef: fakeReleaseBranch,
 			githubKeySHA: "head-sha",

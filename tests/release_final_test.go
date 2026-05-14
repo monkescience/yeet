@@ -49,6 +49,90 @@ targets:
 	})
 }
 
+func TestReleaseProviderOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("gitlab project override clears stale github owner and repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid GitHub config that is overridden at the CLI to target GitLab
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking release with a provider/project override
+		result := binary.RunWithOptions(t,
+			[]string{
+				"release", "--dry-run",
+				"--provider", "gitlab", "--project", "group/service",
+				"--config", configPath,
+			},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet uses the GitLab project instead of rejecting stale GitHub owner/repo fields
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release_provider_override/gitlab_project/stdout.expected.txt",
+			result.Stdout,
+		)
+	})
+}
+
+func TestReleaseFinalizationIdempotency(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github skips creating a release that already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR whose tag already has a provider release
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:                "testorg",
+			Repo:                 "testrepo",
+			LatestTag:            "v1.0.0",
+			BoundarySHA:          "boundary-sha",
+			MergedPendingRelease: true,
+			ExistingRelease:      true,
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "head-sha", Message: "docs: no new release"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release` after the release was already created externally
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet treats finalization as idempotent and exits successfully
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+}
+
 func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 	t.Parallel()
 
