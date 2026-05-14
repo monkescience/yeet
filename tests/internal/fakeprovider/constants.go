@@ -7,4 +7,12 @@ const (
 	fakeReleaseBranch = "yeet/release-main"
 	fakeBaseBranch    = "main"
 	fakeMergeSHA      = "merge-sha"
+	fakeBaseSHA       = "base-sha"
+)
+
+// Common JSON keys repeated across provider payloads.
+const (
+	azureKeyCount    = "count"
+	azureKeyValue    = "value"
+	azureKeyObjectID = "objectId"
 )

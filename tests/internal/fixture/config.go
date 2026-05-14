@@ -20,6 +20,7 @@ type ConfigOptions struct {
 	Repo         string
 	Project      string
 	Host         string
+	Organization string
 	VersionFiles []string
 	Channels     map[string]ChannelOptions
 }
@@ -57,6 +58,7 @@ func renderConfig(opts ConfigOptions) string {
 	writeScalar(&b, "  owner: ", opts.Owner)
 	writeScalar(&b, "  repo: ", opts.Repo)
 	writeScalar(&b, "  project: ", opts.Project)
+	writeScalar(&b, "  organization: ", opts.Organization)
 
 	if len(opts.VersionFiles) > 0 {
 		b.WriteString("version_files:\n")

@@ -109,7 +109,7 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyName: fakeReleaseBranch, "commit": map[string]any{gitlabKeyID: "base-sha"}})
+		writeJSON(w, map[string]any{gitlabKeyName: fakeReleaseBranch, "commit": map[string]any{gitlabKeyID: fakeBaseSHA}})
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {

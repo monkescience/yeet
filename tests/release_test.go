@@ -42,6 +42,41 @@ func TestReleaseDryRun(t *testing.T) {
 		testastic.Contains(t, result.Stdout, "Dry Run")
 	})
 
+	t.Run("azuredevops happy path", func(t *testing.T) {
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			Commits: []fakeprovider.AzureCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunEnv(
+				"AZURE_DEVOPS_EXT_PAT=test-token",
+				"AZURE_DEVOPS_URL="+server.URL,
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "Dry Run")
+	})
+
 	t.Run("github happy path", func(t *testing.T) {
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:       "testorg",
@@ -77,6 +112,40 @@ func TestReleaseDryRun(t *testing.T) {
 }
 
 func TestReleaseCreatesPR(t *testing.T) {
+	t.Run("azuredevops creates pull request", func(t *testing.T) {
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.0.0",
+			BoundarySHA:  "boundary-sha",
+			Commits: []fakeprovider.AzureCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"AZURE_DEVOPS_EXT_PAT=test-token",
+				"AZURE_DEVOPS_URL="+server.URL,
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
 	t.Run("gitlab creates merge request", func(t *testing.T) {
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
 			Project:     "group/service",

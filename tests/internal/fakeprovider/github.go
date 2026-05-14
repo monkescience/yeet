@@ -189,8 +189,6 @@ func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptio
 }
 
 func registerGitHubGitData(mux *http.ServeMux, prefix string) {
-	const fakeBaseSHA = "base-sha"
-
 	const fakeCommitSHA = "new-commit-sha"
 
 	const fakeTreeSHA = "tree-sha"
