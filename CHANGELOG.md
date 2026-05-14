@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.8.4](https://github.com/monkescience/yeet/compare/v0.8.3...v0.8.4) (2026-05-14)
+
+### Features
+
+- add debug logs for provider calls and core stages ([a974a23](https://github.com/monkescience/yeet/commit/a974a2332c6cb4c684173a79c220dbe43550f736))
+
 ## [v0.8.3](https://github.com/monkescience/yeet/compare/v0.8.2...v0.8.3) (2026-05-14)
 
 ### Features
