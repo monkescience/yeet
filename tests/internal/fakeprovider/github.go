@@ -91,14 +91,14 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string) {
 	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			"id":               githubFakePRID,
-			"tag_name":         "v1.1.0",
+			"tag_name":         fakeNextTag,
 			"html_url":         "https://example.test/releases/v1.1.0",
-			"target_commitish": "main",
+			"target_commitish": fakeBaseBranch,
 		})
 	})
 
 	mux.HandleFunc("POST "+prefix+"/git/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{githubKeySHA: "tag-object-sha", "tag": "v1.1.0"})
+		writeJSON(w, map[string]any{githubKeySHA: "tag-object-sha", "tag": fakeNextTag})
 	})
 }
 
@@ -285,7 +285,7 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("PUT "+prefix+"/pulls/{number}/merge", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{"merged": true, githubKeySHA: "merge-sha"})
+		writeJSON(w, map[string]any{"merged": true, githubKeySHA: fakeMergeSHA})
 	})
 }
 
@@ -318,7 +318,7 @@ func githubMergedPendingPR() map[string]any {
 	pr["state"] = "closed"
 	pr["merged"] = true
 	pr["merged_at"] = "2026-01-01T00:00:00Z"
-	pr["merge_commit_sha"] = "merge-sha"
+	pr["merge_commit_sha"] = fakeMergeSHA
 	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
 	pr["labels"] = []map[string]any{
 		{githubKeyName: "autorelease: pending"},
@@ -336,7 +336,7 @@ func githubFakePR() map[string]any {
 		"mergeable_state": "clean",
 		"html_url":        "https://example.test/pulls/42",
 		"head": map[string]any{
-			githubKeyRef: "yeet/release-main",
+			githubKeyRef: fakeReleaseBranch,
 			githubKeySHA: "head-sha",
 		},
 		"base": map[string]any{githubKeyRef: "main"},

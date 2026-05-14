@@ -77,6 +77,36 @@ func TestReleaseDryRun(t *testing.T) {
 }
 
 func TestReleaseCreatesPR(t *testing.T) {
+	t.Run("gitlab creates merge request", func(t *testing.T) {
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITLAB_TOKEN=test-token",
+				"GITLAB_URL="+server.URL+"/api/v4",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
 	t.Run("github creates release pr", func(t *testing.T) {
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:       "testorg",
@@ -137,6 +167,36 @@ func TestReleaseAutoMerge(t *testing.T) {
 			testastic.WithRunEnv(
 				"GITHUB_TOKEN=test-token",
 				"GITHUB_URL="+server.URL+"/api/v3/",
+				"GITHUB_REF_NAME=main",
+			),
+		)
+
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("gitlab auto-merge tags the release", func(t *testing.T) {
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "gitlab",
+			Branch:   "main",
+			Host:     "gitlab.com",
+			Project:  "group/service",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--auto-merge", "--config", configPath},
+			testastic.WithRunEnv(
+				"GITLAB_TOKEN=test-token",
+				"GITLAB_URL="+server.URL+"/api/v4",
 				"GITHUB_REF_NAME=main",
 			),
 		)
