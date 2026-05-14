@@ -22,6 +22,10 @@ type GitHubOptions struct {
 	// release branch. The last entry should point at BoundarySHA so yeet can
 	// terminate the walk.
 	Commits []GitHubCommit
+	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
+	// fixture: when true, the closed-pulls listing returns one merged PR with
+	// the autorelease:pending label so yeet enters the finalization path.
+	MergedPendingRelease bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -39,46 +43,24 @@ const (
 	githubKeyName    = "name"
 	githubKeyType    = "type"
 	githubFakePRID   = 42
+	githubChangelog  = "CHANGELOG.md"
 )
 
 // NewGitHub starts an httptest.Server serving the minimum set of GitHub REST
-// endpoints exercised by `yeet release --dry-run` against a configured
-// owner/repo. The server is stopped via t.Cleanup.
+// endpoints exercised by `yeet release` against a configured owner/repo.
+// The server is stopped via t.Cleanup.
 func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	t.Helper()
 
-	owner := opts.Owner
-	repo := opts.Repo
-	prefix := "/api/v3/repos/" + owner + "/" + repo
+	prefix := "/api/v3/repos/" + opts.Owner + "/" + opts.Repo
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET "+prefix+"/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "no release", http.StatusNotFound)
-	})
-
-	mux.HandleFunc("GET "+prefix+"/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubTagsPayload(opts.LatestTag))
-	})
-
-	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubCommitsList(opts.Commits))
-	})
-
-	mux.HandleFunc("GET "+prefix+"/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
-		ref := r.PathValue("ref")
-		writeJSON(w, githubCommitDetail(ref, opts))
-	})
-
-	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, []any{})
-	})
-
-	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, []any{})
-	})
-
+	registerGitHubReleases(mux, prefix)
+	registerGitHubHistory(mux, prefix, opts)
+	registerGitHubPullsRead(mux, prefix, opts)
 	registerGitHubWritePath(mux, prefix)
+	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("fakeprovider/github: unexpected request %s %s", r.Method, r.URL.String())
@@ -89,6 +71,69 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func registerGitHubReleases(mux *http.ServeMux, prefix string) {
+	mux.HandleFunc("GET "+prefix+"/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no release", http.StatusNotFound)
+	})
+
+	mux.HandleFunc("GET "+prefix+"/releases/tags/{tag}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "no release", http.StatusNotFound)
+	})
+
+	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{
+			"id":               githubFakePRID,
+			"tag_name":         "v1.1.0",
+			"html_url":         "https://example.test/releases/v1.1.0",
+			"target_commitish": "main",
+		})
+	})
+
+	mux.HandleFunc("POST "+prefix+"/git/tags", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{githubKeySHA: "tag-object-sha", "tag": "v1.1.0"})
+	})
+}
+
+func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+	mux.HandleFunc("GET "+prefix+"/tags", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, githubTagsPayload(opts.LatestTag))
+	})
+
+	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, githubCommitsList(opts.Commits))
+	})
+
+	mux.HandleFunc("GET "+prefix+"/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, githubCommitDetail(r.PathValue("ref"), opts))
+	})
+}
+
+func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, []any{})
+	})
+
+	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") == "closed" && opts.MergedPendingRelease {
+			writeJSON(w, []map[string]any{githubMergedPendingPR()})
+
+			return
+		}
+
+		writeJSON(w, []any{})
+	})
+}
+
+func registerGitHubUser(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v3/user", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{
+			"login":       "yeet-bot",
+			githubKeyName: "yeet-bot",
+			"email":       "yeet-bot@example.test",
+		})
+	})
 }
 
 func githubTagsPayload(tag string) any {
@@ -190,7 +235,21 @@ func registerGitHubGitData(mux *http.ServeMux, prefix string) {
 }
 
 func registerGitHubContent(mux *http.ServeMux, prefix string) {
-	mux.HandleFunc("GET "+prefix+"/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+prefix+"/contents/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		if path == githubChangelog {
+			writeJSON(w, map[string]any{
+				githubKeyName: githubChangelog,
+				"path":        githubChangelog,
+				githubKeyType: "file",
+				"encoding":    "base64",
+				"content":     "IyMgQ2hhbmdlbG9nCgojIyBbdjEuMS4wXQoKKiBmZWF0OiBhZGQgYSB0aGluZwo=",
+				githubKeySHA:  "changelog-blob-sha",
+			})
+
+			return
+		}
+
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 }
@@ -206,6 +265,10 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, githubFakePR())
+	})
+
+	mux.HandleFunc("PUT "+prefix+"/pulls/{number}/merge", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{"merged": true, githubKeySHA: "merge-sha"})
 	})
 }
 
@@ -225,6 +288,26 @@ func registerGitHubLabels(mux *http.ServeMux, prefix string) {
 	mux.HandleFunc("DELETE "+prefix+"/issues/{number}/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// githubReleaseManifest is the JSON payload yeet expects embedded inside the
+// merged release PR body so it can determine which tag/target to finalize.
+const githubReleaseManifest = "<!-- yeet-release-manifest\n" +
+	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
+	"\n-->"
+
+func githubMergedPendingPR() map[string]any {
+	pr := githubFakePR()
+	pr["state"] = "closed"
+	pr["merged"] = true
+	pr["merged_at"] = "2026-01-01T00:00:00Z"
+	pr["merge_commit_sha"] = "merge-sha"
+	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
+	pr["labels"] = []map[string]any{
+		{githubKeyName: "autorelease: pending"},
+	}
+
+	return pr
 }
 
 func githubFakePR() map[string]any {
