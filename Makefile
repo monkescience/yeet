@@ -27,10 +27,11 @@ test-blackbox: ## Run end-to-end blackbox tests against the compiled binary
 coverage: ## Run blackbox tests and report subprocess coverage (the primary coverage gate)
 	rm -rf coverage && mkdir -p coverage
 	go test ./tests/...
-	go tool cover -func=coverage/process.out
+	cp coverage/process.out coverage.out
+	go tool cover -func=coverage.out
 
 coverage-html: coverage ## Generate an HTML coverage report
-	go tool cover -html=coverage/process.out -o coverage.html
+	go tool cover -html=coverage.out -o coverage.html
 
 lint: ## Run linter
 	golangci-lint run ./...
@@ -39,5 +40,5 @@ fmt: ## Format code
 	golangci-lint fmt ./...
 
 clean: ## Remove build artifacts
-	rm -f yeet coverage.html
+	rm -f yeet coverage.out coverage.html
 	rm -rf coverage
