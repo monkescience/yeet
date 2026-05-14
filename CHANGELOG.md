@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.8.3](https://github.com/monkescience/yeet/compare/v0.8.2...v0.8.3) (2026-05-14)
+
+### Features
+
+- **release:** add provider compare links and diagnostics ([bfe26d1](https://github.com/monkescience/yeet/commit/bfe26d1d6daa920e8271bc6736b80a0a51750c96))
+- **provider:** add azure devops release support ([c2becd3](https://github.com/monkescience/yeet/commit/c2becd3cd9443e9e7baa820140445055ce458c31))
+### Bug Fixes
+
+- **cli:** respect custom hosts and terminal color settings ([4215b91](https://github.com/monkescience/yeet/commit/4215b91e2cd61261bc2d748968320f8e65c93eea))
+- **cli:** support worktree config repositories ([6c216ba](https://github.com/monkescience/yeet/commit/6c216bacd58be42687e821955d7beaa3441f7452))
+
 ## [v0.8.2](https://github.com/monkescience/yeet/compare/v0.8.1...v0.8.2) (2026-05-11)
 
 ### Features
