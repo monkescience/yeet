@@ -25,12 +25,19 @@ type GitLabOptions struct {
 	Files map[string]string
 	// MergedPendingRelease toggles the merged-release-MR fixture.
 	MergedPendingRelease bool
+	// ExistingOpenReleasePRBody, when non-empty, makes the open-merge-requests
+	// listing return a single pending release MR with this body so yeet drives
+	// the update-existing-MR workflow.
+	ExistingOpenReleasePRBody string
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
 type GitLabCommit struct {
 	SHA     string
 	Message string
+	// Files are the changed file paths returned by the commit-diff endpoint
+	// when yeet asks for per-commit paths (multi-target mode).
+	Files []string
 }
 
 const (
@@ -87,12 +94,47 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 			writeJSON(w, []any{})
 		},
 	)
+
+	mux.HandleFunc("GET "+prefix+"/repository/commits/{sha}/diff", func(w http.ResponseWriter, r *http.Request) {
+		sha := r.PathValue("sha")
+
+		for _, c := range opts.Commits {
+			if c.SHA != sha {
+				continue
+			}
+
+			diffs := make([]map[string]any, 0, len(c.Files))
+			for _, path := range c.Files {
+				diffs = append(diffs, map[string]any{
+					"old_path": path,
+					"new_path": path,
+				})
+			}
+
+			writeJSON(w, diffs)
+
+			return
+		}
+
+		writeJSON(w, []any{})
+	})
 }
 
 func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) {
 	mux.HandleFunc("GET "+prefix+"/merge_requests", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") == fakeStateMerged && opts.MergedPendingRelease {
+		state := r.URL.Query().Get("state")
+
+		if state == fakeStateMerged && opts.MergedPendingRelease {
 			writeJSON(w, []map[string]any{gitlabMergedPendingMR()})
+
+			return
+		}
+
+		if state == "opened" && opts.ExistingOpenReleasePRBody != "" {
+			mr := gitlabFakeMR()
+			mr["description"] = opts.ExistingOpenReleasePRBody
+
+			writeJSON(w, []map[string]any{mr})
 
 			return
 		}
@@ -202,7 +244,7 @@ const gitlabReleaseManifest = "<!-- yeet-release-manifest\n" +
 func gitlabMergedPendingMR() map[string]any {
 	mr := gitlabFakeMR()
 	mr["state"] = "merged"
-	mr["merged_at"] = "2026-01-01T00:00:00Z"
+	mr["merged_at"] = fakeMergedAtTimestamp
 	mr["description"] = "## ٩(^ᴗ^)۶ release created\n\n" + gitlabReleaseManifest + "\n"
 	mr["labels"] = []string{fakePendingReleaseTag}
 

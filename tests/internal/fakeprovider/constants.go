@@ -21,4 +21,7 @@ const (
 const (
 	fakeStateMerged       = "merged"
 	fakePendingReleaseTag = "autorelease: pending"
+	fakeStateOpen         = "open"
+	fakeMergedAtTimestamp = "2026-01-01T00:00:00Z"
+	fakeAssociatedPRID    = 99
 )

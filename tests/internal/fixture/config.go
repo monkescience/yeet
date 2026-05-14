@@ -31,9 +31,12 @@ type ConfigOptions struct {
 // TargetOptions describes one entry in the targets map. When empty, the
 // fixture writes a single "default" target.
 type TargetOptions struct {
-	Name      string
-	Path      string
-	TagPrefix string
+	Name         string
+	Path         string
+	TagPrefix    string
+	Type         string
+	ExcludePaths []string
+	Includes     []string
 }
 
 // VersionFileOptions describes a version_files entry. Format and JSONPointer
@@ -142,12 +145,36 @@ func writeTargets(b *strings.Builder, targets []TargetOptions) {
 	}
 
 	for _, target := range targets {
+		targetType := target.Type
+		if targetType == "" {
+			targetType = "path"
+		}
+
 		b.WriteString("  ")
 		b.WriteString(target.Name)
-		b.WriteString(":\n    type: path\n    path: ")
+		b.WriteString(":\n    type: ")
+		b.WriteString(targetType)
+		b.WriteString("\n    path: ")
 		b.WriteString(target.Path)
 		b.WriteString("\n    tag_prefix: ")
 		b.WriteString(target.TagPrefix)
+		b.WriteString("\n")
+
+		writeStringSlice(b, "    exclude_paths:\n", target.ExcludePaths)
+		writeStringSlice(b, "    includes:\n", target.Includes)
+	}
+}
+
+func writeStringSlice(b *strings.Builder, prefix string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+
+	b.WriteString(prefix)
+
+	for _, v := range values {
+		b.WriteString("      - ")
+		b.WriteString(v)
 		b.WriteString("\n")
 	}
 }

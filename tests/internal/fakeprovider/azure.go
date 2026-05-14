@@ -2,6 +2,7 @@ package fakeprovider
 
 import (
 	_ "embed"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,12 +20,29 @@ type AzureOptions struct {
 	BoundarySHA string
 	// Commits are returned (newest first) from the commits listing.
 	Commits []AzureCommit
+	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
+	// fixture: when true, the completed-pulls listing returns one merged PR
+	// with the autorelease:pending label so yeet enters the finalization path.
+	MergedPendingRelease bool
+	// MultipleOpenPRs returns two pending release PRs from the active-pulls
+	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
+	MultipleOpenPRs bool
+	// MergeBlocked makes GET /pullRequests/{id} return a draft PR, triggering
+	// ErrMergeBlocked on --auto-merge.
+	MergeBlocked bool
+	// ExistingOpenReleasePRBody, when non-empty, makes the active-pull-requests
+	// listing return a single pending release PR with this body so yeet drives
+	// the update-existing-PR workflow.
+	ExistingOpenReleasePRBody string
 }
 
 // AzureCommit is a tiny subset of the Azure DevOps commit payload yeet reads.
 type AzureCommit struct {
 	SHA     string
 	Message string
+	// Files are the changed file paths returned by the changes endpoint when
+	// yeet asks for per-commit paths (multi-target mode).
+	Files []string
 }
 
 //go:embed testdata/resource_locations.json
@@ -72,33 +90,7 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 }
 
 func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
-	mux.HandleFunc("GET "+repoAPI+"/refs", func(w http.ResponseWriter, r *http.Request) {
-		filter := r.URL.Query().Get("filter")
-
-		if strings.HasPrefix(filter, "heads/") {
-			writeJSON(w, map[string]any{
-				azureKeyCount: 1,
-				azureKeyValue: []map[string]any{
-					{
-						gitlabKeyName:    "refs/" + filter,
-						azureKeyObjectID: fakeBaseSHA,
-					},
-				},
-			})
-
-			return
-		}
-
-		writeJSON(w, map[string]any{
-			azureKeyCount: 1,
-			azureKeyValue: []map[string]any{
-				{
-					gitlabKeyName:    "refs/tags/" + opts.LatestTag,
-					azureKeyObjectID: opts.BoundarySHA,
-				},
-			},
-		})
-	})
+	mux.HandleFunc("GET "+repoAPI+"/refs", azureRefsHandler(opts))
 
 	mux.HandleFunc("GET "+repoAPI+"/commits", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
@@ -110,33 +102,159 @@ func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions)
 	mux.HandleFunc("GET "+repoAPI+"/annotatedTags/{id}", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
+
+	mux.HandleFunc("GET "+repoAPI+"/commits/{id}/changes", azureCommitChangesHandler(opts))
+}
+
+func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filter := r.URL.Query().Get("filter")
+
+		if strings.HasPrefix(filter, "heads/") {
+			writeJSON(w, map[string]any{
+				azureKeyCount: 1,
+				azureKeyValue: []map[string]any{{
+					gitlabKeyName:    "refs/" + filter,
+					azureKeyObjectID: fakeBaseSHA,
+				}},
+			})
+
+			return
+		}
+
+		if filter == "tags/"+opts.LatestTag && opts.LatestTag != "" {
+			writeJSON(w, azureTagRefsPayload(opts))
+
+			return
+		}
+
+		if strings.HasPrefix(filter, "tags/") {
+			writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
+
+			return
+		}
+
+		writeJSON(w, azureTagRefsPayload(opts))
+	}
+}
+
+func azureTagRefsPayload(opts AzureOptions) map[string]any {
+	return map[string]any{
+		azureKeyCount: 1,
+		azureKeyValue: []map[string]any{{
+			gitlabKeyName:    "refs/tags/" + opts.LatestTag,
+			azureKeyObjectID: opts.BoundarySHA,
+		}},
+	}
+}
+
+func azurePullRequestsListHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		status := r.URL.Query().Get("searchCriteria.status")
+
+		if status == azureStatusCompleted && opts.MergedPendingRelease {
+			writeJSON(w, map[string]any{
+				azureKeyCount: 1,
+				azureKeyValue: []map[string]any{azureMergedPendingPR(opts)},
+			})
+
+			return
+		}
+
+		if status == azureStatusActive && opts.MultipleOpenPRs {
+			writeJSON(w, map[string]any{
+				azureKeyCount: azureMultipleOpenPRCount,
+				azureKeyValue: []map[string]any{
+					azurePendingPR(opts, azureFakePRID),
+					azurePendingPR(opts, azureFakeSecondPRID),
+				},
+			})
+
+			return
+		}
+
+		if status == azureStatusActive && opts.ExistingOpenReleasePRBody != "" {
+			pr := azurePendingPR(opts, azureFakePRID)
+			pr["description"] = opts.ExistingOpenReleasePRBody
+
+			writeJSON(w, map[string]any{
+				azureKeyCount: 1,
+				azureKeyValue: []map[string]any{pr},
+			})
+
+			return
+		}
+
+		writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
+	}
+}
+
+func azureCommitChangesHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sha := r.PathValue("id")
+
+		for _, c := range opts.Commits {
+			if c.SHA != sha {
+				continue
+			}
+
+			changes := make([]map[string]any, 0, len(c.Files))
+			for _, path := range c.Files {
+				changes = append(changes, map[string]any{
+					"item":       map[string]any{"path": "/" + strings.TrimPrefix(path, "/")},
+					"changeType": "edit",
+				})
+			}
+
+			writeJSON(w, map[string]any{
+				azureKeyCount: len(changes),
+				"changes":     changes,
+			})
+
+			return
+		}
+
+		writeJSON(w, map[string]any{azureKeyCount: 0, "changes": []any{}})
+	}
 }
 
 func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
-	mux.HandleFunc("GET "+repoAPI+"/pullRequests", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
-	})
+	mux.HandleFunc("GET "+repoAPI+"/pullRequests", azurePullRequestsListHandler(opts))
 
 	mux.HandleFunc("POST "+repoAPI+"/pullRequests", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, azureFakePR(opts.Organization, opts.Project, opts.Repo))
+		writeJSON(w, azureFakePR(opts))
 	})
 
 	mux.HandleFunc("PATCH "+repoAPI+"/pullRequests/{id}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, azureFakePR(opts.Organization, opts.Project, opts.Repo))
+		writeJSON(w, azureFakePR(opts))
 	})
 
 	mux.HandleFunc("GET "+repoAPI+"/pullRequests/{id}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, azureFakePR(opts.Organization, opts.Project, opts.Repo))
+		if opts.MergedPendingRelease {
+			writeJSON(w, azureMergedPendingPR(opts))
+
+			return
+		}
+
+		writeJSON(w, azureFakePR(opts))
 	})
 
 	mux.HandleFunc("GET "+repoAPI+"/pullRequests/{id}/labels", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
+		writeJSON(w, map[string]any{
+			azureKeyCount: 1,
+			azureKeyValue: []map[string]any{
+				{
+					gitlabKeyName: fakePendingReleaseTag,
+					gitlabKeyID:   azureFakeLabelID,
+				},
+			},
+		})
 	})
 
 	mux.HandleFunc("POST "+repoAPI+"/pullRequests/{id}/labels", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			gitlabKeyName: fakePendingReleaseTag,
-			gitlabKeyID:   "00000000-0000-0000-0000-000000000042",
+			gitlabKeyID:   azureFakeLabelID,
 		})
 	})
 
@@ -150,7 +268,13 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 	mux.HandleFunc(
 		"GET /"+opts.Organization+"/"+opts.Project+"/_apis/git/pullRequests/{id}",
 		func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, azureFakePR(opts.Organization, opts.Project, opts.Repo))
+			if opts.MergedPendingRelease {
+				writeJSON(w, azureMergedPendingPR(opts))
+
+				return
+			}
+
+			writeJSON(w, azureFakePR(opts))
 		},
 	)
 }
@@ -185,7 +309,7 @@ func registerAzureWrite(mux *http.ServeMux, repoAPI string) {
 		path := strings.TrimPrefix(r.URL.Query().Get("path"), "/")
 		if path == "CHANGELOG.md" {
 			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte("## Changelog\n"))
+			_, _ = w.Write([]byte("## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n"))
 
 			return
 		}
@@ -207,25 +331,71 @@ func azureCommitsList(commits []AzureCommit) []map[string]any {
 
 	for _, c := range commits {
 		out = append(out, map[string]any{
-			"commitId": c.SHA,
-			"comment":  c.Message,
+			azureCommitIDKey: c.SHA,
+			"comment":        c.Message,
 		})
 	}
 
 	return out
 }
 
-const azureFakePRID = 42
+const (
+	azureFakePRID            = 42
+	azureFakeSecondPRID      = 43
+	azureFakeLabelID         = "00000000-0000-0000-0000-000000000042"
+	azureStatusActive        = "active"
+	azureStatusCompleted     = "completed"
+	azureMultipleOpenPRCount = 2
+	azureCommitIDKey         = "commitId"
+)
 
-func azureFakePR(org, project, repo string) map[string]any {
-	prefix := "https://example.test/" + org + "/" + project + "/_git/" + repo
+const azureReleaseManifest = "<!-- yeet-release-manifest\n" +
+	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
+	"\n-->"
+
+func azureFakePR(opts AzureOptions) map[string]any {
+	return azurePRBase(opts, azureFakePRID, azureStatusActive, opts.MergeBlocked, false)
+}
+
+func azurePendingPR(opts AzureOptions, id int) map[string]any {
+	pr := azurePRBase(opts, id, azureStatusActive, false, false)
+	pr["labels"] = []map[string]any{
+		{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
+	}
+
+	return pr
+}
+
+func azureMergedPendingPR(opts AzureOptions) map[string]any {
+	pr := azurePRBase(opts, azureFakePRID, azureStatusCompleted, false, true)
+	pr["labels"] = []map[string]any{
+		{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
+	}
+	pr["description"] = "## release created\n\n" + azureReleaseManifest + "\n"
+	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: fakeMergeSHA}
+	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: fakeMergeSHA}
+
+	return pr
+}
+
+func azurePRBase(opts AzureOptions, id int, status string, draft, completed bool) map[string]any {
+	prefix := "https://example.test/" + opts.Organization + "/" + opts.Project + "/_git/" + opts.Repo
+
 	pr := map[string]any{
-		"pullRequestId": azureFakePRID,
-		"status":        "active",
+		"pullRequestId": id,
+		"status":        status,
 		"sourceRefName": "refs/heads/" + fakeReleaseBranch,
 		"targetRefName": "refs/heads/" + fakeBaseBranch,
-		"url":           prefix + "/pullrequest/42",
-		"isDraft":       false,
+		"url":           fmt.Sprintf("%s/pullrequest/%d", prefix, id),
+		"isDraft":       draft,
+		"mergeStatus":   "succeeded",
+		"lastMergeSourceCommit": map[string]any{
+			azureCommitIDKey: fakeMergeSHA,
+		},
+	}
+
+	if completed {
+		pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: fakeMergeSHA}
 	}
 
 	return pr

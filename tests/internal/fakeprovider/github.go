@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
 
@@ -17,6 +18,9 @@ type GitHubOptions struct {
 	// LatestTag is the most recent tag returned by the tags-fallback. When
 	// empty, the server reports no tags and no latest release.
 	LatestTag string
+	// ExtraTags are additional historical tags returned alongside LatestTag
+	// from the tags-fallback. Used to drive the multi-ref ordering paths.
+	ExtraTags []string
 	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
 	BoundarySHA string
 	// Commits are returned (newest first) from the commits listing for the
@@ -38,6 +42,11 @@ type GitHubOptions struct {
 	// MergeBlocked makes /pulls/{number} return a draft PR, triggering
 	// ErrMergeBlocked on --auto-merge.
 	MergeBlocked bool
+	// ExistingOpenReleasePRBody, when non-empty, makes the open-pulls listing
+	// return a single pending release PR with this body. The body should
+	// include the yeet release-manifest marker so yeet recognizes the PR and
+	// drives the update-existing-PR workflow.
+	ExistingOpenReleasePRBody string
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -47,6 +56,10 @@ type GitHubCommit struct {
 	// Files are the changed file paths returned by the commit-detail
 	// endpoint when yeet asks for per-commit paths (multi-target mode).
 	Files []string
+	// AssociatedPRBody, when non-empty, is returned as the body of the merged
+	// pull request associated with this commit by /commits/{sha}/pulls. Used
+	// to drive the commit-override path (BEGIN_COMMIT_OVERRIDE markers).
+	AssociatedPRBody string
 }
 
 const (
@@ -113,7 +126,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string) {
 
 func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubTagsPayload(opts.LatestTag))
+		writeJSON(w, githubTagsPayload(opts.LatestTag, opts.ExtraTags))
 	})
 
 	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, _ *http.Request) {
@@ -126,7 +139,23 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 }
 
 func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {
-	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, r *http.Request) {
+		sha := r.PathValue("sha")
+		for _, c := range opts.Commits {
+			if c.SHA == sha && c.AssociatedPRBody != "" {
+				writeJSON(w, []map[string]any{{
+					"number":           fakeAssociatedPRID,
+					"merged_at":        fakeMergedAtTimestamp,
+					"body":             c.AssociatedPRBody,
+					"head":             map[string]any{githubKeySHA: sha},
+					"merge_commit_sha": sha,
+					fakeStateMerged:    true,
+				}})
+
+				return
+			}
+		}
+
 		writeJSON(w, []any{})
 	})
 
@@ -139,13 +168,22 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 			return
 		}
 
-		if state == "open" && opts.MultipleOpenPRs {
+		if state == fakeStateOpen && opts.MultipleOpenPRs {
 			const (
 				firstID  = 43
 				secondID = 44
 			)
 
 			writeJSON(w, []map[string]any{githubPendingPR(firstID), githubPendingPR(secondID)})
+
+			return
+		}
+
+		if state == fakeStateOpen && opts.ExistingOpenReleasePRBody != "" {
+			pr := githubPendingPR(githubFakePRID)
+			pr["body"] = opts.ExistingOpenReleasePRBody
+
+			writeJSON(w, []map[string]any{pr})
 
 			return
 		}
@@ -164,18 +202,30 @@ func registerGitHubUser(mux *http.ServeMux) {
 	})
 }
 
-func githubTagsPayload(tag string) any {
-	if tag == "" {
+func githubTagsPayload(tag string, extra []string) any {
+	tags := make([]map[string]any, 0, 1+len(extra))
+
+	if tag != "" {
+		tags = append(tags, map[string]any{githubKeyName: tag})
+	}
+
+	for _, t := range extra {
+		tags = append(tags, map[string]any{githubKeyName: t})
+	}
+
+	if len(tags) == 0 {
 		return []any{}
 	}
 
-	return []map[string]any{
-		{githubKeyName: tag},
-	}
+	return tags
 }
 
 func githubCommitDetail(ref string, opts GitHubOptions) map[string]any {
 	if ref == opts.LatestTag {
+		return map[string]any{githubKeySHA: opts.BoundarySHA}
+	}
+
+	if slices.Contains(opts.ExtraTags, ref) {
 		return map[string]any{githubKeySHA: opts.BoundarySHA}
 	}
 
@@ -209,7 +259,7 @@ func githubFilesPayload(paths []string) []map[string]any {
 func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	registerGitHubGitData(mux, prefix)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(mux, prefix)
+	registerGitHubPullsWrite(mux, prefix, opts)
 	registerGitHubLabels(mux, prefix)
 
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
@@ -302,7 +352,7 @@ func githubFileContent(path, raw string) map[string]any {
 	}
 }
 
-func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
+func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, githubFakePR())
 	})
@@ -312,7 +362,12 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubFakePR())
+		pr := githubFakePR()
+		if opts.MergeBlocked {
+			pr["draft"] = true
+		}
+
+		writeJSON(w, pr)
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}/files", func(w http.ResponseWriter, _ *http.Request) {
@@ -352,7 +407,7 @@ func githubMergedPendingPR() map[string]any {
 	pr := githubFakePR()
 	pr["state"] = "closed"
 	pr["merged"] = true
-	pr["merged_at"] = "2026-01-01T00:00:00Z"
+	pr["merged_at"] = fakeMergedAtTimestamp
 	pr["merge_commit_sha"] = fakeMergeSHA
 	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
 	pr["labels"] = []map[string]any{
@@ -369,7 +424,7 @@ func githubFakePR() map[string]any {
 func githubPendingPR(number int) map[string]any {
 	return map[string]any{
 		"number":          number,
-		"state":           "open",
+		"state":           fakeStateOpen,
 		"draft":           false,
 		fakeStateMerged:   false,
 		"mergeable_state": "clean",
