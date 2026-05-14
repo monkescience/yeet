@@ -15,6 +15,7 @@ type versionHistoryProvider interface {
 type repoMetadataProvider interface {
 	RepoURL() string
 	PathPrefix() string
+	CompareURL(fromRef, toRef string) string
 }
 
 type releasePRProvider interface {

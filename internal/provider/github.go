@@ -48,6 +48,10 @@ func (g *GitHub) PathPrefix() string {
 	return ""
 }
 
+func (g *GitHub) CompareURL(fromRef, toRef string) string {
+	return fmt.Sprintf("%s/compare/%s...%s", g.RepoURL(), fromRef, toRef)
+}
+
 func gitHubNextPage(resp *github.Response) int {
 	if resp == nil {
 		return 0

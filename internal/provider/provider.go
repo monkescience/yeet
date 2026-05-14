@@ -125,8 +125,10 @@ type Provider interface {
 
 	// RepoURL returns the HTTPS base URL for the repository.
 	RepoURL() string
-	// PathPrefix returns the path prefix for commit/compare URLs (empty for GitHub, "/-" for GitLab).
+	// PathPrefix returns the path prefix for commit URLs (empty for GitHub, "/-" for GitLab).
 	PathPrefix() string
+	// CompareURL returns the web URL comparing fromRef..toRef in the provider's native format.
+	CompareURL(fromRef, toRef string) string
 }
 
 type RepoInfo struct {

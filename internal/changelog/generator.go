@@ -19,6 +19,7 @@ type Generator struct {
 	Include    []string
 	RepoURL    string
 	PathPrefix string
+	CompareURL func(fromRef, toRef string) string
 	References config.ReferencesConfig
 	Now        func() time.Time
 
@@ -70,8 +71,8 @@ func (g *Generator) Generate(version string, previousTag string, commits []commi
 		Body:    sb.String(),
 	}
 
-	if g.RepoURL != "" && previousTag != "" {
-		entry.CompareURL = fmt.Sprintf("%s%s/compare/%s...%s", g.RepoURL, g.PathPrefix, previousTag, version)
+	if g.CompareURL != nil && previousTag != "" {
+		entry.CompareURL = g.CompareURL(previousTag, version)
 	}
 
 	return entry

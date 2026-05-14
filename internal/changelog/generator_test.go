@@ -201,11 +201,14 @@ func TestGenerate(t *testing.T) {
 	t.Run("compare URL with previous tag", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a generator with repo URL and a previous tag
+		// given: a generator with a compare URL builder and a previous tag
 		gen := &changelog.Generator{
 			Sections: map[string]string{"feat": "Features"},
 			Include:  []string{"feat"},
 			RepoURL:  "https://github.com/owner/repo",
+			CompareURL: func(from, to string) string {
+				return "https://github.com/owner/repo/compare/" + from + "..." + to
+			},
 		}
 
 		commits := []commit.Commit{
@@ -222,11 +225,14 @@ func TestGenerate(t *testing.T) {
 	t.Run("no compare URL without previous tag", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a generator with repo URL but no previous tag
+		// given: a generator with a compare URL builder but no previous tag
 		gen := &changelog.Generator{
 			Sections: map[string]string{"feat": "Features"},
 			Include:  []string{"feat"},
 			RepoURL:  "https://github.com/owner/repo",
+			CompareURL: func(from, to string) string {
+				return "https://github.com/owner/repo/compare/" + from + "..." + to
+			},
 		}
 
 		commits := []commit.Commit{
@@ -240,20 +246,21 @@ func TestGenerate(t *testing.T) {
 		testastic.Equal(t, "", entry.CompareURL)
 	})
 
-	t.Run("no compare URL without repo URL", func(t *testing.T) {
+	t.Run("no compare URL without compare builder", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a generator without repo URL
+		// given: a generator without compare URL builder
 		gen := &changelog.Generator{
 			Sections: map[string]string{"feat": "Features"},
 			Include:  []string{"feat"},
+			RepoURL:  "https://github.com/owner/repo",
 		}
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "feature"},
 		}
 
-		// when: generating changelog with previous tag but no repo URL
+		// when: generating changelog with previous tag but no builder
 		entry := gen.Generate("v1.1.0", "v1.0.0", commits)
 
 		// then: compare URL is empty

@@ -1194,8 +1194,8 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 
-		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
-		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
+		canonicalCompareURL := stub.CompareURL("v1.2.3", "v1.2.4")
+		prCompareURL := stub.CompareURL("v1.2.3", headSHA)
 
 		testastic.Contains(t, result.Plans[0].Changelog, canonicalCompareURL)
 		testastic.NotContains(t, result.Plans[0].Changelog, prCompareURL)
@@ -1234,8 +1234,8 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 
-		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", "v1.2.4")
-		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v1.2.3", headSHA)
+		canonicalCompareURL := stub.CompareURL("v1.2.3", "v1.2.4")
+		prCompareURL := stub.CompareURL("v1.2.3", headSHA)
 
 		testastic.Contains(t, result.Plans[0].Changelog, canonicalCompareURL)
 		testastic.NotContains(t, result.Plans[0].Changelog, prCompareURL)
@@ -2225,9 +2225,9 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "root", result.Plans[0].ID)
 		testastic.Equal(t, 2, result.Plans[0].CommitCount)
 
-		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", webSHA)
-		staleChildCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", apiSHA)
-		canonicalCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", "v3.1.0")
+		prCompareURL := stub.CompareURL("v3.0.0", webSHA)
+		staleChildCompareURL := stub.CompareURL("v3.0.0", apiSHA)
+		canonicalCompareURL := stub.CompareURL("v3.0.0", "v3.1.0")
 
 		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
 		testastic.NotContains(t, result.Plans[0].PRChangelog, staleChildCompareURL)
@@ -2290,8 +2290,8 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "root", result.Plans[0].ID)
 		testastic.Equal(t, apiSHA, result.Plans[0].PRCompareRef)
 
-		prCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", apiSHA)
-		staleDirectCompareURL := compareURL(stub.repoURL, stub.pathPrefix, "v3.0.0", rootSHA)
+		prCompareURL := stub.CompareURL("v3.0.0", apiSHA)
+		staleDirectCompareURL := stub.CompareURL("v3.0.0", rootSHA)
 
 		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
 		testastic.NotContains(t, result.Plans[0].PRChangelog, staleDirectCompareURL)
