@@ -23,6 +23,8 @@ type GitLabOptions struct {
 	Commits []GitLabCommit
 	// Files maps repository-relative paths to raw content for /files/{path}/raw.
 	Files map[string]string
+	// MergedPendingRelease toggles the merged-release-MR fixture.
+	MergedPendingRelease bool
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
@@ -49,7 +51,7 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	mux := http.NewServeMux()
 
 	registerGitLabHistory(mux, prefix, opts)
-	registerGitLabMerge(mux, prefix)
+	registerGitLabMerge(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
 	registerGitLabLabels(mux, prefix)
 	registerGitLabReleases(mux, prefix)
@@ -87,8 +89,14 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	)
 }
 
-func registerGitLabMerge(mux *http.ServeMux, prefix string) {
-	mux.HandleFunc("GET "+prefix+"/merge_requests", func(w http.ResponseWriter, _ *http.Request) {
+func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) {
+	mux.HandleFunc("GET "+prefix+"/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") == fakeStateMerged && opts.MergedPendingRelease {
+			writeJSON(w, []map[string]any{gitlabMergedPendingMR()})
+
+			return
+		}
+
 		writeJSON(w, []any{})
 	})
 
@@ -134,7 +142,7 @@ func registerGitLabContent(mux *http.ServeMux, prefix string, opts GitLabOptions
 			}
 
 			if path == "CHANGELOG.md" {
-				_, _ = w.Write([]byte("## Changelog\n"))
+				_, _ = w.Write([]byte("## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n"))
 
 				return
 			}
@@ -186,6 +194,20 @@ func registerGitLabProject(mux *http.ServeMux, prefix string) {
 }
 
 const gitlabFakeMRID = 42
+
+const gitlabReleaseManifest = "<!-- yeet-release-manifest\n" +
+	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
+	"\n-->"
+
+func gitlabMergedPendingMR() map[string]any {
+	mr := gitlabFakeMR()
+	mr["state"] = "merged"
+	mr["merged_at"] = "2026-01-01T00:00:00Z"
+	mr["description"] = "## ٩(^ᴗ^)۶ release created\n\n" + gitlabReleaseManifest + "\n"
+	mr["labels"] = []string{fakePendingReleaseTag}
+
+	return mr
+}
 
 func gitlabFakeMR() map[string]any {
 	return map[string]any{

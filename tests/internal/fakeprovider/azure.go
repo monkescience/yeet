@@ -135,7 +135,7 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 
 	mux.HandleFunc("POST "+repoAPI+"/pullRequests/{id}/labels", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
-			gitlabKeyName: "autorelease: pending",
+			gitlabKeyName: fakePendingReleaseTag,
 			gitlabKeyID:   "00000000-0000-0000-0000-000000000042",
 		})
 	})

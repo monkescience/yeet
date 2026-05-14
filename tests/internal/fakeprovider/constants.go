@@ -16,3 +16,9 @@ const (
 	azureKeyValue    = "value"
 	azureKeyObjectID = "objectId"
 )
+
+// Shared values for merged-pending-release PR fixtures.
+const (
+	fakeStateMerged       = "merged"
+	fakePendingReleaseTag = "autorelease: pending"
+)

@@ -297,7 +297,7 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("PUT "+prefix+"/pulls/{number}/merge", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{"merged": true, githubKeySHA: fakeMergeSHA})
+		writeJSON(w, map[string]any{fakeStateMerged: true, githubKeySHA: fakeMergeSHA})
 	})
 }
 
@@ -333,7 +333,7 @@ func githubMergedPendingPR() map[string]any {
 	pr["merge_commit_sha"] = fakeMergeSHA
 	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
 	pr["labels"] = []map[string]any{
-		{githubKeyName: "autorelease: pending"},
+		{githubKeyName: fakePendingReleaseTag},
 	}
 
 	return pr
@@ -344,7 +344,7 @@ func githubFakePR() map[string]any {
 		"number":          githubFakePRID,
 		"state":           "open",
 		"draft":           false,
-		"merged":          false,
+		fakeStateMerged:   false,
 		"mergeable_state": "clean",
 		"html_url":        "https://example.test/pulls/42",
 		"head": map[string]any{
