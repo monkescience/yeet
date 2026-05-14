@@ -193,7 +193,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 }
 
 func releaseConfigForRun(ctx context.Context, configPath string, options releaseRunOptions) (*config.Config, error) {
-	cfg, resolvedConfigPath, err := loadConfig(configPath)
+	cfg, resolvedConfigPath, err := loadConfig(ctx, configPath)
 	if err != nil {
 		return nil, wrapReleaseConfigError(resolvedConfigPath, err)
 	}
@@ -207,7 +207,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	currentBranch, branchErr := currentGitBranch()
+	currentBranch, branchErr := currentGitBranch(ctx)
 	if branchErr != nil && !options.dryRun && len(cfg.Release.Channels) > 0 {
 		return nil, fmt.Errorf("resolve current branch: %w", branchErr)
 	}

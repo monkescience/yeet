@@ -225,7 +225,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(servicePath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath("")
+		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
 
 		// then: the nearest ancestor config is selected
 		testastic.NoError(t, resolveErr)
@@ -244,7 +244,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving an explicit config path
-		resolvedPath, resolveErr := resolveConfigPath(" custom.yaml ")
+		resolvedPath, resolveErr := resolveConfigPath(context.Background(), " custom.yaml ")
 
 		// then: the explicit path is used as-is after trimming
 		testastic.NoError(t, resolveErr)
@@ -260,7 +260,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath("")
+		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
 
 		// then: the missing path is reported against the default filename
 		testastic.Equal(t, config.DefaultFile, resolvedPath)
@@ -285,7 +285,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath("")
+		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
 
 		// then: discovery stops at the repo root instead of using the parent config
 		testastic.Equal(t, config.DefaultFile, resolvedPath)
@@ -307,7 +307,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath("")
+		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
 
 		// then: init targets the repository root config path
 		testastic.NoError(t, resolveErr)
@@ -330,7 +330,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath("")
+		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
 
 		// then: init points at the existing ancestor config file
 		testastic.NoError(t, resolveErr)
@@ -346,7 +346,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath("")
+		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
 
 		// then: init falls back to the local default filename
 		testastic.NoError(t, resolveErr)
@@ -369,7 +369,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath("")
+		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
 
 		// then: init still targets the repo root config path
 		testastic.NoError(t, resolveErr)

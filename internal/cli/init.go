@@ -37,7 +37,7 @@ func initCmd(options *bootstrapOptions) *cobra.Command {
 }
 
 func runInit(ctx context.Context, path string) error {
-	resolvedPath, err := resolveInitConfigPath(path)
+	resolvedPath, err := resolveInitConfigPath(ctx, path)
 	if err != nil {
 		return fmt.Errorf("resolve init config path: %w", err)
 	}

@@ -42,13 +42,13 @@ const (
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
-func loadConfig(path string) (*config.Config, string, error) {
-	resolvedPath, err := resolveConfigPath(path)
+func loadConfig(ctx context.Context, path string) (*config.Config, string, error) {
+	resolvedPath, err := resolveConfigPath(ctx, path)
 	if err != nil {
 		return nil, resolvedPath, err
 	}
 
-	cfg, err := config.Load(resolvedPath)
+	cfg, err := config.Load(ctx, resolvedPath)
 	if err != nil {
 		return nil, resolvedPath, fmt.Errorf("load config: %w", err)
 	}
@@ -56,7 +56,7 @@ func loadConfig(path string) (*config.Config, string, error) {
 	return cfg, resolvedPath, nil
 }
 
-func resolveConfigPath(path string) (string, error) {
+func resolveConfigPath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
@@ -67,12 +67,12 @@ func resolveConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("get working directory: %w", err)
 	}
 
-	searchRoot, err := configSearchRoot(workingDir)
+	searchRoot, err := configSearchRoot(ctx, workingDir)
 	if err != nil {
 		return "", err
 	}
 
-	configDir, found, err := findAncestorContaining(workingDir, config.DefaultFile, searchRoot)
+	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
 	if err != nil {
 		return "", fmt.Errorf("discover config path: %w", err)
 	}
@@ -84,7 +84,7 @@ func resolveConfigPath(path string) (string, error) {
 	return filepath.Join(configDir, config.DefaultFile), nil
 }
 
-func resolveInitConfigPath(path string) (string, error) {
+func resolveInitConfigPath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
@@ -95,12 +95,12 @@ func resolveInitConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("get working directory: %w", err)
 	}
 
-	searchRoot, err := configSearchRoot(workingDir)
+	searchRoot, err := configSearchRoot(ctx, workingDir)
 	if err != nil {
 		return "", err
 	}
 
-	configDir, found, err := findAncestorContaining(workingDir, config.DefaultFile, searchRoot)
+	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
 	if err != nil {
 		return "", fmt.Errorf("discover config path: %w", err)
 	}
@@ -125,8 +125,8 @@ func explicitConfigPath(path string) (string, bool) {
 	return trimmedPath, true
 }
 
-func configSearchRoot(startDir string) (string, error) {
-	repositoryRoot, found, err := findAncestorContaining(startDir, ".git", "")
+func configSearchRoot(ctx context.Context, startDir string) (string, error) {
+	repositoryRoot, found, err := findAncestorContaining(ctx, startDir, ".git", "")
 	if err != nil {
 		return "", fmt.Errorf("discover git repository: %w", err)
 	}
@@ -138,7 +138,12 @@ func configSearchRoot(startDir string) (string, error) {
 	return repositoryRoot, nil
 }
 
-func findAncestorContaining(startDir string, targetName string, stopDir string) (string, bool, error) {
+func findAncestorContaining(
+	ctx context.Context,
+	startDir string,
+	targetName string,
+	stopDir string,
+) (string, bool, error) {
 	currentDir, err := filepath.Abs(startDir)
 	if err != nil {
 		return "", false, fmt.Errorf("resolve absolute path for %s: %w", startDir, err)
@@ -153,6 +158,11 @@ func findAncestorContaining(startDir string, targetName string, stopDir string) 
 	}
 
 	for {
+		ctxErr := ctx.Err()
+		if ctxErr != nil {
+			return "", false, fmt.Errorf("ancestor search cancelled: %w", ctxErr)
+		}
+
 		candidatePath := filepath.Join(currentDir, targetName)
 
 		_, err := os.Stat(candidatePath)
@@ -599,7 +609,12 @@ func getGitRemoteURL(_ context.Context, remote string) (string, error) {
 	return rewriteGitRemoteURL(remoteURL, repositoryConfig), nil
 }
 
-func currentGitBranch() (string, error) {
+func currentGitBranch(ctx context.Context) (string, error) {
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return "", fmt.Errorf("current git branch cancelled: %w", ctxErr)
+	}
+
 	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
 		branch := strings.TrimSpace(os.Getenv(envName))
 		if branch != "" {

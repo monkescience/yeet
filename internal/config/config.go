@@ -3,6 +3,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -238,8 +239,8 @@ var errJSONPointerMustStartWithSlash = errors.New("must start with /")
 
 var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
-func Load(path string) (*Config, error) {
-	slog.Debug("config: loading file", slog.String("path", path))
+func Load(ctx context.Context, path string) (*Config, error) {
+	slog.DebugContext(ctx, "config: loading file", slog.String("path", path))
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
 	if err != nil {
@@ -251,7 +252,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	slog.Debug("config: loaded file",
+	slog.DebugContext(ctx, "config: loaded file",
 		slog.String("path", path),
 		slog.Int("bytes", len(data)),
 		slog.Int("targets", len(cfg.Targets)),

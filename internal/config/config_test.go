@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -1743,7 +1744,7 @@ func TestLoad(t *testing.T) {
 		path := "testdata/does_not_exist.yaml"
 
 		// when: loading the config
-		_, err := config.Load(path)
+		_, err := config.Load(context.Background(), path)
 
 		// then: load returns a contextual error
 		testastic.Error(t, err)
@@ -1757,7 +1758,7 @@ func TestLoad(t *testing.T) {
 		path := "testdata/minimal/input.yaml"
 
 		// when: loading the config
-		cfg, err := config.Load(path)
+		cfg, err := config.Load(context.Background(), path)
 
 		// then: it succeeds
 		testastic.NoError(t, err)

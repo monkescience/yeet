@@ -2,12 +2,15 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	charmlog "charm.land/log/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -33,7 +36,12 @@ type buildInfo struct {
 }
 
 func Execute() {
-	err := rootCmd().Execute()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	err := rootCmd().ExecuteContext(ctx)
+
+	stop()
+
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
