@@ -1,5 +1,71 @@
 # Changelog
 
+## [v0.9.0](https://github.com/monkescience/yeet/compare/v0.8.4...v0.9.0) (2026-05-14)
+
+### ⚠ BREAKING CHANGES
+
+- **config:** nest repository settings under per-provider sub-sections ([fd49da6](https://github.com/monkescience/yeet/commit/fd49da650965af395c7a72189ad3d9b9ab3236b2))
+### Features
+
+- **config:** nest repository settings under per-provider sub-sections ([fd49da6](https://github.com/monkescience/yeet/commit/fd49da650965af395c7a72189ad3d9b9ab3236b2))
+
+### Migration Notes
+
+- **Repository config schema is restructured.** The flat repository fields (`host`, `owner`, `repo`, `project`, `organization`, `collection`) have been moved under per-provider sub-sections: `repository.github`, `repository.gitlab`, and `repository.azuredevops`. Only the sub-section matching the top-level `provider` may be set; `provider: auto` allows no sub-section at all. Old configs fail to load with a "field not found" parse error pointing at the legacy key. Migrate `.yeet.yaml` as follows:
+
+  ```yaml
+  # before
+  provider: github
+  repository:
+    host: github.com
+    owner: acme
+    repo: widgets
+
+  # after
+  provider: github
+  repository:
+    github:
+      host: github.com
+      owner: acme
+      repo: widgets
+  ```
+
+  ```yaml
+  # before
+  provider: gitlab
+  repository:
+    host: gitlab.company.com
+    project: group/sub/widgets
+
+  # after
+  provider: gitlab
+  repository:
+    gitlab:
+      host: gitlab.company.com
+      project: group/sub/widgets
+  ```
+
+  ```yaml
+  # before
+  provider: azuredevops
+  repository:
+    host: dev.azure.com
+    organization: contoso
+    project: MyProject
+    repo: widgets
+
+  # after
+  provider: azuredevops
+  repository:
+    azuredevops:
+      host: dev.azure.com
+      organization: contoso
+      project: MyProject
+      repo: widgets
+  ```
+
+- **CLI flags are stricter.** Repository field flags (`--host`, `--owner`, `--repo`, `--project`) now require an explicit `--provider` (or `provider:` in config). `--owner`/`--repo` are valid only for `--provider github`. `--owner` is rejected for `--provider azuredevops`.
+
 ## [v0.8.4](https://github.com/monkescience/yeet/compare/v0.8.3...v0.8.4) (2026-05-14)
 
 ### Features
