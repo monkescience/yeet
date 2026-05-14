@@ -24,20 +24,13 @@ test-unit: ## Run unit tests only (skips blackbox via -short)
 test-blackbox: ## Run end-to-end blackbox tests against the compiled binary
 	go test ./tests/...
 
-coverage: ## Run tests with repo-wide coverage output (merges unit + blackbox subprocess coverage)
+coverage: ## Run blackbox tests and report subprocess coverage (the primary coverage gate)
 	rm -rf coverage && mkdir -p coverage
-	go test ./... -covermode=atomic -coverpkg=./... -coverprofile=coverage/unit.out
-	if [ -s coverage/process.out ]; then \
-		printf 'mode: atomic\n' > coverage.out && \
-		tail -n +2 coverage/unit.out >> coverage.out && \
-		tail -n +2 coverage/process.out >> coverage.out; \
-	else \
-		cp coverage/unit.out coverage.out; \
-	fi
-	go tool cover -func=coverage.out
+	go test ./tests/...
+	go tool cover -func=coverage/process.out
 
 coverage-html: coverage ## Generate an HTML coverage report
-	go tool cover -html=coverage.out -o coverage.html
+	go tool cover -html=coverage/process.out -o coverage.html
 
 lint: ## Run linter
 	golangci-lint run ./...
@@ -46,5 +39,5 @@ fmt: ## Format code
 	golangci-lint fmt ./...
 
 clean: ## Remove build artifacts
-	rm -f yeet coverage.out coverage.html
+	rm -f yeet coverage.html
 	rm -rf coverage
