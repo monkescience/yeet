@@ -32,6 +32,7 @@ type GitLabCommit struct {
 const (
 	gitlabKeyID      = "id"
 	gitlabKeyMessage = "message"
+	gitlabKeyName    = "name"
 )
 
 // NewGitLab starts an httptest.Server serving the minimum GitLab REST surface
@@ -85,7 +86,7 @@ func gitlabTagsPayload(tag string) any {
 	}
 
 	return []map[string]any{
-		{"name": tag},
+		{gitlabKeyName: tag},
 	}
 }
 

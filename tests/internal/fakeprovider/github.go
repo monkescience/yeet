@@ -33,6 +33,12 @@ type GitHubCommit struct {
 const (
 	githubKeySHA     = "sha"
 	githubKeyMessage = "message"
+	githubKeyCommit  = "commit"
+	githubKeyRef     = "ref"
+	githubKeyObject  = "object"
+	githubKeyName    = "name"
+	githubKeyType    = "type"
+	githubFakePRID   = 42
 )
 
 // NewGitHub starts an httptest.Server serving the minimum set of GitHub REST
@@ -68,6 +74,12 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 		writeJSON(w, []any{})
 	})
 
+	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, []any{})
+	})
+
+	registerGitHubWritePath(mux, prefix)
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("fakeprovider/github: unexpected request %s %s", r.Method, r.URL.String())
 		http.Error(w, "unhandled", http.StatusNotImplemented)
@@ -85,7 +97,7 @@ func githubTagsPayload(tag string) any {
 	}
 
 	return []map[string]any{
-		{"name": tag},
+		{githubKeyName: tag},
 	}
 }
 
@@ -97,13 +109,138 @@ func githubCommitDetail(ref string, opts GitHubOptions) map[string]any {
 	for _, c := range opts.Commits {
 		if c.SHA == ref {
 			return map[string]any{
-				githubKeySHA: c.SHA,
-				"commit":     map[string]any{"message": c.Message},
+				githubKeySHA:    c.SHA,
+				githubKeyCommit: map[string]any{"message": c.Message},
 			}
 		}
 	}
 
 	return map[string]any{githubKeySHA: ref}
+}
+
+// registerGitHubWritePath attaches the handlers exercised by a non-dry-run
+// release (creating a release branch, updating files, opening the PR, and
+// managing labels). All responses are canned — the test asserts side effects
+// via exit code / stdout rather than payload bodies.
+func registerGitHubWritePath(mux *http.ServeMux, prefix string) {
+	registerGitHubGitData(mux, prefix)
+	registerGitHubContent(mux, prefix)
+	registerGitHubPullsWrite(mux, prefix)
+	registerGitHubLabels(mux, prefix)
+
+	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{
+			"allow_squash_merge": true,
+			"allow_rebase_merge": true,
+			"allow_merge_commit": true,
+		})
+	})
+}
+
+func registerGitHubGitData(mux *http.ServeMux, prefix string) {
+	const fakeBaseSHA = "base-sha"
+
+	const fakeCommitSHA = "new-commit-sha"
+
+	const fakeTreeSHA = "tree-sha"
+
+	mux.HandleFunc("GET "+prefix+"/git/ref/heads/{branch...}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{
+			githubKeyRef:    "refs/heads/" + r.PathValue("branch"),
+			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
+		})
+	})
+
+	mux.HandleFunc("GET "+prefix+"/git/ref/tags/{name}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
+	mux.HandleFunc("POST "+prefix+"/git/refs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{
+			githubKeyRef:    "refs/heads/yeet/release-main",
+			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
+		})
+	})
+
+	mux.HandleFunc("PATCH "+prefix+"/git/refs/heads/{branch...}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{
+			githubKeyRef:    "refs/heads/" + r.PathValue("branch"),
+			githubKeyObject: map[string]any{githubKeySHA: fakeCommitSHA, githubKeyType: githubKeyCommit},
+		})
+	})
+
+	mux.HandleFunc("GET "+prefix+"/git/commits/{sha}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{
+			githubKeySHA: r.PathValue(githubKeySHA),
+			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
+			"parents":    []any{},
+		})
+	})
+
+	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
+	})
+
+	mux.HandleFunc("POST "+prefix+"/git/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{
+			githubKeySHA: fakeCommitSHA,
+			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
+		})
+	})
+}
+
+func registerGitHubContent(mux *http.ServeMux, prefix string) {
+	mux.HandleFunc("GET "+prefix+"/contents/{path...}", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+}
+
+func registerGitHubPullsWrite(mux *http.ServeMux, prefix string) {
+	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, githubFakePR())
+	})
+
+	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, githubFakePR())
+	})
+
+	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, githubFakePR())
+	})
+}
+
+func registerGitHubLabels(mux *http.ServeMux, prefix string) {
+	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{githubKeyName: r.PathValue("name")})
+	})
+
+	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{githubKeyName: "label"})
+	})
+
+	mux.HandleFunc("POST "+prefix+"/issues/{number}/labels", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, []any{})
+	})
+
+	mux.HandleFunc("DELETE "+prefix+"/issues/{number}/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func githubFakePR() map[string]any {
+	return map[string]any{
+		"number":          githubFakePRID,
+		"state":           "open",
+		"draft":           false,
+		"merged":          false,
+		"mergeable_state": "clean",
+		"html_url":        "https://example.test/pulls/42",
+		"head": map[string]any{
+			githubKeyRef: "yeet/release-main",
+			githubKeySHA: "head-sha",
+		},
+		"base": map[string]any{githubKeyRef: "main"},
+	}
 }
 
 func githubCommitsList(commits []GitHubCommit) []map[string]any {
@@ -112,7 +249,7 @@ func githubCommitsList(commits []GitHubCommit) []map[string]any {
 	for _, c := range commits {
 		out = append(out, map[string]any{
 			githubKeySHA: c.SHA,
-			"commit": map[string]any{
+			githubKeyCommit: map[string]any{
 				githubKeyMessage: c.Message,
 			},
 		})
