@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.9.1](https://github.com/monkescience/yeet/compare/v0.9.0...v0.9.1) (2026-05-15)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.21.0 (#98) ([a1bbcc3](https://github.com/monkescience/yeet/commit/a1bbcc3a27a316d45e9dc40951c68c899b69aad2))
+- **deps:** update module github.com/masterminds/semver/v3 to v3.5.0 (#97) ([5cb7b83](https://github.com/monkescience/yeet/commit/5cb7b834b1e6df986c0a4c7fae8eb87dca173c3c))
+
 ## [v0.9.0](https://github.com/monkescience/yeet/compare/v0.8.4...v0.9.0) (2026-05-14)
 
 ### ⚠ BREAKING CHANGES
