@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/google/go-github/v85/github"
+	"github.com/google/go-github/v86/github"
 )
 
 func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
