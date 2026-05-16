@@ -22,4 +22,18 @@ func TestVersion(t *testing.T) {
 		testastic.Equal(t, "", result.Stderr)
 		testastic.AssertFile(t, "testdata/version/success/stdout.expected.txt", result.Stdout)
 	})
+
+	t.Run("--version prints one-line banner", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a freshly built yeet binary
+
+		// when: invoking `yeet --version`
+		result := binary.Run(t, "--version")
+
+		// then: the binary exits 0 and stdout matches the one-line golden
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stderr)
+		testastic.AssertFile(t, "testdata/version/flag/stdout.expected.txt", result.Stdout)
+	})
 }

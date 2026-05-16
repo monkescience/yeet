@@ -47,6 +47,7 @@ autorelease: tagged.`,
 		Example: `  yeet init
   yeet release --dry-run
   yeet release --auto-merge`,
+		Version:       build.Version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
