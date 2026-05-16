@@ -14,7 +14,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -X github.com/monkescience/yeet/internal/build.version={{.Version}}
+      - -X {{ .ModulePath }}/internal/build.version={{.Version}}
 
 archives:
   - formats:

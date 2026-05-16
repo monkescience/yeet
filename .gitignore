@@ -1,26 +1,17 @@
-# Binaries
-yeet
+# Build
+bin/
 dist/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
 
 # Test
-*.test
-*.out
-coverage.txt
-coverage.html
 coverage/
+coverage.out
+
+# CI caches
+.go/
 
 # IDE
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
 
-# OS
+# macOS
 .DS_Store
-Thumbs.db

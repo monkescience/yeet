@@ -18,12 +18,12 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	if testing.Short() {
-		os.Exit(m.Run())
+		os.Exit(0)
 	}
 
 	binary = testastic.BuildBinaryMain(m, "./cmd/yeet", testastic.WithWorkDir(".."))
 
-	code := testastic.CollectSubprocessCoverage(m, "../coverage/process.out")
+	code := testastic.CollectSubprocessCoverage(m, "../coverage/coverage.out")
 
 	binary.Cleanup()
 

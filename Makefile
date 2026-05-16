@@ -1,36 +1,32 @@
+BINARY  := yeet
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
-LDFLAGS := -X github.com/monkescience/yeet/internal/build.version=$(VERSION)
+LDFLAGS := -X $(shell go list -m)/internal/build.version=$(VERSION)
 
-.PHONY: help build snapshot image test test-unit test-blackbox coverage coverage-html lint fmt clean
+.PHONY: help build snapshot image test test-unit test-blackbox coverage lint fmt clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 build: ## Build the yeet binary
-	go build -ldflags "$(LDFLAGS)" -o yeet ./cmd/yeet
+	go build -trimpath -ldflags "-s -w $(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)
 
 snapshot: ## Build a local release snapshot with goreleaser
 	goreleaser release --snapshot --clean
 
 image: ## Build the yeet container image locally with ko
-	VERSION=$(VERSION) ko build --local --platform=linux/$$(go env GOARCH) ./cmd/yeet
+	VERSION=$(VERSION) ko build --local --platform=linux/$$(go env GOARCH) ./cmd/$(BINARY)
 
 test: ## Run all tests (unit + blackbox)
-	go test ./...
+	go test -race -count=1 ./...
 
 test-unit: ## Run unit tests only (skips blackbox via -short)
-	go test -short ./...
+	go test -short -race ./...
 
 test-blackbox: ## Run end-to-end blackbox tests against the compiled binary
-	go test ./tests/...
+	go test -race ./tests/...
 
-coverage: ## Run blackbox tests and report subprocess coverage (the primary coverage gate)
-	rm -rf coverage && mkdir -p coverage
-	go test ./tests/...
-	go tool cover -func=coverage/process.out
-
-coverage-html: coverage ## Generate an HTML coverage report
-	go tool cover -html=coverage/process.out -o coverage.html
+coverage: ## Generate HTML coverage report from coverage/coverage.out
+	go tool cover -html=coverage/coverage.out -o coverage/coverage.html
 
 lint: ## Run linter
 	golangci-lint run ./...
@@ -39,5 +35,4 @@ fmt: ## Format code
 	golangci-lint fmt ./...
 
 clean: ## Remove build artifacts
-	rm -f yeet coverage.html
-	rm -rf coverage
+	rm -rf bin/ coverage/
