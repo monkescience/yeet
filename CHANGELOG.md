@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.9.3](https://github.com/monkescience/yeet/compare/v0.9.2...v0.9.3) (2026-05-16)
+
+### Features
+
+- **cli:** register --version flag on root command ([ed57dd8](https://github.com/monkescience/yeet/commit/ed57dd85db5fd996121d9c2b2c199e94297a2e5c))
+
 ## [v0.9.2](https://github.com/monkescience/yeet/compare/v0.9.1...v0.9.2) (2026-05-16)
 
 ### Bug Fixes
