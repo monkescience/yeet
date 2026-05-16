@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+*.go diff=golang
+*.md diff=markdown
