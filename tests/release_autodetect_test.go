@@ -15,7 +15,7 @@ import (
 // Each subtest spins up a fake provider server, points the matching
 // PROVIDER_URL env var at it, and runs yeet from a CWD that is the test repo.
 // A minimal config without repository.owner/repo/project forces the binary
-// down the auto-detect branch covered by internal/cli/helpers.go and
+// down the auto-detect branch covered by internal/commands/helpers.go and
 // internal/provider/provider.go URL parsers.
 func TestReleaseAutoDetect(t *testing.T) {
 	t.Parallel()

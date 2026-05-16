@@ -1,8 +1,27 @@
 // Package main is the entry point for the yeet CLI.
 package main
 
-import "github.com/monkescience/yeet/internal/cli"
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/monkescience/yeet/internal/commands"
+)
 
 func main() {
-	cli.Execute()
+	err := run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return commands.NewRoot().ExecuteContext(ctx) //nolint:wrapcheck // preserve user-facing error verbatim
 }

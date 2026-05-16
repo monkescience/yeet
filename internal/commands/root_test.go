@@ -1,4 +1,4 @@
-package cli //nolint:testpackage // validates unexported printVersion behavior directly
+package commands //nolint:testpackage // validates unexported printVersion behavior directly
 
 import (
 	"bytes"

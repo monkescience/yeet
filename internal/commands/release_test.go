@@ -1,4 +1,4 @@
-package cli //nolint:testpackage // validates unexported release helpers directly
+package commands //nolint:testpackage // validates unexported release helpers directly
 
 import (
 	"bytes"

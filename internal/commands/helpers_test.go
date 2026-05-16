@@ -1,4 +1,4 @@
-package cli //nolint:testpackage // validates unexported repository helpers directly
+package commands //nolint:testpackage // validates unexported repository helpers directly
 
 import (
 	"context"

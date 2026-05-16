@@ -1,4 +1,4 @@
-package cli //nolint:testpackage // validates unexported runInit behavior directly
+package commands //nolint:testpackage // validates unexported runInit behavior directly
 
 import (
 	"bytes"
@@ -175,7 +175,7 @@ func TestRunInit(t *testing.T) {
 func TestRootCommand(t *testing.T) {
 	t.Run("completion command is available for bash", func(t *testing.T) {
 		// given: the root command tree
-		command := rootCmd()
+		command := NewRoot()
 
 		// when: resolving the bash completion subcommand
 		completionCommand, _, err := command.Find([]string{"completion", "bash"})
@@ -228,7 +228,7 @@ func executeCommand(t *testing.T, args ...string) (string, string, error) {
 
 	var stderr bytes.Buffer
 
-	command := rootCmd()
+	command := NewRoot()
 	setCommandWriters(command, &stdout, &stderr)
 	command.SetArgs(args)
 
