@@ -7,6 +7,8 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
+var _ Provider = (*GitLab)(nil)
+
 type GitLab struct {
 	client  *gitlab.Client
 	pid     string

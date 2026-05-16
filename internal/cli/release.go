@@ -29,9 +29,10 @@ const (
 	releaseChannelHelp = "run a configured prerelease channel; defaults to the channel matching the current branch"
 )
 
-var ErrUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
-
-var ErrUnknownReleaseChannel = errors.New("unknown release channel")
+var (
+	ErrUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
+	ErrUnknownReleaseChannel     = errors.New("unknown release channel")
+)
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	flags := &releaseFlagValues{}

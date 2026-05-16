@@ -250,13 +250,13 @@ type CalVerConfig struct {
 	Format string `yaml:"format"`
 }
 
-var ErrInvalidConfig = errors.New("invalid config")
+var (
+	ErrInvalidConfig          = errors.New("invalid config")
+	ErrEmptyRepoPath          = errors.New("must not be empty")
+	ErrPathMustBeRepoRelative = errors.New("must be repo-relative")
 
-var ErrEmptyRepoPath = errors.New("must not be empty")
-
-var ErrPathMustBeRepoRelative = errors.New("must be repo-relative")
-
-var errJSONPointerMustStartWithSlash = errors.New("must start with /")
+	errJSONPointerMustStartWithSlash = errors.New("must start with /")
+)
 
 var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 

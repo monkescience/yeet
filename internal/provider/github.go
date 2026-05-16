@@ -13,6 +13,8 @@ const (
 	gitHubFallbackTaggerEmail = "noreply@yeet.dev"
 )
 
+var _ Provider = (*GitHub)(nil)
+
 type GitHub struct {
 	client  *github.Client
 	repo    RepoInfo

@@ -158,28 +158,20 @@ func ParseCommits(entries []CommitEntry) []commit.Commit {
 	return commits
 }
 
-var ErrUnknownRemote = errors.New("unable to parse remote URL")
-
-var ErrNoRelease = errors.New("no release found")
-
-var ErrNoVersionRef = errors.New("no version ref found")
-
-// ErrCommitBoundaryNotFound reports that the requested base ref is not reachable from the target branch history.
-var ErrCommitBoundaryNotFound = errors.New("commit boundary not found")
-
-var ErrNoPR = errors.New("no release PR found")
-
-var ErrFileNotFound = errors.New("file not found")
-
-var ErrEmptyCommitSHA = errors.New("empty commit SHA")
-
-var ErrEmptyCommitID = errors.New("empty commit ID")
-
-var ErrMergeBlocked = errors.New("release PR merge blocked")
-
-var ErrMergeMethodUnsupported = errors.New("merge method unsupported")
-
-var ErrPaginationLimitExceeded = errors.New("pagination safety limit exceeded")
+var (
+	ErrUnknownRemote           = errors.New("unable to parse remote URL")
+	ErrUnsupportedHost         = errors.New("unsupported remote host")
+	ErrNoRelease               = errors.New("no release found")
+	ErrNoVersionRef            = errors.New("no version ref found")
+	ErrCommitBoundaryNotFound  = errors.New("commit boundary not found")
+	ErrNoPR                    = errors.New("no release PR found")
+	ErrFileNotFound            = errors.New("file not found")
+	ErrEmptyCommitSHA          = errors.New("empty commit SHA")
+	ErrEmptyCommitID           = errors.New("empty commit ID")
+	ErrMergeBlocked            = errors.New("release PR merge blocked")
+	ErrMergeMethodUnsupported  = errors.New("merge method unsupported")
+	ErrPaginationLimitExceeded = errors.New("pagination safety limit exceeded")
+)
 
 const maxPaginationPages = 100
 
@@ -223,8 +215,6 @@ type RepositoryDescriptor struct {
 	Collection   string
 	Remote       string
 }
-
-var ErrUnsupportedHost = errors.New("unsupported remote host")
 
 func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
 	remoteURL = strings.TrimSpace(remoteURL)

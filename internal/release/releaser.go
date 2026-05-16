@@ -17,17 +17,14 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
-var ErrInvalidReleaseAs = errors.New("invalid release-as footer")
-
-var ErrConflictingReleaseAs = errors.New("conflicting release-as footers")
-
-var ErrChangelogEntryNotFound = errors.New("changelog entry not found")
-
-var ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
-
-var ErrUnknownTarget = errors.New("unknown target")
-
-var ErrConflictingFileUpdate = errors.New("conflicting file update")
+var (
+	ErrInvalidReleaseAs          = errors.New("invalid release-as footer")
+	ErrConflictingReleaseAs      = errors.New("conflicting release-as footers")
+	ErrChangelogEntryNotFound    = errors.New("changelog entry not found")
+	ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
+	ErrUnknownTarget             = errors.New("unknown target")
+	ErrConflictingFileUpdate     = errors.New("conflicting file update")
+)
 
 const (
 	releaseBumpMajorOrder = 3
