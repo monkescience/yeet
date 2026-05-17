@@ -12,6 +12,8 @@ import (
 
 var ErrInvalidVersion = errors.New("invalid version")
 
+var _ Strategy = (*SemVer)(nil)
+
 type Strategy interface {
 	// Current parses a version tag string into a normalized version.
 	Current(tag string) (string, error)

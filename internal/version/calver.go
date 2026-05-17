@@ -9,6 +9,8 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 )
 
+var _ Strategy = (*CalVer)(nil)
+
 const DefaultCalVerFormat = "YYYY.0M.MICRO"
 
 const (
