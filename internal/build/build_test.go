@@ -7,6 +7,11 @@ import (
 )
 
 func TestServiceName(t *testing.T) {
+	t.Parallel()
+
+	// given: the build package constant
+	// when: reading ServiceName
+	// then: it equals "yeet"
 	if build.ServiceName != "yeet" {
 		t.Errorf("ServiceName = %q, want %q", build.ServiceName, "yeet")
 	}
