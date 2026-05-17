@@ -72,8 +72,8 @@ type versionStrategy struct {
 	prefix   string
 }
 
-func New(cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
-	targets, err := cfg.ResolvedTargets()
+func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
+	targets, err := cfg.ResolvedTargets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
 	}

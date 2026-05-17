@@ -25,7 +25,7 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies
 		}
 	}
 
-	r, err := New(cfg, deps)
+	r, err := New(t.Context(), cfg, deps)
 	if err != nil {
 		t.Fatalf("New() returned unexpected error: %v", err)
 	}

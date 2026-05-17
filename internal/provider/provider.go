@@ -148,11 +148,11 @@ const azureDevOpsLegacyHostSuffix = ".visualstudio.com"
 
 const providerNameAzureDevOps = "azuredevops"
 
-func ParseCommits(entries []CommitEntry) []commit.Commit {
+func ParseCommits(ctx context.Context, entries []CommitEntry) []commit.Commit {
 	commits := make([]commit.Commit, 0, len(entries))
 
 	for _, e := range entries {
-		commits = append(commits, commit.Parse(e.Hash, e.Message))
+		commits = append(commits, commit.Parse(ctx, e.Hash, e.Message))
 	}
 
 	return commits

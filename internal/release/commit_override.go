@@ -1,6 +1,7 @@
 package release
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,7 +21,7 @@ type commitOverrideResult struct {
 	found   bool
 }
 
-func commitOverrideMessages(body string) ([]string, bool, error) {
+func commitOverrideMessages(ctx context.Context, body string) ([]string, bool, error) {
 	start := strings.Index(body, commitOverrideStartMarker)
 	if start == -1 {
 		return nil, false, nil
@@ -38,7 +39,7 @@ func commitOverrideMessages(body string) ([]string, bool, error) {
 		return nil, true, fmt.Errorf("%w: empty override block", ErrInvalidCommitOverride)
 	}
 
-	messages := splitCommitOverrideMessages(block)
+	messages := splitCommitOverrideMessages(ctx, block)
 	if len(messages) == 0 {
 		return nil, true, fmt.Errorf("%w: empty override block", ErrInvalidCommitOverride)
 	}
@@ -46,14 +47,14 @@ func commitOverrideMessages(body string) ([]string, bool, error) {
 	return messages, true, nil
 }
 
-func splitCommitOverrideMessages(block string) []string {
+func splitCommitOverrideMessages(ctx context.Context, block string) []string {
 	lines := strings.Split(strings.ReplaceAll(block, "\r\n", "\n"), "\n")
 	messages := make([]string, 0)
 	current := make([]string, 0)
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if len(current) > 0 && isConventionalCommitHeader(trimmedLine) && previousLineBlank(current) {
+		if len(current) > 0 && isConventionalCommitHeader(ctx, trimmedLine) && previousLineBlank(current) {
 			messages = appendCommitOverrideMessage(messages, current)
 			current = current[:0]
 		}
@@ -79,6 +80,6 @@ func previousLineBlank(lines []string) bool {
 	return strings.TrimSpace(lines[len(lines)-1]) == ""
 }
 
-func isConventionalCommitHeader(line string) bool {
-	return commit.Parse("", line).IsConventional()
+func isConventionalCommitHeader(ctx context.Context, line string) bool {
+	return commit.Parse(ctx, "", line).IsConventional()
 }

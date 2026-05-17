@@ -18,7 +18,7 @@ func TestParse(t *testing.T) {
 		raw := "feat: add user authentication"
 
 		// when: parsing the commit
-		c := commit.Parse("abc1234", raw)
+		c := commit.Parse(t.Context(), "abc1234", raw)
 
 		// then: type, description, and hash are extracted
 		testastic.Equal(t, "feat", c.Type)
@@ -35,7 +35,7 @@ func TestParse(t *testing.T) {
 		raw := "feat(auth): add OAuth2 support"
 
 		// when: parsing the commit
-		c := commit.Parse("def5678", raw)
+		c := commit.Parse(t.Context(), "def5678", raw)
 
 		// then: scope is extracted
 		testastic.Equal(t, "feat", c.Type)
@@ -50,7 +50,7 @@ func TestParse(t *testing.T) {
 		raw := "feat(api)!: remove deprecated endpoints"
 
 		// when: parsing the commit
-		c := commit.Parse("ghi9012", raw)
+		c := commit.Parse(t.Context(), "ghi9012", raw)
 
 		// then: breaking flag is set
 		testastic.Equal(t, "feat", c.Type)
@@ -66,7 +66,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("jkl3456", string(raw))
+		c := commit.Parse(t.Context(), "jkl3456", string(raw))
 
 		// then: breaking flag is set and footer is parsed
 		testastic.True(t, c.Breaking)
@@ -83,7 +83,7 @@ func TestParse(t *testing.T) {
 		raw := "fix: resolve null pointer in user handler"
 
 		// when: parsing the commit
-		c := commit.Parse("mno7890", raw)
+		c := commit.Parse(t.Context(), "mno7890", raw)
 
 		// then: type is fix
 		testastic.Equal(t, "fix", c.Type)
@@ -97,7 +97,7 @@ func TestParse(t *testing.T) {
 		raw := "Update README with new instructions"
 
 		// when: parsing the commit
-		c := commit.Parse("pqr1234", raw)
+		c := commit.Parse(t.Context(), "pqr1234", raw)
 
 		// then: type is empty and it's not conventional
 		testastic.Equal(t, "", c.Type)
@@ -113,7 +113,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("stu5678", string(raw))
+		c := commit.Parse(t.Context(), "stu5678", string(raw))
 
 		// then: all footers are parsed
 		testastic.Equal(t, "feat", c.Type)
@@ -129,7 +129,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln1234", string(raw))
+		c := commit.Parse(t.Context(), "mln1234", string(raw))
 
 		// then: continuation lines are included in the footer value
 		testastic.True(t, c.Breaking)
@@ -146,7 +146,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln5678", string(raw))
+		c := commit.Parse(t.Context(), "mln5678", string(raw))
 
 		// then: continuation stops at the next footer token
 		testastic.True(t, c.Breaking)
@@ -165,7 +165,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the commit
-		c := commit.Parse("mln9012", string(raw))
+		c := commit.Parse(t.Context(), "mln9012", string(raw))
 
 		// then: blank lines within the footer value are preserved
 		testastic.True(t, c.Breaking)

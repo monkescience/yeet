@@ -32,7 +32,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.2.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.2.0", "", commits)
 
 		// then: sections are present with correct commits
 		testastic.Equal(t, "v1.2.0", entry.Version)
@@ -60,7 +60,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v2.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
 		// then: breaking changes section uses release-please style header
 		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
@@ -81,7 +81,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hash is truncated to 7 chars
 		testastic.Contains(t, entry.Body, "abc1234")
@@ -106,7 +106,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.3.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.3.0", "", commits)
 
 		// then: both sections are present
 		testastic.Contains(t, entry.Body, "### Features")
@@ -129,7 +129,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: section header uses capitalized type name
 		testastic.Contains(t, entry.Body, "### Perf")
@@ -146,7 +146,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", nil)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", nil)
 
 		// then: body is empty
 		testastic.Equal(t, "", entry.Body)
@@ -168,7 +168,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hashes are linked to commit URLs
 		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
@@ -192,7 +192,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.1", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
 
 		// then: hashes use GitLab URL format
 		testastic.Contains(t, entry.Body, "[abc1234](https://gitlab.com/owner/repo/-/commit/abc1234567890def)")
@@ -216,7 +216,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog with previous tag
-		entry := gen.Generate("v1.1.0", "v1.0.0", commits)
+		entry := gen.Generate(t.Context(), "v1.1.0", "v1.0.0", commits)
 
 		// then: compare URL is set
 		testastic.Equal(t, "https://github.com/owner/repo/compare/v1.0.0...v1.1.0", entry.CompareURL)
@@ -240,7 +240,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog without previous tag
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: compare URL is empty
 		testastic.Equal(t, "", entry.CompareURL)
@@ -261,7 +261,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog with previous tag but no builder
-		entry := gen.Generate("v1.1.0", "v1.0.0", commits)
+		entry := gen.Generate(t.Context(), "v1.1.0", "v1.0.0", commits)
 
 		// then: compare URL is empty
 		testastic.Equal(t, "", entry.CompareURL)
@@ -281,7 +281,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hash is plain text, not linked
 		testastic.Contains(t, entry.Body, "(abc1234)")
@@ -307,7 +307,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: reference is linked inline
 		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
@@ -333,7 +333,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: reference is left as plain text
 		testastic.Contains(t, entry.Body, "add feature #456")
@@ -362,7 +362,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: footer reference is appended after hash
 		testastic.Contains(t, entry.Body, "(abc1234) ([JIRA-123](https://jira.example.com/browse/JIRA-123))")
@@ -390,7 +390,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: footer reference is plain text
 		testastic.Contains(t, entry.Body, "(abc1234) (#789)")
@@ -422,7 +422,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: both references appear
 		testastic.Contains(t, entry.Body, "[JIRA-100]")
@@ -446,7 +446,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no linking or reference extraction
 		testastic.Contains(t, entry.Body, "add feature JIRA-123 (abc1234)\n")
@@ -475,7 +475,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no reference text appended
 		testastic.Contains(t, entry.Body, "add feature (abc1234)\n")
@@ -507,7 +507,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v2.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
 		// then: reference appears in breaking changes section
 		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
@@ -533,7 +533,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no crash, description unchanged
 		testastic.Contains(t, entry.Body, "add feature (abc1234)")
@@ -565,7 +565,7 @@ func TestGenerate(t *testing.T) {
 		}
 
 		// when: generating changelog
-		entry := gen.Generate("v1.0.0", "", commits)
+		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: inline pattern is linked in description
 		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")

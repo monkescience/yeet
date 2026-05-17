@@ -55,7 +55,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: it succeeds with defaults filled in
 		testastic.NoError(t, err)
@@ -71,7 +71,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: channel settings are parsed and validated
 		testastic.NoError(t, err)
@@ -87,7 +87,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: all values are set correctly
 		testastic.NoError(t, err)
@@ -119,7 +119,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: the JSON entry is parsed with its explicit pointer
 		testastic.NoError(t, err)
@@ -137,7 +137,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation rejects the ambiguous JSON entry
 		testastic.Error(t, err)
@@ -153,7 +153,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: bump types are parsed correctly
 		testastic.NoError(t, err)
@@ -169,7 +169,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: references are parsed correctly
 		testastic.NoError(t, err)
@@ -191,7 +191,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -213,7 +213,7 @@ func TestParse(t *testing.T) {
 		}
 
 		// when: validating the config
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the unsupported target versioning strategy
 		testastic.Error(t, err)
@@ -229,7 +229,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -244,7 +244,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -259,7 +259,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -274,7 +274,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: parsing rejects the mismatched sub-section
 		testastic.Error(t, err)
@@ -290,7 +290,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: parsing rejects the sub-section under auto
 		testastic.Error(t, err)
@@ -306,7 +306,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: parse succeeds and flat fields are hydrated from the sub-section
 		testastic.NoError(t, err)
@@ -326,7 +326,7 @@ func TestParse(t *testing.T) {
 		data := []byte("release: [")
 
 		// when: parsing the config
-		_, err := config.Parse(data)
+		_, err := config.Parse(t.Context(), data)
 
 		// then: parsing fails
 		testastic.Error(t, err)
@@ -341,7 +341,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: target validation rejects the missing per-target prefix
 		testastic.Error(t, err)
@@ -357,7 +357,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		_, err = config.Parse(data)
+		_, err = config.Parse(t.Context(), data)
 
 		// then: validation rejects the empty targets block
 		testastic.Error(t, err)
@@ -383,7 +383,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: no error
 		testastic.NoError(t, err)
@@ -397,7 +397,7 @@ func TestValidate(t *testing.T) {
 		cfg.Changelog.Include = nil
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -412,7 +412,7 @@ func TestValidate(t *testing.T) {
 		cfg.Changelog.File = ""
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -427,7 +427,7 @@ func TestValidate(t *testing.T) {
 		cfg.VersionFiles = []config.VersionFile{{Path: "  "}}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -442,7 +442,7 @@ func TestValidate(t *testing.T) {
 		cfg.Release.AutoMergeMethod = "fast-forward"
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -458,7 +458,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -478,7 +478,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -495,7 +495,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "group/subgroup/service"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -515,7 +515,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: no error
 		testastic.NoError(t, err)
@@ -530,7 +530,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "/repo"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -547,7 +547,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Project: "owner/"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -563,7 +563,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.Remote = ""
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -584,7 +584,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating the config
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: the repo-relative path validation rejects the absolute path
 		testastic.Error(t, err)
@@ -613,7 +613,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating the config
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: the repo-relative path validation rejects the absolute exclude path
 		testastic.Error(t, err)
@@ -643,7 +643,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating the config
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the shared version file ownership before release time
 		testastic.Error(t, err)
@@ -663,7 +663,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -682,7 +682,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails
 		testastic.Error(t, err)
@@ -702,7 +702,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation passes
 		testastic.NoError(t, err)
@@ -717,7 +717,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Host: "   ", Owner: "o", Repo: "r"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the blank host
 		testastic.Error(t, err)
@@ -734,7 +734,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "   "}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the blank owner
 		testastic.Error(t, err)
@@ -751,7 +751,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Repo: "   "}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the blank repo
 		testastic.Error(t, err)
@@ -768,7 +768,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{Project: "   "}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the blank project
 		testastic.Error(t, err)
@@ -785,7 +785,7 @@ func TestValidate(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "group/sub", Repo: "service"}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: github does not allow nested owner paths
 		testastic.Error(t, err)
@@ -806,7 +806,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: mismatch is rejected
 		testastic.Error(t, err)
@@ -827,7 +827,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty channel name is rejected
 		testastic.Error(t, err)
@@ -848,7 +848,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: reserved name is rejected
 		testastic.Error(t, err)
@@ -869,7 +869,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty branch is rejected
 		testastic.Error(t, err)
@@ -891,7 +891,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: duplicate branch is rejected
 		testastic.Error(t, err)
@@ -912,7 +912,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty prerelease is rejected
 		testastic.Error(t, err)
@@ -933,7 +933,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: invalid identifier is rejected
 		testastic.Error(t, err)
@@ -955,7 +955,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: duplicate prerelease identifier is rejected
 		testastic.Error(t, err)
@@ -977,7 +977,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: stable-branch collision is rejected
 		testastic.Error(t, err)
@@ -1004,7 +1004,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: shared tag prefix is rejected
 		testastic.Error(t, err)
@@ -1027,7 +1027,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: unknown include is rejected
 		testastic.Error(t, err)
@@ -1061,7 +1061,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: derived-of-derived include is rejected
 		testastic.Error(t, err)
@@ -1079,7 +1079,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: missing target type is rejected
 		testastic.Error(t, err)
@@ -1097,7 +1097,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty target ID is rejected
 		testastic.Error(t, err)
@@ -1115,7 +1115,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty path is rejected
 		testastic.Error(t, err)
@@ -1143,7 +1143,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: includes on a path target are rejected
 		testastic.Error(t, err)
@@ -1165,7 +1165,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty includes is rejected
 		testastic.Error(t, err)
@@ -1188,7 +1188,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty version_files entry is rejected
 		testastic.Error(t, err)
@@ -1212,7 +1212,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating (top-level changelog blocks before target reaches its check)
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: top-level changelog.file empty error first
 		testastic.Error(t, err)
@@ -1231,7 +1231,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation rejects the empty include
 		testastic.Error(t, err)
@@ -1249,7 +1249,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: parent paths are rejected
 		testastic.Error(t, err)
@@ -1267,7 +1267,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: absolute path is rejected
 		testastic.Error(t, err)
@@ -1285,7 +1285,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: blank path is rejected
 		testastic.Error(t, err)
@@ -1308,7 +1308,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: excludes outside the target are rejected
 		testastic.Error(t, err)
@@ -1331,7 +1331,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: parent traversal is rejected
 		testastic.Error(t, err)
@@ -1354,7 +1354,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: empty exclude entry is rejected
 		testastic.Error(t, err)
@@ -1442,7 +1442,7 @@ func TestResolvedTargets(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolvedTargets, err := cfg.ResolvedTargets()
+		resolvedTargets, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target defaults and ownership data are expanded correctly
 		testastic.NoError(t, err)
@@ -1475,7 +1475,7 @@ func TestResolvedTargets(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolvedTargets, err := cfg.ResolvedTargets()
+		resolvedTargets, err := cfg.ResolvedTargets(t.Context())
 
 		// then: normalized IDs are used consistently
 		testastic.NoError(t, err)
@@ -1504,7 +1504,7 @@ func TestResolvedTargets(t *testing.T) {
 		}
 
 		// when: resolving targets
-		_, err := cfg.ResolvedTargets()
+		_, err := cfg.ResolvedTargets(t.Context())
 
 		// then: validation rejects the duplicate logical ID
 		testastic.Error(t, err)
@@ -1531,7 +1531,7 @@ func TestResolvedTargets(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: ambiguous ownership is rejected
 		testastic.Error(t, err)
@@ -1550,7 +1550,7 @@ func TestPreMajorOptions(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: parsing the config
-		cfg, err := config.Parse(data)
+		cfg, err := config.Parse(t.Context(), data)
 
 		// then: both options are false
 		testastic.NoError(t, err)
@@ -1574,7 +1574,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target inherits top-level values
 		testastic.NoError(t, err)
@@ -1600,7 +1600,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target overrides with false
 		testastic.NoError(t, err)
@@ -1628,7 +1628,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target overrides with true
 		testastic.NoError(t, err)
@@ -1665,7 +1665,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target inherits top-level patterns (no override) and merges footers
 		testastic.NoError(t, err)
@@ -1693,7 +1693,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: error mentions the incompatibility
 		testastic.Error(t, err)
@@ -1718,7 +1718,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: error mentions the incompatibility
 		testastic.Error(t, err)
@@ -1741,7 +1741,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: no error — inherited options are silently ignored
 		testastic.NoError(t, err)
@@ -1763,7 +1763,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails before release planning
 		testastic.Error(t, err)
@@ -1789,7 +1789,7 @@ func TestPreMajorOptions(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation fails with the target path
 		testastic.Error(t, err)
@@ -1850,7 +1850,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target uses the override
 		testastic.NoError(t, err)
@@ -1874,7 +1874,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: include is replaced (not merged)
 		testastic.NoError(t, err)
@@ -1898,7 +1898,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target keeps inherited sections and overrides only the specified one
 		testastic.NoError(t, err)
@@ -1929,7 +1929,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target patterns replace the inherited list and footers stay inherited
 		testastic.NoError(t, err)
@@ -1955,7 +1955,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target keeps its own format
 		testastic.NoError(t, err)
@@ -1978,7 +1978,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target uses its own list (not merged)
 		testastic.NoError(t, err)
@@ -1996,7 +1996,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: target inherits calver
 		testastic.NoError(t, err)
@@ -2017,7 +2017,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: tag prefix is normalized
 		testastic.NoError(t, err)
@@ -2038,7 +2038,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: resolving targets
-		resolved, err := cfg.ResolvedTargets()
+		resolved, err := cfg.ResolvedTargets(t.Context())
 
 		// then: path is cleaned
 		testastic.NoError(t, err)
@@ -2066,7 +2066,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: ownership is unambiguous
 		testastic.NoError(t, err)
@@ -2092,7 +2092,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: overlap with the include is rejected
 		testastic.Error(t, err)
@@ -2119,7 +2119,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		}
 
 		// when: validating
-		err := cfg.Validate()
+		err := cfg.Validate(t.Context())
 
 		// then: validation passes
 		testastic.NoError(t, err)

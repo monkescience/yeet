@@ -200,7 +200,7 @@ func TestParseCommits(t *testing.T) {
 		}
 
 		// when: parsing commits
-		commits := provider.ParseCommits(entries)
+		commits := provider.ParseCommits(t.Context(), entries)
 
 		// then: all commits are parsed
 		testastic.Equal(t, 3, len(commits))
@@ -218,7 +218,7 @@ func TestParseCommitsEmpty(t *testing.T) {
 	var entries []provider.CommitEntry
 
 	// when: parsing commits
-	commits := provider.ParseCommits(entries)
+	commits := provider.ParseCommits(t.Context(), entries)
 
 	// then: empty result
 	testastic.Equal(t, 0, len(commits))

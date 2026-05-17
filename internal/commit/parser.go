@@ -2,6 +2,7 @@
 package commit
 
 import (
+	"context"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -60,7 +61,7 @@ var conventionalCommitPattern = regexp.MustCompile(
 // Parse parses a raw commit message into a Commit.
 // If the message does not follow the conventional commit format,
 // it returns a Commit with an empty Type.
-func Parse(hash, rawMessage string) Commit {
+func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c := Commit{
 		Hash: hash,
 		Raw:  rawMessage,
@@ -77,7 +78,7 @@ func Parse(hash, rawMessage string) Commit {
 	if matches == nil {
 		c.Description = header
 
-		slog.Debug("commit: non-conventional header, treating as no-bump",
+		slog.DebugContext(ctx, "commit: non-conventional header, treating as no-bump",
 			slog.String("hash", hash),
 			slog.String("header", header),
 		)

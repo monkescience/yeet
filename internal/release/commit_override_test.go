@@ -16,7 +16,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 	t.Run("returns no override when markers are absent", func(t *testing.T) {
 		t.Parallel()
 
-		messages, ok, err := commitOverrideMessages("plain pull request body")
+		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body")
 
 		testastic.NoError(t, err)
 		testastic.False(t, ok)
@@ -35,7 +35,7 @@ fix(api): return 401 for expired sessions
 END_COMMIT_OVERRIDE
 `
 
-		messages, ok, err := commitOverrideMessages(body)
+		messages, ok, err := commitOverrideMessages(t.Context(), body)
 
 		testastic.NoError(t, err)
 		testastic.True(t, ok)
@@ -56,7 +56,7 @@ Session cookies now use a keyed format.
 BREAKING CHANGE: existing session cookies are invalid after upgrade
 END_COMMIT_OVERRIDE`
 
-		messages, ok, err := commitOverrideMessages(body)
+		messages, ok, err := commitOverrideMessages(t.Context(), body)
 
 		testastic.NoError(t, err)
 		testastic.True(t, ok)
@@ -69,7 +69,7 @@ END_COMMIT_OVERRIDE`
 	t.Run("rejects missing end marker", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := commitOverrideMessages("BEGIN_COMMIT_OVERRIDE\nfix: patch bug")
+		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug")
 
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, ErrInvalidCommitOverride)

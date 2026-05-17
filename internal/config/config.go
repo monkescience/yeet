@@ -268,7 +268,7 @@ func Load(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
-	cfg, err := Parse(data)
+	cfg, err := Parse(ctx, data)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func Load(ctx context.Context, path string) (*Config, error) {
 	return cfg, nil
 }
 
-func Parse(data []byte) (*Config, error) {
+func Parse(ctx context.Context, data []byte) (*Config, error) {
 	cfg := Default()
 
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
@@ -298,7 +298,7 @@ func Parse(data []byte) (*Config, error) {
 		return nil, err
 	}
 
-	err = cfg.Validate()
+	err = cfg.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func Default() *Config {
 }
 
 //nolint:funlen // Top-level validation deliberately enumerates every field check.
-func (c *Config) Validate() error {
+func (c *Config) Validate(ctx context.Context) error {
 	if c.Versioning != VersioningSemver && c.Versioning != VersioningCalVer {
 		return fmt.Errorf("%w: versioning must be %q or %q, got %q",
 			ErrInvalidConfig, VersioningSemver, VersioningCalVer, c.Versioning)
@@ -469,7 +469,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	_, err = c.ResolvedTargets()
+	_, err = c.ResolvedTargets(ctx)
 	if err != nil {
 		return err
 	}
@@ -477,7 +477,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
+func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget, error) {
 	if len(c.Targets) == 0 {
 		return nil, fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
 	}
@@ -503,7 +503,7 @@ func (c *Config) ResolvedTargets() (map[string]ResolvedTarget, error) {
 	}
 
 	for _, t := range resolved {
-		slog.Debug("config: resolved target",
+		slog.DebugContext(ctx, "config: resolved target",
 			slog.String("id", t.ID),
 			slog.String("type", string(t.Type)),
 			slog.String("path", t.Path),

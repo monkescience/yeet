@@ -154,7 +154,7 @@ func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []provider.C
 			continue
 		}
 
-		commits = append(commits, commit.Parse(entry.Hash, entry.Message))
+		commits = append(commits, commit.Parse(ctx, entry.Hash, entry.Message))
 	}
 
 	return commits, nil
@@ -185,7 +185,7 @@ func (a *releaseAnalyzer) commitOverride(
 		return result, nil
 	}
 
-	messages, found, err := commitOverrideMessages(body)
+	messages, found, err := commitOverrideMessages(ctx, body)
 	if err != nil {
 		return commitOverrideResult{}, fmt.Errorf("parse commit override for %q: %w", hash, err)
 	}
@@ -199,7 +199,7 @@ func (a *releaseAnalyzer) commitOverride(
 
 	commits := make([]commit.Commit, 0, len(messages))
 	for _, message := range messages {
-		commits = append(commits, commit.Parse(hash, message))
+		commits = append(commits, commit.Parse(ctx, hash, message))
 	}
 
 	result := commitOverrideResult{commits: commits, found: true}
@@ -402,6 +402,7 @@ func (a *releaseAnalyzer) planDirectTarget(
 	}
 
 	plan := a.newTargetPlan(
+		ctx,
 		target,
 		currentVersion,
 		nextVersion,
@@ -485,6 +486,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	}
 
 	plan := a.newTargetPlan(
+		ctx,
 		target,
 		currentVersion,
 		nextVersion,
@@ -513,6 +515,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 
 	plan.IncludedTargets = make([]string, 0, len(childPlans))
 	plan.Changelog = renderDerivedChangelog(
+		ctx,
 		target,
 		plan.NextTag,
 		ref,
@@ -523,6 +526,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		a.releaser,
 	)
 	plan.PRChangelog = renderDerivedChangelog(
+		ctx,
 		target,
 		plan.NextTag,
 		ref,
@@ -541,6 +545,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 }
 
 func (a *releaseAnalyzer) newTargetPlan(
+	ctx context.Context,
 	target config.ResolvedTarget,
 	currentVersion string,
 	baseVersion string,
@@ -569,12 +574,12 @@ func (a *releaseAnalyzer) newTargetPlan(
 
 	setPlanVersions(&plan, strategy, baseVersion)
 
-	plan.Changelog = renderTargetChangelog(target, plan.NextTag, ref, plan.NextTag, commits, a.releaser)
+	plan.Changelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, plan.NextTag, commits, a.releaser)
 	plan.PRChangelog = plan.Changelog
 
 	if ref != "" && len(entries) > 0 {
 		plan.PRCompareRef = strings.TrimSpace(entries[0].Hash)
-		plan.PRChangelog = renderTargetChangelog(target, plan.NextTag, ref, entries[0].Hash, commits, a.releaser)
+		plan.PRChangelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, entries[0].Hash, commits, a.releaser)
 	}
 
 	return plan
@@ -586,6 +591,7 @@ func setPlanVersions(plan *TargetPlan, strategy versionStrategy, nextVersion str
 }
 
 func renderTargetChangelog(
+	ctx context.Context,
 	target config.ResolvedTarget,
 	nextTag, ref, compareTarget string,
 	commits []commit.Commit,
@@ -600,7 +606,7 @@ func renderTargetChangelog(
 		References: target.Changelog.References,
 	}
 
-	entry := gen.Generate(nextTag, ref, commits)
+	entry := gen.Generate(ctx, nextTag, ref, commits)
 	if ref != "" && compareTarget != "" {
 		entry.CompareURL = releaser.metadata.CompareURL(ref, compareTarget)
 	}
@@ -609,6 +615,7 @@ func renderTargetChangelog(
 }
 
 func renderDerivedChangelog(
+	ctx context.Context,
 	target config.ResolvedTarget,
 	nextTag string,
 	ref string,
@@ -621,7 +628,7 @@ func renderDerivedChangelog(
 	var body strings.Builder
 
 	if len(directCommits) > 0 {
-		directEntry := renderTargetChangelog(target, nextTag, ref, nextTag, directCommits, releaser)
+		directEntry := renderTargetChangelog(ctx, target, nextTag, ref, nextTag, directCommits, releaser)
 		body.WriteString(changelogBodyWithoutHeading(directEntry))
 	}
 

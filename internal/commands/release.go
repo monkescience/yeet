@@ -180,7 +180,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	r, err := release.New(cfg, p)
+	r, err := release.New(ctx, cfg, p)
 	if err != nil {
 		return wrapReleaseConfigError(configPath, err)
 	}
@@ -206,7 +206,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	err = cfg.Validate()
+	err = cfg.Validate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}

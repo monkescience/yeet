@@ -2,6 +2,7 @@
 package changelog
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -38,7 +39,9 @@ type Entry struct {
 	CompareURL string
 }
 
-func (g *Generator) Generate(version string, previousTag string, commits []commit.Commit) Entry {
+func (g *Generator) Generate(ctx context.Context, version string, previousTag string, commits []commit.Commit) Entry {
+	g.ensureCompiledPatterns(ctx)
+
 	relevant := commit.FilterByTypes(commits, g.Include)
 
 	grouped := g.groupBySection(relevant)
@@ -75,7 +78,7 @@ func (g *Generator) Generate(version string, previousTag string, commits []commi
 		entry.CompareURL = g.CompareURL(previousTag, version)
 	}
 
-	slog.Debug("changelog: generated entry",
+	slog.DebugContext(ctx, "changelog: generated entry",
 		slog.String("version", version),
 		slog.String("previous_tag", previousTag),
 		slog.Int("commits_in", len(commits)),
@@ -199,7 +202,7 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 	sb.WriteString("\n")
 }
 
-func (g *Generator) ensureCompiledPatterns() {
+func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
 	if g.compiledPatterns != nil || len(g.References.Patterns) == 0 {
 		return
 	}
@@ -213,7 +216,7 @@ func (g *Generator) ensureCompiledPatterns() {
 
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
-			slog.Warn("invalid changelog reference pattern, skipping",
+			slog.WarnContext(ctx, "invalid changelog reference pattern, skipping",
 				slog.String("pattern", p.Pattern),
 				slog.Any("error", err),
 			)
@@ -226,8 +229,6 @@ func (g *Generator) ensureCompiledPatterns() {
 }
 
 func (g *Generator) linkDescription(description string) string {
-	g.ensureCompiledPatterns()
-
 	if len(g.compiledPatterns) == 0 {
 		return description
 	}
