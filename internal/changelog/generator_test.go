@@ -567,11 +567,9 @@ func TestGenerate(t *testing.T) {
 		// when: generating changelog
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
-		// then: inline pattern is linked in description
+		// then: inline pattern is linked in description, footer reference appears, and commit hash is linked
 		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
-		// and: footer reference is appended after hash
 		testastic.Contains(t, entry.Body, "(#456)")
-		// and: commit hash is still linked
 		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
 	})
 }

@@ -1,4 +1,3 @@
-// Package commit provides conventional commit message parsing.
 package commit
 
 import (
@@ -20,7 +19,6 @@ type Commit struct {
 	Raw         string
 }
 
-// Footer represents a conventional commit footer (e.g., "BREAKING CHANGE: description").
 type Footer struct {
 	Key   string
 	Value string
@@ -35,12 +33,10 @@ const (
 	BumpMajor BumpType = "major"
 )
 
-// BumpMapping maps conventional commit types to their bump levels.
-// Types not present in the map produce BumpNone.
-// Breaking commits always produce BumpMajor regardless of mapping.
+// BumpMapping defines per-type bump levels.
+// Types not present produce BumpNone. Breaking commits always produce BumpMajor regardless of mapping.
 type BumpMapping map[string]BumpType
 
-// DefaultBumpMapping returns the default mapping: feat→minor, fix/perf→patch.
 func DefaultBumpMapping() BumpMapping {
 	return BumpMapping{
 		"feat": BumpMinor,
@@ -49,7 +45,6 @@ func DefaultBumpMapping() BumpMapping {
 	}
 }
 
-// conventionalCommitPattern matches a conventional commit header.
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
 	`^(?P<type>[a-zA-Z]+)` +
@@ -58,9 +53,7 @@ var conventionalCommitPattern = regexp.MustCompile(
 		`:\s*(?P<description>.+)$`,
 )
 
-// Parse parses a raw commit message into a Commit.
-// If the message does not follow the conventional commit format,
-// it returns a Commit with an empty Type.
+// Parse returns a Commit with an empty Type when the message is not conventional.
 func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c := Commit{
 		Hash: hash,

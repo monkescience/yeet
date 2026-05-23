@@ -24,8 +24,6 @@ const (
 	shortYearPad      = 2
 )
 
-// CalVer implements calendar versioning.
-// Supported formats use CalVer date tokens and a MICRO incrementing counter.
 type CalVer struct {
 	Format string
 	Prefix string

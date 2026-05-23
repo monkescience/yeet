@@ -1,5 +1,3 @@
-// Package provider defines the VCS provider interface and implementations
-// for interacting with GitHub and GitLab APIs.
 package provider
 
 import (
@@ -78,56 +76,38 @@ type CommitEntry struct {
 	Paths   []string
 }
 
-// Provider is the contract every VCS provider implementation satisfies.
-// Granular consumer-side interfaces live in the release package; this
-// composite serves the CLI factory that returns a single concrete provider.
-//
-//nolint:interfacebloat // intentional aggregate; granular interfaces live consumer-side in package release.
-type Provider interface {
-	// GetLatestVersionRef returns the preferred release/tag baseline candidate.
-	GetLatestVersionRef(ctx context.Context) (string, error)
-	// ListTags returns repository tags.
-	ListTags(ctx context.Context) ([]string, error)
-	// GetCommitsSince returns commits on the given branch since the given ref (tag or SHA).
-	// When includePaths is true, each entry includes the list of changed file paths.
-	GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error)
+type CommitHistory struct {
+	EntriesByRef map[string][]CommitEntry
+	MissingRefs  []string
+}
 
-	// GetReleaseByTag returns the release for the exact tag.
+//nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
+type Provider interface {
+	GetLatestVersionRef(ctx context.Context) (string, error)
+	ListTags(ctx context.Context) ([]string, error)
+	GetCommitsSinceRefs(ctx context.Context, refs []string, branch string, includePaths bool) (CommitHistory, error)
+
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
-	// TagExists reports whether the exact tag already exists.
 	TagExists(ctx context.Context, tag string) (bool, error)
-	// CreateRelease creates a release with a tag.
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 
-	// CreateReleasePR creates a release PR/MR.
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
-	// UpdateReleasePR updates an existing release PR/MR.
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
-	// FindOpenPendingReleasePRs finds open release PRs/MRs labeled pending for the base branch.
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
-	// FindMergedReleasePR finds the latest merged release PR/MR waiting for tagging.
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
-	// MergeReleasePR merges an existing release PR/MR.
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
-	// MarkReleasePRPending marks a release PR/MR as waiting for tagging.
 	MarkReleasePRPending(ctx context.Context, number int) error
-	// MarkReleasePRTagged marks a release PR/MR as tagged.
 	MarkReleasePRTagged(ctx context.Context, number int) error
-	// CommitPullRequestBody returns the merged PR/MR body associated with the commit hash.
 	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
 
-	// CreateBranch creates a new branch from the base branch.
 	CreateBranch(ctx context.Context, name, base string) error
-	// GetFile reads a file content from a branch.
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
 
-	// RepoURL returns the HTTPS base URL for the repository.
 	RepoURL() string
 	// PathPrefix returns the path prefix for commit URLs (empty for GitHub, "/-" for GitLab).
 	PathPrefix() string
-	// CompareURL returns the web URL comparing fromRef..toRef in the provider's native format.
 	CompareURL(fromRef, toRef string) string
 }
 
@@ -168,6 +148,7 @@ var (
 	ErrFileNotFound            = errors.New("file not found")
 	ErrEmptyCommitSHA          = errors.New("empty commit SHA")
 	ErrEmptyCommitID           = errors.New("empty commit ID")
+	ErrRefNotFound             = errors.New("ref not found")
 	ErrMergeBlocked            = errors.New("release PR merge blocked")
 	ErrMergeMethodUnsupported  = errors.New("merge method unsupported")
 	ErrPaginationLimitExceeded = errors.New("pagination safety limit exceeded")
@@ -175,7 +156,6 @@ var (
 
 const maxPaginationPages = 100
 
-// CommitBoundaryNotFoundError includes the missing boundary ref and the branch being analyzed.
 type CommitBoundaryNotFoundError struct {
 	Ref    string
 	Branch string
@@ -398,7 +378,7 @@ func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*Re
 }
 
 func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*RepositoryDescriptor, error) {
-	// Legacy subdomain form: org is the host subdomain; path is {project}/_git/{repo}.
+	// Legacy subdomain form: org is the host subdomain, path is {project}/_git/{repo}.
 	org := strings.TrimSuffix(host, azureDevOpsLegacyHostSuffix)
 	if org == "" {
 		return nil, ErrUnknownRemote

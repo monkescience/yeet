@@ -69,45 +69,49 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-const maxConcurrentPathFetches = 5
-
-//nolint:funlen // Commit pagination and concurrent path fetching are clearer kept together.
-func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error) {
-	boundaryRef := strings.TrimSpace(ref)
-	resolvedBoundarySHA := boundaryRef
-	branch = strings.TrimSpace(branch)
-
-	if resolvedBoundarySHA != "" {
-		resolvedSHA, err := g.resolveCommitSHA(ctx, resolvedBoundarySHA)
-		if err != nil {
-			return nil, fmt.Errorf("resolve ref %q: %w", boundaryRef, err)
-		}
-
-		resolvedBoundarySHA = resolvedSHA
+//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
+func (g *GitHub) GetCommitsSinceRefs(
+	ctx context.Context,
+	refs []string,
+	branch string,
+	includePaths bool,
+) (CommitHistory, error) {
+	normalizedRefs := normalizeCommitHistoryRefs(refs)
+	if len(normalizedRefs) == 0 {
+		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
 	}
 
+	boundaryRefsBySHA, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, g.resolveCommitSHA)
+	if err != nil {
+		return CommitHistory{}, err
+	}
+
+	if len(boundaryRefsBySHA) == 0 && !hasUnboundedRef {
+		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
+	}
+
+	branch = strings.TrimSpace(branch)
 	opts := &github.CommitsListOptions{
 		ListOptions: github.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
 
 	if branch != "" {
 		opts.SHA = branch
-	} else if resolvedBoundarySHA != "" {
+	} else if len(boundaryRefsBySHA) > 0 {
 		opts.SHA = "HEAD"
 	}
 
-	slog.DebugContext(ctx, "github: fetching commits",
-		slog.String("boundary_ref", boundaryRef),
-		slog.String("boundary_sha", resolvedBoundarySHA),
+	slog.DebugContext(ctx, "github: fetching commits for refs",
+		slog.Int("refs", len(normalizedRefs)),
 		slog.String("branch", branch),
 		slog.Bool("include_paths", includePaths),
 	)
 
-	var entries []CommitEntry
+	entries := make([]CommitEntry, 0)
+	positions := make(map[string]int, len(boundaryRefsBySHA))
+	foundSHAs := make(map[string]struct{}, len(boundaryRefsBySHA))
 
-	boundaryFound := false
-
-	err := paginate(ctx, "listing commits",
+	err = paginate(ctx, "listing commits",
 		func(page int) ([]*github.RepositoryCommit, int, error) {
 			opts.Page = page
 
@@ -121,10 +125,20 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 		func(c *github.RepositoryCommit) (bool, error) {
 			sha := c.GetSHA()
 
-			if resolvedBoundarySHA != "" && sha == resolvedBoundarySHA {
-				boundaryFound = true
+			boundaryRefs, isBoundary := boundaryRefsBySHA[sha]
+			if isBoundary {
+				for _, ref := range boundaryRefs {
+					positions[ref] = len(entries)
+				}
 
-				return true, nil
+				foundSHAs[sha] = struct{}{}
+
+				// Terminate before appending only when no older ref still needs
+				// this commit. Otherwise we must include it so older refs see
+				// the full slice of commits since their own boundary.
+				if len(foundSHAs) == len(boundaryRefsBySHA) && !hasUnboundedRef {
+					return true, nil
+				}
 			}
 
 			entries = append(entries, CommitEntry{
@@ -136,16 +150,14 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 		},
 	)
 	if err != nil {
-		return nil, err
+		return CommitHistory{}, err
 	}
 
-	if resolvedBoundarySHA != "" && !boundaryFound {
-		return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
-	}
+	entries = trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(maxConcurrentPathFetches)
+		eg.SetLimit(maxConcurrentProviderRequests)
 
 		for idx := range entries {
 			eg.Go(func() error {
@@ -162,13 +174,19 @@ func (g *GitHub) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 		err := eg.Wait()
 		if err != nil {
-			return nil, fmt.Errorf("fetch commit paths: %w", err)
+			return CommitHistory{}, fmt.Errorf("fetch commit paths: %w", err)
 		}
 	}
 
-	slog.DebugContext(ctx, "github: fetched commits", slog.Int("count", len(entries)))
+	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, positions)
+	slog.DebugContext(ctx, "github: fetched commits for refs",
+		slog.Int("entries", len(entries)),
+		slog.Int("missing_refs", len(history.MissingRefs)),
+		slog.Bool("early_terminated", !hasUnboundedRef && len(foundSHAs) == len(boundaryRefsBySHA)),
+		slog.Bool("unbounded_ref", hasUnboundedRef),
+	)
 
-	return entries, nil
+	return history, nil
 }
 
 func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, error) {
@@ -196,8 +214,12 @@ func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, 
 }
 
 func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {
-	commit, _, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
+	commit, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
+		}
+
 		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
 	}
 

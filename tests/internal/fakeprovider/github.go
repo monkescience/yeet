@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// GitHubOptions configures the responses served by [NewGitHub].
 type GitHubOptions struct {
 	Owner string
 	Repo  string
@@ -287,7 +286,7 @@ func githubFilesPayload(paths []string) []map[string]any {
 
 // registerGitHubWritePath attaches the handlers exercised by a non-dry-run
 // release (creating a release branch, updating files, opening the PR, and
-// managing labels). All responses are canned — the test asserts side effects
+// managing labels). All responses are canned. The test asserts side effects
 // via exit code / stdout rather than payload bodies.
 func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	registerGitHubGitData(mux, prefix)

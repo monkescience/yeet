@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// AzureOptions configures the responses served by [NewAzure].
 type AzureOptions struct {
 	Organization string
 	Project      string
@@ -99,7 +99,14 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 	mux.HandleFunc("GET "+repoAPI+"/refs", azureRefsHandler(opts))
 
-	mux.HandleFunc("GET "+repoAPI+"/commits", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+repoAPI+"/commits", func(w http.ResponseWriter, r *http.Request) {
+		itemVersion := r.URL.Query().Get("searchCriteria.itemVersion.version")
+		if itemVersion != "" {
+			writeJSON(w, azureResolveCommitPayload(itemVersion, opts))
+
+			return
+		}
+
 		writeJSON(w, map[string]any{
 			azureKeyCount: len(opts.Commits),
 			azureKeyValue: azureCommitsList(opts.Commits),
@@ -368,6 +375,51 @@ func registerAzureReleases(mux *http.ServeMux, org, project string) {
 	mux.HandleFunc("GET "+prefix+"/release/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
 	})
+}
+
+// azureResolveCommitPayload mirrors what ADO returns when yeet resolves a ref
+// to its commit SHA via the commits endpoint (top=1, itemVersion=ref). Unknown
+// refs get an empty payload (count: 0), matching how the real API responds and
+// preventing typos or stale refs from quietly resolving to BoundarySHA.
+func azureResolveCommitPayload(ref string, opts AzureOptions) map[string]any {
+	sha, ok := azureResolveRefSHA(ref, opts)
+	if !ok {
+		return map[string]any{
+			azureKeyCount: 0,
+			azureKeyValue: []map[string]any{},
+		}
+	}
+
+	return map[string]any{
+		azureKeyCount: 1,
+		azureKeyValue: []map[string]any{{azureCommitIDKey: sha}},
+	}
+}
+
+func azureResolveRefSHA(ref string, opts AzureOptions) (string, bool) {
+	if ref == opts.LatestTag || slices.Contains(opts.ExtraTags, ref) {
+		return opts.BoundarySHA, true
+	}
+
+	if ref == fakeBaseBranch {
+		return fakeBaseSHA, true
+	}
+
+	// fakeMergeSHA stands in for the merge-commit SHA returned by the merged-PR
+	// fixtures. Real Azure DevOps would short-circuit a hex SHA via
+	// isAzureDevOpsCommitSHA. The fake recognises it here so finalize flows
+	// can resolve their tag target.
+	if ref == fakeMergeSHA {
+		return fakeMergeSHA, true
+	}
+
+	for _, c := range opts.Commits {
+		if c.SHA == ref {
+			return c.SHA, true
+		}
+	}
+
+	return "", false
 }
 
 func azureCommitsList(commits []AzureCommit) []map[string]any {

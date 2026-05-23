@@ -3,6 +3,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -128,18 +129,25 @@ type versionHistoryStub struct {
 	latestVersionRefErr error
 	tagList             []string
 
+	getLatestVersionRefCalls int
+	listTagsCalls            int
+	getCommitsSinceRefsCalls int
+
 	commits         []provider.CommitEntry
 	commitsErr      error
 	commitsErrByRef map[string]error
 
-	commitsByRef            map[string][]provider.CommitEntry
-	getCommitsSinceOf       []string
-	getCommitsSinceBranches []string
+	commitsByRef               map[string][]provider.CommitEntry
+	getCommitsSinceRefsOf      [][]string
+	getCommitsSinceBranches    []string
+	getCommitsSinceIncludePath []bool
 
 	publishing *releasePublishingStub
 }
 
 func (s *versionHistoryStub) GetLatestVersionRef(context.Context) (string, error) {
+	s.getLatestVersionRefCalls++
+
 	if s.latestVersionRefErr != nil {
 		return "", s.latestVersionRefErr
 	}
@@ -156,6 +164,8 @@ func (s *versionHistoryStub) GetLatestVersionRef(context.Context) (string, error
 }
 
 func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
+	s.listTagsCalls++
+
 	if len(s.tagList) == 0 {
 		return nil, nil
 	}
@@ -166,37 +176,83 @@ func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 	return refs, nil
 }
 
-func (s *versionHistoryStub) GetCommitsSince(
-	_ context.Context, ref, branch string, _ bool,
-) ([]provider.CommitEntry, error) {
-	s.getCommitsSinceOf = append(s.getCommitsSinceOf, ref)
+func (s *versionHistoryStub) GetCommitsSinceRefs(
+	_ context.Context,
+	refs []string,
+	branch string,
+	includePaths bool,
+) (provider.CommitHistory, error) {
+	s.getCommitsSinceRefsCalls++
+	s.getCommitsSinceRefsOf = append(s.getCommitsSinceRefsOf, append([]string(nil), refs...))
 	s.getCommitsSinceBranches = append(s.getCommitsSinceBranches, branch)
+	s.getCommitsSinceIncludePath = append(s.getCommitsSinceIncludePath, includePaths)
 
-	if err, exists := s.commitsErrByRef[ref]; exists {
-		return nil, err
+	history := provider.CommitHistory{EntriesByRef: make(map[string][]provider.CommitEntry, len(refs))}
+
+	if errors.Is(s.commitsErr, provider.ErrCommitBoundaryNotFound) {
+		history.MissingRefs = append(history.MissingRefs, refs...)
+
+		return history, nil
 	}
 
 	if s.commitsErr != nil {
-		return nil, s.commitsErr
+		return provider.CommitHistory{}, s.commitsErr
 	}
 
+	for _, ref := range refs {
+		if err, exists := s.commitsErrByRef[ref]; exists {
+			if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
+				history.MissingRefs = append(history.MissingRefs, ref)
+
+				continue
+			}
+
+			return provider.CommitHistory{}, err
+		}
+
+		entries := s.entriesForRef(ref)
+		history.EntriesByRef[ref] = entries
+	}
+
+	return history, nil
+}
+
+// singleRefProbes returns the flat sequence of refs probed via single-ref
+// GetCommitsSinceRefs calls (one ref per call). Multi-ref shared scans are
+// excluded so callers can keep asserting on per-target boundary probes.
+func (s *versionHistoryStub) singleRefProbes() []string {
+	probes := make([]string, 0, len(s.getCommitsSinceRefsOf))
+
+	for _, call := range s.getCommitsSinceRefsOf {
+		if len(call) == 1 {
+			probes = append(probes, call[0])
+		}
+	}
+
+	return probes
+}
+
+func (s *versionHistoryStub) entriesForRef(ref string) []provider.CommitEntry {
 	if s.commitsByRef != nil {
 		entries, exists := s.commitsByRef[ref]
 		if !exists || len(entries) == 0 {
-			return []provider.CommitEntry{}, nil
+			return []provider.CommitEntry{}
 		}
 
 		result := make([]provider.CommitEntry, len(entries))
 		copy(result, entries)
 
-		return result, nil
+		return result
 	}
 
 	if len(s.commits) == 0 {
-		return []provider.CommitEntry{}, nil
+		return []provider.CommitEntry{}
 	}
 
-	return s.commits, nil
+	result := make([]provider.CommitEntry, len(s.commits))
+	copy(result, s.commits)
+
+	return result
 }
 
 type releasePRWorkflowStub struct {

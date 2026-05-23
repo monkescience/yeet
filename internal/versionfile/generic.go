@@ -1,4 +1,3 @@
-// Package versionfile updates version references in configured files.
 package versionfile
 
 import (
@@ -91,7 +90,6 @@ type Scheme struct {
 	calver *version.CalVerScheme
 }
 
-// SemVerScheme returns the scheme for SemVer repositories.
 func SemVerScheme() Scheme {
 	return Scheme{}
 }
@@ -151,8 +149,6 @@ func ApplyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bo
 	return result, result != content, nil
 }
 
-// markerValues parses nextVersion under the scheme and returns the per-scope
-// substitution values, plus the set of scopes that are valid for this scheme.
 func (s Scheme) markerValues(nextVersion string) (map[markerScope]string, map[markerScope]bool, error) {
 	if s.calver != nil {
 		return s.calverValues(nextVersion)
@@ -197,7 +193,7 @@ func (s Scheme) calverValues(nextVersion string) (map[markerScope]string, map[ma
 	// channels"), so the next version is parsed verbatim.
 	tokens, err := s.calver.MarkerValues(nextVersion)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", ErrInvalidNextVersion, err)
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidNextVersion, err)
 	}
 
 	values := map[markerScope]string{
@@ -292,7 +288,7 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 }
 
 // processBlockLine substitutes values inside an open block. Block markers
-// intentionally tolerate non-matching lines (e.g. yaml structure) — only the
+// intentionally tolerate non-matching lines (e.g. yaml structure). Only the
 // inline marker form requires a numeric value on the marker line itself.
 func (p *markerParser) processBlockLine(line string, lineNo int) (string, error) {
 	if _, isNested := markerScopeFromLine(line, blockStartPattern); isNested {
@@ -344,9 +340,6 @@ func (p *markerParser) suggestion(scope markerScope) string {
 	return calVerSuggestion(scope, p.scheme.calver)
 }
 
-// semVerSuggestion returns hint text for a marker scope rejected by a semver
-// scheme. Only calver-only scopes can land here in practice; the default
-// branch covers the remaining enum values to keep the exhaustive linter happy.
 func semVerSuggestion(scope markerScope) string {
 	switch scope {
 	case markerScopeYear:
@@ -362,9 +355,6 @@ func semVerSuggestion(scope markerScope) string {
 	}
 }
 
-// calVerSuggestion returns hint text for a marker scope rejected by a calver
-// scheme. Most rejections are semver-only scopes or calver scopes whose
-// corresponding token is absent from the configured format.
 func calVerSuggestion(scope markerScope, calver *version.CalVerScheme) string {
 	switch scope {
 	case markerScopeMajor:
@@ -405,7 +395,7 @@ func markerScopeFromLine(line string, pattern *regexp.Regexp) (markerScope, bool
 // replaceForScope returns the possibly-updated line along with whether the
 // numeric pattern for this scope found a replacement target on the line.
 // The bool lets callers distinguish "marker present but value missing" from
-// "no numeric target on the line" — only the latter indicates user error
+// "no numeric target on the line", where only the latter indicates user error
 // for inline markers.
 func replaceForScope(line string, scope markerScope, values map[markerScope]string) (string, bool) {
 	value, ok := values[scope]

@@ -16,8 +16,10 @@ func TestCommitOverrideMessages(t *testing.T) {
 	t.Run("returns no override when markers are absent", func(t *testing.T) {
 		t.Parallel()
 
+		// when: parsing a body without override markers
 		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body")
 
+		// then: no override is reported
 		testastic.NoError(t, err)
 		testastic.False(t, ok)
 		testastic.Equal(t, 0, len(messages))
@@ -26,6 +28,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 	t.Run("extracts multiple conventional messages", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a body with two conventional messages between override markers
 		body := `Release notes:
 
 BEGIN_COMMIT_OVERRIDE
@@ -35,8 +38,10 @@ fix(api): return 401 for expired sessions
 END_COMMIT_OVERRIDE
 `
 
+		// when: parsing the override body
 		messages, ok, err := commitOverrideMessages(t.Context(), body)
 
+		// then: both messages are returned in order
 		testastic.NoError(t, err)
 		testastic.True(t, ok)
 		testastic.SliceEqual(t, []string{
@@ -48,6 +53,7 @@ END_COMMIT_OVERRIDE
 	t.Run("keeps body and footer lines with an override message", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an override block with subject, body, and footer
 		body := `BEGIN_COMMIT_OVERRIDE
 feat(auth)!: replace session cookie format
 
@@ -56,8 +62,10 @@ Session cookies now use a keyed format.
 BREAKING CHANGE: existing session cookies are invalid after upgrade
 END_COMMIT_OVERRIDE`
 
+		// when: parsing the override body
 		messages, ok, err := commitOverrideMessages(t.Context(), body)
 
+		// then: the message keeps its subject prefix and the body and footer are preserved
 		testastic.NoError(t, err)
 		testastic.True(t, ok)
 		testastic.Equal(t, 1, len(messages))
@@ -69,8 +77,10 @@ END_COMMIT_OVERRIDE`
 	t.Run("rejects missing end marker", func(t *testing.T) {
 		t.Parallel()
 
+		// when: parsing an override body without END_COMMIT_OVERRIDE
 		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug")
 
+		// then: the missing end marker is reported as an invalid override
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, ErrInvalidCommitOverride)
 	})

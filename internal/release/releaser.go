@@ -1,6 +1,3 @@
-// Package release orchestrates the release process by coordinating
-// commit parsing, version calculation, changelog generation, and
-// VCS provider interactions.
 package release
 
 import (
@@ -145,12 +142,10 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 	return dir + base + "." + channelName + ext
 }
 
-// Release performs the full release flow: analyze commits, calculate version, generate changelog, create PR.
 func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
 	return r.ReleaseTargets(ctx, dryRun, nil)
 }
 
-// ReleaseTargets performs the release flow for all or selected targets.
 func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
 	var finalizedReleases []*provider.Release
 
@@ -206,7 +201,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	return result, nil
 }
 
-// Tag creates a release tag and VCS release from a merged release PR.
 func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result, error) {
 	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody, false)
 	if err != nil {

@@ -36,8 +36,14 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitLabListTagsContract(t, w, r)
-		case providerContractGetCommitsSince:
+		case providerContractGetCommitsSinceRefs:
 			handleGitLabGetCommitsSinceContract(t, w, r)
+		case providerContractGetCommitsSinceRefsMissing:
+			handleGitLabGetCommitsSinceMissingContract(t, w, r)
+		case providerContractGetCommitsSinceRefsUnresolved:
+			handleGitLabGetCommitsSinceUnresolvedContract(t, w, r)
+		case providerContractGetCommitsSinceRefsMultiBoundary:
+			handleGitLabGetCommitsSinceMultiBoundaryContract(t, w, r)
 		case providerContractGetReleaseByTag:
 			handleGitLabGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -124,6 +130,73 @@ func handleGitLabGetCommitsSinceContract(t *testing.T, w http.ResponseWriter, r 
 	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
 		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedTag():
 		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/ref.json")
+	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
+	case isGitLabCommitsListRequest(r):
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("ref_name"))
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+func handleGitLabGetCommitsSinceMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedTag():
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/ref.json")
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedMissingTag():
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/ref_missing.json")
+	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
+	case isGitLabCommitsListRequest(r):
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("ref_name"))
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+func providerContractEscapedMissingTag() string {
+	return strings.ReplaceAll(providerContractMissingTag, ".", "%2E")
+}
+
+func providerContractEscapedIntermediateTag() string {
+	return strings.ReplaceAll(providerContractIntermediateTag, ".", "%2E")
+}
+
+func handleGitLabGetCommitsSinceMultiBoundaryContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedTag():
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/older_ref.json")
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedIntermediateTag():
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/intermediate_ref.json")
+	case isGitLabCommitsListRequest(r):
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("ref_name"))
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+func handleGitLabGetCommitsSinceUnresolvedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedTag():
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/ref.json")
+	case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractEscapedMissingTag():
+		w.WriteHeader(http.StatusNotFound)
+		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
 		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
 	case isGitLabCommitsListRequest(r):

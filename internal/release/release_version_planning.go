@@ -45,7 +45,7 @@ func detectReleaseAs(commits []commit.Commit) (string, error) {
 func normalizeReleaseAsValue(releaseAsVersion string) (string, error) {
 	v, err := semver.StrictNewVersion(releaseAsVersion)
 	if err != nil {
-		return "", fmt.Errorf("%w: invalid version %q: %w", ErrInvalidReleaseAs, releaseAsVersion, err)
+		return "", fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, releaseAsVersion, err)
 	}
 
 	return v.String(), nil
@@ -54,7 +54,7 @@ func normalizeReleaseAsValue(releaseAsVersion string) (string, error) {
 func applyReleaseAs(current, releaseAsVersion string) (string, commit.BumpType, error) {
 	targetVersion, err := semver.StrictNewVersion(releaseAsVersion)
 	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: invalid version %q: %w", ErrInvalidReleaseAs, releaseAsVersion, err)
+		return "", commit.BumpNone, fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, releaseAsVersion, err)
 	}
 
 	if targetVersion.Prerelease() != "" || targetVersion.Metadata() != "" {
@@ -63,7 +63,7 @@ func applyReleaseAs(current, releaseAsVersion string) (string, commit.BumpType, 
 
 	currentVersion, err := semver.StrictNewVersion(current)
 	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: parse current version %q: %w", ErrInvalidReleaseAs, current, err)
+		return "", commit.BumpNone, fmt.Errorf("%w: parse current version %q: %v", ErrInvalidReleaseAs, current, err)
 	}
 
 	if !targetVersion.GreaterThan(currentVersion) {

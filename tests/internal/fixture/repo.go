@@ -17,7 +17,7 @@ import (
 // single `origin` remote pointing at remoteURL. The returned path is the
 // repository root, suitable for `testastic.WithRunWorkDir(...)`.
 //
-// The repository contains no commits and no working-tree files; it exists so
+// The repository contains no commits and no working-tree files. It exists so
 // that yeet's auto-detect path can read `.git/config` for the remote URL and
 // fall back to env-supplied branch info via GITHUB_REF_NAME.
 func WriteRepo(t *testing.T, remoteURL string) string {

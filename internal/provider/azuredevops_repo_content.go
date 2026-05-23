@@ -210,9 +210,9 @@ func (a *AzureDevOps) UpdateFiles(
 	return nil
 }
 
-// resetBranchToBase points the release branch ref at the base branch tip so
-// each release rewrite produces a single commit on top of base, mirroring
-// GitHub and GitLab. Returns the resulting branch tip (i.e. the base tip).
+// Points the release branch ref at the base branch tip so each release rewrite
+// produces a single commit on top of base, mirroring GitHub and GitLab.
+// Returns the resulting branch tip (i.e. the base tip).
 func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string) (string, error) {
 	baseTip, err := a.branchTipSHA(ctx, base)
 	if err != nil {

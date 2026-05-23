@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -24,6 +25,8 @@ type releaseAnalyzer struct {
 	commitCache     map[commitCacheKey][]provider.CommitEntry
 	overrideCache   map[string]commitOverrideResult
 	analyzedTargets map[string]config.ResolvedTarget
+	versionRefs     *releaseVersionRefs
+	historyIndex    *monorepoHistoryIndex
 }
 
 type commitCacheKey struct {
@@ -38,6 +41,28 @@ type releaseSelection struct {
 	emitPathTargetIDs   map[string]struct{}
 }
 
+type releaseVersionRefs struct {
+	preferredRef string
+	hasPreferred bool
+	tags         []string
+}
+
+type monorepoHistoryIndex struct {
+	targets map[string]targetHistory
+}
+
+// sharedHistoryTopRefsLimit caps how many of each target's ordered refs the
+// shared scan resolves up front. Three covers the realistic "latest tag was a
+// hotfix on a release branch" fall-back depth. Rarer cases fall through to the
+// per-target lookup, which walks the full ref list.
+const sharedHistoryTopRefsLimit = 3
+
+type targetHistory struct {
+	currentVersion string
+	ref            string
+	entries        []provider.CommitEntry
+}
+
 func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 	return &releaseAnalyzer{
 		releaser:      releaser,
@@ -47,7 +72,6 @@ func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 	}
 }
 
-// needsPathFiltering returns true when commit paths are required for target filtering.
 // When there is a single root-path target with no excludes, all commits belong to it
 // and path data is unnecessary, avoiding N+1 per-commit API calls.
 func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
@@ -74,6 +98,11 @@ func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []strin
 	}
 
 	a.analyzedTargets = selection.analyzedPathTargets
+
+	err = a.buildSharedHistoryIndex(ctx, selection)
+	if err != nil {
+		return nil, err
+	}
 
 	pathPlans, err := a.planPathTargets(ctx, selection.analyzedPathTargets)
 	if err != nil {
@@ -345,14 +374,195 @@ func filterPlansByID(plans map[string]TargetPlan, includedIDs map[string]struct{
 	return filteredPlans
 }
 
-//nolint:funlen // Direct target planning is straight-through; debug logs make it longer but no clearer to split.
+//nolint:funlen // Shared history assembly keeps target/ref/error handling together.
+func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection releaseSelection) error {
+	targets := a.sharedHistoryTargets(selection)
+	if len(targets) <= 1 {
+		return nil
+	}
+
+	refsByTargetID := make(map[string][]string, len(targets))
+	requiredRefs := make(map[string]struct{})
+
+	for _, targetID := range sortedHistoryTargetIDs(targets) {
+		target := targets[targetID]
+
+		refs, err := a.versionHistoryRefs(ctx, target)
+		if err != nil {
+			return err
+		}
+
+		// Targets with no version refs need an unbounded scan, which disables
+		// the provider's early-termination heuristic. Excluding them keeps the
+		// shared scan bounded. They fall through to the per-target slow path.
+		if len(refs) == 0 {
+			continue
+		}
+
+		if len(refs) > sharedHistoryTopRefsLimit {
+			refs = refs[:sharedHistoryTopRefsLimit]
+		}
+
+		refsByTargetID[targetID] = refs
+
+		for _, ref := range refs {
+			requiredRefs[ref] = struct{}{}
+		}
+	}
+
+	if len(requiredRefs) == 0 {
+		return nil
+	}
+
+	refs := make([]string, 0, len(requiredRefs))
+	for ref := range requiredRefs {
+		refs = append(refs, ref)
+	}
+
+	sort.Strings(refs)
+
+	history, err := a.releaser.history.GetCommitsSinceRefs(
+		ctx,
+		refs,
+		a.releaser.cfg.Branch,
+		needsPathFiltering(targets),
+	)
+	if err != nil {
+		return fmt.Errorf("get commits from branch %q: %w", a.releaser.cfg.Branch, err)
+	}
+
+	missingRefs := make(map[string]struct{}, len(history.MissingRefs))
+	for _, ref := range history.MissingRefs {
+		missingRefs[ref] = struct{}{}
+	}
+
+	if len(history.MissingRefs) > 0 {
+		slog.WarnContext(ctx, "shared history scan: refs unreachable from branch",
+			slog.String("branch", a.releaser.cfg.Branch),
+			slog.Any("missing_refs", history.MissingRefs),
+		)
+	}
+
+	index := &monorepoHistoryIndex{targets: make(map[string]targetHistory, len(refsByTargetID))}
+
+	for targetID, candidateRefs := range refsByTargetID {
+		selected, ok := a.selectTargetHistory(targets[targetID], candidateRefs, history.EntriesByRef, missingRefs)
+		if !ok {
+			// Top refs were unreachable, let the per-target fallback walk the full ref list.
+			continue
+		}
+
+		index.targets[targetID] = selected
+	}
+
+	a.historyIndex = index
+
+	slog.DebugContext(ctx, "shared history index built",
+		slog.String("branch", a.releaser.cfg.Branch),
+		slog.Int("targets_total", len(targets)),
+		slog.Int("targets_indexed", len(index.targets)),
+		slog.Int("refs_requested", len(refs)),
+		slog.Int("refs_missing", len(history.MissingRefs)),
+	)
+
+	return nil
+}
+
+func (a *releaseAnalyzer) sharedHistoryTargets(selection releaseSelection) map[string]config.ResolvedTarget {
+	targets := make(map[string]config.ResolvedTarget, len(selection.analyzedPathTargets))
+	maps.Copy(targets, selection.analyzedPathTargets)
+
+	selectedTargetIDs := targetIDSet(selection.explicitTargets)
+
+	for _, targetID := range sortedTargetIDs(a.releaser.targets, config.TargetTypeDerived) {
+		target := a.releaser.targets[targetID]
+		if len(selectedTargetIDs) > 0 && !derivedTargetEligible(target, selectedTargetIDs) {
+			continue
+		}
+
+		targets[targetID] = target
+	}
+
+	return targets
+}
+
+func (a *releaseAnalyzer) selectTargetHistory(
+	target config.ResolvedTarget,
+	refs []string,
+	entriesByRef map[string][]provider.CommitEntry,
+	missingRefs map[string]struct{},
+) (targetHistory, bool) {
+	for _, ref := range refs {
+		if _, missing := missingRefs[ref]; missing {
+			continue
+		}
+
+		currentVersion, ok := a.currentVersionFromRef(target, ref)
+		if !ok {
+			continue
+		}
+
+		entries, exists := entriesByRef[ref]
+		if !exists {
+			continue
+		}
+
+		return targetHistory{currentVersion: currentVersion, ref: ref, entries: entries}, true
+	}
+
+	return targetHistory{}, false
+}
+
+func sortedHistoryTargetIDs(targets map[string]config.ResolvedTarget) []string {
+	ids := make([]string, 0, len(targets))
+
+	for id := range targets {
+		ids = append(ids, id)
+	}
+
+	sort.Strings(ids)
+
+	return ids
+}
+
+func (a *releaseAnalyzer) sharedTargetHistory(target config.ResolvedTarget) (targetHistory, bool) {
+	if a.historyIndex == nil {
+		return targetHistory{}, false
+	}
+
+	history, exists := a.historyIndex.targets[target.ID]
+
+	return history, exists
+}
+
+//nolint:funlen // Direct target planning is straight-through. Debug logs make it longer but no clearer to split.
 func (a *releaseAnalyzer) planDirectTarget(
 	ctx context.Context,
 	target config.ResolvedTarget,
 ) (TargetPlan, bool, error) {
-	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
-	if err != nil {
-		return TargetPlan{}, false, err
+	var (
+		entries        []provider.CommitEntry
+		currentVersion string
+		ref            string
+		err            error
+	)
+
+	sharedHistory, ok := a.sharedTargetHistory(target)
+	if ok {
+		currentVersion = sharedHistory.currentVersion
+		ref = sharedHistory.ref
+		entries = sharedHistory.entries
+	} else {
+		if a.historyIndex != nil {
+			slog.DebugContext(ctx, "shared history miss: per-target lookup",
+				slog.String("target", target.ID),
+			)
+		}
+
+		currentVersion, ref, err = a.currentVersionFromReleaseHistory(ctx, target)
+		if err != nil {
+			return TargetPlan{}, false, err
+		}
 	}
 
 	slog.DebugContext(ctx, "planning target",
@@ -362,9 +572,11 @@ func (a *releaseAnalyzer) planDirectTarget(
 		slog.String("branch", a.releaser.cfg.Branch),
 	)
 
-	entries, err := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
-	if err != nil {
-		return TargetPlan{}, false, err
+	if !ok {
+		entries, err = a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+		if err != nil {
+			return TargetPlan{}, false, err
+		}
 	}
 
 	filteredEntries := filterEntriesForTarget(entries, target)
@@ -422,20 +634,42 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	childPlans []TargetPlan,
 	includeDirectCommits bool,
 ) (TargetPlan, bool, error) {
-	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
-	if err != nil {
-		return TargetPlan{}, false, err
+	var (
+		currentVersion string
+		ref            string
+		err            error
+	)
+
+	sharedHistory, ok := a.sharedTargetHistory(target)
+	if ok {
+		currentVersion = sharedHistory.currentVersion
+		ref = sharedHistory.ref
+	} else {
+		if a.historyIndex != nil {
+			slog.DebugContext(ctx, "shared history miss: per-target lookup",
+				slog.String("target", target.ID),
+			)
+		}
+
+		currentVersion, ref, err = a.currentVersionFromReleaseHistory(ctx, target)
+		if err != nil {
+			return TargetPlan{}, false, err
+		}
 	}
 
 	allEntries := []provider.CommitEntry{}
 
 	if target.Path != "" || len(childPlans) > 0 {
-		entries, commitsErr := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
-		if commitsErr != nil {
-			return TargetPlan{}, false, commitsErr
-		}
+		if ok {
+			allEntries = sharedHistory.entries
+		} else {
+			entries, commitsErr := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+			if commitsErr != nil {
+				return TargetPlan{}, false, commitsErr
+			}
 
-		allEntries = entries
+			allEntries = entries
+		}
 	}
 
 	directEntries := []provider.CommitEntry{}
@@ -994,26 +1228,49 @@ func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
 }
 
 func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context, target config.ResolvedTarget) ([]string, error) {
-	r := a.releaser
 	refs := make([]string, 0)
+
+	historyRefs, err := a.rawVersionHistoryRefs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if historyRefs.hasPreferred {
+		refs = append(refs, historyRefs.preferredRef)
+	}
+
+	refs = append(refs, historyRefs.tags...)
+
+	return a.orderedVersionRefs(target, refs, ""), nil
+}
+
+func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVersionRefs, error) {
+	if a.versionRefs != nil {
+		return *a.versionRefs, nil
+	}
+
+	r := a.releaser
+	refs := releaseVersionRefs{}
 
 	preferredRef, err := r.history.GetLatestVersionRef(ctx)
 	if err != nil && !errors.Is(err, provider.ErrNoVersionRef) {
-		return nil, fmt.Errorf("get latest version ref: %w", err)
+		return releaseVersionRefs{}, fmt.Errorf("get latest version ref: %w", err)
 	}
 
 	if err == nil {
-		refs = append(refs, preferredRef)
+		refs.preferredRef = preferredRef
+		refs.hasPreferred = true
 	}
 
 	tags, err := r.history.ListTags(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list tags: %w", err)
+		return releaseVersionRefs{}, fmt.Errorf("list tags: %w", err)
 	}
 
-	refs = append(refs, tags...)
+	refs.tags = append([]string(nil), tags...)
+	a.versionRefs = &refs
 
-	return a.orderedVersionRefs(target, refs, ""), nil
+	return refs, nil
 }
 
 func (a *releaseAnalyzer) currentVersionFromReachableRef(
@@ -1088,13 +1345,13 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
 	r := a.releaser
 
-	_, err := r.history.GetCommitsSince(ctx, ref, r.cfg.Branch, false)
+	history, err := r.history.GetCommitsSinceRefs(ctx, []string{ref}, r.cfg.Branch, false)
 	if err != nil {
-		if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
-			return false, nil
-		}
-
 		return false, fmt.Errorf("validate version ref %q: %w", ref, err)
+	}
+
+	if slices.Contains(history.MissingRefs, ref) {
+		return false, nil
 	}
 
 	return true, nil
@@ -1175,8 +1432,12 @@ func (a *releaseAnalyzer) commitsSince(
 
 	r := a.releaser
 
-	entries, err := r.history.GetCommitsSince(ctx, ref, branch, includePaths)
-	if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
+	history, err := r.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, includePaths)
+	if err != nil {
+		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
+	}
+
+	if slices.Contains(history.MissingRefs, ref) {
 		return nil, fmt.Errorf(
 			"previous release ref %q is not reachable from release branch %q; "+
 				"verify the latest tag/release and branch ancestry: %w",
@@ -1186,10 +1447,7 @@ func (a *releaseAnalyzer) commitsSince(
 		)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
-	}
-
+	entries := history.EntriesByRef[ref]
 	a.commitCache[key] = entries
 
 	return entries, nil
@@ -1237,7 +1495,7 @@ func parseCalVerVersion(rawVersion string) ([3]int, error) {
 	for idx, part := range parts {
 		value, err := strconv.Atoi(part)
 		if err != nil {
-			return [3]int{}, fmt.Errorf("%w: %q: %w", version.ErrInvalidVersion, rawVersion, err)
+			return [3]int{}, fmt.Errorf("%w: %q: %v", version.ErrInvalidVersion, rawVersion, err)
 		}
 
 		values[idx] = value

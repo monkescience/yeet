@@ -4,7 +4,7 @@ Dry Run
   Target            default
   Version           1.0.0 → 1.1.0 (minor)
   Tag               v1.1.0
-  Commits           2
+  Commits           1
 
   ────────────────────────────────
 

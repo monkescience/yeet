@@ -1,4 +1,3 @@
-// Package commands defines the command-line interface for yeet.
 package commands
 
 import (
@@ -117,7 +116,7 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 // resolveColorProfile picks the color profile for an output stream based on
 // the explicit --no-color flag, the destination writer's TTY-ness, and
 // standard env vars (NO_COLOR, CLICOLOR, CLICOLOR_FORCE, TERM, COLORTERM).
-// When noColor is set, all color sequences are stripped; text decoration
+// When noColor is set, all color sequences are stripped. Text decoration
 // like bold/faint is preserved (per the NO_COLOR spec). Otherwise the
 // profile follows colorprofile.Detect, which strips everything for
 // non-TTY destinations such as pipes, files, and CI.
@@ -129,8 +128,6 @@ func resolveColorProfile(out io.Writer, noColor bool) colorprofile.Profile {
 	return colorprofile.Detect(out, os.Environ())
 }
 
-// newColorWriter wraps w in a color-aware writer that downsamples ANSI
-// sequences according to the resolved color profile.
 func newColorWriter(w io.Writer, noColor bool) *colorprofile.Writer {
 	return &colorprofile.Writer{
 		Forward: w,

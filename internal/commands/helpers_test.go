@@ -21,6 +21,7 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("uses explicit config without git remote access", func(t *testing.T) {
 		t.Parallel()
 
+		// given: explicit gitlab coordinates in config
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitLab
 		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
@@ -30,6 +31,7 @@ func TestResolveRepository(t *testing.T) {
 
 		remoteLookedUp := false
 
+		// when: resolving the repository
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -40,6 +42,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: the explicit config is used without consulting the git remote
 		testastic.NoError(t, err)
 		testastic.False(t, remoteLookedUp)
 		testastic.Equal(t, "gitlab", repository.Provider)
@@ -53,6 +56,7 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("uses explicit github coordinates without git remote access", func(t *testing.T) {
 		t.Parallel()
 
+		// given: explicit github coordinates in config
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
@@ -62,6 +66,7 @@ func TestResolveRepository(t *testing.T) {
 
 		remoteLookedUp := false
 
+		// when: resolving the repository
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -72,6 +77,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: explicit github coordinates resolve without git remote access
 		testastic.NoError(t, err)
 		testastic.False(t, remoteLookedUp)
 		testastic.Equal(t, "github", repository.Provider)
@@ -84,9 +90,11 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("uses configured remote name", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a config with a non-default remote name
 		cfg := config.Default()
 		cfg.Repository.Remote = "upstream"
 
+		// when: resolving the repository
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -97,6 +105,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: the configured remote name is forwarded and coordinates are detected
 		testastic.NoError(t, err)
 		testastic.Equal(t, "github", repository.Provider)
 		testastic.Equal(t, "github.com", repository.Host)
@@ -109,8 +118,10 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("fails on unsupported host without explicit provider", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a default config and a remote on an unknown host
 		cfg := config.Default()
 
+		// when: resolving the repository
 		_, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -119,6 +130,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: resolution reports an unsupported host with remediation
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
@@ -127,8 +139,10 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("fails on github custom host without explicit provider", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a default config and a remote on a custom github host
 		cfg := config.Default()
 
+		// when: resolving the repository
 		_, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -137,6 +151,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: github custom hosts require an explicit provider override
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
@@ -145,9 +160,11 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("honors explicit provider on unknown host", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an explicit gitlab provider and a remote on an unknown host
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitLab
 
+		// when: resolving the repository
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -156,6 +173,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: the explicit provider is used and coordinates are detected from the remote
 		testastic.NoError(t, err)
 		testastic.Equal(t, "gitlab", repository.Provider)
 		testastic.Equal(t, "code.company.com", repository.Host)
@@ -175,6 +193,7 @@ func TestResolveRepository(t *testing.T) {
 			Repo:  "yeet",
 		}
 
+		// when: resolving the repository
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -367,8 +386,10 @@ func TestResolveInitConfigPath(t *testing.T) {
 func TestNewRetryableHTTPClient(t *testing.T) {
 	t.Parallel()
 
+	// when: constructing the retryable HTTP client
 	httpClient := newRetryableHTTPClient()
 
+	// then: the client is configured with the package-level retry and timeout constants
 	roundTripper, ok := httpClient.Transport.(*retryablehttp.RoundTripper)
 	testastic.True(t, ok)
 	testastic.Equal(t, httpRetryMax, roundTripper.Client.RetryMax)
@@ -379,62 +400,76 @@ func TestNewRetryableHTTPClient(t *testing.T) {
 }
 
 func TestCreateGitHubProviderUsesRepositoryHost(t *testing.T) {
+	// given: a custom github enterprise host and the GITHUB_URL pointing elsewhere
 	t.Setenv("GITHUB_TOKEN", "test-token")
 	t.Setenv("GITHUB_URL", "https://ignored.example/api/v3/")
 
+	// when: creating the github provider
 	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
 		Host:  "github.company.com",
 		Owner: "platform",
 		Repo:  "yeet",
 	})
 
+	// then: the repository host wins over the GITHUB_URL environment variable
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://github.company.com/platform/yeet", githubProvider.RepoURL())
 }
 
 func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
+	// given: a custom gitlab host and the GITLAB_URL pointing elsewhere
 	t.Setenv("GITLAB_TOKEN", "test-token")
 	t.Setenv("GITLAB_URL", "https://ignored.example/api/v4")
 
+	// when: creating the gitlab provider
 	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
 		Host:    "gitlab.company.com",
 		Project: "group/subgroup/service",
 	})
 
+	// then: the repository host wins over the GITLAB_URL environment variable
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
 }
 
 func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
+	// given: the default github host with GITHUB_URL overriding the API endpoint
 	t.Setenv("GITHUB_TOKEN", "test-token")
 	t.Setenv("GITHUB_URL", "https://example.test/api/v3/")
 
+	// when: creating the github provider
 	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
 		Host:  provider.DefaultGitHubHost,
 		Owner: "platform",
 		Repo:  "yeet",
 	})
 
+	// then: GITHUB_URL is honored on the default host
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://example.test/platform/yeet", githubProvider.RepoURL())
 }
 
 func TestCreateGitLabProviderHonorsGitLabURLOnDefaultHost(t *testing.T) {
+	// given: the default gitlab host with GITLAB_URL overriding the API endpoint
 	t.Setenv("GITLAB_TOKEN", "test-token")
 	t.Setenv("GITLAB_URL", "https://example.test/api/v4")
 
+	// when: creating the gitlab provider
 	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
 		Host:    provider.DefaultGitLabHost,
 		Project: "group/subgroup/service",
 	})
 
+	// then: GITLAB_URL is honored on the default host
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://example.test/group/subgroup/service", gitlabProvider.RepoURL())
 }
 
 func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
+	// given: a PAT supplied via AZURE_DEVOPS_EXT_PAT
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 
+	// when: creating the Azure DevOps provider
 	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -442,13 +477,16 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 		Repo:         "yeet",
 	})
 
+	// then: the provider is constructed with the configured repository URL
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
 }
 
 func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
+	// given: a token supplied via AZURE_DEVOPS_SYSTEM_ACCESSTOKEN
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
 
+	// when: creating the Azure DevOps provider
 	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -456,14 +494,17 @@ func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
 		Repo:         "yeet",
 	})
 
+	// then: the provider is constructed with the configured repository URL
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
 }
 
 func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
+	// given: no Azure DevOps token in the environment
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "")
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
 
+	// when: creating the Azure DevOps provider
 	_, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -471,6 +512,7 @@ func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
 		Repo:         "yeet",
 	})
 
+	// then: the error names both supported environment variables
 	testastic.Error(t, err)
 	testastic.ErrorContains(t, err, "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT")
 }

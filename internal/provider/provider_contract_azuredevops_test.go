@@ -118,8 +118,14 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsLatestFallbackTagsHandler(t)
 	case providerContractListTags:
 		return azureDevOpsListTagsHandler(t)
-	case providerContractGetCommitsSince:
+	case providerContractGetCommitsSinceRefs:
 		return azureDevOpsGetCommitsSinceHandler(t)
+	case providerContractGetCommitsSinceRefsMissing:
+		return azureDevOpsGetCommitsSinceMissingHandler(t)
+	case providerContractGetCommitsSinceRefsUnresolved:
+		return azureDevOpsGetCommitsSinceUnresolvedHandler(t)
+	case providerContractGetCommitsSinceRefsMultiBoundary:
+		return azureDevOpsGetCommitsSinceMultiBoundaryHandler(t)
 	case providerContractGetReleaseByTag:
 		return azureDevOpsGetReleaseByTagHandler(t)
 	case providerContractTagExists:
@@ -224,15 +230,91 @@ func azureDevOpsGetCommitsSinceHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r):
-			testastic.Equal(t, providerContractTag, r.URL.Query().Get("searchCriteria.itemVersion.version"))
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
 			testastic.Equal(t, "tag", r.URL.Query().Get("searchCriteria.itemVersion.versionType"))
+			testastic.Equal(t, "1", r.URL.Query().Get("searchCriteria.$top"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
+		case isAzureDevOpsCommitsListRequest(r):
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
 			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+func azureDevOpsGetCommitsSinceMissingHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractMissingTag:
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve_missing.json"))
+		case isAzureDevOpsCommitsListRequest(r):
+			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
+			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
+		case r.Method == http.MethodGet &&
+			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+func azureDevOpsGetCommitsSinceUnresolvedHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractMissingTag:
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve_empty.json"))
+		case isAzureDevOpsCommitsListRequest(r):
+			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
+			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
+		case r.Method == http.MethodGet &&
+			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+func azureDevOpsGetCommitsSinceMultiBoundaryHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "older_resolve.json"))
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractIntermediateTag:
+			writeJSONFixture(
+				t,
+				w,
+				azureDevOpsContractFixture("get_commits_since_multi_boundary", "intermediate_resolve.json"),
+			)
+		case isAzureDevOpsCommitsListRequest(r):
+			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
+			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "commits.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -445,7 +527,15 @@ func azureDevOpsCreateReleaseHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r):
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.versionType") == "tag":
+			// Branch and tag share the name "main" in this scenario, and the tag
+			// points at a stale commit. CreateRelease must resolve to the
+			// branch's HEAD, not the tag's commit.
+			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "tag_collision.json"))
+		case isAzureDevOpsCommitsListRequest(r) &&
+			r.URL.Query().Get("searchCriteria.itemVersion.versionType") == "branch":
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "commits.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags"):

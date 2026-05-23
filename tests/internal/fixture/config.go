@@ -110,16 +110,18 @@ func writeChangelog(b *strings.Builder, opts ConfigOptions) {
 		}
 	}
 
-	if len(opts.ReferenceFooters) > 0 {
-		b.WriteString("    footers:\n")
+	if len(opts.ReferenceFooters) == 0 {
+		return
+	}
 
-		for key, url := range opts.ReferenceFooters {
-			b.WriteString("      ")
-			b.WriteString(key)
-			b.WriteString(": ")
-			b.WriteString(url)
-			b.WriteString("\n")
-		}
+	b.WriteString("    footers:\n")
+
+	for key, url := range opts.ReferenceFooters {
+		b.WriteString("      ")
+		b.WriteString(key)
+		b.WriteString(": ")
+		b.WriteString(url)
+		b.WriteString("\n")
 	}
 }
 
@@ -128,11 +130,13 @@ func writeTop(b *strings.Builder, opts ConfigOptions) {
 	writeScalar(b, "branch: ", opts.Branch)
 	writeScalar(b, "versioning: ", opts.Versioning)
 
-	if opts.CalVerFormat != "" {
-		b.WriteString("calver:\n  format: ")
-		b.WriteString(opts.CalVerFormat)
-		b.WriteString("\n")
+	if opts.CalVerFormat == "" {
+		return
 	}
+
+	b.WriteString("calver:\n  format: ")
+	b.WriteString(opts.CalVerFormat)
+	b.WriteString("\n")
 }
 
 func writeRepository(b *strings.Builder, opts ConfigOptions) {

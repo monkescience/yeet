@@ -565,7 +565,7 @@ func TestGitLabVersionLookup(t *testing.T) {
 	})
 }
 
-func TestGitHubGetCommitsSince(t *testing.T) {
+func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns commits from requested branch until boundary across pages", func(t *testing.T) {
@@ -637,7 +637,8 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), ref, branch, true)
+		history, err := gh.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, true)
+		entries := history.EntriesByRef[ref]
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, int32(1), resolveCalls.Load())
@@ -646,9 +647,10 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "feat: add API", entries[0].Message)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+		testastic.Equal(t, 0, len(history.MissingRefs))
 	})
 
-	t.Run("returns boundary error when ref is not reachable from branch", func(t *testing.T) {
+	t.Run("reports missing ref when ref is not reachable from branch", func(t *testing.T) {
 		t.Parallel()
 
 		const (
@@ -687,18 +689,11 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), ref, branch, true)
+		history, err := gh.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, true)
 
-		testastic.Error(t, err)
-		testastic.Equal(t, 0, len(entries))
-		testastic.ErrorIs(t, err, provider.ErrCommitBoundaryNotFound)
-		testastic.ErrorContains(t, err, ref)
-		testastic.ErrorContains(t, err, branch)
-
-		var boundaryErr *provider.CommitBoundaryNotFoundError
-		testastic.ErrorAs(t, err, &boundaryErr)
-		testastic.Equal(t, ref, boundaryErr.Ref)
-		testastic.Equal(t, branch, boundaryErr.Branch)
+		testastic.NoError(t, err)
+		testastic.Equal(t, 0, len(history.EntriesByRef[ref]))
+		testastic.SliceEqual(t, []string{ref}, history.MissingRefs)
 	})
 
 	t.Run("allows initial release without boundary", func(t *testing.T) {
@@ -735,12 +730,107 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		entries, err := gh.GetCommitsSince(context.Background(), "", branch, true)
+		history, err := gh.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+		entries := history.EntriesByRef[""]
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+	})
+
+	t.Run("reports unresolvable ref as missing without failing the batch", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			branch       = "release/main"
+			reachableRef = "v1.0.0"
+			deletedRef   = "v0.5.0"
+		)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+reachableRef:
+				writeJSON(t, w, map[string]any{"sha": "base-sha"})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+deletedRef:
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "Not Found"})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
+				writeJSON(t, w, map[string]any{
+					"sha":   "head-1",
+					"files": []map[string]any{{"filename": "services/api/main.go"}},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
+				writeJSON(t, w, []map[string]any{
+					{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
+					{"sha": "base-sha", "commit": map[string]any{"message": "chore: previous release"}},
+				})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		history, err := gh.GetCommitsSinceRefs(context.Background(), []string{reachableRef, deletedRef}, branch, true)
+
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{deletedRef}, history.MissingRefs)
+		testastic.Equal(t, 1, len(history.EntriesByRef[reachableRef]))
+		testastic.Equal(t, "head-1", history.EntriesByRef[reachableRef][0].Hash)
+	})
+
+	t.Run("skips the branch walk when every requested ref is unresolvable", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			branch       = "release/main"
+			firstMissing = "v0.5.0"
+			thirdMissing = "v0.7.0"
+		)
+
+		secondMissing := "v0.6.0"
+
+		var listCommitsCalls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/commits/"):
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "Not Found"})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+				listCommitsCalls.Add(1)
+				writeJSON(t, w, []map[string]any{})
+			default:
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client := githubapi.NewClient(server.Client())
+		client.BaseURL = mustParseURL(t, server.URL+"/")
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		history, err := gh.GetCommitsSinceRefs(
+			context.Background(),
+			[]string{firstMissing, secondMissing, thirdMissing},
+			branch,
+			true,
+		)
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(0), listCommitsCalls.Load())
+		testastic.SliceEqual(
+			t,
+			[]string{firstMissing, secondMissing, thirdMissing},
+			history.MissingRefs,
+		)
 	})
 
 	t.Run("collects changed files across commit detail pages", func(t *testing.T) {
@@ -803,7 +893,8 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: listing commits for the branch
-		entries, err := gh.GetCommitsSince(context.Background(), "", branch, true)
+		history, err := gh.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+		entries := history.EntriesByRef[""]
 
 		// then: all changed paths from every commit detail page are collected once
 		testastic.NoError(t, err)
@@ -816,7 +907,7 @@ func TestGitHubGetCommitsSince(t *testing.T) {
 	})
 }
 
-func TestGitLabGetCommitsSince(t *testing.T) {
+func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns commits from requested branch until boundary across pages", func(t *testing.T) {
@@ -878,7 +969,8 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), ref, branch, true)
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, true)
+		entries := history.EntriesByRef[ref]
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, int32(1), resolveCalls.Load())
@@ -887,9 +979,10 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "feat: add API", entries[0].Message)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+		testastic.Equal(t, 0, len(history.MissingRefs))
 	})
 
-	t.Run("returns boundary error when ref is not reachable from branch", func(t *testing.T) {
+	t.Run("reports missing ref when ref is not reachable from branch", func(t *testing.T) {
 		t.Parallel()
 
 		const (
@@ -927,18 +1020,11 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), ref, branch, true)
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, true)
 
-		testastic.Error(t, err)
-		testastic.Equal(t, 0, len(entries))
-		testastic.ErrorIs(t, err, provider.ErrCommitBoundaryNotFound)
-		testastic.ErrorContains(t, err, ref)
-		testastic.ErrorContains(t, err, branch)
-
-		var boundaryErr *provider.CommitBoundaryNotFoundError
-		testastic.ErrorAs(t, err, &boundaryErr)
-		testastic.Equal(t, ref, boundaryErr.Ref)
-		testastic.Equal(t, branch, boundaryErr.Branch)
+		testastic.NoError(t, err)
+		testastic.Equal(t, 0, len(history.EntriesByRef[ref]))
+		testastic.SliceEqual(t, []string{ref}, history.MissingRefs)
 	})
 
 	t.Run("allows initial release without boundary", func(t *testing.T) {
@@ -974,12 +1060,117 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		entries, err := gl.GetCommitsSince(context.Background(), "", branch, true)
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+		entries := history.EntriesByRef[""]
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "head-2", entries[1].Hash)
+	})
+
+	t.Run("reports unresolvable ref as missing without failing the batch", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			branch       = "release/main"
+			reachableRef = "v1.0.0"
+			deletedRef   = "v0.5.0"
+		)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case isGitLabCommitDiffRequest(r, "head-1"):
+				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
+			case r.Method == http.MethodGet &&
+				r.URL.Path == "/api/v4/projects/o/r/repository/commits/"+reachableRef:
+				writeJSON(t, w, map[string]any{"id": "base-sha"})
+			case r.Method == http.MethodGet &&
+				r.URL.Path == "/api/v4/projects/o/r/repository/commits/"+deletedRef:
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "404 Commit Not Found"})
+			case isGitLabCommitsListRequest(r):
+				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
+				writeJSON(t, w, []map[string]any{
+					{"id": "head-1", "message": "feat: add API"},
+					{"id": "base-sha", "message": "chore: previous release"},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{reachableRef, deletedRef}, branch, true)
+
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{deletedRef}, history.MissingRefs)
+		testastic.Equal(t, 1, len(history.EntriesByRef[reachableRef]))
+		testastic.Equal(t, "head-1", history.EntriesByRef[reachableRef][0].Hash)
+	})
+
+	t.Run("skips the branch walk when every requested ref is unresolvable", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			branch       = "release/main"
+			firstMissing = "v0.5.0"
+			thirdMissing = "v0.7.0"
+		)
+
+		secondMissing := "v0.6.0"
+
+		var listCommitsCalls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet &&
+				strings.HasPrefix(r.URL.Path, "/api/v4/projects/o/r/repository/commits/"):
+				w.WriteHeader(http.StatusNotFound)
+				writeJSON(t, w, map[string]any{"message": "404 Commit Not Found"})
+			case isGitLabCommitsListRequest(r):
+				listCommitsCalls.Add(1)
+				writeJSON(t, w, []map[string]any{})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		history, err := gl.GetCommitsSinceRefs(
+			context.Background(),
+			[]string{firstMissing, secondMissing, thirdMissing},
+			branch,
+			true,
+		)
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(0), listCommitsCalls.Load())
+		testastic.SliceEqual(
+			t,
+			[]string{firstMissing, secondMissing, thirdMissing},
+			history.MissingRefs,
+		)
 	})
 
 	t.Run("collects changed files across commit diff pages", func(t *testing.T) {
@@ -1032,7 +1223,8 @@ func TestGitLabGetCommitsSince(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: listing commits for the branch
-		entries, err := gl.GetCommitsSince(context.Background(), "", branch, true)
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+		entries := history.EntriesByRef[""]
 
 		// then: all changed paths from every diff page are collected once
 		testastic.NoError(t, err)
@@ -2424,11 +2616,9 @@ func TestGitLabListTagsPaginationLimit(t *testing.T) {
 	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
 }
 
-// Compile-time interface checks.
 var (
 	_ provider.Provider = (*provider.GitHub)(nil)
 	_ provider.Provider = (*provider.GitLab)(nil)
 )
 
-// Compile-time strategy checks.
 var _ commit.BumpType = commit.BumpMajor

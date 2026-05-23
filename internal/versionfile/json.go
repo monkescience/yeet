@@ -103,7 +103,7 @@ func unescapeJSONPointerPart(part string) (string, error) {
 func locateJSONPointerString(decoder *json.Decoder, data []byte, path []string) (byteSpan, error) {
 	token, err := decoder.Token()
 	if err != nil {
-		return byteSpan{}, fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	if len(path) == 0 {
@@ -141,7 +141,7 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 	for decoder.More() {
 		keyToken, err := decoder.Token()
 		if err != nil {
-			return byteSpan{}, fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+			return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 		}
 
 		key, ok := keyToken.(string)
@@ -161,7 +161,7 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 
 	_, err := decoder.Token()
 	if err != nil {
-		return byteSpan{}, fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	return byteSpan{}, ErrJSONPointerNotFound
@@ -186,7 +186,7 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 
 	_, err = decoder.Token()
 	if err != nil {
-		return byteSpan{}, fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	return byteSpan{}, ErrJSONPointerNotFound
@@ -195,7 +195,7 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 func skipJSONValue(decoder *json.Decoder) error {
 	token, err := decoder.Token()
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	delim, ok := token.(json.Delim)
@@ -208,7 +208,7 @@ func skipJSONValue(decoder *json.Decoder) error {
 		for decoder.More() {
 			_, err := decoder.Token()
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 			}
 
 			err = skipJSONValue(decoder)
@@ -229,7 +229,7 @@ func skipJSONValue(decoder *json.Decoder) error {
 
 	_, err = decoder.Token()
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidJSON, err)
+		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	return nil

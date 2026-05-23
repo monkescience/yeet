@@ -393,7 +393,7 @@ func resolveRepository(
 			repository.Collection = repository.Organization
 		}
 	case config.ProviderAuto:
-		// auto is resolved via remote detection; no default host needed.
+		// auto is resolved via remote detection. no default host needed.
 	}
 
 	normalizeRepositoryDescriptor(repository)
@@ -424,25 +424,29 @@ func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
 
 	switch cfg.Provider {
 	case config.ProviderGitHub:
-		if cfg.Repository.GitHub != nil {
-			descriptor.Host = strings.TrimSpace(cfg.Repository.GitHub.Host)
-			descriptor.Owner = strings.TrimSpace(cfg.Repository.GitHub.Owner)
-			descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
-			descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
+		if cfg.Repository.GitHub == nil {
+			break
 		}
+
+		descriptor.Host = strings.TrimSpace(cfg.Repository.GitHub.Host)
+		descriptor.Owner = strings.TrimSpace(cfg.Repository.GitHub.Owner)
+		descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
+		descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
 	case config.ProviderGitLab:
 		if cfg.Repository.GitLab != nil {
 			descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
 			descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
 		}
 	case config.ProviderAzureDevOps:
-		if cfg.Repository.AzureDevOps != nil {
-			descriptor.Host = strings.TrimSpace(cfg.Repository.AzureDevOps.Host)
-			descriptor.Organization = strings.TrimSpace(cfg.Repository.AzureDevOps.Organization)
-			descriptor.Project = strings.TrimSpace(cfg.Repository.AzureDevOps.Project)
-			descriptor.Repo = strings.TrimSpace(cfg.Repository.AzureDevOps.Repo)
-			descriptor.Collection = strings.TrimSpace(cfg.Repository.AzureDevOps.Collection)
+		if cfg.Repository.AzureDevOps == nil {
+			break
 		}
+
+		descriptor.Host = strings.TrimSpace(cfg.Repository.AzureDevOps.Host)
+		descriptor.Organization = strings.TrimSpace(cfg.Repository.AzureDevOps.Organization)
+		descriptor.Project = strings.TrimSpace(cfg.Repository.AzureDevOps.Project)
+		descriptor.Repo = strings.TrimSpace(cfg.Repository.AzureDevOps.Repo)
+		descriptor.Collection = strings.TrimSpace(cfg.Repository.AzureDevOps.Collection)
 	case config.ProviderAuto:
 	}
 
@@ -534,15 +538,17 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 		repository.Project = repository.Owner + "/" + repository.Repo
 	}
 
-	if repository.Project != "" && (repository.Owner == "" || repository.Repo == "") {
-		owner, repo := provider.SplitProjectPath(repository.Project)
-		if repository.Owner == "" {
-			repository.Owner = owner
-		}
+	if repository.Project == "" || (repository.Owner != "" && repository.Repo != "") {
+		return
+	}
 
-		if repository.Repo == "" {
-			repository.Repo = repo
-		}
+	owner, repo := provider.SplitProjectPath(repository.Project)
+	if repository.Owner == "" {
+		repository.Owner = owner
+	}
+
+	if repository.Repo == "" {
+		repository.Repo = repo
 	}
 }
 

@@ -29,12 +29,11 @@ type AzureDevOps struct {
 	clientErr  error
 }
 
-// NewAzureDevOps creates an Azure DevOps provider authenticated with a PAT.
-//
+// NewAzureDevOps constructs the provider client.
 // baseURL must be the host-level base (e.g. https://dev.azure.com or a
-// self-hosted host); the collection segment is appended internally. collection
+// self-hosted host). The collection segment is appended internally. collection
 // defaults to organization on cloud deployments. The httpClient's Timeout is
-// honored by the SDK; retry middleware is not propagated because the SDK
+// honored by the SDK. Retry middleware is not propagated because the SDK
 // constructs its own http.Client.
 func NewAzureDevOps(
 	httpClient *http.Client,
@@ -43,8 +42,6 @@ func NewAzureDevOps(
 	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo)
 }
 
-// NewAzureDevOpsWithSystemAccessToken creates an Azure DevOps provider
-// authenticated with an Azure Pipelines System.AccessToken.
 func NewAzureDevOpsWithSystemAccessToken(
 	httpClient *http.Client,
 	baseURL, token, organization, collection, project, repo string,
@@ -101,8 +98,9 @@ func (a *AzureDevOps) PathPrefix() string {
 	return ""
 }
 
-// CompareURL returns Azure DevOps's branchCompare web URL. Azure uses query
-// parameters with prefixed version refs: GC for commit SHAs, GT for tag names.
+// CompareURL builds the branch-compare URL.
+// Azure DevOps uses query parameters with prefixed version refs: GC for commit
+// SHAs, GT for tag names.
 func (a *AzureDevOps) CompareURL(fromRef, toRef string) string {
 	return fmt.Sprintf(
 		"%s/branchCompare?baseVersion=%s&targetVersion=%s",
@@ -120,7 +118,6 @@ func azureDevOpsCompareRef(ref string) string {
 	return "GT" + ref
 }
 
-// client returns the underlying git client, initializing it on first use.
 // Construction performs an HTTP roundtrip to fetch resource areas, which is why
 // it cannot happen in NewAzureDevOps (no context available there).
 func (a *AzureDevOps) client(ctx context.Context) (git.Client, error) {
@@ -142,9 +139,8 @@ func (a *AzureDevOps) client(ctx context.Context) (git.Client, error) {
 	return a.gitClient, nil
 }
 
-// azureDevOpsStatusCode extracts the HTTP status code from an SDK error. The
-// SDK wraps non-2xx responses in azuredevops.WrappedError with a StatusCode
-// pointer. Returns 0 if no status code is available.
+// The SDK wraps non-2xx responses in azuredevops.WrappedError with a
+// StatusCode pointer. Returns 0 if no status code is available.
 func azureDevOpsStatusCode(err error) int {
 	if err == nil {
 		return 0

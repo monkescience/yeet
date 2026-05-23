@@ -1,0 +1,21 @@
+{
+  "count": 4,
+  "value": [
+    {
+      "commitId": "head-sha",
+      "comment": "feat: ship api"
+    },
+    {
+      "commitId": "mid-sha",
+      "comment": "chore: tag v1.4.0"
+    },
+    {
+      "commitId": "inter-sha",
+      "comment": "fix: patch between releases"
+    },
+    {
+      "commitId": "base-sha",
+      "comment": "chore: tag v1.2.3"
+    }
+  ]
+}

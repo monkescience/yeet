@@ -28,7 +28,7 @@ type GitHub struct {
 func NewGitHub(client *github.Client, owner, repo string) *GitHub {
 	baseURL := strings.TrimSuffix(client.BaseURL.String(), "/")
 
-	// Default github.com API uses api.github.com; enterprise uses <host>/api/v3.
+	// Default github.com API uses api.github.com. Enterprise uses <host>/api/v3.
 	if baseURL == "https://api.github.com" {
 		baseURL = "https://github.com"
 	} else {

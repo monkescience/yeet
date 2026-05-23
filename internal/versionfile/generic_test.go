@@ -194,7 +194,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		// when: applying marker replacements
 		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.3.0", versionfile.SemVerScheme())
 
-		// then: only the real marker line is rewritten; prose mentions are left alone
+		// then: only the real marker line is rewritten, prose mentions are left alone
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.AssertFile(t, "testdata/prose_mentions/expected.txt", updated)
@@ -368,7 +368,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		// when: applying marker replacements crossing the boundary
 		updated, changed, err := versionfile.ApplyGenericMarkers(content, "100.03.1", scheme)
 
-		// then: the rendered width changes from 2 to 3 chars; YY is unpadded by spec
+		// then: the rendered width changes from 2 to 3 chars, YY is unpadded by spec
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.Equal(t, "YEAR=100 # x-yeet-year", updated)
@@ -415,7 +415,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		// when: applying marker replacements
 		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1", defaultScheme)
 
-		// then: only the first numeric (11→03) is replaced; later 4 and 30 are untouched
+		// then: only the first numeric (11→03) is replaced, later 4 and 30 are untouched
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.Equal(t, "config: month=03 retries=4 timeout=30 # x-yeet-month", updated)

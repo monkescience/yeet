@@ -174,9 +174,9 @@ func TestReleaseUsesLatestVersionRef(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, "1.2.3", result.Plans[0].CurrentVersion)
 	testastic.Equal(t, "1.2.4", result.Plans[0].NextVersion)
-	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
-	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[0])
-	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[1])
+	testastic.Equal(t, 2, len(stub.singleRefProbes()))
+	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[0])
+	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[1])
 }
 
 func TestPrereleaseChannels(t *testing.T) {
@@ -365,10 +365,10 @@ func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T)
 	testastic.NoError(t, err)
 	testastic.Equal(t, "1.2.3", result.Plans[0].CurrentVersion)
 	testastic.Equal(t, "1.2.4", result.Plans[0].NextVersion)
-	testastic.Equal(t, 3, len(stub.getCommitsSinceOf))
-	testastic.Equal(t, "v2.0.0", stub.getCommitsSinceOf[0])
-	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[1])
-	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[2])
+	testastic.Equal(t, 3, len(stub.singleRefProbes()))
+	testastic.Equal(t, "v2.0.0", stub.singleRefProbes()[0])
+	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[1])
+	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[2])
 }
 
 func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) {
@@ -396,9 +396,9 @@ func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) 
 	testastic.NoError(t, err)
 	testastic.Equal(t, "1.2.4", result.Plans[0].CurrentVersion)
 	testastic.Equal(t, "1.2.5", result.Plans[0].NextVersion)
-	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
-	testastic.Equal(t, "v1.2.4", stub.getCommitsSinceOf[0])
-	testastic.Equal(t, "v1.2.4", stub.getCommitsSinceOf[1])
+	testastic.Equal(t, 2, len(stub.singleRefProbes()))
+	testastic.Equal(t, "v1.2.4", stub.singleRefProbes()[0])
+	testastic.Equal(t, "v1.2.4", stub.singleRefProbes()[1])
 }
 
 func TestReleaseChoosesHighestStableTagFromFallbackList(t *testing.T) {
@@ -425,9 +425,9 @@ func TestReleaseChoosesHighestStableTagFromFallbackList(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, "1.10.0", result.Plans[0].CurrentVersion)
 	testastic.Equal(t, "1.10.1", result.Plans[0].NextVersion)
-	testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
-	testastic.Equal(t, "v1.10.0", stub.getCommitsSinceOf[0])
-	testastic.Equal(t, "v1.10.0", stub.getCommitsSinceOf[1])
+	testastic.Equal(t, 2, len(stub.singleRefProbes()))
+	testastic.Equal(t, "v1.10.0", stub.singleRefProbes()[0])
+	testastic.Equal(t, "v1.10.0", stub.singleRefProbes()[1])
 }
 
 func TestReleaseAsFooter(t *testing.T) {
@@ -697,9 +697,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
-		testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
-		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
-		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[1])
+		testastic.Equal(t, 2, len(stub.singleRefProbes()))
+		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[0])
+		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[1])
 	})
 
 	t.Run("creates PR when commits exist after finalized tag", func(t *testing.T) {
@@ -733,9 +733,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
-		testastic.Equal(t, 2, len(stub.getCommitsSinceOf))
-		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[0])
-		testastic.Equal(t, "v0.1.0", stub.getCommitsSinceOf[1])
+		testastic.Equal(t, 2, len(stub.singleRefProbes()))
+		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[0])
+		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[1])
 	})
 }
 
@@ -764,8 +764,8 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.createReleaseCalls)
 	testastic.Equal(t, 0, len(stub.markPendingCalls))
-	testastic.Equal(t, 1, len(stub.getCommitsSinceOf))
-	testastic.Equal(t, "v1.2.3", stub.getCommitsSinceOf[0])
+	testastic.Equal(t, 1, len(stub.singleRefProbes()))
+	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[0])
 	testastic.Equal(t, 1, len(stub.getCommitsSinceBranches))
 	testastic.Equal(t, cfg.Branch, stub.getCommitsSinceBranches[0])
 }

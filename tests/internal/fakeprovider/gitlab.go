@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// GitLabOptions configures the responses served by [NewGitLab].
 type GitLabOptions struct {
 	// Project is the full path with namespace, e.g. "group/repo". The server
 	// URL-encodes this to build endpoint paths.

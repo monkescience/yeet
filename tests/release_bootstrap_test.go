@@ -130,7 +130,7 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: GitHub still rejects merging a draft PR; the binary surfaces the block
+		// then: GitHub still rejects merging a draft PR and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Contains(t, result.Stderr, "draft")
 	})

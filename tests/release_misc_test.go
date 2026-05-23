@@ -121,7 +121,6 @@ targets:
 			},
 		})
 
-		// override sections to drop perf -> hits capitalizeFirst fallback
 		configPath := writeRawConfig(t, `provider: github
 branch: main
 repository:

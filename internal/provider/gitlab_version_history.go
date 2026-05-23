@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
@@ -70,21 +71,28 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-//nolint:funlen // Commit pagination and concurrent path fetching are clearer kept together.
-func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includePaths bool) ([]CommitEntry, error) {
-	boundaryRef := strings.TrimSpace(ref)
-	resolvedBoundaryID := boundaryRef
-	branch = strings.TrimSpace(branch)
-
-	if resolvedBoundaryID != "" {
-		resolvedID, err := g.resolveCommitID(ctx, resolvedBoundaryID)
-		if err != nil {
-			return nil, fmt.Errorf("resolve ref %q: %w", boundaryRef, err)
-		}
-
-		resolvedBoundaryID = resolvedID
+//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
+func (g *GitLab) GetCommitsSinceRefs(
+	ctx context.Context,
+	refs []string,
+	branch string,
+	includePaths bool,
+) (CommitHistory, error) {
+	normalizedRefs := normalizeCommitHistoryRefs(refs)
+	if len(normalizedRefs) == 0 {
+		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
 	}
 
+	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, g.resolveCommitID)
+	if err != nil {
+		return CommitHistory{}, err
+	}
+
+	if len(boundaryRefsByID) == 0 && !hasUnboundedRef {
+		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
+	}
+
+	branch = strings.TrimSpace(branch)
 	opts := &gitlab.ListCommitsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
@@ -93,18 +101,17 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 		opts.RefName = new(branch)
 	}
 
-	slog.DebugContext(ctx, "gitlab: fetching commits",
-		slog.String("boundary_ref", boundaryRef),
-		slog.String("boundary_id", resolvedBoundaryID),
+	slog.DebugContext(ctx, "gitlab: fetching commits for refs",
+		slog.Int("refs", len(normalizedRefs)),
 		slog.String("branch", branch),
 		slog.Bool("include_paths", includePaths),
 	)
 
-	var entries []CommitEntry
+	entries := make([]CommitEntry, 0)
+	positions := make(map[string]int, len(boundaryRefsByID))
+	foundIDs := make(map[string]struct{}, len(boundaryRefsByID))
 
-	boundaryFound := false
-
-	err := paginate(ctx, "listing commits",
+	err = paginate(ctx, "listing commits",
 		func(page int) ([]*gitlab.Commit, int, error) {
 			opts.Page = int64(page)
 
@@ -116,10 +123,20 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 			return commits, gitLabNextPage(resp), nil
 		},
 		func(c *gitlab.Commit) (bool, error) {
-			if resolvedBoundaryID != "" && c.ID == resolvedBoundaryID {
-				boundaryFound = true
+			boundaryRefs, isBoundary := boundaryRefsByID[c.ID]
+			if isBoundary {
+				for _, ref := range boundaryRefs {
+					positions[ref] = len(entries)
+				}
 
-				return true, nil
+				foundIDs[c.ID] = struct{}{}
+
+				// Terminate before appending only when no older ref still needs
+				// this commit. Otherwise we must include it so older refs see
+				// the full slice of commits since their own boundary.
+				if len(foundIDs) == len(boundaryRefsByID) && !hasUnboundedRef {
+					return true, nil
+				}
 			}
 
 			entries = append(entries, CommitEntry{
@@ -131,16 +148,14 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 		},
 	)
 	if err != nil {
-		return nil, err
+		return CommitHistory{}, err
 	}
 
-	if resolvedBoundaryID != "" && !boundaryFound {
-		return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
-	}
+	entries = trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(maxConcurrentPathFetches)
+		eg.SetLimit(maxConcurrentProviderRequests)
 
 		for idx := range entries {
 			eg.Go(func() error {
@@ -157,13 +172,19 @@ func (g *GitLab) GetCommitsSince(ctx context.Context, ref, branch string, includ
 
 		err := eg.Wait()
 		if err != nil {
-			return nil, fmt.Errorf("fetch commit paths: %w", err)
+			return CommitHistory{}, fmt.Errorf("fetch commit paths: %w", err)
 		}
 	}
 
-	slog.DebugContext(ctx, "gitlab: fetched commits", slog.Int("count", len(entries)))
+	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, positions)
+	slog.DebugContext(ctx, "gitlab: fetched commits for refs",
+		slog.Int("entries", len(entries)),
+		slog.Int("missing_refs", len(history.MissingRefs)),
+		slog.Bool("early_terminated", !hasUnboundedRef && len(foundIDs) == len(boundaryRefsByID)),
+		slog.Bool("unbounded_ref", hasUnboundedRef),
+	)
 
-	return entries, nil
+	return history, nil
 }
 
 func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
@@ -182,8 +203,12 @@ func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
 }
 
 func (g *GitLab) resolveCommitID(ctx context.Context, ref string) (string, error) {
-	commit, _, err := g.client.Commits.GetCommit(g.pid, ref, nil, gitlab.WithContext(ctx))
+	commit, resp, err := g.client.Commits.GetCommit(g.pid, ref, nil, gitlab.WithContext(ctx))
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
+		}
+
 		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
 	}
 

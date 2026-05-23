@@ -1743,7 +1743,7 @@ func TestPreMajorOptions(t *testing.T) {
 		// when: validating
 		err := cfg.Validate(t.Context())
 
-		// then: no error — inherited options are silently ignored
+		// then: no error, inherited options are silently ignored
 		testastic.NoError(t, err)
 	})
 

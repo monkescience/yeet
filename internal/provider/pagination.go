@@ -7,7 +7,7 @@ import (
 
 // paginate iterates a paginated API up to maxPaginationPages times. fetch is
 // called with the current page (0 for the first call, then whatever the prior
-// fetch returned as nextPage; 0 nextPage means there are no more pages). Each
+// fetch returned as nextPage, where 0 means there are no more pages). Each
 // returned item is handed to handle, which may signal early termination by
 // returning stop=true. ctx is checked between pages. Hitting the page cap
 // returns ErrPaginationLimitExceeded wrapped with the resource description.

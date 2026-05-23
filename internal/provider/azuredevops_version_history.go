@@ -90,57 +90,53 @@ func (a *AzureDevOps) paginateTagRefs(
 	)
 }
 
-func (a *AzureDevOps) GetCommitsSince(
+//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
+func (a *AzureDevOps) GetCommitsSinceRefs(
 	ctx context.Context,
-	ref, branch string,
+	refs []string,
+	branch string,
 	includePaths bool,
-) ([]CommitEntry, error) {
-	boundaryRef := strings.TrimSpace(ref)
+) (CommitHistory, error) {
+	normalizedRefs := normalizeCommitHistoryRefs(refs)
+	if len(normalizedRefs) == 0 {
+		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
+	}
+
+	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, a.resolveAzureDevOpsObjectID)
+	if err != nil {
+		return CommitHistory{}, err
+	}
+
+	if len(boundaryRefsByID) == 0 && !hasUnboundedRef {
+		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
+	}
+
 	branch = strings.TrimSpace(branch)
 
-	slog.DebugContext(ctx, "azure devops: fetching commits",
+	slog.DebugContext(ctx, "azure devops: fetching commits for refs",
+		slog.Int("refs", len(normalizedRefs)),
 		slog.String("branch", branch),
-		slog.String("boundary_ref", boundaryRef),
 		slog.Bool("include_paths", includePaths),
 	)
 
-	entries, err := a.fetchAzureDevOpsCommits(ctx, boundaryRef, branch)
-	if err != nil {
-		return nil, err
-	}
-
-	slog.DebugContext(ctx, "azure devops: commits fetched", slog.Int("count", len(entries)))
-
-	if includePaths && len(entries) > 0 {
-		err = a.fillAzureDevOpsCommitPaths(ctx, entries)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return entries, nil
-}
-
-func (a *AzureDevOps) fetchAzureDevOpsCommits(
-	ctx context.Context,
-	boundaryRef, branch string,
-) ([]CommitEntry, error) {
 	gitClient, err := a.client(ctx)
 	if err != nil {
-		return nil, err
+		return CommitHistory{}, err
 	}
 
 	entries := make([]CommitEntry, 0)
+	positions := make(map[string]int, len(boundaryRefsByID))
+	foundIDs := make(map[string]struct{}, len(boundaryRefsByID))
 	skip := 0
 	top := azureDevOpsRefPageSize
 
 	for range maxPaginationPages {
 		err := ctx.Err()
 		if err != nil {
-			return nil, fmt.Errorf("paginate commits: %w", err)
+			return CommitHistory{}, fmt.Errorf("paginate commits: %w", err)
 		}
 
-		criteria := buildAzureDevOpsCommitCriteria(branch, boundaryRef)
+		criteria := buildAzureDevOpsCommitCriteria(branch, "")
 
 		pageCommits, err := gitClient.GetCommits(ctx, git.GetCommitsArgs{
 			RepositoryId:   &a.repo,
@@ -150,38 +146,86 @@ func (a *AzureDevOps) fetchAzureDevOpsCommits(
 			Top:            &top,
 		})
 		if err != nil {
-			if boundaryRef != "" && azureDevOpsBoundaryError(err) {
-				return nil, &CommitBoundaryNotFoundError{Ref: boundaryRef, Branch: branch}
-			}
-
-			return nil, fmt.Errorf("list commits: %w", err)
+			return CommitHistory{}, fmt.Errorf("list commits: %w", err)
 		}
 
 		if pageCommits == nil {
-			return entries, nil
+			break
 		}
 
 		for _, commit := range *pageCommits {
+			commitID := derefString(commit.CommitId)
+
+			boundaryRefs, isBoundary := boundaryRefsByID[commitID]
+			if isBoundary {
+				for _, ref := range boundaryRefs {
+					positions[ref] = len(entries)
+				}
+
+				foundIDs[commitID] = struct{}{}
+
+				// Terminate before appending only when no older ref still needs
+				// this commit. Otherwise we must include it so older refs see
+				// the full slice of commits since their own boundary.
+				if len(foundIDs) == len(boundaryRefsByID) && !hasUnboundedRef {
+					trimmed := trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
+
+					return a.commitHistoryWithPaths(ctx, normalizedRefs, trimmed, positions, includePaths, true, hasUnboundedRef)
+				}
+			}
+
 			entries = append(entries, CommitEntry{
-				Hash:    derefString(commit.CommitId),
+				Hash:    commitID,
 				Message: derefString(commit.Comment),
 			})
 		}
 
 		if len(*pageCommits) < azureDevOpsRefPageSize {
-			return entries, nil
+			trimmed := trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
+
+			return a.commitHistoryWithPaths(ctx, normalizedRefs, trimmed, positions, includePaths, false, hasUnboundedRef)
 		}
 
 		skip += len(*pageCommits)
 	}
 
-	return nil, fmt.Errorf("%w: exceeded %d pages listing commits", ErrPaginationLimitExceeded, maxPaginationPages)
+	return CommitHistory{}, fmt.Errorf(
+		"%w: exceeded %d pages listing commits",
+		ErrPaginationLimitExceeded,
+		maxPaginationPages,
+	)
 }
 
-// buildAzureDevOpsCommitCriteria configures the SDK's GitQueryCommitsCriteria
-// for a "commits since boundary on branch" query. Azure DevOps inverts the
-// usual naming: CompareVersion is where it starts walking history (the head),
-// and ItemVersion is the boundary it stops at. Swapping them returns nothing.
+func (a *AzureDevOps) commitHistoryWithPaths(
+	ctx context.Context,
+	refs []string,
+	entries []CommitEntry,
+	positions map[string]int,
+	includePaths bool,
+	earlyTerminated bool,
+	hasUnboundedRef bool,
+) (CommitHistory, error) {
+	if includePaths && len(entries) > 0 {
+		err := a.fillAzureDevOpsCommitPaths(ctx, entries)
+		if err != nil {
+			return CommitHistory{}, err
+		}
+	}
+
+	history := commitHistoryFromBoundaryPositions(refs, entries, positions)
+	slog.DebugContext(ctx, "azure devops: fetched commits for refs",
+		slog.Int("entries", len(entries)),
+		slog.Int("missing_refs", len(history.MissingRefs)),
+		slog.Bool("early_terminated", earlyTerminated),
+		slog.Bool("unbounded_ref", hasUnboundedRef),
+	)
+
+	return history, nil
+}
+
+// Azure DevOps inverts the usual naming: CompareVersion is where it starts
+// walking history (the head), and ItemVersion is the boundary it stops at.
+// Swapping them returns nothing.
 func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCommitsCriteria {
 	criteria := &git.GitQueryCommitsCriteria{}
 
@@ -208,15 +252,9 @@ func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCom
 	return criteria
 }
 
-func azureDevOpsBoundaryError(err error) bool {
-	status := azureDevOpsStatusCode(err)
-
-	return status == 404 || status == 400
-}
-
 func (a *AzureDevOps) fillAzureDevOpsCommitPaths(ctx context.Context, entries []CommitEntry) error {
 	eg, egCtx := errgroup.WithContext(ctx)
-	eg.SetLimit(maxConcurrentPathFetches)
+	eg.SetLimit(maxConcurrentProviderRequests)
 
 	for idx := range entries {
 		eg.Go(func() error {
@@ -286,7 +324,6 @@ func (a *AzureDevOps) commitPaths(ctx context.Context, sha string) ([]string, er
 	return paths, nil
 }
 
-// extractAzureDevOpsChangePath reads the item.path field from a change entry.
 // The SDK types the change slice as []interface{} so we round-trip the entry
 // through JSON to access the typed item path.
 func extractAzureDevOpsChangePath(raw any) string {

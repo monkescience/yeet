@@ -45,7 +45,7 @@ targets:
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: yeet splits project into owner/repo and proceeds; exits 0
+		// then: yeet splits project into owner/repo and proceeds, exits 0
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 }
@@ -443,7 +443,7 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
-		// then: gitlab still rejects merging a draft; binary surfaces the block
+		// then: gitlab still rejects merging a draft and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Contains(t, result.Stderr, "draft")
 	})

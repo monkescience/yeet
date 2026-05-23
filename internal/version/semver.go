@@ -1,4 +1,3 @@
-// Package version provides versioning strategies for calculating release versions.
 package version
 
 import (
@@ -15,9 +14,7 @@ var ErrInvalidVersion = errors.New("invalid version")
 var _ Strategy = (*SemVer)(nil)
 
 type Strategy interface {
-	// Current parses a version tag string into a normalized version.
 	Current(tag string) (string, error)
-	// Next calculates the next version based on the current version and bump type.
 	Next(current string, bump commit.BumpType) (string, error)
 }
 
@@ -32,7 +29,7 @@ func (s *SemVer) Current(tag string) (string, error) {
 
 	v, err := semver.StrictNewVersion(cleaned)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %w", ErrInvalidVersion, tag, err)
+		return "", fmt.Errorf("%w: %s: %v", ErrInvalidVersion, tag, err)
 	}
 
 	return v.String(), nil
@@ -41,7 +38,7 @@ func (s *SemVer) Current(tag string) (string, error) {
 func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 	v, err := semver.StrictNewVersion(current)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %w", ErrInvalidVersion, current, err)
+		return "", fmt.Errorf("%w: %s: %v", ErrInvalidVersion, current, err)
 	}
 
 	if v.Major() == 0 {

@@ -1,4 +1,3 @@
-// Package config handles parsing and validation of .yeet.yaml configuration files.
 package config
 
 import (
@@ -40,9 +39,7 @@ const (
 type VersioningStrategy string
 
 const (
-	// VersioningSemver uses semantic versioning (MAJOR.MINOR.PATCH).
 	VersioningSemver VersioningStrategy = "semver"
-	// VersioningCalVer uses calendar versioning (e.g., YYYY.0M.MICRO).
 	VersioningCalVer VersioningStrategy = "calver"
 )
 
@@ -214,13 +211,11 @@ type ChangelogConfig struct {
 	References ReferencesConfig  `yaml:"references"`
 }
 
-// ReferencesConfig controls how issue/ticket references are linked in changelogs.
 type ReferencesConfig struct {
 	Patterns []ReferencePattern `yaml:"patterns,omitempty"`
 	Footers  map[string]string  `yaml:"footers,omitempty"`
 }
 
-// ReferencePattern matches issue references inline in commit descriptions.
 type ReferencePattern struct {
 	Pattern string `yaml:"pattern"`
 	URL     string `yaml:"url"`
@@ -231,7 +226,6 @@ type BumpTypesConfig struct {
 	Patch []string `yaml:"patch"`
 }
 
-// ToBumpMapping converts the config into a commit.BumpMapping.
 func (b BumpTypesConfig) ToBumpMapping() commit.BumpMapping {
 	m := make(commit.BumpMapping, len(b.Minor)+len(b.Patch))
 
@@ -290,7 +284,7 @@ func Parse(ctx context.Context, data []byte) (*Config, error) {
 
 	err := decoder.Decode(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse config: %w", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
 	}
 
 	err = validateRepositorySubsection(&cfg.Repository, cfg.Provider)
@@ -590,7 +584,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 	if targetType == TargetTypePath || strings.TrimSpace(target.Path) != "" {
 		normalizedPath, err := normalizeRepoPath(target.Path)
 		if err != nil {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path %w", ErrInvalidConfig, targetID, err)
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path %v", ErrInvalidConfig, targetID, err)
 		}
 
 		resolved.Path = normalizedPath
@@ -599,7 +593,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 	for _, excludePath := range target.ExcludePaths {
 		normalizedExcludePath, err := normalizeRepoPath(excludePath)
 		if err != nil {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.exclude_paths contains %w", ErrInvalidConfig, targetID, err)
+			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.exclude_paths contains %v", ErrInvalidConfig, targetID, err)
 		}
 
 		resolved.ExcludePaths = append(resolved.ExcludePaths, normalizedExcludePath)
@@ -907,7 +901,7 @@ func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, targ
 func validateCalVerConfig(path string, calver CalVerConfig) error {
 	err := version.ValidateCalVerFormat(calver.Format)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %w", ErrInvalidConfig, path, err)
+		return fmt.Errorf("%w: %s: %v", ErrInvalidConfig, path, err)
 	}
 
 	return nil
@@ -940,7 +934,7 @@ func validateVersionFile(configPath string, versionFile VersionFile) error {
 
 		err := validateJSONPointerSyntax(versionFile.JSONPointer)
 		if err != nil {
-			return fmt.Errorf("%w: %s json_pointer: %w", ErrInvalidConfig, configPath, err)
+			return fmt.Errorf("%w: %s json_pointer: %v", ErrInvalidConfig, configPath, err)
 		}
 	default:
 		return fmt.Errorf(
@@ -1306,7 +1300,7 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 
 		err := validatePrereleaseIdentifier(prerelease)
 		if err != nil {
-			return fmt.Errorf("%w: release.channels.%s.prerelease: %w", ErrInvalidConfig, channelName, err)
+			return fmt.Errorf("%w: release.channels.%s.prerelease: %v", ErrInvalidConfig, channelName, err)
 		}
 
 		if otherChannel, exists := seenPrereleaseIDs[prerelease]; exists {

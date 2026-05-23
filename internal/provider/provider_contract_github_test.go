@@ -31,8 +31,14 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitHubListTagsContract(t, w, r)
-		case providerContractGetCommitsSince:
+		case providerContractGetCommitsSinceRefs:
 			handleGitHubGetCommitsSinceContract(t, w, r)
+		case providerContractGetCommitsSinceRefsMissing:
+			handleGitHubGetCommitsSinceMissingContract(t, w, r)
+		case providerContractGetCommitsSinceRefsUnresolved:
+			handleGitHubGetCommitsSinceUnresolvedContract(t, w, r)
+		case providerContractGetCommitsSinceRefsMultiBoundary:
+			handleGitHubGetCommitsSinceMultiBoundaryContract(t, w, r)
 		case providerContractGetReleaseByTag:
 			handleGitHubGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -123,6 +129,59 @@ func handleGitHubGetCommitsSinceContract(t *testing.T, w http.ResponseWriter, r 
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("sha"))
 		writeJSONFixture(t, w, "contracts/github/get_commits_since/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	}
+}
+
+func handleGitHubGetCommitsSinceMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractTag:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/ref.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractMissingTag:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/ref_missing.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("sha"))
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	}
+}
+
+func handleGitHubGetCommitsSinceUnresolvedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractTag:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/ref.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractMissingTag:
+		w.WriteHeader(http.StatusNotFound)
+		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("sha"))
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/list.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	}
+}
+
+func handleGitHubGetCommitsSinceMultiBoundaryContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractTag:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/older_ref.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractIntermediateTag:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/intermediate_ref.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
+		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("sha"))
+		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/list.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}

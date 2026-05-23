@@ -61,7 +61,7 @@ func TestReleaseChangelogReferences(t *testing.T) {
 	t.Run("github includes bare footer reference when pattern is empty", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a footer reference whose URL pattern is blank — value is appended verbatim
+		// given: a footer reference whose URL pattern is blank, value is appended verbatim
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:       "testorg",
 			Repo:        "testrepo",

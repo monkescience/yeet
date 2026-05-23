@@ -1,4 +1,3 @@
-// Package changelog generates markdown changelogs from conventional commits.
 package changelog
 
 import (

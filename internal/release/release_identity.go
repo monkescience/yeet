@@ -30,8 +30,6 @@ type releaseManifestEntry struct {
 	ChangelogFile string `json:"changelog_file"`
 }
 
-// changelogFileKey is the TargetPlan.Files map key under which the per-target
-// changelog file path is stored.
 const changelogFileKey = "changelog_file"
 
 // targetTypeDerived mirrors config.TargetTypeDerived as an untyped string for

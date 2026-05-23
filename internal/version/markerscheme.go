@@ -14,7 +14,7 @@ const (
 )
 
 // CalVerScheme is a compiled CalVer format ready to extract per-token values
-// from a version string. Construct via NewCalVerScheme; treat as opaque.
+// from a version string. Construct via NewCalVerScheme. Treat as opaque.
 type CalVerScheme struct {
 	format calverFormat
 }
@@ -34,22 +34,18 @@ func NewCalVerScheme(format string) (*CalVerScheme, error) {
 	return &CalVerScheme{format: compiled}, nil
 }
 
-// Format returns the raw format string the scheme was compiled from.
 func (s *CalVerScheme) Format() string {
 	return s.format.raw
 }
 
-// HasMonth reports whether the format addresses a month component.
 func (s *CalVerScheme) HasMonth() bool {
 	return s.format.hasMonth
 }
 
-// HasWeek reports whether the format addresses a week component.
 func (s *CalVerScheme) HasWeek() bool {
 	return s.format.hasWeek
 }
 
-// HasDay reports whether the format addresses a day component.
 func (s *CalVerScheme) HasDay() bool {
 	return s.format.hasDay
 }

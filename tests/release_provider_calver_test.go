@@ -126,7 +126,7 @@ func TestReleaseAzureCalVer(t *testing.T) {
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
-		// then: yeet plans, opens, merges, and tags the release; exits 0
+		// then: yeet plans, opens, merges, and tags the release, exits 0
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 }
@@ -210,7 +210,7 @@ func TestReleaseExistingPRMergeBlockedFroceAzure(t *testing.T) {
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
-		// then: azure still rejects merging drafts; binary surfaces the block
+		// then: azure still rejects merging drafts and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.Contains(t, result.Stderr, "draft")
 	})

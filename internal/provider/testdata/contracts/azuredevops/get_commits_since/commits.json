@@ -1,9 +1,13 @@
 {
-  "count": 1,
+  "count": 2,
   "value": [
     {
       "commitId": "head-sha",
       "comment": "feat: add release flow"
+    },
+    {
+      "commitId": "tag-sha",
+      "comment": "chore: release v1.2.3"
     }
   ]
 }

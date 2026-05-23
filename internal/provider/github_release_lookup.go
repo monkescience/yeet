@@ -90,9 +90,9 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 	return gitHubRelease(rel), nil
 }
 
-// ensureAnnotatedTag creates an annotated tag carrying the release body so the
-// changelog lives in portable git data, mirroring release-please behavior. It
-// is idempotent: if the tag ref already exists the call is a no-op.
+// Creates an annotated tag carrying the release body so the changelog lives in
+// portable git data, mirroring release-please behavior. Idempotent: if the tag
+// ref already exists the call is a no-op.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
 	if strings.TrimSpace(tagName) == "" || strings.TrimSpace(ref) == "" {
 		return nil
