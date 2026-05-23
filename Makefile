@@ -1,14 +1,13 @@
 BINARY  := yeet
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
-LDFLAGS := -X $(shell go list -m)/internal/build.version=$(VERSION)
 
-.PHONY: help build snapshot image test test-unit test-blackbox coverage lint fmt clean
+.PHONY: help build snapshot image test test-unit test-blackbox coverage lint fmt generate clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 
 build: ## Build the yeet binary
-	go build -trimpath -ldflags "-s -w $(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)
+	go build -trimpath -ldflags "-s -w -X $(shell go list -m)/internal/build.version=$(VERSION)" -o bin/$(BINARY) ./cmd/$(BINARY)
 
 snapshot: ## Build a local release snapshot with goreleaser
 	goreleaser release --snapshot --clean
@@ -33,6 +32,9 @@ lint: ## Run linter
 
 fmt: ## Format code
 	golangci-lint fmt ./...
+
+generate: ## Run code generators (no-op when no //go:generate directives)
+	go generate ./...
 
 clean: ## Remove build artifacts
 	rm -rf bin/ coverage/

@@ -87,17 +87,17 @@ func setExampleForSubcommand(root *cobra.Command, name string, example string) {
 	}
 }
 
-func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
-	if options.verbose && options.quiet {
+func (o *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
+	if o.verbose && o.quiet {
 		return errVerboseQuietConflict
 	}
 
 	level := charmlog.InfoLevel
-	if options.verbose {
+	if o.verbose {
 		level = charmlog.DebugLevel
 	}
 
-	if options.quiet {
+	if o.quiet {
 		level = charmlog.WarnLevel
 	}
 
@@ -106,7 +106,7 @@ func (options *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 		ReportTimestamp: false,
 	})
 
-	logger.SetColorProfile(resolveColorProfile(cmd.ErrOrStderr(), options.noColor))
+	logger.SetColorProfile(resolveColorProfile(cmd.ErrOrStderr(), o.noColor))
 
 	slog.SetDefault(slog.New(logger))
 
@@ -135,8 +135,8 @@ func newColorWriter(w io.Writer, noColor bool) *colorprofile.Writer {
 	}
 }
 
-func (options *bootstrapOptions) configPath() string {
-	return strings.TrimSpace(options.configFile)
+func (o *bootstrapOptions) configPath() string {
+	return strings.TrimSpace(o.configFile)
 }
 
 func versionCmd() *cobra.Command {

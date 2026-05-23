@@ -8,6 +8,8 @@ builds:
   - id: yeet
     dir: .
     main: ./cmd/yeet
+    flags:
+      - -trimpath
     ldflags:
       - -s -w
       - -X github.com/monkescience/yeet/internal/build.version={{.Env.VERSION}}
