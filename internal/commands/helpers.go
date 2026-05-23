@@ -367,7 +367,7 @@ func resolveRepository(
 	normalizeRepositoryDescriptor(repository)
 
 	if repository.Provider == "" {
-		providerType, err := provider.DetectProviderType(repository.Host)
+		providerType, err := provider.DetectType(repository.Host)
 		if err != nil {
 			return nil, unsupportedAutoProviderError(repository.Host, err)
 		}

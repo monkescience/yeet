@@ -220,7 +220,7 @@ func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
 	return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
 }
 
-func DetectProviderType(host string) (string, error) {
+func DetectType(host string) (string, error) {
 	host = strings.ToLower(strings.TrimSpace(host))
 	if host == "" {
 		return "", fmt.Errorf("%w: empty host", ErrUnsupportedHost)
