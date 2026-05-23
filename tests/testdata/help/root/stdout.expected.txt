@@ -26,6 +26,5 @@ Flags:
       --no-color        disable colored output
       --quiet           show warnings and errors only
   -v, --verbose         enable debug logging
-      --version         version for yeet
 
 Use "yeet [command] --help" for more information about a command.

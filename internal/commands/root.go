@@ -2,7 +2,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -24,13 +23,6 @@ type bootstrapOptions struct {
 	noColor    bool
 }
 
-type buildInfo struct {
-	version string
-	commit  string
-	built   string
-	module  string
-}
-
 func NewRoot() *cobra.Command {
 	options := &bootstrapOptions{}
 
@@ -46,7 +38,6 @@ autorelease: tagged.`,
 		Example: `  yeet init
   yeet release --dry-run
   yeet release --auto-merge`,
-		Version:       build.Version(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -137,40 +128,4 @@ func newColorWriter(w io.Writer, noColor bool) *colorprofile.Writer {
 
 func (o *bootstrapOptions) configPath() string {
 	return strings.TrimSpace(o.configFile)
-}
-
-func versionCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:     "version",
-		Short:   "Print build information",
-		Example: `  yeet version`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return printVersion(cmd.OutOrStdout(), currentBuildInfo())
-		},
-	}
-}
-
-func currentBuildInfo() buildInfo {
-	return buildInfo{
-		version: build.Version(),
-		commit:  build.Commit(),
-		built:   build.Date(),
-		module:  build.Module(),
-	}
-}
-
-func printVersion(w io.Writer, info buildInfo) error {
-	_, err := fmt.Fprintf(w, "version: %s\ncommit: %s\nbuilt: %s\n", info.version, info.commit, info.built)
-	if err != nil {
-		return fmt.Errorf("print version: %w", err)
-	}
-
-	if info.module != "" {
-		_, err = fmt.Fprintf(w, "module: %s\n", info.module)
-		if err != nil {
-			return fmt.Errorf("print module: %w", err)
-		}
-	}
-
-	return nil
 }

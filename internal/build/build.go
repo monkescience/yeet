@@ -7,7 +7,10 @@
 // module and VCS information.
 package build
 
-import "runtime/debug"
+import (
+	"runtime"
+	"runtime/debug"
+)
 
 const (
 	ServiceName  = "yeet"
@@ -59,6 +62,14 @@ func Module() string {
 	}
 
 	return info.Main.Sum
+}
+
+func Platform() string {
+	return runtime.GOOS + "/" + runtime.GOARCH
+}
+
+func GoVersion() string {
+	return runtime.Version()
 }
 
 func buildInfoSetting(key string) string {

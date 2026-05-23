@@ -1,3 +1,6 @@
+name: yeet
 version: {{regex `.+`}}
 commit: {{regex `.+`}}
 built: {{regex `.+`}}
+platform: {{regex `\w+/\w+`}}
+go-version: {{regex `go\d+(\.\d+){1,2}`}}
