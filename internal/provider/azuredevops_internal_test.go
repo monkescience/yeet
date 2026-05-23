@@ -108,6 +108,9 @@ func TestAzureDevOpsCompareURL(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: the fromRef and toRef inputs for this table case
+			// when: CompareURL is invoked with those refs on the Azure DevOps provider
+			// then: the produced URL matches the expected branchCompare URL for the case
 			testastic.Equal(t, tc.want, azureDevOpsProvider.CompareURL(tc.fromRef, tc.toRef))
 		})
 	}

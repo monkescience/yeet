@@ -21,6 +21,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 	t.Run("marks pull request pending", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitHub server that records label additions and deletions for PR 42
 		var addLabels []string
 
 		removedLabel := ""
@@ -48,8 +49,10 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
+		// when: MarkReleasePRPending is invoked for PR 42
 		err := gh.MarkReleasePRPending(context.Background(), 42)
 
+		// then: the pending label is added and the tagged label is removed
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelPending, strings.Join(addLabels, ","))
 		testastic.Equal(t, provider.ReleaseLabelTagged, removedLabel)
@@ -58,6 +61,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 	t.Run("marks pull request tagged", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitHub server that records label additions and deletions for PR 7
 		var addLabels []string
 
 		removedLabel := ""
@@ -86,8 +90,10 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
+		// when: MarkReleasePRTagged is invoked for PR 7
 		err := gh.MarkReleasePRTagged(context.Background(), 7)
 
+		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelTagged, strings.Join(addLabels, ","))
 		testastic.Equal(t, provider.ReleaseLabelPending, removedLabel)
@@ -100,6 +106,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitHub server reporting PR 42 as open with a blocked mergeable state
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
@@ -120,8 +127,10 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
+		// when: MergeReleasePR is invoked without the force option
 		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
 
+		// then: ErrMergeBlocked is returned with the blocked mergeable state in the message
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 		testastic.ErrorContains(t, err, "mergeable_state=blocked")
@@ -130,6 +139,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 	t.Run("forces merge when readiness is otherwise blocked", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitHub server reporting PR 42 as blocked with squash merging allowed on the repo
 		var mergeRequest struct {
 			MergeMethod string `json:"merge_method"`
 			SHA         string `json:"sha"`
@@ -165,11 +175,13 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
+		// when: MergeReleasePR is invoked with force enabled and auto method selection
 		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 			Force:  true,
 			Method: provider.MergeMethodAuto,
 		})
 
+		// then: the squash merge method is chosen and the head SHA is sent in the merge request
 		testastic.NoError(t, err)
 		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
@@ -265,6 +277,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 	t.Run("marks merge request pending", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitLab server that records label add and remove fields on MR 12 updates
 		var updateRequest struct {
 			AddLabels    string `json:"add_labels"`
 			RemoveLabels string `json:"remove_labels"`
@@ -287,8 +300,10 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
+		// when: MarkReleasePRPending is invoked for MR 12
 		err := gl.MarkReleasePRPending(context.Background(), 12)
 
+		// then: the pending label is added and the tagged label is removed
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelPending, updateRequest.AddLabels)
 		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.RemoveLabels)
@@ -297,6 +312,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 	t.Run("marks merge request tagged", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitLab server that records label add and remove fields on MR 5 updates
 		var updateRequest struct {
 			AddLabels    string `json:"add_labels"`
 			RemoveLabels string `json:"remove_labels"`
@@ -319,8 +335,10 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
+		// when: MarkReleasePRTagged is invoked for MR 5
 		err := gl.MarkReleasePRTagged(context.Background(), 5)
 
+		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.AddLabels)
 		testastic.Equal(t, provider.ReleaseLabelPending, updateRequest.RemoveLabels)
@@ -333,6 +351,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitLab server reporting MR 8 as opened with a not_approved merge status
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
@@ -351,8 +370,10 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
+		// when: MergeReleasePR is invoked without the force option
 		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
 
+		// then: ErrMergeBlocked is returned with the detailed merge status in the message
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 		testastic.ErrorContains(t, err, "detailed_merge_status=not_approved")
@@ -361,6 +382,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 	t.Run("forces merge and forwards squash option", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a GitLab server reporting MR 8 as blocked with squash always enabled at the project level
 		var mergeRequest struct {
 			SHA    string `json:"sha"`
 			Squash bool   `json:"squash"`
@@ -395,11 +417,13 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
+		// when: MergeReleasePR is invoked with force enabled and the squash merge method
 		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
 			Force:  true,
 			Method: provider.MergeMethodSquash,
 		})
 
+		// then: the head SHA is forwarded and the squash flag is set on the merge request
 		testastic.NoError(t, err)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
 		testastic.True(t, mergeRequest.Squash)
