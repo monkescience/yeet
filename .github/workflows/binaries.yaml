@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: yeet-binaries-${{ github.event.release.tag_name || inputs.tag }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GORELEASER_VERSION: v2.15.4 # renovate: datasource=github-releases depName=goreleaser/goreleaser
