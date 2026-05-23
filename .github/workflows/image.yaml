@@ -13,7 +13,6 @@ on:
 permissions:
   contents: read
   packages: write
-  security-events: write
 
 concurrency:
   group: yeet-image-${{ github.event.release.tag_name || inputs.tag }}
@@ -27,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      KO_DOCKER_REPO: ghcr.io/${{ github.repository }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -43,31 +41,6 @@ jobs:
         uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
         with:
           version: ${{ env.KO_VERSION }}
-
-      - name: Build scan image (amd64)
-        id: scan_build
-        env:
-          KO_DEFAULTPLATFORMS: linux/amd64
-          VERSION: ${{ env.RELEASE_TAG }}
-        run: |
-          scan_ref=$(ko build --bare --tags "scan-${{ github.sha }}" --push=true ./cmd/yeet)
-          echo "image=${scan_ref}" >> "$GITHUB_OUTPUT"
-
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ steps.scan_build.outputs.image }}
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          format: sarif
-          output: trivy-image.sarif
-
-      - name: Upload Trivy SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
-        with:
-          sarif_file: trivy-image.sarif
-          category: trivy-image
 
       - name: Publish image to GHCR
         run: |
