@@ -40,6 +40,6 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run yeet release
-        run: go run ./cmd/yeet release
+        run: go run ./cmd/yeet --verbose release
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
