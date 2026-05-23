@@ -432,3 +432,53 @@ func TestReleaseAnalyzerSharedHistoryFallsBackBeyondTopRefs(t *testing.T) {
 		stub.getCommitsSinceRefsOf[0],
 	)
 }
+
+func TestReleaseAnalyzerSharedHistoryFallbackReusesScan(t *testing.T) {
+	t.Parallel()
+
+	// given: api top-3 refs are unreachable per the shared scan, with a deeper reachable ref
+	//        outside the top-N, plus a separate web target with one tag
+	cfg := config.Default()
+	cfg.Targets = map[string]config.Target{
+		"api": {
+			Type:      config.TargetTypePath,
+			Path:      "services/api",
+			TagPrefix: "api-v",
+		},
+		"web": {
+			Type:      config.TargetTypePath,
+			Path:      "apps/web",
+			TagPrefix: "web-v",
+		},
+	}
+
+	stub := newProviderStub()
+	stub.tagList = []string{
+		"api-v1.1.0",
+		"api-v1.0.2",
+		"api-v1.0.1",
+		"api-v1.0.0",
+		"web-v1.0.0",
+	}
+	stub.commitsErrByRef["api-v1.1.0"] = provider.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.2"] = provider.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.1"] = provider.ErrCommitBoundaryNotFound
+	stub.commitsByRef = map[string][]provider.CommitEntry{
+		"api-v1.0.0": {
+			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
+		},
+		"web-v1.0.0": {
+			{Hash: "web-new", Message: "feat: refresh web", Paths: []string{"apps/web/app.tsx"}},
+		},
+	}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: analyzing the shared branch history
+	_, err := r.Release(context.Background(), true)
+
+	// then: the fallback path reuses the shared scan's reachability and entries,
+	//       probing only the deeper ref the shared scan did not cover
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"api-v1.0.0", "api-v1.0.0"}, stub.singleRefProbes())
+}

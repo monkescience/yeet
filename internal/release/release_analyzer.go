@@ -27,6 +27,7 @@ type releaseAnalyzer struct {
 	analyzedTargets map[string]config.ResolvedTarget
 	versionRefs     *releaseVersionRefs
 	historyIndex    *monorepoHistoryIndex
+	refReachable    map[string]bool
 }
 
 type commitCacheKey struct {
@@ -69,6 +70,7 @@ func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 		bumpMapping:   releaser.cfg.BumpTypes.ToBumpMapping(),
 		commitCache:   make(map[commitCacheKey][]provider.CommitEntry),
 		overrideCache: make(map[string]commitOverrideResult),
+		refReachable:  make(map[string]bool),
 	}
 }
 
@@ -421,11 +423,13 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 
 	sort.Strings(refs)
 
+	includePaths := needsPathFiltering(targets)
+
 	history, err := a.releaser.history.GetCommitsSinceRefs(
 		ctx,
 		refs,
 		a.releaser.cfg.Branch,
-		needsPathFiltering(targets),
+		includePaths,
 	)
 	if err != nil {
 		return fmt.Errorf("get commits from branch %q: %w", a.releaser.cfg.Branch, err)
@@ -441,6 +445,19 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 			slog.String("branch", a.releaser.cfg.Branch),
 			slog.Any("missing_refs", history.MissingRefs),
 		)
+	}
+
+	for _, ref := range refs {
+		_, missing := missingRefs[ref]
+		a.refReachable[ref] = !missing
+	}
+
+	for ref, entries := range history.EntriesByRef {
+		a.commitCache[commitCacheKey{
+			ref:          ref,
+			branch:       a.releaser.cfg.Branch,
+			includePaths: includePaths,
+		}] = entries
 	}
 
 	index := &monorepoHistoryIndex{targets: make(map[string]targetHistory, len(refsByTargetID))}
@@ -1343,6 +1360,10 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 }
 
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
+	if reachable, ok := a.refReachable[ref]; ok {
+		return reachable, nil
+	}
+
 	r := a.releaser
 
 	history, err := r.history.GetCommitsSinceRefs(ctx, []string{ref}, r.cfg.Branch, false)
@@ -1350,11 +1371,10 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string
 		return false, fmt.Errorf("validate version ref %q: %w", ref, err)
 	}
 
-	if slices.Contains(history.MissingRefs, ref) {
-		return false, nil
-	}
+	reachable := !slices.Contains(history.MissingRefs, ref)
+	a.refReachable[ref] = reachable
 
-	return true, nil
+	return reachable, nil
 }
 
 func (a *releaseAnalyzer) orderedVersionRefs(
