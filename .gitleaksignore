@@ -1,0 +1,4 @@
+# Fake placeholder git SHAs used as test fixtures, flagged as generic-api-key.
+# internal/release/releaser_test.go: apiSHA/webSHA/rootSHA constants.
+ae88ab3220bc3dddb1225645f0c88d51eee4dfe0:internal/release/releaser_test.go:generic-api-key:1634
+ae88ab3220bc3dddb1225645f0c88d51eee4dfe0:internal/release/releaser_test.go:generic-api-key:1700
