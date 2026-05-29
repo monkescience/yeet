@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	githubapi "github.com/google/go-github/v86/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
 )
@@ -14,8 +13,7 @@ import (
 func newGitHubContractProvider(t *testing.T, server *httptest.Server) provider.Provider {
 	t.Helper()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	return provider.NewGitHub(client, "o", "r")
 }

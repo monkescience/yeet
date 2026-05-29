@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	githubapi "github.com/google/go-github/v86/github"
+	githubapi "github.com/google/go-github/v88/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/provider"
@@ -243,8 +243,7 @@ func TestGitHubVersionLookup(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -276,8 +275,7 @@ func TestGitHubVersionLookup(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -308,8 +306,7 @@ func TestGitHubVersionLookup(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -344,8 +341,7 @@ func TestGitHubVersionLookup(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -393,8 +389,7 @@ func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
@@ -632,8 +627,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -684,8 +678,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -725,8 +718,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -772,8 +764,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -812,8 +803,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -887,8 +877,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1326,8 +1315,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
@@ -1407,13 +1395,18 @@ func TestGitLabCreateRelease(t *testing.T) {
 	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
 }
 
-func mustParseURL(t *testing.T, raw string) *url.URL {
+func newGitHubTestClient(t *testing.T, server *httptest.Server) *githubapi.Client {
 	t.Helper()
 
-	parsed, err := url.Parse(raw)
+	baseURL := server.URL + "/"
+
+	client, err := githubapi.NewClient(
+		githubapi.WithHTTPClient(server.Client()),
+		githubapi.WithURLs(&baseURL, &baseURL),
+	)
 	testastic.NoError(t, err)
 
-	return parsed
+	return client
 }
 
 func writeJSON(t *testing.T, w http.ResponseWriter, value any) {
@@ -1475,8 +1468,7 @@ func TestGitHubCreateBranch(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1509,8 +1501,7 @@ func TestGitHubCreateBranch(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1543,8 +1534,7 @@ func TestGitHubCreateBranch(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1669,7 +1659,9 @@ func TestGitHubPathPrefix(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub provider
-	client := githubapi.NewClient(nil)
+	client, err := githubapi.NewClient()
+	testastic.NoError(t, err)
+
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: requesting the path prefix
@@ -1715,8 +1707,7 @@ func TestGitHubCreateReleasePR(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
@@ -1753,8 +1744,7 @@ func TestGitHubUpdateReleasePR(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
@@ -1804,8 +1794,7 @@ func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1841,8 +1830,7 @@ func TestGitHubGetFile(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1864,8 +1852,7 @@ func TestGitHubGetFile(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1907,8 +1894,7 @@ func TestGitHubEnsureLabel(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1953,8 +1939,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -1995,8 +1980,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -2040,8 +2024,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -2082,8 +2065,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -2124,8 +2106,7 @@ func TestGitHubCommitPullRequestBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
@@ -2565,8 +2546,7 @@ func TestGitHubListTagsPaginationLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	githubapi "github.com/google/go-github/v86/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
@@ -44,8 +43,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -85,8 +83,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -122,8 +119,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -170,8 +166,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := githubapi.NewClient(server.Client())
-		client.BaseURL = mustParseURL(t, server.URL+"/")
+		client := newGitHubTestClient(t, server)
 
 		gh := provider.NewGitHub(client, "o", "r")
 
@@ -247,8 +242,7 @@ func TestGitHubUpdateFiles(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := githubapi.NewClient(server.Client())
-	client.BaseURL = mustParseURL(t, server.URL+"/")
+	client := newGitHubTestClient(t, server)
 
 	gh := provider.NewGitHub(client, "o", "r")
 
