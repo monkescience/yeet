@@ -87,14 +87,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: docker://ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
         with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          format: sarif
-          output: trivy-fs.sarif
+          args: fs --format sarif --output trivy-fs.sarif --severity HIGH,CRITICAL --exit-code 1 .
 
       - name: Upload SARIF
         if: always()
@@ -139,21 +134,14 @@ jobs:
           version: ${{ env.KO_VERSION }}
 
       - name: Build scan image
-        id: build
         env:
           VERSION: ${{ github.sha }}
-        run: |
-          image=$(ko build --bare --local --platform=linux/amd64 ./cmd/yeet)
-          echo "image=${image}" >> "$GITHUB_OUTPUT"
+        run: ko build --tarball=image.tar --push=false --platform=linux/amd64 ./cmd/yeet
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: docker://ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
         with:
-          image-ref: ${{ steps.build.outputs.image }}
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          format: sarif
-          output: trivy-image.sarif
+          args: image --input image.tar --format sarif --output trivy-image.sarif --severity HIGH,CRITICAL --exit-code 1
 
       - name: Upload SARIF
         if: always()
