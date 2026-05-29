@@ -13,11 +13,13 @@ import (
 func TestCommitOverrideMessages(t *testing.T) {
 	t.Parallel()
 
+	knownTypes := knownCommitTypes(config.Default())
+
 	t.Run("returns no override when markers are absent", func(t *testing.T) {
 		t.Parallel()
 
 		// when: parsing a body without override markers
-		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body")
+		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body", knownTypes)
 
 		// then: no override is reported
 		testastic.NoError(t, err)
@@ -39,7 +41,7 @@ END_COMMIT_OVERRIDE
 `
 
 		// when: parsing the override body
-		messages, ok, err := commitOverrideMessages(t.Context(), body)
+		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
 
 		// then: both messages are returned in order
 		testastic.NoError(t, err)
@@ -63,7 +65,7 @@ BREAKING CHANGE: existing session cookies are invalid after upgrade
 END_COMMIT_OVERRIDE`
 
 		// when: parsing the override body
-		messages, ok, err := commitOverrideMessages(t.Context(), body)
+		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
 
 		// then: the message keeps its subject prefix and the body and footer are preserved
 		testastic.NoError(t, err)
@@ -74,11 +76,33 @@ END_COMMIT_OVERRIDE`
 		testastic.Equal(t, expectedPrefix, messages[0][:len(expectedPrefix)])
 	})
 
+	t.Run("keeps issue-reference footers with their commit message", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a single override commit whose body ends with a git-trailer footer
+		body := `BEGIN_COMMIT_OVERRIDE
+feat(api): add pagination
+
+Adds cursor-based pagination to the list endpoint.
+
+Closes: #45
+END_COMMIT_OVERRIDE`
+
+		// when: parsing the override body
+		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
+
+		// then: the footer stays attached instead of becoming a second commit
+		testastic.NoError(t, err)
+		testastic.True(t, ok)
+		testastic.Equal(t, 1, len(messages))
+		testastic.Contains(t, messages[0], "Closes: #45")
+	})
+
 	t.Run("rejects missing end marker", func(t *testing.T) {
 		t.Parallel()
 
 		// when: parsing an override body without END_COMMIT_OVERRIDE
-		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug")
+		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug", knownTypes)
 
 		// then: the missing end marker is reported as an invalid override
 		testastic.Error(t, err)

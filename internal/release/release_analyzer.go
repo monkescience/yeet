@@ -24,6 +24,7 @@ type releaseAnalyzer struct {
 	bumpMapping     commit.BumpMapping
 	commitCache     map[commitCacheKey][]provider.CommitEntry
 	overrideCache   map[string]commitOverrideResult
+	overrideTypes   map[string]struct{}
 	analyzedTargets map[string]config.ResolvedTarget
 	versionRefs     *releaseVersionRefs
 	historyIndex    *monorepoHistoryIndex
@@ -70,6 +71,7 @@ func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
 		bumpMapping:   releaser.cfg.BumpTypes.ToBumpMapping(),
 		commitCache:   make(map[commitCacheKey][]provider.CommitEntry),
 		overrideCache: make(map[string]commitOverrideResult),
+		overrideTypes: knownCommitTypes(releaser.cfg),
 		refReachable:  make(map[string]bool),
 	}
 }
@@ -216,7 +218,7 @@ func (a *releaseAnalyzer) commitOverride(
 		return result, nil
 	}
 
-	messages, found, err := commitOverrideMessages(ctx, body)
+	messages, found, err := commitOverrideMessages(ctx, body, a.overrideTypes)
 	if err != nil {
 		return commitOverrideResult{}, fmt.Errorf("parse commit override for %q: %w", hash, err)
 	}
