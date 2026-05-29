@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.10.0](https://github.com/monkescience/yeet/compare/v0.9.3...v0.10.0) (2026-05-29)
+
+### ⚠ BREAKING CHANGES
+
+- **commands:** replace --version flag with expanded version subcommand ([562d620](https://github.com/monkescience/yeet/commit/562d620973d8754e9a87435f4024da799883cb95))
+### Features
+
+- **release:** share monorepo history index across targets ([0fead31](https://github.com/monkescience/yeet/commit/0fead31e0d5ddc4b1d5791fc12f24dc11dbe7542))
+### Bug Fixes
+
+- **release:** keep git-trailer footers attached in commit overrides ([d65cce0](https://github.com/monkescience/yeet/commit/d65cce0f327c963f905219f3642d871f9c3bbf87))
+- **deps:** update module github.com/google/go-github/v86 to v88 (#120) ([01e7fb8](https://github.com/monkescience/yeet/commit/01e7fb8d11c84c68c0f097d6bde5783f2a58724b))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.31.0 (#118) ([7f82ef0](https://github.com/monkescience/yeet/commit/7f82ef07df3f882b74e108de7d08b246548b511e))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.26.1 (#113) ([48fa486](https://github.com/monkescience/yeet/commit/48fa48631711d701241b99501d351927262aca43))
+- **deps:** update module github.com/go-git/go-git/v6 to v6.0.0-alpha.4 [security] (#110) ([f03c7c5](https://github.com/monkescience/yeet/commit/f03c7c54b52a810a100a672014e26cfad681ea5b))
+### Performance Improvements
+
+- **release:** reuse shared scan for per-target fallback lookups ([a8444b0](https://github.com/monkescience/yeet/commit/a8444b0e7c051b9ca2f3232c7dd0159f49ba829f))
+
 ## [v0.9.3](https://github.com/monkescience/yeet/compare/v0.9.2...v0.9.3) (2026-05-16)
 
 ### Features
