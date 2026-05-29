@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-git/go-git/v6"
 	gitconfig "github.com/go-git/go-git/v6/config"
-	"github.com/google/go-github/v86/github"
+	"github.com/google/go-github/v88/github"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -231,8 +231,6 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 		return nil, fmt.Errorf("%w: GITHUB_TOKEN or GH_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	client := github.NewClient(newRetryableHTTPClient()).WithAuthToken(token)
-
 	baseURL := strings.TrimSpace(os.Getenv("GITHUB_URL"))
 
 	host := strings.TrimSpace(repository.Host)
@@ -240,13 +238,17 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 		baseURL = fmt.Sprintf("https://%s/api/v3/", host)
 	}
 
+	opts := []github.ClientOptionsFunc{
+		github.WithHTTPClient(newRetryableHTTPClient()),
+		github.WithAuthToken(token),
+	}
 	if baseURL != "" {
-		var err error
+		opts = append(opts, github.WithEnterpriseURLs(baseURL, baseURL))
+	}
 
-		client, err = client.WithEnterpriseURLs(baseURL, baseURL)
-		if err != nil {
-			return nil, fmt.Errorf("configure github enterprise URL: %w", err)
-		}
+	client, err := github.NewClient(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
 	return provider.NewGitHub(client, repository.Owner, repository.Repo), nil

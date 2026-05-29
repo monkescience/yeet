@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/go-github/v86/github"
+	"github.com/google/go-github/v88/github"
 )
 
 const (
@@ -26,7 +26,7 @@ type GitHub struct {
 }
 
 func NewGitHub(client *github.Client, owner, repo string) *GitHub {
-	baseURL := strings.TrimSuffix(client.BaseURL.String(), "/")
+	baseURL := strings.TrimSuffix(client.BaseURL(), "/")
 
 	// Default github.com API uses api.github.com. Enterprise uses <host>/api/v3.
 	if baseURL == "https://api.github.com" {
