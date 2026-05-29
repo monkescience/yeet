@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
 	github.com/google/go-github/v86 v86.0.0
+	github.com/google/go-github/v88 v88.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/monkescience/testastic v0.3.5
