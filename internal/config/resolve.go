@@ -112,6 +112,11 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
 
+	err = validateReferencesConfig("targets."+targetID+".changelog.references", resolved.Changelog.References)
+	if err != nil {
+		return ResolvedTarget{}, err
+	}
+
 	for _, versionFile := range resolved.VersionFiles {
 		err := validateVersionFile("targets."+targetID+".version_files", versionFile)
 		if err != nil {

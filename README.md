@@ -345,6 +345,22 @@ changelog:
 
 Use `{value}` as the placeholder in URL templates. An empty URL string renders the reference as plain text without linking. Both `patterns` and `footers` can be configured per target in monorepo setups.
 
+Patterns are matched as substrings, so `JIRA-\d+` also matches inside `MYJIRA-123`. Anchor with `\b` (for example `\bJIRA-\d+\b`) when a pattern risks matching inside a larger token.
+
+A single pattern covers an entire Jira instance, since every project shares the same `/browse/{KEY}` URL:
+
+```yaml
+changelog:
+  references:
+    patterns:
+      - pattern: "[A-Z][A-Z0-9]+-\\d+"
+        url: "https://jira.example.com/browse/{value}"
+```
+
+This links `PROJ-12`, `OPS-345`, and `ABC-9` alike. Add a separate entry per tracker only when issues live on different hosts.
+
+Reference patterns are validated when the config is loaded, so an invalid regular expression fails fast in CI instead of being silently skipped during changelog generation.
+
 #### Commit overrides
 
 If a merged PR/MR has a vague squash or merge commit message, edit that source PR/MR body to add override entries:

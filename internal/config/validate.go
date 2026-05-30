@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -44,6 +45,11 @@ func (c *Config) Validate(ctx context.Context) error {
 
 	if len(c.Changelog.Include) == 0 {
 		return fmt.Errorf("%w: changelog.include must not be empty", ErrInvalidConfig)
+	}
+
+	err = validateReferencesConfig("changelog.references", c.Changelog.References)
+	if err != nil {
+		return err
 	}
 
 	err = validateCalVerConfig("calver.format", c.CalVer)
@@ -167,6 +173,28 @@ func validateJSONPointerSyntax(pointer string) error {
 		}
 
 		i++
+	}
+
+	return nil
+}
+
+func validateReferencesConfig(path string, references ReferencesConfig) error {
+	for i, pattern := range references.Patterns {
+		if strings.TrimSpace(pattern.Pattern) == "" {
+			return fmt.Errorf("%w: %s.patterns[%d].pattern must not be empty", ErrInvalidConfig, path, i)
+		}
+
+		_, err := regexp.Compile(pattern.Pattern)
+		if err != nil {
+			return fmt.Errorf(
+				"%w: %s.patterns[%d].pattern %q is not a valid regular expression: %v",
+				ErrInvalidConfig,
+				path,
+				i,
+				pattern.Pattern,
+				err,
+			)
+		}
 	}
 
 	return nil

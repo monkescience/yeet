@@ -419,6 +419,81 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
+	t.Run("invalid reference pattern regex fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a malformed reference pattern regex
+		cfg := config.Default()
+		cfg.Changelog.References = config.ReferencesConfig{
+			Patterns: []config.ReferencePattern{
+				{Pattern: `[invalid`, URL: "https://jira.example.com/browse/{value}"},
+			},
+		}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate(t.Context())
+
+		// then: validation rejects the malformed regex
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "changelog.references")
+	})
+
+	t.Run("empty reference pattern fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a blank reference pattern
+		cfg := config.Default()
+		cfg.Changelog.References = config.ReferencesConfig{
+			Patterns: []config.ReferencePattern{
+				{Pattern: "  ", URL: "https://jira.example.com/browse/{value}"},
+			},
+		}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate(t.Context())
+
+		// then: validation rejects the blank pattern
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "changelog.references")
+	})
+
+	t.Run("invalid target reference pattern regex fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding references with a malformed regex
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					References: config.ReferencesConfig{
+						Patterns: []config.ReferencePattern{
+							{Pattern: `(unclosed`, URL: "https://example.com/{value}"},
+						},
+					},
+				},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate(t.Context())
+
+		// then: validation rejects the malformed regex with the target path
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.app.changelog.references")
+	})
+
 	t.Run("empty version file path fails", func(t *testing.T) {
 		t.Parallel()
 
