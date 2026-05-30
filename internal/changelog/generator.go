@@ -15,15 +15,63 @@ import (
 )
 
 type Generator struct {
-	Sections   map[string]string
-	Include    []string
-	RepoURL    string
-	PathPrefix string
-	CompareURL func(fromRef, toRef string) string
-	References config.ReferencesConfig
-	Now        func() time.Time
+	sections   map[string]string
+	include    []string
+	repoURL    string
+	pathPrefix string
+	compareURL func(fromRef, toRef string) string
+	references config.ReferencesConfig
+	nowFunc    func() time.Time
 
 	compiledPatterns []compiledPattern
+}
+
+// Option configures a Generator.
+type Option func(*Generator)
+
+// New builds a changelog Generator from the given options.
+func New(opts ...Option) *Generator {
+	g := &Generator{}
+	for _, opt := range opts {
+		opt(g)
+	}
+
+	return g
+}
+
+// WithSections maps commit types to changelog section headings.
+func WithSections(sections map[string]string) Option {
+	return func(g *Generator) { g.sections = sections }
+}
+
+// WithInclude sets the commit types included in the changelog, in order.
+func WithInclude(include []string) Option {
+	return func(g *Generator) { g.include = include }
+}
+
+// WithRepoURL sets the repository URL used to link commit hashes.
+func WithRepoURL(repoURL string) Option {
+	return func(g *Generator) { g.repoURL = repoURL }
+}
+
+// WithPathPrefix sets the provider-specific path prefix inserted into commit links.
+func WithPathPrefix(pathPrefix string) Option {
+	return func(g *Generator) { g.pathPrefix = pathPrefix }
+}
+
+// WithCompareURL sets the function that builds the version-compare URL.
+func WithCompareURL(compareURL func(fromRef, toRef string) string) Option {
+	return func(g *Generator) { g.compareURL = compareURL }
+}
+
+// WithReferences sets the reference linking configuration.
+func WithReferences(references config.ReferencesConfig) Option {
+	return func(g *Generator) { g.references = references }
+}
+
+// WithNow overrides the clock used to date entries. Defaults to time.Now.
+func WithNow(now func() time.Time) Option {
+	return func(g *Generator) { g.nowFunc = now }
 }
 
 type compiledPattern struct {
@@ -41,7 +89,7 @@ type Entry struct {
 func (g *Generator) Generate(ctx context.Context, version string, previousTag string, commits []commit.Commit) Entry {
 	g.ensureCompiledPatterns(ctx)
 
-	relevant := commit.FilterByTypes(commits, g.Include)
+	relevant := commit.FilterByTypes(commits, g.include)
 
 	grouped := g.groupBySection(relevant)
 
@@ -49,8 +97,8 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 
 	g.writeBreakingChanges(&sb, relevant)
 
-	for _, commitType := range g.Include {
-		sectionName, ok := g.Sections[commitType]
+	for _, commitType := range g.include {
+		sectionName, ok := g.sections[commitType]
 		if !ok {
 			sectionName = capitalizeFirst(commitType)
 		}
@@ -73,8 +121,8 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 		Body:    sb.String(),
 	}
 
-	if g.CompareURL != nil && previousTag != "" {
-		entry.CompareURL = g.CompareURL(previousTag, version)
+	if g.compareURL != nil && previousTag != "" {
+		entry.CompareURL = g.compareURL(previousTag, version)
 	}
 
 	slog.DebugContext(ctx, "changelog: generated entry",
@@ -182,8 +230,8 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 
 	hashRef := shortHash
 
-	if g.RepoURL != "" {
-		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.RepoURL, g.PathPrefix, c.Hash)
+	if g.repoURL != "" {
+		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.repoURL, g.pathPrefix, c.Hash)
 	}
 
 	linked := g.linkDescription(description)
@@ -202,13 +250,13 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 }
 
 func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
-	if g.compiledPatterns != nil || len(g.References.Patterns) == 0 {
+	if g.compiledPatterns != nil || len(g.references.Patterns) == 0 {
 		return
 	}
 
-	g.compiledPatterns = make([]compiledPattern, 0, len(g.References.Patterns))
+	g.compiledPatterns = make([]compiledPattern, 0, len(g.references.Patterns))
 
-	for _, p := range g.References.Patterns {
+	for _, p := range g.references.Patterns {
 		if p.URL == "" {
 			continue
 		}
@@ -246,14 +294,14 @@ func (g *Generator) linkDescription(description string) string {
 }
 
 func (g *Generator) footerReferences(c commit.Commit) string {
-	if len(g.References.Footers) == 0 {
+	if len(g.references.Footers) == 0 {
 		return ""
 	}
 
 	var refs []string
 
 	for _, f := range c.Footers {
-		pattern, ok := g.References.Footers[f.Key]
+		pattern, ok := g.references.Footers[f.Key]
 		if !ok {
 			continue
 		}
@@ -279,8 +327,8 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 }
 
 func (g *Generator) now() time.Time {
-	if g.Now != nil {
-		return g.Now()
+	if g.nowFunc != nil {
+		return g.nowFunc()
 	}
 
 	return time.Now()

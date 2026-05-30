@@ -17,14 +17,14 @@ func renderTargetChangelog(
 	commits []commit.Commit,
 	releaser *Releaser,
 ) string {
-	gen := &changelog.Generator{
-		Sections:   target.Changelog.Sections,
-		Include:    target.Changelog.Include,
-		RepoURL:    releaser.metadata.RepoURL(),
-		PathPrefix: releaser.metadata.PathPrefix(),
-		CompareURL: releaser.metadata.CompareURL,
-		References: target.Changelog.References,
-	}
+	gen := changelog.New(
+		changelog.WithSections(target.Changelog.Sections),
+		changelog.WithInclude(target.Changelog.Include),
+		changelog.WithRepoURL(releaser.metadata.RepoURL()),
+		changelog.WithPathPrefix(releaser.metadata.PathPrefix()),
+		changelog.WithCompareURL(releaser.metadata.CompareURL),
+		changelog.WithReferences(target.Changelog.References),
+	)
 
 	entry := gen.Generate(ctx, nextTag, ref, commits)
 	if ref != "" && compareTarget != "" {

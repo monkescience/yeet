@@ -17,13 +17,13 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator and some commits
-		gen := &changelog.Generator{
-			Sections: map[string]string{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{
 				"feat": "Features",
 				"fix":  "Bug Fixes",
-			},
-			Include: []string{"feat", "fix"},
-		}
+			}),
+			changelog.WithInclude([]string{"feat", "fix"}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Scope: "auth", Description: "add OAuth2 support"},
@@ -47,10 +47,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: commits with a breaking change
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -71,10 +71,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with a long hash
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567890def", Type: "feat", Description: "something new"},
@@ -92,13 +92,13 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: commits with a revert
-		gen := &changelog.Generator{
-			Sections: map[string]string{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{
 				"feat":   "Features",
 				"revert": "Reverts",
-			},
-			Include: []string{"feat", "revert"},
-		}
+			}),
+			changelog.WithInclude([]string{"feat", "revert"}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "add new endpoint"},
@@ -119,10 +119,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator where "perf" is included but has no Sections mapping
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat", "perf"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat", "perf"}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "perf", Description: "speed up query"},
@@ -140,10 +140,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: no commits
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
 
 		// when: generating changelog
 		entry := gen.Generate(t.Context(), "v1.0.0", "", nil)
@@ -156,11 +156,11 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with repo URL configured
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			RepoURL:  "https://github.com/owner/repo",
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithRepoURL("https://github.com/owner/repo"),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567890def", Type: "feat", Scope: "auth", Description: "add login"},
@@ -180,12 +180,12 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with GitLab repo URL
-		gen := &changelog.Generator{
-			Sections:   map[string]string{"fix": "Bug Fixes"},
-			Include:    []string{"fix"},
-			RepoURL:    "https://gitlab.com/owner/repo",
-			PathPrefix: "/-",
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+			changelog.WithInclude([]string{"fix"}),
+			changelog.WithRepoURL("https://gitlab.com/owner/repo"),
+			changelog.WithPathPrefix("/-"),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567890def", Type: "fix", Description: "fix crash"},
@@ -202,14 +202,14 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with a compare URL builder and a previous tag
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			RepoURL:  "https://github.com/owner/repo",
-			CompareURL: func(from, to string) string {
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithRepoURL("https://github.com/owner/repo"),
+			changelog.WithCompareURL(func(from, to string) string {
 				return "https://github.com/owner/repo/compare/" + from + "..." + to
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "new feature"},
@@ -226,14 +226,14 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with a compare URL builder but no previous tag
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			RepoURL:  "https://github.com/owner/repo",
-			CompareURL: func(from, to string) string {
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithRepoURL("https://github.com/owner/repo"),
+			changelog.WithCompareURL(func(from, to string) string {
 				return "https://github.com/owner/repo/compare/" + from + "..." + to
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "initial feature"},
@@ -250,11 +250,11 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator without compare URL builder
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			RepoURL:  "https://github.com/owner/repo",
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithRepoURL("https://github.com/owner/repo"),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "feature"},
@@ -271,10 +271,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator without repo URL
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567890def", Type: "feat", Description: "something"},
@@ -292,15 +292,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with an inline reference pattern
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Patterns: []config.ReferencePattern{
 					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "add OAuth2 support JIRA-123"},
@@ -318,15 +318,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with a plain-text reference pattern
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Patterns: []config.ReferencePattern{
 					{Pattern: `#\d+`, URL: ""},
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "add feature #456"},
@@ -344,15 +344,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with footer reference config
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -372,15 +372,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with plain-text footer reference
-		gen := &changelog.Generator{
-			Sections: map[string]string{"fix": "Bug Fixes"},
-			Include:  []string{"fix"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+			changelog.WithInclude([]string{"fix"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Footers: map[string]string{
 					"Closes": "",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -401,15 +401,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit with multiple matching footers
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -433,10 +433,10 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with no references config
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-		}
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -457,15 +457,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with footer config that doesn't match the commit's footer
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -486,15 +486,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a breaking commit with a footer reference
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
@@ -518,15 +518,15 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with an invalid regex pattern
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithReferences(config.ReferencesConfig{
 				Patterns: []config.ReferencePattern{
 					{Pattern: `[invalid`, URL: "https://example.com/{value}"},
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{Hash: "abc1234567", Type: "feat", Description: "add feature"},
@@ -543,19 +543,19 @@ func TestGenerate(t *testing.T) {
 		t.Parallel()
 
 		// given: a generator with both patterns and footers
-		gen := &changelog.Generator{
-			Sections: map[string]string{"feat": "Features"},
-			Include:  []string{"feat"},
-			RepoURL:  "https://github.com/owner/repo",
-			References: config.ReferencesConfig{
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+			changelog.WithRepoURL("https://github.com/owner/repo"),
+			changelog.WithReferences(config.ReferencesConfig{
 				Patterns: []config.ReferencePattern{
 					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
 				},
 				Footers: map[string]string{
 					"Closes": "",
 				},
-			},
-		}
+			}),
+		)
 
 		commits := []commit.Commit{
 			{
