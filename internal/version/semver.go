@@ -16,6 +16,7 @@ var _ Strategy = (*SemVer)(nil)
 type Strategy interface {
 	Current(tag string) (string, error)
 	Next(current string, bump commit.BumpType) (string, error)
+	Less(leftVersion, rightVersion, leftRef, rightRef string) bool
 }
 
 type SemVer struct {
@@ -70,6 +71,24 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 	}
 
 	return next.String(), nil
+}
+
+func (s *SemVer) Less(leftVersion, rightVersion, leftRef, rightRef string) bool {
+	leftSemver, err := semver.StrictNewVersion(leftVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	rightSemver, err := semver.StrictNewVersion(rightVersion)
+	if err != nil {
+		return leftRef < rightRef
+	}
+
+	if !leftSemver.Equal(rightSemver) {
+		return leftSemver.LessThan(rightSemver)
+	}
+
+	return leftRef < rightRef
 }
 
 func (s *SemVer) Tag(version string) string {

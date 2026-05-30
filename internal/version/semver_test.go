@@ -355,3 +355,64 @@ func TestSemVerInitialVersion(t *testing.T) {
 	// then: returns 0.0.0
 	testastic.Equal(t, "0.0.0", v)
 }
+
+func TestSemVerLess(t *testing.T) {
+	t.Parallel()
+
+	sv := &version.SemVer{Prefix: "v"}
+
+	t.Run("lower version is less", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two valid versions where left is lower
+		// when: comparing left and right
+		got := sv.Less("1.2.0", "1.3.0", "ignored", "ignored")
+
+		// then: left sorts first
+		testastic.True(t, got)
+	})
+
+	t.Run("higher version is not less", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two valid versions where left is higher
+		// when: comparing left and right
+		got := sv.Less("2.0.0", "1.9.9", "ignored", "ignored")
+
+		// then: left does not sort first
+		testastic.False(t, got)
+	})
+
+	t.Run("equal versions fall back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: identical versions with refs that order alphabetically
+		// when: comparing
+		got := sv.Less("1.2.3", "1.2.3", "abc", "xyz")
+
+		// then: ref tiebreak is used
+		testastic.True(t, got)
+	})
+
+	t.Run("unparseable left version falls back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unparseable left and a valid right
+		// when: comparing
+		got := sv.Less("garbage", "1.2.3", "abc", "xyz")
+
+		// then: ref ordering decides
+		testastic.True(t, got)
+	})
+
+	t.Run("unparseable right version falls back to ref", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid left and an unparseable right
+		// when: comparing
+		got := sv.Less("1.2.3", "garbage", "zzz", "aaa")
+
+		// then: ref ordering decides
+		testastic.False(t, got)
+	})
+}

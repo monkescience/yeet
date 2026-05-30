@@ -606,6 +606,19 @@ func TestCalVerLess(t *testing.T) {
 		// then: ref ordering decides
 		testastic.True(t, got)
 	})
+
+	t.Run("configured short year and unpadded month", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two YY.MM.MICRO versions that do not sort correctly as strings
+		cvShort := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+
+		// when: comparing with the configured format
+		got := cvShort.Less("26.2.9", "26.10.1", "ref-a", "ref-b")
+
+		// then: the earlier month is less
+		testastic.True(t, got)
+	})
 }
 
 func TestCalVerCurrent_AdditionalFormats(t *testing.T) {

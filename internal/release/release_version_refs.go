@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
-	"github.com/monkescience/yeet/internal/version"
 )
 
 type releaseVersionRefs struct {
@@ -226,11 +224,7 @@ func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, 
 		return false
 	}
 
-	if target.Versioning == config.VersioningCalVer {
-		return calVerVersionRefLess(target.CalVer.Format, leftVersion, rightVersion, leftRef, rightRef)
-	}
-
-	return semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef)
+	return a.releaser.strategyForTarget(target).strategy.Less(leftVersion, rightVersion, leftRef, rightRef)
 }
 
 func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref string) error {
@@ -242,55 +236,4 @@ func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref 
 		target.ID,
 		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: a.releaser.cfg.Branch},
 	)
-}
-
-func semVerVersionRefLess(leftVersion, rightVersion, leftRef, rightRef string) bool {
-	leftSemver, err := semver.StrictNewVersion(leftVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	rightSemver, err := semver.StrictNewVersion(rightVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	if !leftSemver.Equal(rightSemver) {
-		return leftSemver.LessThan(rightSemver)
-	}
-
-	return leftRef < rightRef
-}
-
-func calVerVersionRefLess(format, leftVersion, rightVersion, leftRef, rightRef string) bool {
-	calver := &version.CalVer{Format: format}
-
-	return calver.Less(leftVersion, rightVersion, leftRef, rightRef)
-}
-
-func parseCalVerVersion(rawVersion string) ([3]int, error) {
-	calver := &version.CalVer{Format: version.DefaultCalVerFormat}
-
-	normalizedVersion, err := calver.Current(strings.TrimSpace(rawVersion))
-	if err != nil {
-		return [3]int{}, fmt.Errorf("parse calver version %q: %w", rawVersion, err)
-	}
-
-	parts := strings.SplitN(normalizedVersion, ".", 3) //nolint:mnd // default calver has 3 segments
-	if len(parts) != 3 {                               //nolint:mnd // default calver has 3 segments
-		return [3]int{}, fmt.Errorf("%w: %q", version.ErrInvalidVersion, rawVersion)
-	}
-
-	values := [3]int{}
-
-	for idx, part := range parts {
-		value, err := strconv.Atoi(part)
-		if err != nil {
-			return [3]int{}, fmt.Errorf("%w: %q: %v", version.ErrInvalidVersion, rawVersion, err)
-		}
-
-		values[idx] = value
-	}
-
-	return values, nil
 }
