@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.2](https://github.com/monkescience/yeet/compare/v0.10.1...v0.10.2) (2026-05-30)
+
+### Features
+
+- **config:** validate changelog reference patterns at load ([4eda23f](https://github.com/monkescience/yeet/commit/4eda23fb484251e3ac8f07f6c829bfbba551f086))
+- **provider:** make max concurrent API requests configurable ([895b7bb](https://github.com/monkescience/yeet/commit/895b7bb2fe92470afbdada1a48f85b7c28803a65))
+
 ## [v0.10.1](https://github.com/monkescience/yeet/compare/v0.10.0...v0.10.1) (2026-05-29)
 
 ### Bug Fixes
