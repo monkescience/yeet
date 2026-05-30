@@ -6,7 +6,112 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/version"
 )
+
+func currentVersionOrInitial(target config.ResolvedTarget) string {
+	strategy := versionStrategyForResolvedTarget(target)
+	if semverStrategy, ok := strategy.strategy.(*version.SemVer); ok {
+		return semverStrategy.InitialVersion()
+	}
+
+	return ""
+}
+
+func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrategy {
+	var strategy version.Strategy
+
+	switch target.Versioning {
+	case config.VersioningCalVer:
+		strategy = &version.CalVer{
+			Format: target.CalVer.Format,
+			Prefix: target.TagPrefix,
+		}
+	case config.VersioningSemver:
+		strategy = &version.SemVer{
+			Prefix:                     target.TagPrefix,
+			PreMajorBreakingBumpsMinor: target.PreMajorBreakingBumpsMinor,
+			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
+		}
+	}
+
+	return versionStrategy{strategy: strategy, prefix: target.TagPrefix}
+}
+
+func currentVersionWithInitial(target config.ResolvedTarget, currentVersion string) string {
+	if currentVersion != "" {
+		return currentVersion
+	}
+
+	return currentVersionOrInitial(target)
+}
+
+func (a *releaseAnalyzer) nextVersionPlan(
+	target config.ResolvedTarget,
+	commits []commit.Commit,
+	currentVersion string,
+	bumpType commit.BumpType,
+) (string, commit.BumpType, bool, error) {
+	strategy := a.releaser.strategyForTarget(target)
+
+	releaseAsVersion, err := a.releaseAsVersion(target, commits)
+	if err != nil {
+		return "", commit.BumpNone, false, err
+	}
+
+	current := currentVersionWithInitial(target, currentVersion)
+
+	return resolveNextVersion(
+		strategy,
+		target.Versioning,
+		current,
+		bumpType,
+		releaseAsVersion,
+		a.releaser.activePrereleaseIdentifier(),
+	)
+}
+
+func resolveNextVersion(
+	strategy versionStrategy,
+	versioning config.VersioningStrategy,
+	current string,
+	bump commit.BumpType,
+	releaseAsVersion string,
+	prereleaseIdentifier string,
+) (string, commit.BumpType, bool, error) {
+	if prereleaseIdentifier != "" && versioning == config.VersioningSemver {
+		return resolveNextPrereleaseVersion(strategy, current, bump, releaseAsVersion, prereleaseIdentifier)
+	}
+
+	if releaseAsVersion != "" && versioning == config.VersioningSemver {
+		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
+		if err != nil {
+			return "", commit.BumpNone, false, err
+		}
+
+		return nextVersion, overrideBump, true, nil
+	}
+
+	if bump == commit.BumpNone {
+		return "", bump, false, nil
+	}
+
+	nextVersion, err := strategy.strategy.Next(current, bump)
+	if err != nil {
+		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
+	}
+
+	return nextVersion, bump, true, nil
+}
+
+func (a *releaseAnalyzer) releaseAsVersion(target config.ResolvedTarget, commits []commit.Commit) (string, error) {
+	if target.Versioning != config.VersioningSemver {
+		return "", nil
+	}
+
+	return detectReleaseAs(commits)
+}
 
 func detectReleaseAs(commits []commit.Commit) (string, error) {
 	releaseAsVersion := ""
