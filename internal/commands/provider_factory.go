@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/go-git/go-git/v6"
-	gitconfig "github.com/go-git/go-git/v6/config"
 	"github.com/google/go-github/v88/github"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
@@ -27,10 +24,6 @@ var (
 	ErrGitLabProjectNeeded     = errors.New("resolve gitlab repository: project or owner/repo are required")
 	ErrAzureDevOpsCoordsNeeded = errors.New("resolve azuredevops repository: organization, project, and repo are required")
 	ErrRepositoryConflict      = errors.New("resolve repository: project does not match owner/repo")
-	ErrGitRemoteNotFound       = errors.New("git remote not found")
-	ErrGitRemoteHasNoURL       = errors.New("git remote has no url")
-	ErrGitRemoteURLBlank       = errors.New("git remote url is blank")
-	ErrDetachedHead            = errors.New("git head is detached")
 )
 
 const (
@@ -41,155 +34,6 @@ const (
 )
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
-
-func loadConfig(ctx context.Context, path string) (*config.Config, string, error) {
-	resolvedPath, err := resolveConfigPath(ctx, path)
-	if err != nil {
-		return nil, resolvedPath, err
-	}
-
-	cfg, err := config.Load(ctx, resolvedPath)
-	if err != nil {
-		return nil, resolvedPath, fmt.Errorf("load config: %w", err)
-	}
-
-	return cfg, resolvedPath, nil
-}
-
-func resolveConfigPath(ctx context.Context, path string) (string, error) {
-	explicitPath, hasExplicitPath := explicitConfigPath(path)
-	if hasExplicitPath {
-		return explicitPath, nil
-	}
-
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("get working directory: %w", err)
-	}
-
-	searchRoot, err := configSearchRoot(ctx, workingDir)
-	if err != nil {
-		return "", err
-	}
-
-	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
-	if err != nil {
-		return "", fmt.Errorf("discover config path: %w", err)
-	}
-
-	if !found {
-		return config.DefaultFile, missingPathError(config.DefaultFile)
-	}
-
-	return filepath.Join(configDir, config.DefaultFile), nil
-}
-
-func resolveInitConfigPath(ctx context.Context, path string) (string, error) {
-	explicitPath, hasExplicitPath := explicitConfigPath(path)
-	if hasExplicitPath {
-		return explicitPath, nil
-	}
-
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("get working directory: %w", err)
-	}
-
-	searchRoot, err := configSearchRoot(ctx, workingDir)
-	if err != nil {
-		return "", err
-	}
-
-	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
-	if err != nil {
-		return "", fmt.Errorf("discover config path: %w", err)
-	}
-
-	if found {
-		return filepath.Join(configDir, config.DefaultFile), nil
-	}
-
-	if searchRoot == "" {
-		return config.DefaultFile, nil
-	}
-
-	return filepath.Join(searchRoot, config.DefaultFile), nil
-}
-
-func explicitConfigPath(path string) (string, bool) {
-	trimmedPath := strings.TrimSpace(path)
-	if trimmedPath == "" {
-		return "", false
-	}
-
-	return trimmedPath, true
-}
-
-func configSearchRoot(ctx context.Context, startDir string) (string, error) {
-	repositoryRoot, found, err := findAncestorContaining(ctx, startDir, ".git", "")
-	if err != nil {
-		return "", fmt.Errorf("discover git repository: %w", err)
-	}
-
-	if !found {
-		return "", nil
-	}
-
-	return repositoryRoot, nil
-}
-
-func findAncestorContaining(
-	ctx context.Context,
-	startDir string,
-	targetName string,
-	stopDir string,
-) (string, bool, error) {
-	currentDir, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", false, fmt.Errorf("resolve absolute path for %s: %w", startDir, err)
-	}
-
-	resolvedStopDir := ""
-	if stopDir != "" {
-		resolvedStopDir, err = filepath.Abs(stopDir)
-		if err != nil {
-			return "", false, fmt.Errorf("resolve absolute stop path for %s: %w", stopDir, err)
-		}
-	}
-
-	for {
-		ctxErr := ctx.Err()
-		if ctxErr != nil {
-			return "", false, fmt.Errorf("ancestor search cancelled: %w", ctxErr)
-		}
-
-		candidatePath := filepath.Join(currentDir, targetName)
-
-		_, err := os.Stat(candidatePath)
-		switch {
-		case err == nil:
-			return currentDir, true, nil
-		case errors.Is(err, os.ErrNotExist):
-		default:
-			return "", false, fmt.Errorf("stat %s: %w", candidatePath, err)
-		}
-
-		if resolvedStopDir != "" && currentDir == resolvedStopDir {
-			return "", false, nil
-		}
-
-		parentDir := filepath.Dir(currentDir)
-		if parentDir == currentDir {
-			return "", false, nil
-		}
-
-		currentDir = parentDir
-	}
-}
-
-func missingPathError(path string) error {
-	return &os.PathError{Op: "stat", Path: path, Err: os.ErrNotExist}
-}
 
 func newRetryableHTTPClient() *http.Client {
 	client := retryablehttp.NewClient()
@@ -605,93 +449,4 @@ func validateRepositoryCoordinates(repository *provider.RepositoryDescriptor) er
 		repository.Project,
 		expectedProject,
 	)
-}
-
-func getGitRemoteURL(_ context.Context, remote string) (string, error) {
-	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
-		DetectDotGit: true,
-	})
-	if err != nil {
-		return "", fmt.Errorf("open git repository: %w", err)
-	}
-
-	repositoryConfig, err := repository.Config()
-	if err != nil {
-		return "", fmt.Errorf("read git config: %w", err)
-	}
-
-	remoteConfig, exists := repositoryConfig.Remotes[remote]
-	if !exists {
-		return "", fmt.Errorf("%w: %q", ErrGitRemoteNotFound, remote)
-	}
-
-	if len(remoteConfig.URLs) == 0 {
-		return "", fmt.Errorf("%w: %q", ErrGitRemoteHasNoURL, remote)
-	}
-
-	remoteURL := strings.TrimSpace(remoteConfig.URLs[0])
-	if remoteURL == "" {
-		return "", fmt.Errorf("%w: %q", ErrGitRemoteURLBlank, remote)
-	}
-
-	return rewriteGitRemoteURL(remoteURL, repositoryConfig), nil
-}
-
-func currentGitBranch(ctx context.Context) (string, error) {
-	ctxErr := ctx.Err()
-	if ctxErr != nil {
-		return "", fmt.Errorf("current git branch cancelled: %w", ctxErr)
-	}
-
-	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
-		branch := strings.TrimSpace(os.Getenv(envName))
-		if branch != "" {
-			return branch, nil
-		}
-	}
-
-	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
-		DetectDotGit: true,
-	})
-	if err != nil {
-		return "", fmt.Errorf("open git repository: %w", err)
-	}
-
-	head, err := repository.Head()
-	if err != nil {
-		return "", fmt.Errorf("read git head: %w", err)
-	}
-
-	if !head.Name().IsBranch() {
-		return "", fmt.Errorf("%w: %s", ErrDetachedHead, head.Hash())
-	}
-
-	return head.Name().Short(), nil
-}
-
-func rewriteGitRemoteURL(remoteURL string, repositoryConfig *gitconfig.Config) string {
-	if repositoryConfig == nil {
-		return remoteURL
-	}
-
-	rewrittenURL := remoteURL
-	longestMatchLength := 0
-
-	for _, rule := range repositoryConfig.URLs {
-		for _, insteadOfValue := range rule.InsteadOfs {
-			insteadOf := strings.TrimSpace(insteadOfValue)
-			if insteadOf == "" || !strings.HasPrefix(remoteURL, insteadOf) {
-				continue
-			}
-
-			if len(insteadOf) <= longestMatchLength {
-				continue
-			}
-
-			rewrittenURL = rule.ApplyInsteadOf(remoteURL)
-			longestMatchLength = len(insteadOf)
-		}
-	}
-
-	return rewrittenURL
 }
