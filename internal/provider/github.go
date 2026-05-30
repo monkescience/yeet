@@ -16,16 +16,17 @@ const (
 var _ Provider = (*GitHub)(nil)
 
 type GitHub struct {
-	client  *github.Client
-	repo    RepoInfo
-	baseURL string
+	client                *github.Client
+	repo                  RepoInfo
+	baseURL               string
+	maxConcurrentRequests int
 
 	taggerOnce  sync.Once
 	taggerName  string
 	taggerEmail string
 }
 
-func NewGitHub(client *github.Client, owner, repo string) *GitHub {
+func NewGitHub(client *github.Client, owner, repo string, opts ...Option) *GitHub {
 	baseURL := strings.TrimSuffix(client.BaseURL(), "/")
 
 	// Default github.com API uses api.github.com. Enterprise uses <host>/api/v3.
@@ -36,9 +37,10 @@ func NewGitHub(client *github.Client, owner, repo string) *GitHub {
 	}
 
 	return &GitHub{
-		client:  client,
-		repo:    RepoInfo{Owner: owner, Name: repo},
-		baseURL: baseURL,
+		client:                client,
+		repo:                  RepoInfo{Owner: owner, Name: repo},
+		baseURL:               baseURL,
+		maxConcurrentRequests: newConcurrencyConfig(opts).maxConcurrentRequests,
 	}
 }
 

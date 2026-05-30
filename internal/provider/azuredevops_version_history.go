@@ -102,7 +102,8 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
 	}
 
-	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, a.resolveAzureDevOpsObjectID)
+	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(
+		ctx, normalizedRefs, a.resolveAzureDevOpsObjectID, a.maxConcurrentRequests)
 	if err != nil {
 		return CommitHistory{}, err
 	}
@@ -254,7 +255,7 @@ func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCom
 
 func (a *AzureDevOps) fillAzureDevOpsCommitPaths(ctx context.Context, entries []CommitEntry) error {
 	eg, egCtx := errgroup.WithContext(ctx)
-	eg.SetLimit(maxConcurrentProviderRequests)
+	eg.SetLimit(a.maxConcurrentRequests)
 
 	for idx := range entries {
 		eg.Go(func() error {

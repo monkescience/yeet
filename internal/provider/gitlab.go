@@ -10,19 +10,21 @@ import (
 var _ Provider = (*GitLab)(nil)
 
 type GitLab struct {
-	client  *gitlab.Client
-	pid     string
-	baseURL string
+	client                *gitlab.Client
+	pid                   string
+	baseURL               string
+	maxConcurrentRequests int
 }
 
 // NewGitLab creates a provider. pid is the project ID or full path (e.g., "owner/repo").
-func NewGitLab(client *gitlab.Client, project string) *GitLab {
+func NewGitLab(client *gitlab.Client, project string, opts ...Option) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
 
 	return &GitLab{
-		client:  client,
-		pid:     project,
-		baseURL: baseURL + "/" + project,
+		client:                client,
+		pid:                   project,
+		baseURL:               baseURL + "/" + project,
+		maxConcurrentRequests: newConcurrencyConfig(opts).maxConcurrentRequests,
 	}
 }
 

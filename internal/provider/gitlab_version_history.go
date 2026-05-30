@@ -83,7 +83,8 @@ func (g *GitLab) GetCommitsSinceRefs(
 		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
 	}
 
-	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, g.resolveCommitID)
+	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(
+		ctx, normalizedRefs, g.resolveCommitID, g.maxConcurrentRequests)
 	if err != nil {
 		return CommitHistory{}, err
 	}
@@ -155,7 +156,7 @@ func (g *GitLab) GetCommitsSinceRefs(
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(maxConcurrentProviderRequests)
+		eg.SetLimit(g.maxConcurrentRequests)
 
 		for idx := range entries {
 			eg.Go(func() error {

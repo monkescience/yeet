@@ -17,12 +17,13 @@ const azureDevOpsZeroObjectID = "0000000000000000000000000000000000000000"
 var _ Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
-	conn         *azuredevops.Connection
-	baseURL      string
-	organization string
-	collection   string
-	project      string
-	repo         string
+	conn                  *azuredevops.Connection
+	baseURL               string
+	organization          string
+	collection            string
+	project               string
+	repo                  string
+	maxConcurrentRequests int
 
 	clientOnce sync.Once
 	gitClient  git.Client
@@ -38,15 +39,18 @@ type AzureDevOps struct {
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
+	opts ...Option,
 ) *AzureDevOps {
-	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo)
+	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo, opts...)
 }
 
 func NewAzureDevOpsWithSystemAccessToken(
 	httpClient *http.Client,
 	baseURL, token, organization, collection, project, repo string,
+	opts ...Option,
 ) *AzureDevOps {
-	return newAzureDevOps(httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo)
+	return newAzureDevOps(
+		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo, opts...)
 }
 
 func newAzureDevOps(
@@ -54,6 +58,7 @@ func newAzureDevOps(
 	baseURL string,
 	connectionFactory func(string, string) *azuredevops.Connection,
 	token, organization, collection, project, repo string,
+	opts ...Option,
 ) *AzureDevOps {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 
@@ -70,12 +75,13 @@ func newAzureDevOps(
 	}
 
 	return &AzureDevOps{
-		conn:         conn,
-		baseURL:      baseURL,
-		organization: organization,
-		collection:   collection,
-		project:      project,
-		repo:         repo,
+		conn:                  conn,
+		baseURL:               baseURL,
+		organization:          organization,
+		collection:            collection,
+		project:               project,
+		repo:                  repo,
+		maxConcurrentRequests: newConcurrencyConfig(opts).maxConcurrentRequests,
 	}
 }
 

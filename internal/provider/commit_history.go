@@ -9,9 +9,36 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Bounds both parallel boundary-ref resolution and per-commit changed-path
-// fetches so a single batch cannot trigger upstream rate limits.
-const maxConcurrentProviderRequests = 5
+// DefaultMaxConcurrentRequests bounds both parallel boundary-ref resolution and
+// per-commit changed-path fetches per provider so a single batch cannot trigger
+// upstream rate limits. Override it with WithMaxConcurrentRequests.
+const DefaultMaxConcurrentRequests = 8
+
+// Option configures a provider at construction time.
+type Option func(*concurrencyConfig)
+
+type concurrencyConfig struct {
+	maxConcurrentRequests int
+}
+
+func newConcurrencyConfig(opts []Option) concurrencyConfig {
+	cfg := concurrencyConfig{maxConcurrentRequests: DefaultMaxConcurrentRequests}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return cfg
+}
+
+// WithMaxConcurrentRequests overrides how many provider API requests a single
+// batch issues in parallel. Non-positive limits are ignored.
+func WithMaxConcurrentRequests(limit int) Option {
+	return func(c *concurrencyConfig) {
+		if limit > 0 {
+			c.maxConcurrentRequests = limit
+		}
+	}
+}
 
 func normalizeCommitHistoryRefs(refs []string) []string {
 	normalizedRefs := make([]string, 0, len(refs))
@@ -57,6 +84,7 @@ func resolveBoundaryRefs(
 	ctx context.Context,
 	refs []string,
 	resolve func(ctx context.Context, ref string) (string, error),
+	maxConcurrentRequests int,
 ) (map[string][]string, bool, error) {
 	type resolvedRef struct {
 		ref      string
@@ -68,7 +96,7 @@ func resolveBoundaryRefs(
 	hasUnboundedRef := false
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	eg.SetLimit(maxConcurrentProviderRequests)
+	eg.SetLimit(maxConcurrentRequests)
 
 	for idx, ref := range refs {
 		if ref == "" {

@@ -81,7 +81,8 @@ func (g *GitHub) GetCommitsSinceRefs(
 		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
 	}
 
-	boundaryRefsBySHA, hasUnboundedRef, err := resolveBoundaryRefs(ctx, normalizedRefs, g.resolveCommitSHA)
+	boundaryRefsBySHA, hasUnboundedRef, err := resolveBoundaryRefs(
+		ctx, normalizedRefs, g.resolveCommitSHA, g.maxConcurrentRequests)
 	if err != nil {
 		return CommitHistory{}, err
 	}
@@ -157,7 +158,7 @@ func (g *GitHub) GetCommitsSinceRefs(
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(maxConcurrentProviderRequests)
+		eg.SetLimit(g.maxConcurrentRequests)
 
 		for idx := range entries {
 			eg.Go(func() error {

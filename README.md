@@ -501,6 +501,23 @@ The pipeline build service identity or PAT needs repository permissions to creat
 create/update pull requests, manage pull request labels, complete pull requests when auto-merge
 is enabled, and create tags.
 
+## Performance
+
+For monorepos with many targets, yeet fetches commit history and per-commit changed paths from the
+provider API in parallel. The number of concurrent requests per batch defaults to 8.
+
+Set `YEET_MAX_CONCURRENT_REQUESTS` to a higher positive integer to speed up large runs, for example
+on self-hosted instances with higher rate limits:
+
+```sh
+export YEET_MAX_CONCURRENT_REQUESTS=20
+yeet release
+```
+
+Raising it too far can trip provider rate limits. yeet retries rate-limited requests with backoff, so
+start conservatively and increase only if runs are still slow. A value that is not a positive integer
+fails the run.
+
 ## CI examples
 
 ### GitHub Actions with a GitHub App
