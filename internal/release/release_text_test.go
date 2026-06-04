@@ -287,6 +287,22 @@ func TestChangelogEntryByTag(t *testing.T) {
 		testastic.HasPrefix(t, entry, "## v1.2.3")
 	})
 
+	t.Run("extracts indented heading entry", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog whose version heading carries CommonMark leading indentation
+		changelog := "# Changelog\n\n  ## v1.2.3 (2026-03-01)\n\n### Features\n\n" +
+			"- add feature\n\n## v1.2.2 (2026-02-20)\n\n### Bug Fixes\n\n- patch\n"
+
+		// when: extracting entry for the indented heading
+		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+
+		// then: the indented entry is found and bounded at the next heading
+		testastic.NoError(t, err)
+		testastic.HasPrefix(t, entry, "## v1.2.3")
+		testastic.NotContains(t, entry, "v1.2.2")
+	})
+
 	t.Run("returns error for missing tag", func(t *testing.T) {
 		t.Parallel()
 

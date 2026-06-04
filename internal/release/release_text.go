@@ -375,6 +375,10 @@ type changelogSection struct {
 	body    string
 }
 
+// preserveManualChangelogSections carries hand-written notes from existingEntry
+// into generatedEntry when a release PR is refreshed. Only level-3 (### )
+// sections are preserved: freeform text directly under the ## version heading,
+// or headings deeper than ###, are not considered and will be dropped.
 func preserveManualChangelogSections(generatedEntry, existingEntry string) string {
 	generatedSections := changelogLevel3Sections(generatedEntry)
 
@@ -459,16 +463,17 @@ func changelogEntryByTag(changelogBody, tag string) (string, error) {
 	start := -1
 
 	for idx, line := range lines {
-		if !strings.HasPrefix(line, "## ") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "## ") {
 			continue
 		}
 
-		headingTag, ok := headingTag(line)
+		entryTag, ok := headingTag(trimmed)
 		if !ok {
 			continue
 		}
 
-		if headingTag == tag {
+		if entryTag == tag {
 			start = idx
 
 			break
@@ -482,7 +487,7 @@ func changelogEntryByTag(changelogBody, tag string) (string, error) {
 	end := len(lines)
 
 	for idx := start + 1; idx < len(lines); idx++ {
-		if strings.HasPrefix(lines[idx], "## ") {
+		if strings.HasPrefix(strings.TrimSpace(lines[idx]), "## ") {
 			end = idx
 
 			break
