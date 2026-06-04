@@ -384,4 +384,35 @@ Redeploy the previous worker image if queue latency spikes.
 		testastic.NotContains(t, updatedEntry, "custom rewrite")
 		testastic.NotContains(t, updatedEntry, "extra hand-written fix note")
 	})
+
+	t.Run("drops manual content outside level-3 sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing entry with a manual ### section plus freeform text written
+		// directly under the ## version heading, which is not a level-3 section
+		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch issue (abc1234)
+`)
+		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+A heads-up note written directly under the version heading.
+
+### Bug Fixes
+
+- patch issue (abc1234)
+
+### Migration Notes
+
+Run database migrations before deploying workers.
+`)
+
+		// when: preserving manual sections from the existing changelog entry
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+
+		// then: the level-3 manual section survives but freeform text under ## is dropped
+		testastic.AssertFile(t, "testdata/preserve_manual_drops_non_level3.expected.md", updatedEntry)
+	})
 }
