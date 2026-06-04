@@ -59,7 +59,6 @@ type Releaser struct {
 	history   versionHistoryProvider
 	metadata  repoMetadataProvider
 	prs       releasePRProvider
-	overrides releasePRProvider
 	files     releaseFileProvider
 	publisher releasePublishingProvider
 }
@@ -86,7 +85,6 @@ func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*R
 		history:   deps,
 		metadata:  deps,
 		prs:       deps,
-		overrides: deps,
 		files:     deps,
 		publisher: deps,
 	}, nil
