@@ -83,14 +83,14 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 
 	includePaths := needsPathFiltering(targets)
 
-	history, err := a.releaser.history.GetCommitsSinceRefs(
+	history, err := a.history.GetCommitsSinceRefs(
 		ctx,
 		refs,
-		a.releaser.cfg.Branch,
+		a.core.cfg.Branch,
 		includePaths,
 	)
 	if err != nil {
-		return fmt.Errorf("get commits from branch %q: %w", a.releaser.cfg.Branch, err)
+		return fmt.Errorf("get commits from branch %q: %w", a.core.cfg.Branch, err)
 	}
 
 	missingRefs := make(map[string]struct{}, len(history.MissingRefs))
@@ -100,7 +100,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 
 	if len(history.MissingRefs) > 0 {
 		slog.WarnContext(ctx, "shared history scan: refs unreachable from branch",
-			slog.String("branch", a.releaser.cfg.Branch),
+			slog.String("branch", a.core.cfg.Branch),
 			slog.Any("missing_refs", history.MissingRefs),
 		)
 	}
@@ -113,7 +113,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 	for ref, entries := range history.EntriesByRef {
 		a.commitCache[commitCacheKey{
 			ref:          ref,
-			branch:       a.releaser.cfg.Branch,
+			branch:       a.core.cfg.Branch,
 			includePaths: includePaths,
 		}] = entries
 	}
@@ -133,7 +133,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 	a.historyIndex = index
 
 	slog.DebugContext(ctx, "shared history index built",
-		slog.String("branch", a.releaser.cfg.Branch),
+		slog.String("branch", a.core.cfg.Branch),
 		slog.Int("targets_total", len(targets)),
 		slog.Int("targets_indexed", len(index.targets)),
 		slog.Int("refs_requested", len(refs)),
@@ -149,8 +149,8 @@ func (a *releaseAnalyzer) sharedHistoryTargets(selection releaseSelection) map[s
 
 	selectedTargetIDs := targetIDSet(selection.explicitTargets)
 
-	for _, targetID := range sortedTargetIDs(a.releaser.targets, config.TargetTypeDerived) {
-		target := a.releaser.targets[targetID]
+	for _, targetID := range sortedTargetIDs(a.core.targets, config.TargetTypeDerived) {
+		target := a.core.targets[targetID]
 		if len(selectedTargetIDs) > 0 && !derivedTargetEligible(target, selectedTargetIDs) {
 			continue
 		}
@@ -208,9 +208,7 @@ func (a *releaseAnalyzer) commitsSince(
 		return cached, nil
 	}
 
-	r := a.releaser
-
-	history, err := r.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, includePaths)
+	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, includePaths)
 	if err != nil {
 		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
 	}

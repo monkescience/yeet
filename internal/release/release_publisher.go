@@ -11,17 +11,18 @@ import (
 )
 
 type releasePublisher struct {
-	releaser *Releaser
+	core      *releaseCore
+	publisher releasePublishingProvider
 }
 
-func newReleasePublisher(releaser *Releaser) *releasePublisher {
-	return &releasePublisher{releaser: releaser}
+func newReleasePublisher(core *releaseCore, publisher releasePublishingProvider) *releasePublisher {
+	return &releasePublisher{core: core, publisher: publisher}
 }
 
 func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*provider.Release, error) {
-	r := p.releaser
+	r := p.core
 
-	mergedPR, err := r.publisher.FindMergedReleasePR(ctx, r.cfg.Branch)
+	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, r.cfg.Branch)
 	if err != nil {
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
@@ -67,7 +68,7 @@ func (p *releasePublisher) ensureReleasesForResult(
 	for _, plan := range result.Plans {
 		releaseBody := plan.Changelog
 
-		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody, p.releaser.isPrerelease())
+		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody, p.core.isPrerelease())
 		if err != nil {
 			return nil, err
 		}
@@ -105,9 +106,7 @@ func (p *releasePublisher) createReleaseForTag(
 	tag, ref, releaseBody string,
 	prerelease bool,
 ) (*provider.Release, error) {
-	r := p.releaser
-
-	releaseInfo, err := r.publisher.CreateRelease(ctx, provider.ReleaseOptions{
+	releaseInfo, err := p.publisher.CreateRelease(ctx, provider.ReleaseOptions{
 		TagName:    tag,
 		Ref:        ref,
 		Name:       tag,
@@ -131,7 +130,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 	tag, ref, releaseBody string,
 	prerelease bool,
 ) (*provider.Release, error) {
-	r := p.releaser
+	r := p.core
 
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
@@ -142,7 +141,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 		return existingRelease, nil
 	}
 
-	tagExists, err := r.publisher.TagExists(ctx, tag)
+	tagExists, err := p.publisher.TagExists(ctx, tag)
 	if err != nil {
 		return nil, fmt.Errorf("check tag %q: %w", tag, err)
 	}
@@ -160,9 +159,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 }
 
 func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {
-	r := p.releaser
-
-	releaseInfo, err := r.publisher.GetReleaseByTag(ctx, tag)
+	releaseInfo, err := p.publisher.GetReleaseByTag(ctx, tag)
 	if err != nil {
 		if !errors.Is(err, provider.ErrNoRelease) {
 			return nil, false, fmt.Errorf("get release by tag %q: %w", tag, err)
@@ -177,9 +174,7 @@ func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string
 }
 
 func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
-	r := p.releaser
-
-	err := r.publisher.MarkReleasePRTagged(ctx, pullRequest.Number)
+	err := p.publisher.MarkReleasePRTagged(ctx, pullRequest.Number)
 	if err != nil {
 		return fmt.Errorf("mark release PR tagged: %w", err)
 	}
@@ -194,9 +189,9 @@ func (p *releasePublisher) releaseNotesFromChangelog(
 	changelogFile string,
 	tag string,
 ) (string, error) {
-	r := p.releaser
+	r := p.core
 
-	changelogBody, err := r.publisher.GetFile(ctx, r.cfg.Branch, changelogFile)
+	changelogBody, err := p.publisher.GetFile(ctx, r.cfg.Branch, changelogFile)
 	if err != nil {
 		return "", fmt.Errorf("get changelog file %s: %w", changelogFile, err)
 	}

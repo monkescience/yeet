@@ -15,7 +15,7 @@ type releaseSelection struct {
 }
 
 func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSelection, error) {
-	r := a.releaser
+	r := a.core
 	if len(selectedTargetIDs) == 0 {
 		return releaseSelection{
 			explicitTargets:     r.targets,

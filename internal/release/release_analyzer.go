@@ -9,7 +9,9 @@ import (
 )
 
 type releaseAnalyzer struct {
-	releaser        *Releaser
+	core            *releaseCore
+	history         versionHistoryProvider
+	prs             releasePRProvider
 	bumpMapping     commit.BumpMapping
 	commitCache     map[commitCacheKey][]provider.CommitEntry
 	overrideCache   map[string]commitOverrideResult
@@ -20,19 +22,21 @@ type releaseAnalyzer struct {
 	refReachable    map[string]bool
 }
 
-func newReleaseAnalyzer(releaser *Releaser) *releaseAnalyzer {
+func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider, prs releasePRProvider) *releaseAnalyzer {
 	return &releaseAnalyzer{
-		releaser:      releaser,
-		bumpMapping:   releaser.cfg.BumpTypes.ToBumpMapping(),
+		core:          core,
+		history:       history,
+		prs:           prs,
+		bumpMapping:   core.cfg.BumpTypes.ToBumpMapping(),
 		commitCache:   make(map[commitCacheKey][]provider.CommitEntry),
 		overrideCache: make(map[string]commitOverrideResult),
-		overrideTypes: knownCommitTypes(releaser.cfg),
+		overrideTypes: knownCommitTypes(core.cfg),
 		refReachable:  make(map[string]bool),
 	}
 }
 
 func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []string) (*Result, error) {
-	r := a.releaser
+	r := a.core
 	result := &Result{BaseBranch: r.cfg.Branch}
 
 	selection, err := a.selectTargets(selectedTargetIDs)

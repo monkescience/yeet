@@ -3,83 +3,12 @@ package release
 import (
 	"fmt"
 	"strings"
-
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 type prSection struct {
 	id   string
 	plan *TargetPlan
 	body string
-}
-
-func (r *Releaser) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
-	manifest := releaseManifestForPlans(result.BaseBranch, result.Plans)
-	manifest.Channel = strings.TrimSpace(r.cfg.ActiveChannel)
-	manifest.Prerelease = r.isPrerelease()
-
-	manifestMarker, err := releaseManifestMarker(manifest)
-	if err != nil {
-		return provider.ReleasePROptions{}, err
-	}
-
-	changelogBody := r.combinedPRChangelog(result)
-
-	return provider.ReleasePROptions{
-		Title:         r.releaseSubject(result),
-		Body:          r.releasePRBody(changelogBody, manifestMarker),
-		BaseBranch:    r.cfg.Branch,
-		ReleaseBranch: releaseBranch,
-		Files:         map[string]string{},
-	}, nil
-}
-
-func (r *Releaser) releaseSubject(result *Result) string {
-	plans := result.Plans
-	if len(plans) == 1 {
-		version := plans[0].NextVersion
-
-		if r.cfg.Release.SubjectIncludeBranch {
-			return fmt.Sprintf("chore(%s): release %s", r.cfg.Branch, version)
-		}
-
-		return "chore: release " + version
-	}
-
-	if r.cfg.Release.SubjectIncludeBranch {
-		return fmt.Sprintf("chore(%s): release wave", r.cfg.Branch)
-	}
-
-	return "chore: release wave"
-}
-
-func (r *Releaser) combinedPRChangelog(result *Result) string {
-	plans := result.Plans
-	if len(plans) == 0 {
-		return ""
-	}
-
-	if len(plans) == 1 {
-		if plans[0].PRChangelog != "" {
-			return plans[0].PRChangelog
-		}
-
-		return plans[0].Changelog
-	}
-
-	sections := buildPRSections(plans)
-
-	var body strings.Builder
-	body.WriteString("## Release wave\n\n")
-	fmt.Fprintf(&body, "Base branch: `%s`\n", result.BaseBranch)
-	fmt.Fprintf(&body, "Targets: %s", formatSectionTargetList(sections))
-
-	for _, section := range sections {
-		body.WriteString("\n\n")
-		body.WriteString(renderFlatPRSection(section))
-	}
-
-	return body.String()
 }
 
 func buildPRSections(plans []TargetPlan) []prSection {
@@ -433,28 +362,6 @@ func changelogLevel3Sections(markdown string) []changelogSection {
 	}
 
 	return sections
-}
-
-func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {
-	parts := make([]string, 0)
-
-	if header := strings.TrimSpace(r.cfg.Release.PRBodyHeader); header != "" {
-		parts = append(parts, header)
-	}
-
-	if body := strings.TrimSpace(changelogBody); body != "" {
-		parts = append(parts, body)
-	}
-
-	if marker := strings.TrimSpace(manifestMarker); marker != "" {
-		parts = append(parts, marker)
-	}
-
-	if footer := strings.TrimSpace(r.cfg.Release.PRBodyFooter); footer != "" {
-		parts = append(parts, footer)
-	}
-
-	return strings.Join(parts, "\n\n")
 }
 
 func changelogEntryByTag(changelogBody, tag string) (string, error) {

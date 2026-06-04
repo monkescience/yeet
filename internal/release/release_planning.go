@@ -62,7 +62,7 @@ func (a *releaseAnalyzer) commitOverride(
 		return cached, nil
 	}
 
-	body, found, err := a.releaser.prs.CommitPullRequestBody(ctx, hash)
+	body, found, err := a.prs.CommitPullRequestBody(ctx, hash)
 	if err != nil {
 		return commitOverrideResult{}, fmt.Errorf("find commit override for %q: %w", hash, err)
 	}
@@ -101,7 +101,7 @@ func (a *releaseAnalyzer) planPathTargets(
 	ctx context.Context,
 	selectedTargets map[string]config.ResolvedTarget,
 ) (map[string]TargetPlan, error) {
-	r := a.releaser
+	r := a.core
 	plans := make(map[string]TargetPlan)
 
 	for _, targetID := range sortedTargetIDs(selectedTargets, config.TargetTypePath) {
@@ -127,7 +127,7 @@ func (a *releaseAnalyzer) planDerivedTargets(
 	selectedTargets map[string]config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (map[string]TargetPlan, error) {
-	r := a.releaser
+	r := a.core
 	plans := make(map[string]TargetPlan)
 	selectedTargetIDs := make(map[string]struct{}, len(selectedTargets))
 
@@ -209,11 +209,11 @@ func (a *releaseAnalyzer) planDirectTarget(
 		slog.String("target", target.ID),
 		slog.String("current_version", currentVersion),
 		slog.String("boundary_ref", ref),
-		slog.String("branch", a.releaser.cfg.Branch),
+		slog.String("branch", a.core.cfg.Branch),
 	)
 
 	if !ok {
-		entries, err = a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+		entries, err = a.commitsSince(ctx, ref, a.core.cfg.Branch, needsPathFiltering(a.analyzedTargets))
 		if err != nil {
 			return TargetPlan{}, false, err
 		}
@@ -303,7 +303,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		if ok {
 			allEntries = sharedHistory.entries
 		} else {
-			entries, commitsErr := a.commitsSince(ctx, ref, a.releaser.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+			entries, commitsErr := a.commitsSince(ctx, ref, a.core.cfg.Branch, needsPathFiltering(a.analyzedTargets))
 			if commitsErr != nil {
 				return TargetPlan{}, false, commitsErr
 			}
@@ -318,7 +318,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		directEntries = filterEntriesForTarget(allEntries, target)
 	}
 
-	childEntries := filterEntriesForPlans(allEntries, childPlans, a.releaser.targets)
+	childEntries := filterEntriesForPlans(allEntries, childPlans, a.core.targets)
 
 	directCommits, err := a.parseCommits(ctx, directEntries)
 	if err != nil {
@@ -374,7 +374,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		target,
 		childPlans,
 		includeDirectCommits,
-		a.releaser.targets,
+		a.core.targets,
 	)
 	plan.commitHashes = uniqueEntryHashes(directEntries, childEntries)
 
@@ -397,7 +397,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		childPlans,
 		plan.PRCompareRef,
 		false,
-		a.releaser,
+		a.core.metadata,
 	)
 	plan.PRChangelog = renderDerivedChangelog(
 		ctx,
@@ -408,7 +408,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		childPlans,
 		plan.PRCompareRef,
 		true,
-		a.releaser,
+		a.core.metadata,
 	)
 
 	for _, childPlan := range childPlans {
@@ -448,12 +448,12 @@ func (a *releaseAnalyzer) newTargetPlan(
 
 	setPlanVersions(&plan, strategy, baseVersion)
 
-	plan.Changelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, plan.NextTag, commits, a.releaser)
+	plan.Changelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, plan.NextTag, commits, a.core.metadata)
 	plan.PRChangelog = plan.Changelog
 
 	if ref != "" && len(entries) > 0 {
 		plan.PRCompareRef = strings.TrimSpace(entries[0].Hash)
-		plan.PRChangelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, entries[0].Hash, commits, a.releaser)
+		plan.PRChangelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, entries[0].Hash, commits, a.core.metadata)
 	}
 
 	return plan

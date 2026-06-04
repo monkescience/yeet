@@ -10,23 +10,32 @@ import (
 )
 
 type releasePRWorkflow struct {
-	releaser      *Releaser
+	core          *releaseCore
+	prs           releasePRProvider
+	files         releaseFileProvider
 	branchUpdater *releaseBranchUpdater
 	publisher     *releasePublisher
 }
 
-func newReleasePRWorkflow(releaser *Releaser) *releasePRWorkflow {
+func newReleasePRWorkflow(
+	core *releaseCore,
+	prs releasePRProvider,
+	files releaseFileProvider,
+	publisher releasePublishingProvider,
+) *releasePRWorkflow {
 	return &releasePRWorkflow{
-		releaser:      releaser,
-		branchUpdater: newReleaseBranchUpdater(releaser),
-		publisher:     newReleasePublisher(releaser),
+		core:          core,
+		prs:           prs,
+		files:         files,
+		branchUpdater: newReleaseBranchUpdater(core, files),
+		publisher:     newReleasePublisher(core, publisher),
 	}
 }
 
 func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) (*provider.PullRequest, error) {
-	r := w.releaser
+	r := w.core
 
-	pendingPRs, err := r.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch)
+	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch)
 	if err != nil {
 		return nil, fmt.Errorf("find pending release PRs: %w", err)
 	}
@@ -70,7 +79,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 		return nil
 	}
 
-	r := w.releaser
+	r := w.core
 
 	for idx := range result.Plans {
 		plan := &result.Plans[idx]
@@ -80,7 +89,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		existingChangelog, err := r.files.GetFile(ctx, releaseBranch, target.Changelog.File)
+		existingChangelog, err := w.files.GetFile(ctx, releaseBranch, target.Changelog.File)
 		if err != nil {
 			if errors.Is(err, provider.ErrFileNotFound) {
 				continue
@@ -108,7 +117,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 }
 
 func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {
-	r := w.releaser
+	r := w.core
 
 	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
 	if !autoMergeEnabled || result.PullRequest == nil {
@@ -120,7 +129,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		Method: provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
-	err := r.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
+	err := w.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.Force {
 			return fmt.Errorf("force merge release PR: %w", err)
@@ -153,11 +162,9 @@ func (w *releasePRWorkflow) updateExisting(
 	prOpts provider.ReleasePROptions,
 	result *Result,
 ) (*provider.PullRequest, error) {
-	r := w.releaser
-
 	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
 
-	err := r.prs.UpdateReleasePR(ctx, existing.Number, prOpts)
+	err := w.prs.UpdateReleasePR(ctx, existing.Number, prOpts)
 	if err != nil {
 		return nil, fmt.Errorf("update release PR: %w", err)
 	}
@@ -167,7 +174,7 @@ func (w *releasePRWorkflow) updateExisting(
 		return nil, err
 	}
 
-	err = r.prs.MarkReleasePRPending(ctx, existing.Number)
+	err = w.prs.MarkReleasePRPending(ctx, existing.Number)
 	if err != nil {
 		return nil, fmt.Errorf("mark release PR pending: %w", err)
 	}
@@ -184,9 +191,9 @@ func (w *releasePRWorkflow) createNew(
 	prOpts provider.ReleasePROptions,
 	result *Result,
 ) (*provider.PullRequest, error) {
-	r := w.releaser
+	r := w.core
 
-	err := r.prs.CreateBranch(ctx, releaseBranch, r.cfg.Branch)
+	err := w.prs.CreateBranch(ctx, releaseBranch, r.cfg.Branch)
 	if err != nil {
 		return nil, fmt.Errorf("create release branch: %w", err)
 	}
@@ -196,12 +203,12 @@ func (w *releasePRWorkflow) createNew(
 		return nil, err
 	}
 
-	pr, err := r.prs.CreateReleasePR(ctx, prOpts)
+	pr, err := w.prs.CreateReleasePR(ctx, prOpts)
 	if err != nil {
 		return nil, fmt.Errorf("create release PR: %w", err)
 	}
 
-	err = r.prs.MarkReleasePRPending(ctx, pr.Number)
+	err = w.prs.MarkReleasePRPending(ctx, pr.Number)
 	if err != nil {
 		return nil, fmt.Errorf("mark release PR pending: %w", err)
 	}

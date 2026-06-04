@@ -68,10 +68,9 @@ func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVer
 		return *a.versionRefs, nil
 	}
 
-	r := a.releaser
 	refs := releaseVersionRefs{}
 
-	preferredRef, err := r.history.GetLatestVersionRef(ctx)
+	preferredRef, err := a.history.GetLatestVersionRef(ctx)
 	if err != nil && !errors.Is(err, provider.ErrNoVersionRef) {
 		return releaseVersionRefs{}, fmt.Errorf("get latest version ref: %w", err)
 	}
@@ -81,7 +80,7 @@ func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVer
 		refs.hasPreferred = true
 	}
 
-	tags, err := r.history.ListTags(ctx)
+	tags, err := a.history.ListTags(ctx)
 	if err != nil {
 		return releaseVersionRefs{}, fmt.Errorf("list tags: %w", err)
 	}
@@ -142,7 +141,7 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 
 	prerelease := strings.TrimSpace(parsedVersion.Prerelease())
 
-	channelName := strings.TrimSpace(a.releaser.cfg.ActiveChannel)
+	channelName := strings.TrimSpace(a.core.cfg.ActiveChannel)
 	if channelName == "" {
 		return prerelease == ""
 	}
@@ -151,7 +150,7 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 		return true
 	}
 
-	channel, exists := a.releaser.cfg.Release.Channels[channelName]
+	channel, exists := a.core.cfg.Release.Channels[channelName]
 	if !exists {
 		return false
 	}
@@ -166,9 +165,7 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string
 		return reachable, nil
 	}
 
-	r := a.releaser
-
-	history, err := r.history.GetCommitsSinceRefs(ctx, []string{ref}, r.cfg.Branch, false)
+	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, a.core.cfg.Branch, false)
 	if err != nil {
 		return false, fmt.Errorf("validate version ref %q: %w", ref, err)
 	}
@@ -232,8 +229,8 @@ func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref 
 		"previous release ref %q is not reachable from release branch %q for target %q; "+
 			"verify the latest tag/release and branch ancestry: %w",
 		ref,
-		a.releaser.cfg.Branch,
+		a.core.cfg.Branch,
 		target.ID,
-		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: a.releaser.cfg.Branch},
+		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
 	)
 }

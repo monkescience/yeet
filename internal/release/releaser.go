@@ -54,10 +54,8 @@ type TargetPlan struct {
 }
 
 type Releaser struct {
-	cfg       *config.Config
-	targets   map[string]config.ResolvedTarget
+	core      *releaseCore
 	history   versionHistoryProvider
-	metadata  repoMetadataProvider
 	prs       releasePRProvider
 	files     releaseFileProvider
 	publisher releasePublishingProvider
@@ -80,10 +78,8 @@ func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*R
 	}
 
 	return &Releaser{
-		cfg:       cfg,
-		targets:   targets,
+		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps},
 		history:   deps,
-		metadata:  deps,
 		prs:       deps,
 		files:     deps,
 		publisher: deps,
@@ -163,7 +159,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		)
 	}
 
-	result, err := newReleaseAnalyzer(r).analyze(ctx, selectedTargetIDs)
+	result, err := newReleaseAnalyzer(r.core, r.history, r.prs).analyze(ctx, selectedTargetIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +178,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return result, nil
 	}
 
-	workflow := newReleasePRWorkflow(r)
+	workflow := newReleasePRWorkflow(r.core, r.prs, r.files, r.publisher)
 
 	pr, err := workflow.createOrUpdate(ctx, result)
 	if err != nil {
@@ -200,7 +196,8 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 }
 
 func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result, error) {
-	release, err := newReleasePublisher(r).ensureReleaseForTag(ctx, tag, r.cfg.Branch, changelogBody, false)
+	release, err := newReleasePublisher(r.core, r.publisher).
+		ensureReleaseForTag(ctx, tag, r.core.cfg.Branch, changelogBody, false)
 	if err != nil {
 		return nil, err
 	}
@@ -215,29 +212,11 @@ func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result,
 }
 
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
-	return newReleasePublisher(r).finalizeMergedReleasePR(ctx)
+	return newReleasePublisher(r.core, r.publisher).finalizeMergedReleasePR(ctx)
 }
 
 func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, result *Result) error {
-	return newReleaseBranchUpdater(r).updateFiles(ctx, branch, result)
-}
-
-func (r *Releaser) activePrereleaseIdentifier() string {
-	channelName := strings.TrimSpace(r.cfg.ActiveChannel)
-	if channelName == "" {
-		return ""
-	}
-
-	channel, exists := r.cfg.Release.Channels[channelName]
-	if !exists {
-		return ""
-	}
-
-	return strings.TrimSpace(channel.Prerelease)
-}
-
-func (r *Releaser) isPrerelease() bool {
-	return r.activePrereleaseIdentifier() != ""
+	return newReleaseBranchUpdater(r.core, r.files).updateFiles(ctx, branch, result)
 }
 
 func releaseBumpOrder(bumpType commit.BumpType) int {

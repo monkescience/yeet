@@ -20,7 +20,7 @@ func TestReleasePRBody(t *testing.T) {
 		changelogBody := "## v1.2.4 (2026-03-01)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
 
 		// when: building PR body
-		body := r.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->")
+		body := r.core.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: changelog is wrapped by default header, manifest, and footer notes
 		testastic.Equal(
@@ -45,7 +45,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->")
+		body := r.core.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: body contains header, changelog, manifest, and footer in order
 		testastic.Equal(
@@ -67,7 +67,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body := r.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->")
+		body := r.core.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->")
 
 		// then: body keeps only changelog and manifest, no wrapper text
 		testastic.Equal(
@@ -103,7 +103,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result)
 
 		// then: the single-target changelog stays unchanged
 		testastic.Equal(t, prChangelog, body)
@@ -176,7 +176,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result)
 
 		// then: the output matches the expected multi-target release wave markdown
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_multi_target.expected.md", body)
@@ -235,7 +235,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog for the mixed release wave
-		body := r.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result)
 
 		// then: the output matches the expected derived-target markdown with embedded child sections
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_embedded_children.expected.md", body)

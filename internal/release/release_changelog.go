@@ -15,20 +15,20 @@ func renderTargetChangelog(
 	target config.ResolvedTarget,
 	nextTag, ref, compareTarget string,
 	commits []commit.Commit,
-	releaser *Releaser,
+	metadata repoMetadataProvider,
 ) string {
 	gen := changelog.New(
 		changelog.WithSections(target.Changelog.Sections),
 		changelog.WithInclude(target.Changelog.Include),
-		changelog.WithRepoURL(releaser.metadata.RepoURL()),
-		changelog.WithPathPrefix(releaser.metadata.PathPrefix()),
-		changelog.WithCompareURL(releaser.metadata.CompareURL),
+		changelog.WithRepoURL(metadata.RepoURL()),
+		changelog.WithPathPrefix(metadata.PathPrefix()),
+		changelog.WithCompareURL(metadata.CompareURL),
 		changelog.WithReferences(target.Changelog.References),
 	)
 
 	entry := gen.Generate(ctx, nextTag, ref, commits)
 	if ref != "" && compareTarget != "" {
-		entry.CompareURL = releaser.metadata.CompareURL(ref, compareTarget)
+		entry.CompareURL = metadata.CompareURL(ref, compareTarget)
 	}
 
 	return changelog.Render(entry)
@@ -43,12 +43,12 @@ func renderDerivedChangelog(
 	childPlans []TargetPlan,
 	prCompareRef string,
 	prMode bool,
-	releaser *Releaser,
+	metadata repoMetadataProvider,
 ) string {
 	var body strings.Builder
 
 	if len(directCommits) > 0 {
-		directEntry := renderTargetChangelog(ctx, target, nextTag, ref, nextTag, directCommits, releaser)
+		directEntry := renderTargetChangelog(ctx, target, nextTag, ref, nextTag, directCommits, metadata)
 		body.WriteString(changelogBodyWithoutHeading(directEntry))
 	}
 
@@ -80,7 +80,7 @@ func renderDerivedChangelog(
 		}
 
 		if compareTarget != "" {
-			entry.CompareURL = releaser.metadata.CompareURL(ref, compareTarget)
+			entry.CompareURL = metadata.CompareURL(ref, compareTarget)
 		}
 	}
 

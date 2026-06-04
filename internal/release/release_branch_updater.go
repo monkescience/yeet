@@ -15,15 +15,16 @@ import (
 )
 
 type releaseBranchUpdater struct {
-	releaser *Releaser
+	core  *releaseCore
+	files releaseFileProvider
 }
 
-func newReleaseBranchUpdater(releaser *Releaser) *releaseBranchUpdater {
-	return &releaseBranchUpdater{releaser: releaser}
+func newReleaseBranchUpdater(core *releaseCore, files releaseFileProvider) *releaseBranchUpdater {
+	return &releaseBranchUpdater{core: core, files: files}
 }
 
 func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, result *Result) error {
-	r := u.releaser
+	r := u.core
 	files := map[string]string{}
 
 	for _, plan := range result.Plans {
@@ -45,7 +46,7 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 		}
 
 		for _, versionFile := range target.VersionFiles {
-			content, fileErr := r.files.GetFile(ctx, r.cfg.Branch, versionFile.Path)
+			content, fileErr := u.files.GetFile(ctx, r.cfg.Branch, versionFile.Path)
 			if fileErr != nil {
 				return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
 			}
@@ -76,7 +77,7 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 		}
 	}
 
-	err := r.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
+	err := u.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
 	}
@@ -113,13 +114,13 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	target config.ResolvedTarget,
 	changelogEntry string,
 ) (string, error) {
-	r := u.releaser
+	r := u.core
 
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
 		return prependChangelogEntry(existing, changelogEntry), nil
 	}
 
-	existing, err := r.files.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
+	existing, err := u.files.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
 	if err != nil {
 		if errors.Is(err, provider.ErrFileNotFound) {
 			return changelog.Prepend("", changelogEntry), nil
