@@ -212,7 +212,7 @@ type renderedChangelog struct {
 }
 
 func parseRenderedChangelog(changelogBody string) renderedChangelog {
-	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
+	lines := splitLines(changelogBody)
 	for idx, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if trimmedLine == "" {
@@ -261,13 +261,10 @@ func parseRenderedChangelogHeading(heading string, parsedChangelog *renderedChan
 }
 
 func parseLinkedChangelogHeading(heading string) (string, string, string, bool) {
-	tagEndIdx := strings.Index(heading, "]")
-	if tagEndIdx <= 1 {
+	tag, linkPortion, ok := bracketTag(heading)
+	if !ok {
 		return "", "", heading, false
 	}
-
-	tag := heading[1:tagEndIdx]
-	linkPortion := heading[tagEndIdx+1:]
 
 	afterOpen, found := strings.CutPrefix(linkPortion, "(")
 	if !found {
@@ -282,6 +279,28 @@ func parseLinkedChangelogHeading(heading string) (string, string, string, bool) 
 	return tag, compareURL, strings.TrimSpace(remainingHeading), true
 }
 
+// splitLines normalizes CRLF to LF and splits the text into lines. Every
+// changelog scanner in this package works on the same line shape.
+func splitLines(text string) []string {
+	return strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+}
+
+// bracketTag extracts the tag from a "[tag]..." prefix, returning the tag and
+// the portion following the closing bracket. It reports false when the text
+// does not open with a non-empty "[tag]".
+func bracketTag(text string) (string, string, bool) {
+	if !strings.HasPrefix(text, "[") {
+		return "", "", false
+	}
+
+	closeIdx := strings.Index(text, "]")
+	if closeIdx <= 1 {
+		return "", "", false
+	}
+
+	return text[1:closeIdx], text[closeIdx+1:], true
+}
+
 func splitDerivedChangelogBody(changelogBody string, includedTargets []string) (string, map[string]string) {
 	childBodies := make(map[string]string, len(includedTargets))
 	if len(includedTargets) == 0 {
@@ -293,7 +312,7 @@ func splitDerivedChangelogBody(changelogBody string, includedTargets []string) (
 		headerToTargetID["### "+includedTargetID] = includedTargetID
 	}
 
-	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
+	lines := splitLines(changelogBody)
 	sections := make([]struct {
 		TargetID string
 		Start    int
@@ -382,7 +401,7 @@ func preserveManualChangelogSections(generatedEntry, existingEntry string) strin
 }
 
 func changelogLevel3Sections(markdown string) []changelogSection {
-	lines := strings.Split(strings.ReplaceAll(markdown, "\r\n", "\n"), "\n")
+	lines := splitLines(markdown)
 	starts := make([]int, 0)
 
 	for idx, line := range lines {
@@ -435,7 +454,7 @@ func (r *Releaser) releasePRBody(changelogBody, manifestMarker string) string {
 }
 
 func changelogEntryByTag(changelogBody, tag string) (string, error) {
-	lines := strings.Split(strings.ReplaceAll(changelogBody, "\r\n", "\n"), "\n")
+	lines := splitLines(changelogBody)
 
 	start := -1
 
@@ -485,12 +504,9 @@ func headingTag(line string) (string, bool) {
 	}
 
 	if strings.HasPrefix(rest, "[") {
-		idx := strings.Index(rest, "]")
-		if idx <= 1 {
-			return "", false
-		}
+		tag, _, ok := bracketTag(rest)
 
-		return rest[1:idx], true
+		return tag, ok
 	}
 
 	fields := strings.Fields(rest)

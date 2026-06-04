@@ -88,7 +88,7 @@ func renderDerivedChangelog(
 }
 
 func changelogBodyWithoutHeading(renderedEntry string) string {
-	lines := strings.Split(strings.ReplaceAll(renderedEntry, "\r\n", "\n"), "\n")
+	lines := splitLines(renderedEntry)
 	for idx, line := range lines {
 		if strings.HasPrefix(line, "## ") {
 			return strings.TrimSpace(strings.Join(lines[idx+1:], "\n"))
