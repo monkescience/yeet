@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GORELEASER_VERSION: v2.15.4 # renovate: datasource=github-releases depName=goreleaser/goreleaser
+  GORELEASER_VERSION: v2.16.0 # renovate: datasource=github-releases depName=goreleaser/goreleaser
 
 jobs:
   publish:
