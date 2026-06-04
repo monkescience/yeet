@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,25 +12,17 @@ import (
 )
 
 func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
-	release, err := g.latestRelease(ctx)
-	if err == nil {
-		return release.GetTagName(), nil
-	}
+	return latestVersionRefWithReleaseFallback(ctx,
+		func(ctx context.Context) (string, error) {
+			release, err := g.latestRelease(ctx)
+			if err != nil {
+				return "", err
+			}
 
-	if !errors.Is(err, ErrNoRelease) {
-		return "", err
-	}
-
-	tags, err := g.ListTags(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	if len(tags) == 0 {
-		return "", ErrNoVersionRef
-	}
-
-	return tags[0], nil
+			return release.GetTagName(), nil
+		},
+		g.ListTags,
+	)
 }
 
 func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
