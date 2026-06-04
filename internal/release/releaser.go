@@ -224,10 +224,6 @@ func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, 
 	return newReleaseBranchUpdater(r).updateFiles(ctx, branch, result)
 }
 
-func (r *Releaser) strategyForTarget(target config.ResolvedTarget) versionStrategy {
-	return versionStrategyForResolvedTarget(target)
-}
-
 func (r *Releaser) activePrereleaseIdentifier() string {
 	channelName := strings.TrimSpace(r.cfg.ActiveChannel)
 	if channelName == "" {

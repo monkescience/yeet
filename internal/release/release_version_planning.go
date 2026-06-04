@@ -53,7 +53,7 @@ func (a *releaseAnalyzer) nextVersionPlan(
 	currentVersion string,
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
-	strategy := a.releaser.strategyForTarget(target)
+	strategy := versionStrategyForResolvedTarget(target)
 
 	releaseAsVersion, err := a.releaseAsVersion(target, commits)
 	if err != nil {

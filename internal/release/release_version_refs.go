@@ -115,7 +115,7 @@ func (a *releaseAnalyzer) currentVersionFromReachableRef(
 }
 
 func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, ref string) (string, bool) {
-	strategy := a.releaser.strategyForTarget(target)
+	strategy := versionStrategyForResolvedTarget(target)
 
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -224,7 +224,7 @@ func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, 
 		return false
 	}
 
-	return a.releaser.strategyForTarget(target).strategy.Less(leftVersion, rightVersion, leftRef, rightRef)
+	return versionStrategyForResolvedTarget(target).strategy.Less(leftVersion, rightVersion, leftRef, rightRef)
 }
 
 func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref string) error {

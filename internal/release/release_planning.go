@@ -350,7 +350,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 
 	nextVersion := directNextVersion
 	if !directShouldRelease || releaseBumpOrder(finalBumpType) > releaseBumpOrder(directNextBumpType) {
-		nextVersion, err = a.releaser.strategyForTarget(target).strategy.Next(
+		nextVersion, err = versionStrategyForResolvedTarget(target).strategy.Next(
 			currentVersionWithInitial(target, currentVersion),
 			finalBumpType,
 		)
@@ -428,7 +428,7 @@ func (a *releaseAnalyzer) newTargetPlan(
 	entries []provider.CommitEntry,
 	commits []commit.Commit,
 ) TargetPlan {
-	strategy := a.releaser.strategyForTarget(target)
+	strategy := versionStrategyForResolvedTarget(target)
 	plan := TargetPlan{
 		ID:             target.ID,
 		Type:           string(target.Type),
