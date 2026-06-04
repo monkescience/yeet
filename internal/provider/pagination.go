@@ -95,3 +95,50 @@ func paginateAzureDevOps[T any](
 
 	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
 }
+
+// paginateAzureDevOpsBySkip iterates a paginated ADO endpoint that uses the
+// $skip/$top offset model (e.g. GetCommits, which returns no continuation
+// token). fetch is called with the current skip offset (0 on the first call)
+// and returns the page items; pagination stops when a page returns fewer than
+// pageSize items. ctx is checked between pages, and items are handed to handle,
+// which may signal early termination by returning stop=true.
+func paginateAzureDevOpsBySkip[T any](
+	ctx context.Context,
+	resource string,
+	pageSize int,
+	fetch func(skip int) (items []T, err error),
+	handle func(T) (stop bool, err error),
+) error {
+	skip := 0
+
+	for range maxPaginationPages {
+		err := ctx.Err()
+		if err != nil {
+			return fmt.Errorf("paginate %s: %w", resource, err)
+		}
+
+		items, err := fetch(skip)
+		if err != nil {
+			return err
+		}
+
+		for _, item := range items {
+			stop, err := handle(item)
+			if err != nil {
+				return err
+			}
+
+			if stop {
+				return nil
+			}
+		}
+
+		if len(items) < pageSize {
+			return nil
+		}
+
+		skip += len(items)
+	}
+
+	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
+}

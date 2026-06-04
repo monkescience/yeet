@@ -108,9 +108,7 @@ func (g *GitHub) GetCommitsSinceRefs(
 		slog.Bool("include_paths", includePaths),
 	)
 
-	entries := make([]CommitEntry, 0)
-	positions := make(map[string]int, len(boundaryRefsBySHA))
-	foundSHAs := make(map[string]struct{}, len(boundaryRefsBySHA))
+	scanner := newCommitBoundaryScanner(boundaryRefsBySHA, hasUnboundedRef)
 
 	err = paginate(ctx, "listing commits",
 		func(page int) ([]*github.RepositoryCommit, int, error) {
@@ -124,37 +122,14 @@ func (g *GitHub) GetCommitsSinceRefs(
 			return commits, gitHubNextPage(resp), nil
 		},
 		func(c *github.RepositoryCommit) (bool, error) {
-			sha := c.GetSHA()
-
-			boundaryRefs, isBoundary := boundaryRefsBySHA[sha]
-			if isBoundary {
-				for _, ref := range boundaryRefs {
-					positions[ref] = len(entries)
-				}
-
-				foundSHAs[sha] = struct{}{}
-
-				// Terminate before appending only when no older ref still needs
-				// this commit. Otherwise we must include it so older refs see
-				// the full slice of commits since their own boundary.
-				if len(foundSHAs) == len(boundaryRefsBySHA) && !hasUnboundedRef {
-					return true, nil
-				}
-			}
-
-			entries = append(entries, CommitEntry{
-				Hash:    sha,
-				Message: c.GetCommit().GetMessage(),
-			})
-
-			return false, nil
+			return scanner.observe(c.GetSHA(), c.GetCommit().GetMessage()), nil
 		},
 	)
 	if err != nil {
 		return CommitHistory{}, err
 	}
 
-	entries = trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
+	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
@@ -179,11 +154,11 @@ func (g *GitHub) GetCommitsSinceRefs(
 		}
 	}
 
-	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, positions)
+	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, scanner.positions)
 	slog.DebugContext(ctx, "github: fetched commits for refs",
 		slog.Int("entries", len(entries)),
 		slog.Int("missing_refs", len(history.MissingRefs)),
-		slog.Bool("early_terminated", !hasUnboundedRef && len(foundSHAs) == len(boundaryRefsBySHA)),
+		slog.Bool("early_terminated", scanner.earlyTerminated()),
 		slog.Bool("unbounded_ref", hasUnboundedRef),
 	)
 

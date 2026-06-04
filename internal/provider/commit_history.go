@@ -57,6 +57,57 @@ func normalizeCommitHistoryRefs(refs []string) []string {
 	return normalizedRefs
 }
 
+// commitBoundaryScanner walks a provider's commit list newest-first, recording
+// where each boundary ref's commit appears and accumulating the commits in
+// order. It is the shared core of every provider's GetCommitsSinceRefs, so the
+// three providers differ only in how they fetch and decode a commit.
+type commitBoundaryScanner struct {
+	boundaryRefsByID map[string][]string
+	hasUnboundedRef  bool
+	entries          []CommitEntry
+	positions        map[string]int
+	foundIDs         map[string]struct{}
+}
+
+func newCommitBoundaryScanner(boundaryRefsByID map[string][]string, hasUnboundedRef bool) *commitBoundaryScanner {
+	return &commitBoundaryScanner{
+		boundaryRefsByID: boundaryRefsByID,
+		hasUnboundedRef:  hasUnboundedRef,
+		entries:          make([]CommitEntry, 0),
+		positions:        make(map[string]int, len(boundaryRefsByID)),
+		foundIDs:         make(map[string]struct{}, len(boundaryRefsByID)),
+	}
+}
+
+// observe records one commit by id and message, returning true when the walk
+// can stop. It terminates before appending only when every boundary ref has
+// been located and no unbounded ("") ref still needs older commits. Otherwise
+// the boundary commit is appended too, so older refs see the full slice of
+// commits since their own boundary.
+func (s *commitBoundaryScanner) observe(id, message string) bool {
+	if boundaryRefs, isBoundary := s.boundaryRefsByID[id]; isBoundary {
+		for _, ref := range boundaryRefs {
+			s.positions[ref] = len(s.entries)
+		}
+
+		s.foundIDs[id] = struct{}{}
+
+		if len(s.foundIDs) == len(s.boundaryRefsByID) && !s.hasUnboundedRef {
+			return true
+		}
+	}
+
+	s.entries = append(s.entries, CommitEntry{Hash: id, Message: message})
+
+	return false
+}
+
+// earlyTerminated reports whether the scan located every boundary ref without
+// needing to walk the full history (used only for debug logging).
+func (s *commitBoundaryScanner) earlyTerminated() bool {
+	return !s.hasUnboundedRef && len(s.foundIDs) == len(s.boundaryRefsByID)
+}
+
 func cloneCommitEntries(entries []CommitEntry) []CommitEntry {
 	cloned := make([]CommitEntry, len(entries))
 	copy(cloned, entries)

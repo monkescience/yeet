@@ -125,76 +125,41 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 		return CommitHistory{}, err
 	}
 
-	entries := make([]CommitEntry, 0)
-	positions := make(map[string]int, len(boundaryRefsByID))
-	foundIDs := make(map[string]struct{}, len(boundaryRefsByID))
-	skip := 0
 	top := azureDevOpsRefPageSize
+	criteria := buildAzureDevOpsCommitCriteria(branch, "")
+	scanner := newCommitBoundaryScanner(boundaryRefsByID, hasUnboundedRef)
 
-	for range maxPaginationPages {
-		err := ctx.Err()
-		if err != nil {
-			return CommitHistory{}, fmt.Errorf("paginate commits: %w", err)
-		}
-
-		criteria := buildAzureDevOpsCommitCriteria(branch, "")
-
-		pageCommits, err := gitClient.GetCommits(ctx, git.GetCommitsArgs{
-			RepositoryId:   &a.repo,
-			Project:        &a.project,
-			SearchCriteria: criteria,
-			Skip:           &skip,
-			Top:            &top,
-		})
-		if err != nil {
-			return CommitHistory{}, fmt.Errorf("list commits: %w", err)
-		}
-
-		if pageCommits == nil {
-			break
-		}
-
-		for _, commit := range *pageCommits {
-			commitID := derefString(commit.CommitId)
-
-			boundaryRefs, isBoundary := boundaryRefsByID[commitID]
-			if isBoundary {
-				for _, ref := range boundaryRefs {
-					positions[ref] = len(entries)
-				}
-
-				foundIDs[commitID] = struct{}{}
-
-				// Terminate before appending only when no older ref still needs
-				// this commit. Otherwise we must include it so older refs see
-				// the full slice of commits since their own boundary.
-				if len(foundIDs) == len(boundaryRefsByID) && !hasUnboundedRef {
-					trimmed := trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
-
-					return a.commitHistoryWithPaths(ctx, normalizedRefs, trimmed, positions, includePaths, true, hasUnboundedRef)
-				}
+	err = paginateAzureDevOpsBySkip(ctx, "listing commits", top,
+		func(skip int) ([]git.GitCommitRef, error) {
+			pageCommits, err := gitClient.GetCommits(ctx, git.GetCommitsArgs{
+				RepositoryId:   &a.repo,
+				Project:        &a.project,
+				SearchCriteria: criteria,
+				Skip:           &skip,
+				Top:            &top,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("list commits: %w", err)
 			}
 
-			entries = append(entries, CommitEntry{
-				Hash:    commitID,
-				Message: derefString(commit.Comment),
-			})
-		}
+			if pageCommits == nil {
+				return nil, nil
+			}
 
-		if len(*pageCommits) < azureDevOpsRefPageSize {
-			trimmed := trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
-
-			return a.commitHistoryWithPaths(ctx, normalizedRefs, trimmed, positions, includePaths, false, hasUnboundedRef)
-		}
-
-		skip += len(*pageCommits)
+			return *pageCommits, nil
+		},
+		func(commit git.GitCommitRef) (bool, error) {
+			return scanner.observe(derefString(commit.CommitId), derefString(commit.Comment)), nil
+		},
+	)
+	if err != nil {
+		return CommitHistory{}, err
 	}
 
-	return CommitHistory{}, fmt.Errorf(
-		"%w: exceeded %d pages listing commits",
-		ErrPaginationLimitExceeded,
-		maxPaginationPages,
-	)
+	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
+
+	return a.commitHistoryWithPaths(
+		ctx, normalizedRefs, entries, scanner.positions, includePaths, scanner.earlyTerminated(), hasUnboundedRef)
 }
 
 func (a *AzureDevOps) commitHistoryWithPaths(

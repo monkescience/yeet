@@ -108,9 +108,7 @@ func (g *GitLab) GetCommitsSinceRefs(
 		slog.Bool("include_paths", includePaths),
 	)
 
-	entries := make([]CommitEntry, 0)
-	positions := make(map[string]int, len(boundaryRefsByID))
-	foundIDs := make(map[string]struct{}, len(boundaryRefsByID))
+	scanner := newCommitBoundaryScanner(boundaryRefsByID, hasUnboundedRef)
 
 	err = paginate(ctx, "listing commits",
 		func(page int) ([]*gitlab.Commit, int, error) {
@@ -124,35 +122,14 @@ func (g *GitLab) GetCommitsSinceRefs(
 			return commits, gitLabNextPage(resp), nil
 		},
 		func(c *gitlab.Commit) (bool, error) {
-			boundaryRefs, isBoundary := boundaryRefsByID[c.ID]
-			if isBoundary {
-				for _, ref := range boundaryRefs {
-					positions[ref] = len(entries)
-				}
-
-				foundIDs[c.ID] = struct{}{}
-
-				// Terminate before appending only when no older ref still needs
-				// this commit. Otherwise we must include it so older refs see
-				// the full slice of commits since their own boundary.
-				if len(foundIDs) == len(boundaryRefsByID) && !hasUnboundedRef {
-					return true, nil
-				}
-			}
-
-			entries = append(entries, CommitEntry{
-				Hash:    c.ID,
-				Message: c.Message,
-			})
-
-			return false, nil
+			return scanner.observe(c.ID, c.Message), nil
 		},
 	)
 	if err != nil {
 		return CommitHistory{}, err
 	}
 
-	entries = trimEntriesToReferencedRange(entries, positions, hasUnboundedRef)
+	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
 
 	if includePaths && len(entries) > 0 {
 		eg, egCtx := errgroup.WithContext(ctx)
@@ -177,11 +154,11 @@ func (g *GitLab) GetCommitsSinceRefs(
 		}
 	}
 
-	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, positions)
+	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, scanner.positions)
 	slog.DebugContext(ctx, "gitlab: fetched commits for refs",
 		slog.Int("entries", len(entries)),
 		slog.Int("missing_refs", len(history.MissingRefs)),
-		slog.Bool("early_terminated", !hasUnboundedRef && len(foundIDs) == len(boundaryRefsByID)),
+		slog.Bool("early_terminated", scanner.earlyTerminated()),
 		slog.Bool("unbounded_ref", hasUnboundedRef),
 	)
 
