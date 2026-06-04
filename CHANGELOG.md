@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.10.4](https://github.com/monkescience/yeet/compare/v0.10.3...v0.10.4) (2026-06-04)
+
+### Bug Fixes
+
+- **release:** match indented changelog headings when extracting entries ([eaeb9a5](https://github.com/monkescience/yeet/commit/eaeb9a59d3972051994b3fdabb2e0636cca63703))
+### Performance Improvements
+
+- **provider:** query azure devops pull requests by commit instead of listing all ([5fdac89](https://github.com/monkescience/yeet/commit/5fdac89f96fd3d1dbca5a2036709fcb755fe0397))
+
 ## [v0.10.3](https://github.com/monkescience/yeet/compare/v0.10.2...v0.10.3) (2026-06-04)
 
 ### Bug Fixes
