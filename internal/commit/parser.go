@@ -116,6 +116,10 @@ func parseBody(c *Commit, lines []string) {
 			continue
 		}
 
+		if len(c.Footers) == 0 {
+			continue
+		}
+
 		last := &c.Footers[len(c.Footers)-1]
 		last.Value += "\n" + line
 	}

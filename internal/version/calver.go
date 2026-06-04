@@ -111,8 +111,8 @@ func (c *CalVer) Less(leftVersion, rightVersion, leftRef, rightRef string) bool 
 		return leftRef < rightRef
 	}
 
-	if compareCalVerParts(format, leftParts, rightParts) != 0 {
-		return compareCalVerParts(format, leftParts, rightParts) < 0
+	if cmp := compareCalVerParts(format, leftParts, rightParts); cmp != 0 {
+		return cmp < 0
 	}
 
 	return leftRef < rightRef
