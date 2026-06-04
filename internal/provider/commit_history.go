@@ -138,6 +138,32 @@ func (s *commitBoundaryScanner) earlyTerminated() bool {
 	return !s.hasUnboundedRef && len(s.foundIDs) == len(s.boundaryRefsByID)
 }
 
+// pathSet accumulates changed-file paths in encounter order, trimming blanks
+// and discarding duplicates. It is the shared accumulator for providers whose
+// change payloads expose both a current and a previous path per file.
+type pathSet struct {
+	paths []string
+	seen  map[string]struct{}
+}
+
+func newPathSet() *pathSet {
+	return &pathSet{paths: make([]string, 0), seen: make(map[string]struct{})}
+}
+
+func (p *pathSet) add(candidate string) {
+	normalized := strings.TrimSpace(candidate)
+	if normalized == "" {
+		return
+	}
+
+	if _, exists := p.seen[normalized]; exists {
+		return
+	}
+
+	p.seen[normalized] = struct{}{}
+	p.paths = append(p.paths, normalized)
+}
+
 func cloneCommitEntries(entries []CommitEntry) []CommitEntry {
 	cloned := make([]CommitEntry, len(entries))
 	copy(cloned, entries)

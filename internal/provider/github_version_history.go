@@ -200,8 +200,7 @@ func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, erro
 
 func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) {
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
-	paths := make([]string, 0)
-	seen := make(map[string]struct{})
+	paths := newPathSet()
 
 	err := paginate(ctx, fmt.Sprintf("listing commit paths for %q", sha),
 		func(page int) ([]*github.CommitFile, int, error) {
@@ -215,22 +214,8 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 			return commitDetails.Files, gitHubNextPage(resp), nil
 		},
 		func(changedFile *github.CommitFile) (bool, error) {
-			addPath := func(candidatePath string) {
-				normalizedPath := strings.TrimSpace(candidatePath)
-				if normalizedPath == "" {
-					return
-				}
-
-				if _, exists := seen[normalizedPath]; exists {
-					return
-				}
-
-				seen[normalizedPath] = struct{}{}
-				paths = append(paths, normalizedPath)
-			}
-
-			addPath(changedFile.GetFilename())
-			addPath(changedFile.GetPreviousFilename())
+			paths.add(changedFile.GetFilename())
+			paths.add(changedFile.GetPreviousFilename())
 
 			return false, nil
 		},
@@ -239,5 +224,5 @@ func (g *GitHub) commitPaths(ctx context.Context, sha string) ([]string, error) 
 		return nil, err
 	}
 
-	return paths, nil
+	return paths.paths, nil
 }

@@ -192,8 +192,7 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 	options := &gitlab.GetCommitDiffOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
 	}
-	paths := make([]string, 0)
-	seen := make(map[string]struct{})
+	paths := newPathSet()
 
 	err := paginate(ctx, fmt.Sprintf("listing commit paths for %q", sha),
 		func(page int) ([]*gitlab.Diff, int, error) {
@@ -207,22 +206,8 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 			return diffs, gitLabNextPage(resp), nil
 		},
 		func(diff *gitlab.Diff) (bool, error) {
-			addPath := func(candidatePath string) {
-				normalizedPath := strings.TrimSpace(candidatePath)
-				if normalizedPath == "" {
-					return
-				}
-
-				if _, exists := seen[normalizedPath]; exists {
-					return
-				}
-
-				seen[normalizedPath] = struct{}{}
-				paths = append(paths, normalizedPath)
-			}
-
-			addPath(diff.NewPath)
-			addPath(diff.OldPath)
+			paths.add(diff.NewPath)
+			paths.add(diff.OldPath)
 
 			return false, nil
 		},
@@ -231,5 +216,5 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 		return nil, err
 	}
 
-	return paths, nil
+	return paths.paths, nil
 }
