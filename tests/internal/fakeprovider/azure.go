@@ -2,6 +2,7 @@ package fakeprovider
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -232,6 +233,38 @@ func azurePullRequestsListHandler(opts AzureOptions) http.HandlerFunc {
 	}
 }
 
+// azurePullRequestQueryHandler answers the pullRequestQuery endpoint used by
+// CommitPullRequestBody. It returns the merged pending-release PR keyed by its
+// merge commit SHA only under MergedPendingRelease, mirroring the completed-PR
+// listing it replaced. All other commits resolve to no pull request.
+func azurePullRequestQueryHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Queries []struct {
+				Items []string `json:"items"`
+			} `json:"queries"`
+		}
+
+		_ = json.NewDecoder(r.Body).Decode(&request)
+
+		matches := map[string][]map[string]any{}
+
+		if opts.MergedPendingRelease {
+			for _, query := range request.Queries {
+				for _, item := range query.Items {
+					if item == fakeMergeSHA {
+						matches[item] = []map[string]any{azureMergedPendingPR(opts)}
+					}
+				}
+			}
+		}
+
+		writeJSON(w, map[string]any{
+			azureKeyResults: []map[string][]map[string]any{matches},
+		})
+	}
+}
+
 func azureCommitChangesHandler(opts AzureOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sha := r.PathValue("id")
@@ -263,6 +296,8 @@ func azureCommitChangesHandler(opts AzureOptions) http.HandlerFunc {
 
 func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 	mux.HandleFunc("GET "+repoAPI+"/pullRequests", azurePullRequestsListHandler(opts))
+
+	mux.HandleFunc("POST "+repoAPI+"/pullRequestQuery", azurePullRequestQueryHandler(opts))
 
 	mux.HandleFunc("POST "+repoAPI+"/pullRequests", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, azureFakePR(opts))

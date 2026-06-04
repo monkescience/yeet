@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "merge-sha": [
+        {
+          "pullRequestId": 42,
+          "description": "override body",
+          "status": "completed"
+        }
+      ]
+    }
+  ]
+}

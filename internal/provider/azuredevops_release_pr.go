@@ -418,20 +418,51 @@ func (a *AzureDevOps) CommitPullRequestBody(ctx context.Context, hash string) (s
 		return "", false, nil
 	}
 
-	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Completed, "")
+	gitClient, err := a.client(ctx)
 	if err != nil {
-		return "", false, fmt.Errorf("list pull requests for commit %q: %w", commitHash, err)
+		return "", false, err
 	}
 
-	for _, pr := range prs {
-		if azureDevOpsMergeCommit(&pr) != commitHash {
-			continue
+	queryType := git.GitPullRequestQueryTypeValues.LastMergeCommit
+
+	query, err := gitClient.GetPullRequestQuery(ctx, git.GetPullRequestQueryArgs{
+		RepositoryId: &a.repo,
+		Project:      &a.project,
+		Queries: &git.GitPullRequestQuery{
+			Queries: &[]git.GitPullRequestQueryInput{{
+				Type:  &queryType,
+				Items: &[]string{commitHash},
+			}},
+		},
+	})
+	if err != nil {
+		return "", false, fmt.Errorf("query pull requests for commit %q: %w", commitHash, err)
+	}
+
+	prs := azureDevOpsCommitQueryResult(query, commitHash)
+	if len(prs) == 0 {
+		return "", false, nil
+	}
+
+	return derefString(prs[0].Description), true, nil
+}
+
+// azureDevOpsCommitQueryResult extracts the pull requests matching commitHash
+// from a GetPullRequestQuery response. Results[n] holds a commit->PRs map for
+// the n-th query input, so a single-commit query lands in the one entry that
+// contains commitHash.
+func azureDevOpsCommitQueryResult(query *git.GitPullRequestQuery, commitHash string) []git.GitPullRequest {
+	if query == nil || query.Results == nil {
+		return nil
+	}
+
+	for _, result := range *query.Results {
+		if prs, ok := result[commitHash]; ok {
+			return prs
 		}
-
-		return derefString(pr.Description), true, nil
 	}
 
-	return "", false, nil
+	return nil
 }
 
 func (a *AzureDevOps) getPullRequest(ctx context.Context, number int) (*git.GitPullRequest, error) {

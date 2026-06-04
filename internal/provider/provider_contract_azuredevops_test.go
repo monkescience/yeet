@@ -183,6 +183,10 @@ func isAzureDevOpsPullRequestsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests")
 }
 
+func isAzureDevOpsPullRequestQueryRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pullRequestQuery")
+}
+
 func azureDevOpsLatestReleaseHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
@@ -485,13 +489,13 @@ func azureDevOpsCommitPRBodyHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAzureDevOpsPullRequestsListRequest(r) {
+		if !isAzureDevOpsPullRequestQueryRequest(r) {
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 
 			return
 		}
 
-		writeJSONFixture(t, w, azureDevOpsContractFixture("commit_pr_body", "pull_requests.json"))
+		writeJSONFixture(t, w, azureDevOpsContractFixture("commit_pr_body", "pull_request_query.json"))
 	}
 }
 
