@@ -555,7 +555,11 @@ func TestHandleReleaseResult(t *testing.T) {
 }
 
 func TestWrapReleaseExecutionError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("merge blocked suggests the next action", func(t *testing.T) {
+		t.Parallel()
+
 		// given: an auto-merge attempt blocked by provider readiness rules
 		err := wrapReleaseExecutionError(fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked))
 
@@ -566,6 +570,8 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 	})
 
 	t.Run("multiple pending PRs advises cleanup", func(t *testing.T) {
+		t.Parallel()
+
 		// given: multiple pending release PRs found
 		err := wrapReleaseExecutionError(fmt.Errorf("%w: found 2", release.ErrMultiplePendingReleasePRs))
 
@@ -575,6 +581,8 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 	})
 
 	t.Run("generic error wraps with execution prefix", func(t *testing.T) {
+		t.Parallel()
+
 		// given: an unrecognized error
 		err := wrapReleaseExecutionError(errors.New("unexpected failure"))
 
