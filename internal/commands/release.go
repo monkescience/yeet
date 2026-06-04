@@ -45,7 +45,20 @@ version, generate a changelog, and create or update a release PR/MR.
 
 When a merged release PR/MR is waiting with the pending autorelease label,
 this command first creates the tag/release from the latest changelog entry and
-marks the PR/MR as tagged.`,
+marks the PR/MR as tagged.
+
+Settings resolve in priority order: command-line flag, then the .yeet.yaml
+config file, then the built-in default. A .yeet.yaml file is required (run
+"yeet init" to create one).
+
+Authentication tokens are read only from environment variables, never from
+flags or config:
+  GitHub:       GITHUB_TOKEN or GH_TOKEN (optional GITHUB_URL for Enterprise)
+  GitLab:       GITLAB_TOKEN or GL_TOKEN (optional GITLAB_URL for self-hosted)
+  Azure DevOps: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT
+                (optional AZURE_DEVOPS_URL)
+
+YEET_MAX_CONCURRENT_REQUESTS caps concurrent provider API requests.`,
 		Example: releaseHelpExample,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
