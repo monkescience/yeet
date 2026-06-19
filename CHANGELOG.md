@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.10.5](https://github.com/monkescience/yeet/compare/v0.10.4...v0.10.5) (2026-06-19)
+
+### Bug Fixes
+
+- **deps:** update module go.yaml.in/yaml/v4 to v4.0.0-rc.5 (#137) ([bdd8549](https://github.com/monkescience/yeet/commit/bdd85499862a8058f864b9595eab1094efe76e1a))
+- **deps:** update module github.com/monkescience/testastic to v0.4.0 (#138) ([32b9b23](https://github.com/monkescience/yeet/commit/32b9b23917727dfbe2c204b872bdb73a82967c16))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.39.0 (#139) ([adfb712](https://github.com/monkescience/yeet/commit/adfb7126dc1de0d7e2c8fc390f43d12943792c9b))
+- **deps:** update module charm.land/lipgloss/v2 to v2.0.4 (#136) ([881bbca](https://github.com/monkescience/yeet/commit/881bbca8a3f6c7f81b6a41db494152f16692a873))
+- **deps:** update module golang.org/x/sync to v0.21.0 (#133) ([d7d4918](https://github.com/monkescience/yeet/commit/d7d4918c59192a3b7fabda6c434cc390ce537c13))
+
 ## [v0.10.4](https://github.com/monkescience/yeet/compare/v0.10.3...v0.10.4) (2026-06-04)
 
 ### Bug Fixes
