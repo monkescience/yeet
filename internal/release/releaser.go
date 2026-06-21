@@ -195,22 +195,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	return result, nil
 }
 
-func (r *Releaser) Tag(ctx context.Context, tag, changelogBody string) (*Result, error) {
-	release, err := newReleasePublisher(r.core, r.publisher).
-		ensureReleaseForTag(ctx, tag, r.core.cfg.Branch, changelogBody, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Result{
-		Plans: []TargetPlan{{
-			NextTag:   tag,
-			Changelog: changelogBody,
-		}},
-		Releases: []*provider.Release{release},
-	}, nil
-}
-
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
 	return newReleasePublisher(r.core, r.publisher).finalizeMergedReleasePR(ctx)
 }

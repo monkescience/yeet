@@ -7,8 +7,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-
-	"github.com/monkescience/yeet/internal/commit"
 )
 
 type Release struct {
@@ -127,16 +125,6 @@ const azureDevOpsSSHHost = "ssh.dev.azure.com"
 const azureDevOpsLegacyHostSuffix = ".visualstudio.com"
 
 const providerNameAzureDevOps = "azuredevops"
-
-func ParseCommits(ctx context.Context, entries []CommitEntry) []commit.Commit {
-	commits := make([]commit.Commit, 0, len(entries))
-
-	for _, e := range entries {
-		commits = append(commits, commit.Parse(ctx, e.Hash, e.Message))
-	}
-
-	return commits
-}
 
 var (
 	ErrUnknownRemote           = errors.New("unable to parse remote URL")

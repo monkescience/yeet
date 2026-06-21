@@ -27,7 +27,7 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 	}
 
 	// when: rendering and parsing the release manifest marker
-	marker, err := releaseManifestMarker(releaseManifestForResult(result))
+	marker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
 	testastic.NoError(t, err)
 
 	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: marker})

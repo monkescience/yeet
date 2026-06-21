@@ -186,44 +186,6 @@ func TestDetectType(t *testing.T) {
 	})
 }
 
-func TestParseCommits(t *testing.T) {
-	t.Parallel()
-
-	t.Run("parses commit entries", func(t *testing.T) {
-		t.Parallel()
-
-		// given: raw commit entries
-		entries := []provider.CommitEntry{
-			{Hash: "abc123", Message: "feat: add new feature"},
-			{Hash: "def456", Message: "fix(auth): resolve token issue"},
-			{Hash: "ghi789", Message: "not a conventional commit"},
-		}
-
-		// when: parsing commits
-		commits := provider.ParseCommits(t.Context(), entries)
-
-		// then: all commits are parsed
-		testastic.Equal(t, 3, len(commits))
-		testastic.Equal(t, "feat", commits[0].Type)
-		testastic.Equal(t, "fix", commits[1].Type)
-		testastic.Equal(t, "auth", commits[1].Scope)
-		testastic.Equal(t, "", commits[2].Type)
-	})
-}
-
-func TestParseCommitsEmpty(t *testing.T) {
-	t.Parallel()
-
-	// given: no commit entries
-	var entries []provider.CommitEntry
-
-	// when: parsing commits
-	commits := provider.ParseCommits(t.Context(), entries)
-
-	// then: empty result
-	testastic.Equal(t, 0, len(commits))
-}
-
 func TestGitHubVersionLookup(t *testing.T) {
 	t.Parallel()
 

@@ -53,10 +53,6 @@ func stableReleaseBranch(targetBranch string) string {
 	return releaseBranchPrefix + targetBranch
 }
 
-func releaseManifestForResult(result *Result) releaseManifest {
-	return releaseManifestForPlans(result.BaseBranch, result.Plans)
-}
-
 func releaseManifestForPlans(baseBranch string, plans []TargetPlan) releaseManifest {
 	manifest := releaseManifest{
 		BaseBranch: baseBranch,

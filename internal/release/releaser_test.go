@@ -1661,58 +1661,6 @@ repository:
 	})
 }
 
-func TestTagAcceptsStableTagsWithHyphenatedPrefix(t *testing.T) {
-	t.Parallel()
-
-	// given: a releaser with a hyphenated tag prefix
-	cfg := config.Default()
-	cfg.Targets = map[string]config.Target{
-		"default": {
-			Type:      config.TargetTypePath,
-			Path:      ".",
-			TagPrefix: "release-",
-		},
-	}
-
-	stub := newProviderStub()
-	r := newTestReleaser(t, cfg, stub)
-
-	// when: creating a stable tag
-	_, err := r.Tag(context.Background(), "release-1.2.3", "")
-
-	// then: tag is accepted
-	testastic.NoError(t, err)
-	testastic.Equal(t, 1, stub.createReleaseCalls)
-	testastic.Equal(t, 1, len(stub.createReleaseOpts))
-	testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
-}
-
-func TestTagReusesExistingRelease(t *testing.T) {
-	t.Parallel()
-
-	// given: a stable tag that already has a release object
-	cfg := config.Default()
-
-	stub := newProviderStub()
-	stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
-	stub.releasesByTag["v1.2.3"] = &provider.Release{
-		TagName: "v1.2.3",
-		URL:     "https://example.com/releases/v1.2.3",
-	}
-
-	r := newTestReleaser(t, cfg, stub)
-
-	// when: creating the same stable tag again
-	result, err := r.Tag(context.Background(), "v1.2.3", "release notes")
-
-	// then: the existing release is reused without another create call
-	testastic.NoError(t, err)
-	testastic.NotEqual(t, (*Result)(nil), result)
-	testastic.True(t, len(result.Releases) > 0)
-	testastic.Equal(t, "v1.2.3", result.Releases[0].TagName)
-	testastic.Equal(t, 0, stub.createReleaseCalls)
-}
-
 func TestUpdateReleaseBranchFiles(t *testing.T) {
 	t.Parallel()
 
