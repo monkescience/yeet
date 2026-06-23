@@ -38,7 +38,7 @@ Flags:
       --host string                override repository host, such as github.com or gitlab.company.com
       --owner string               override repository owner or namespace for github-style repositories
       --project string             override full GitLab project path, including subgroups
-      --provider string            override provider: auto|github|gitlab
+      --provider string            override provider: auto|github|gitlab|azuredevops
       --remote string              override git remote used for repository auto-detection
       --repo string                override repository name for github-style repositories
       --target stringArray         limit analysis to one or more configured targets; repeatable
