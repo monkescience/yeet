@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.6](https://github.com/monkescience/yeet/compare/v0.10.5...v0.10.6) (2026-06-23)
+
+### Bug Fixes
+
+- **deps:** update golang.org/x/crypto to v0.53.0 ([386bf0c](https://github.com/monkescience/yeet/commit/386bf0c73aeadb4ca9c3b9ef6a8f166ec9286971))
+- **deps:** update module go.yaml.in/yaml/v4 to v4.0.0-rc.6 (#141) ([c987b50](https://github.com/monkescience/yeet/commit/c987b50a7fa0f2c3a7022e4d7eeb2b7cdde10928))
+
 ## [v0.10.5](https://github.com/monkescience/yeet/compare/v0.10.4...v0.10.5) (2026-06-19)
 
 ### Bug Fixes
