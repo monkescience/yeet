@@ -115,8 +115,8 @@ github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJu
 gitlab.com/gitlab-org/api/client-go/v2 v2.39.0 h1:avIIRj2sia1bGYCXy6nIeuBFWNzwQppZf+eGjVMNh7E=
 gitlab.com/gitlab-org/api/client-go/v2 v2.39.0/go.mod h1:SKUbKSS59KPt6WeGNJoYF8HDaf/rFMUSITlftj/HkLg=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
-go.yaml.in/yaml/v4 v4.0.0-rc.5 h1:JVliQq9EGOYaTgMi+k8BhUJyqcGk4ZqeuiN1Cirba9c=
-go.yaml.in/yaml/v4 v4.0.0-rc.5/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
+go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
+go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
 golang.org/x/crypto v0.51.0 h1:IBPXwPfKxY7cWQZ38ZCIRPI50YLeevDLlLnyC5wRGTI=
 golang.org/x/crypto v0.51.0/go.mod h1:8AdwkbraGNABw2kOX6YFPs3WM22XqI4EXEd8g+x7Oc8=
 golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f h1:W3F4c+6OLc6H2lb//N1q4WpJkhzJCK5J6kUi1NTVXfM=
