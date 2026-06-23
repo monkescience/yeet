@@ -30,7 +30,8 @@ func NewRoot() *cobra.Command {
 		Use:   build.ServiceName,
 		Short: "Automate releases based on conventional commits",
 		Long: `yeet analyzes conventional commits to automatically determine the next
-version, generate changelogs, and create release PRs/MRs on GitHub or GitLab.
+version, generate changelogs, and create release PRs/MRs on GitHub, GitLab, or
+Azure DevOps.
 
 On the default branch it also finalizes merged release PRs/MRs labeled
 autorelease: pending by creating the provider release and relabeling them as

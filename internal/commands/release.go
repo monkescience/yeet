@@ -92,7 +92,7 @@ type releaseFlagValues struct {
 
 func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "show the planned release without creating a PR/MR")
-	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: auto|github|gitlab")
+	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: auto|github|gitlab|azuredevops")
 	cmd.Flags().StringVar(&flags.remote, "remote", "", "override git remote used for repository auto-detection")
 	cmd.Flags().StringVar(&flags.host, "host", "", "override repository host, such as github.com or gitlab.company.com")
 	cmd.Flags().StringVar(
