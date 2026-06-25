@@ -3,6 +3,8 @@ package commands //nolint:testpackage // validates unexported printVersion behav
 import (
 	"bytes"
 	"testing"
+
+	"github.com/monkescience/testastic"
 )
 
 func TestPrintVersion_buildBinary(t *testing.T) {
@@ -22,9 +24,7 @@ func TestPrintVersion_buildBinary(t *testing.T) {
 
 	// when: printVersion is invoked
 	err := printVersion(&buf, info)
-	if err != nil {
-		t.Fatalf("printVersion returned error: %v", err)
-	}
+	testastic.NoError(t, err)
 
 	// then: output emits commit (not module-sum) and the full provenance block
 	want := "name: yeet\n" +
@@ -33,9 +33,7 @@ func TestPrintVersion_buildBinary(t *testing.T) {
 		"built: 2026-03-20T12:34:56Z\n" +
 		"platform: linux/amd64\n" +
 		"go-version: go1.26.0\n"
-	if got := buf.String(); got != want {
-		t.Errorf("printVersion output = %q, want %q", got, want)
-	}
+	testastic.Equal(t, want, buf.String())
 }
 
 func TestPrintVersion_goInstallBinary(t *testing.T) {
@@ -56,9 +54,7 @@ func TestPrintVersion_goInstallBinary(t *testing.T) {
 
 	// when: printVersion is invoked
 	err := printVersion(&buf, info)
-	if err != nil {
-		t.Fatalf("printVersion returned error: %v", err)
-	}
+	testastic.NoError(t, err)
 
 	// then: output emits module-sum in place of commit
 	want := "name: yeet\n" +
@@ -67,7 +63,5 @@ func TestPrintVersion_goInstallBinary(t *testing.T) {
 		"built: unknown\n" +
 		"platform: darwin/arm64\n" +
 		"go-version: go1.26.0\n"
-	if got := buf.String(); got != want {
-		t.Errorf("printVersion output = %q, want %q", got, want)
-	}
+	testastic.Equal(t, want, buf.String())
 }

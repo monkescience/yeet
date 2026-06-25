@@ -3,6 +3,8 @@ package build_test
 import (
 	"testing"
 
+	"github.com/monkescience/testastic"
+
 	"github.com/monkescience/yeet/internal/build"
 )
 
@@ -10,9 +12,7 @@ func TestServiceName(t *testing.T) {
 	t.Parallel()
 
 	// then: ServiceName is the constant "yeet"
-	if build.ServiceName != "yeet" {
-		t.Errorf("ServiceName = %q, want %q", build.ServiceName, "yeet")
-	}
+	testastic.Equal(t, "yeet", build.ServiceName)
 }
 
 func TestVersion_ldflagTakesPrecedence(t *testing.T) {
@@ -23,9 +23,7 @@ func TestVersion_ldflagTakesPrecedence(t *testing.T) {
 	got := build.Version()
 
 	// then: the ldflag value is returned
-	if got != "v1.2.3" {
-		t.Errorf("Version() = %q, want %q", got, "v1.2.3")
-	}
+	testastic.Equal(t, "v1.2.3", got)
 }
 
 func TestVersion_fallsBackToBuildInfo(t *testing.T) {
@@ -36,9 +34,7 @@ func TestVersion_fallsBackToBuildInfo(t *testing.T) {
 	got := build.Version()
 
 	// then: debug.ReadBuildInfo() provides a non-empty fallback
-	if got == "" {
-		t.Error("Version() returned empty string; expected debug.ReadBuildInfo() fallback to provide a value")
-	}
+	testastic.NotEqual(t, "", got)
 }
 
 func TestCommit_ldflagTakesPrecedence(t *testing.T) {
@@ -49,9 +45,7 @@ func TestCommit_ldflagTakesPrecedence(t *testing.T) {
 	got := build.Commit()
 
 	// then: the ldflag value is returned
-	if got != "abc1234" {
-		t.Errorf("Commit() = %q, want %q", got, "abc1234")
-	}
+	testastic.Equal(t, "abc1234", got)
 }
 
 func TestCommit_fallsBackToVCSRevision(t *testing.T) {
@@ -62,9 +56,7 @@ func TestCommit_fallsBackToVCSRevision(t *testing.T) {
 	got := build.Commit()
 
 	// then: the vcs.revision fallback provides a non-empty value
-	if got == "" {
-		t.Error("Commit() returned empty string; expected vcs.revision fallback to provide a value")
-	}
+	testastic.NotEqual(t, "", got)
 }
 
 func TestDate_ldflagTakesPrecedence(t *testing.T) {
@@ -75,9 +67,7 @@ func TestDate_ldflagTakesPrecedence(t *testing.T) {
 	got := build.Date()
 
 	// then: the ldflag value is returned
-	if got != "2026-03-20T12:34:56Z" {
-		t.Errorf("Date() = %q, want %q", got, "2026-03-20T12:34:56Z")
-	}
+	testastic.Equal(t, "2026-03-20T12:34:56Z", got)
 }
 
 func TestDate_fallsBackToVCSTime(t *testing.T) {
@@ -88,7 +78,5 @@ func TestDate_fallsBackToVCSTime(t *testing.T) {
 	got := build.Date()
 
 	// then: the vcs.time fallback provides a non-empty value
-	if got == "" {
-		t.Error("Date() returned empty string; expected vcs.time fallback to provide a value")
-	}
+	testastic.NotEqual(t, "", got)
 }
