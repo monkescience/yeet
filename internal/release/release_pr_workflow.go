@@ -47,8 +47,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
 
-		err = w.preserveExistingChangelogEdits(ctx, existing.Branch, result)
-		if err != nil {
+		if err := w.preserveExistingChangelogEdits(ctx, existing.Branch, result); err != nil {
 			return nil, err
 		}
 
@@ -145,8 +144,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		return err
 	}
 
-	err = w.publisher.markReleasePRTagged(ctx, result.PullRequest)
-	if err != nil {
+	if err := w.publisher.markReleasePRTagged(ctx, result.PullRequest); err != nil {
 		return err
 	}
 
@@ -169,8 +167,7 @@ func (w *releasePRWorkflow) updateExisting(
 		return nil, fmt.Errorf("update release PR: %w", err)
 	}
 
-	err = w.branchUpdater.updateFiles(ctx, releaseBranch, result)
-	if err != nil {
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result); err != nil {
 		return nil, err
 	}
 
@@ -198,8 +195,7 @@ func (w *releasePRWorkflow) createNew(
 		return nil, fmt.Errorf("create release branch: %w", err)
 	}
 
-	err = w.branchUpdater.updateFiles(ctx, releaseBranch, result)
-	if err != nil {
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result); err != nil {
 		return nil, err
 	}
 

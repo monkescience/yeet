@@ -194,18 +194,15 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 }
 
 func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
-	err := g.ensureReleaseLabels(ctx)
-	if err != nil {
+	if err := g.ensureReleaseLabels(ctx); err != nil {
 		return err
 	}
 
-	err = g.addIssueLabels(ctx, number, []string{ReleaseLabelPending})
-	if err != nil {
+	if err := g.addIssueLabels(ctx, number, []string{ReleaseLabelPending}); err != nil {
 		return err
 	}
 
-	err = g.removeIssueLabel(ctx, number, ReleaseLabelTagged)
-	if err != nil {
+	if err := g.removeIssueLabel(ctx, number, ReleaseLabelTagged); err != nil {
 		return err
 	}
 
@@ -213,18 +210,15 @@ func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
 }
 
 func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
-	err := g.ensureReleaseLabels(ctx)
-	if err != nil {
+	if err := g.ensureReleaseLabels(ctx); err != nil {
 		return err
 	}
 
-	err = g.addIssueLabels(ctx, number, []string{ReleaseLabelTagged})
-	if err != nil {
+	if err := g.addIssueLabels(ctx, number, []string{ReleaseLabelTagged}); err != nil {
 		return err
 	}
 
-	err = g.removeIssueLabel(ctx, number, ReleaseLabelPending)
-	if err != nil {
+	if err := g.removeIssueLabel(ctx, number, ReleaseLabelPending); err != nil {
 		return err
 	}
 

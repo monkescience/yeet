@@ -10,7 +10,6 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
-//nolint:funlen // Top-level validation deliberately enumerates every field check.
 func (c *Config) Validate(ctx context.Context) error {
 	if c.Versioning != VersioningSemver && c.Versioning != VersioningCalVer {
 		return fmt.Errorf("%w: versioning must be %q or %q, got %q",
@@ -29,13 +28,11 @@ func (c *Config) Validate(ctx context.Context) error {
 			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, ProviderAzureDevOps, c.Provider)
 	}
 
-	err := validateBumpTypes(c.BumpTypes)
-	if err != nil {
+	if err := validateBumpTypes(c.BumpTypes); err != nil {
 		return err
 	}
 
-	err = validateRepositoryConfig(c.Provider, c.Repository)
-	if err != nil {
+	if err := validateRepositoryConfig(c.Provider, c.Repository); err != nil {
 		return err
 	}
 
@@ -47,35 +44,29 @@ func (c *Config) Validate(ctx context.Context) error {
 		return fmt.Errorf("%w: changelog.include must not be empty", ErrInvalidConfig)
 	}
 
-	err = validateReferencesConfig("changelog.references", c.Changelog.References)
-	if err != nil {
+	if err := validateReferencesConfig("changelog.references", c.Changelog.References); err != nil {
 		return err
 	}
 
-	err = validateCalVerConfig("calver.format", c.CalVer)
-	if err != nil {
+	if err := validateCalVerConfig("calver.format", c.CalVer); err != nil {
 		return err
 	}
 
 	for _, versionFile := range c.VersionFiles {
-		err = validateVersionFile("version_files", versionFile)
-		if err != nil {
+		if err := validateVersionFile("version_files", versionFile); err != nil {
 			return err
 		}
 	}
 
-	err = validateReleaseConfig(c.Release)
-	if err != nil {
+	if err := validateReleaseConfig(c.Release); err != nil {
 		return err
 	}
 
-	err = validateReleaseChannelBranches(c.Branch, c.Release.Channels)
-	if err != nil {
+	if err := validateReleaseChannelBranches(c.Branch, c.Release.Channels); err != nil {
 		return err
 	}
 
-	_, err = c.ResolvedTargets(ctx)
-	if err != nil {
+	if _, err := c.ResolvedTargets(ctx); err != nil {
 		return err
 	}
 
@@ -240,8 +231,7 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		)
 	}
 
-	err := validateReleaseChannels(release.Channels)
-	if err != nil {
+	if err := validateReleaseChannels(release.Channels); err != nil {
 		return err
 	}
 

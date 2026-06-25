@@ -29,8 +29,7 @@ func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget
 		resolved[resolvedTarget.ID] = resolvedTarget
 	}
 
-	err := validateResolvedTargets(resolved)
-	if err != nil {
+	if err := validateResolvedTargets(resolved); err != nil {
 		return nil, err
 	}
 
@@ -95,8 +94,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		)
 	}
 
-	err := validateCalVerConfig("targets."+targetID+".calver.format", resolved.CalVer)
-	if err != nil {
+	if err := validateCalVerConfig("targets."+targetID+".calver.format", resolved.CalVer); err != nil {
 		return ResolvedTarget{}, err
 	}
 
@@ -112,7 +110,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	err = validateReferencesConfig("targets."+targetID+".changelog.references", resolved.Changelog.References)
+	err := validateReferencesConfig("targets."+targetID+".changelog.references", resolved.Changelog.References)
 	if err != nil {
 		return ResolvedTarget{}, err
 	}
@@ -340,8 +338,7 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 		}
 	}
 
-	err := validateResolvedTargetVersionFileOwnership(targets)
-	if err != nil {
+	if err := validateResolvedTargetVersionFileOwnership(targets); err != nil {
 		return err
 	}
 

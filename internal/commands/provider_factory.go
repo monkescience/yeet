@@ -282,8 +282,7 @@ func resolveRepository(
 
 	normalizeRepositoryDescriptor(repository)
 
-	err := validateRepositoryDescriptor(repository)
-	if err != nil {
+	if err := validateRepositoryDescriptor(repository); err != nil {
 		return nil, err
 	}
 
@@ -437,8 +436,7 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 }
 
 func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) error {
-	err := validateRepositoryCoordinates(repository)
-	if err != nil {
+	if err := validateRepositoryCoordinates(repository); err != nil {
 		return err
 	}
 

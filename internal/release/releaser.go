@@ -187,8 +187,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 	result.PullRequest = pr
 
-	err = workflow.autoMerge(ctx, result)
-	if err != nil {
+	if err := workflow.autoMerge(ctx, result); err != nil {
 		return nil, err
 	}
 

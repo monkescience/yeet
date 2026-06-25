@@ -297,8 +297,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 }
 
 func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int) error {
-	err := a.attachPullRequestLabel(ctx, number, ReleaseLabelPending)
-	if err != nil {
+	if err := a.attachPullRequestLabel(ctx, number, ReleaseLabelPending); err != nil {
 		return err
 	}
 
@@ -306,8 +305,7 @@ func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int) erro
 }
 
 func (a *AzureDevOps) MarkReleasePRTagged(ctx context.Context, number int) error {
-	err := a.attachPullRequestLabel(ctx, number, ReleaseLabelTagged)
-	if err != nil {
+	if err := a.attachPullRequestLabel(ctx, number, ReleaseLabelTagged); err != nil {
 		return err
 	}
 

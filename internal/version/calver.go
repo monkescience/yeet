@@ -31,9 +31,11 @@ type CalVer struct {
 }
 
 func ValidateCalVerFormat(format string) error {
-	_, err := compileCalVerFormat(format)
+	if _, err := compileCalVerFormat(format); err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (c *CalVer) Current(tag string) (string, error) {
@@ -241,8 +243,7 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 		compiled.parts = append(compiled.parts, calverFormatPart{literal: format[literalStart:idx]})
 	}
 
-	err := validateCompiledCalVerFormat(format, &compiled, seen)
-	if err != nil {
+	if err := validateCompiledCalVerFormat(format, &compiled, seen); err != nil {
 		return calverFormat{}, err
 	}
 
@@ -356,8 +357,7 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 			return calverParts{}, fmt.Errorf("%w: empty %s segment in %q", ErrInvalidVersion, formatPart.token, version)
 		}
 
-		err := parts.set(formatPart.token, value, version)
-		if err != nil {
+		if err := parts.set(formatPart.token, value, version); err != nil {
 			return calverParts{}, err
 		}
 
@@ -368,8 +368,7 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 		return calverParts{}, fmt.Errorf("%w: unexpected trailing data in %q", ErrInvalidVersion, version)
 	}
 
-	err := f.validateParts(parts, version)
-	if err != nil {
+	if err := f.validateParts(parts, version); err != nil {
 		return calverParts{}, err
 	}
 

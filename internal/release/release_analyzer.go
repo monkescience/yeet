@@ -46,8 +46,7 @@ func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []strin
 
 	a.analyzedTargets = selection.analyzedPathTargets
 
-	err = a.buildSharedHistoryIndex(ctx, selection)
-	if err != nil {
+	if err := a.buildSharedHistoryIndex(ctx, selection); err != nil {
 		return nil, err
 	}
 

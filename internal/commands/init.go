@@ -51,8 +51,7 @@ func runInit(ctx context.Context, path string) error {
 
 	content := renderInitConfig(deriveTargetName(resolvedPath))
 
-	err = os.WriteFile(resolvedPath, []byte(content), 0o600) //nolint:mnd // secure file permissions
-	if err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(content), 0o600); err != nil { //nolint:mnd // secure file permissions
 		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
 

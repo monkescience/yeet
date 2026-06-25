@@ -258,8 +258,7 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 	}
 
 	if scope, isInline := markerScopeFromLine(line, inlineMarkerPattern); isInline {
-		err := p.checkAllowed(scope, lineNo)
-		if err != nil {
+		if err := p.checkAllowed(scope, lineNo); err != nil {
 			return line, err
 		}
 
@@ -274,8 +273,7 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 	}
 
 	if scope, isBlockStart := markerScopeFromLine(line, blockStartPattern); isBlockStart {
-		err := p.checkAllowed(scope, lineNo)
-		if err != nil {
+		if err := p.checkAllowed(scope, lineNo); err != nil {
 			return line, err
 		}
 

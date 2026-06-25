@@ -280,13 +280,11 @@ func Parse(ctx context.Context, data []byte) (*Config, error) {
 		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
 	}
 
-	err = validateRepositorySubsection(&cfg.Repository, cfg.Provider)
-	if err != nil {
+	if err := validateRepositorySubsection(&cfg.Repository, cfg.Provider); err != nil {
 		return nil, err
 	}
 
-	err = cfg.Validate(ctx)
-	if err != nil {
+	if err := cfg.Validate(ctx); err != nil {
 		return nil, err
 	}
 

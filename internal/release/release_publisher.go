@@ -50,8 +50,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		releases = append(releases, releaseInfo)
 	}
 
-	err = p.markReleasePRTagged(ctx, mergedPR)
-	if err != nil {
+	if err := p.markReleasePRTagged(ctx, mergedPR); err != nil {
 		return nil, err
 	}
 

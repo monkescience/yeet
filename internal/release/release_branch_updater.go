@@ -70,8 +70,7 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 				slog.String("next_version", plan.NextVersion),
 			)
 
-			err = setBranchFileContent(files, versionFile.Path, updatedContent)
-			if err != nil {
+			if err := setBranchFileContent(files, versionFile.Path, updatedContent); err != nil {
 				return err
 			}
 		}

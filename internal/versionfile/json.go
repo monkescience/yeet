@@ -153,8 +153,7 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
 
-		err = skipJSONValue(decoder)
-		if err != nil {
+		if err := skipJSONValue(decoder); err != nil {
 			return byteSpan{}, err
 		}
 	}
@@ -178,8 +177,7 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
 
-		err = skipJSONValue(decoder)
-		if err != nil {
+		if err := skipJSONValue(decoder); err != nil {
 			return byteSpan{}, err
 		}
 	}
@@ -211,15 +209,13 @@ func skipJSONValue(decoder *json.Decoder) error {
 				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 			}
 
-			err = skipJSONValue(decoder)
-			if err != nil {
+			if err := skipJSONValue(decoder); err != nil {
 				return err
 			}
 		}
 	case '[':
 		for decoder.More() {
-			err = skipJSONValue(decoder)
-			if err != nil {
+			if err := skipJSONValue(decoder); err != nil {
 				return err
 			}
 		}

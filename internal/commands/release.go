@@ -214,13 +214,11 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 
 	logReleaseCommand(ctx, resolvedConfigPath, options)
 
-	err = applyReleaseOptions(cfg, options)
-	if err != nil {
+	if err := applyReleaseOptions(cfg, options); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	err = cfg.Validate(ctx)
-	if err != nil {
+	if err := cfg.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
@@ -229,8 +227,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 		return nil, fmt.Errorf("resolve current branch: %w", branchErr)
 	}
 
-	err = resolveReleaseMode(cfg, currentBranch, options)
-	if err != nil {
+	if err := resolveReleaseMode(cfg, currentBranch, options); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
@@ -378,8 +375,7 @@ func resolveExplicitReleaseChannel(cfg *config.Config, currentBranch string, opt
 }
 
 func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) error {
-	err := applyRepositoryReleaseOptions(cfg, options)
-	if err != nil {
+	if err := applyRepositoryReleaseOptions(cfg, options); err != nil {
 		return err
 	}
 
