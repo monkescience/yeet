@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: yeet-image-${{ github.event.release.tag_name || inputs.tag }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   KO_VERSION: v0.18.1 # renovate: datasource=github-releases depName=ko-build/ko
