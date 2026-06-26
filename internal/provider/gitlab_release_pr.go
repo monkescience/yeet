@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -139,7 +140,10 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		slog.String("label", ReleaseLabelPending),
 	)
 
-	var found *PullRequest
+	var (
+		bestMR       *gitlab.BasicMergeRequest
+		bestMergedAt time.Time
+	)
 
 	err := paginate(ctx, "listing merged release MRs",
 		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
@@ -157,24 +161,32 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 				return false, nil
 			}
 
-			found = &PullRequest{
-				Number:         int(mr.IID),
-				Title:          mr.Title,
-				Body:           mr.Description,
-				URL:            mr.WebURL,
-				Branch:         mr.SourceBranch,
-				MergeCommitSHA: gitLabMergeCommitSHA(ctx, mr),
+			mergedAt := gitLabMergedAt(mr)
+			if bestMR != nil && !mergedAt.After(bestMergedAt) {
+				return false, nil
 			}
 
-			return true, nil
+			bestMR = mr
+			bestMergedAt = mergedAt
+
+			return false, nil
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	if found == nil {
+	if bestMR == nil {
 		return nil, ErrNoPR
+	}
+
+	found := &PullRequest{
+		Number:         int(bestMR.IID),
+		Title:          bestMR.Title,
+		Body:           bestMR.Description,
+		URL:            bestMR.WebURL,
+		Branch:         bestMR.SourceBranch,
+		MergeCommitSHA: gitLabMergeCommitSHA(ctx, bestMR),
 	}
 
 	slog.DebugContext(ctx, "gitlab: found merged release MR",
@@ -267,6 +279,14 @@ func (g *GitLab) CommitPullRequestBody(ctx context.Context, hash string) (string
 	}
 
 	return body, found, nil
+}
+
+func gitLabMergedAt(mergeRequest *gitlab.BasicMergeRequest) time.Time {
+	if mergeRequest.MergedAt == nil {
+		return time.Time{}
+	}
+
+	return *mergeRequest.MergedAt
 }
 
 func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {

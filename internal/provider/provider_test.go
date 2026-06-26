@@ -2391,6 +2391,63 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrNoPR)
 	})
+
+	t.Run("selects the most recently merged release MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two merged release MRs where the most recently updated one was
+		// merged earlier than the other
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+				writeJSON(t, w, []map[string]any{
+					{
+						"iid":              7,
+						"title":            "chore: release v1.0.0",
+						"description":      "stale mr",
+						"web_url":          "https://gitlab.com/o/r/-/merge_requests/7",
+						"source_branch":    "yeet/release-main",
+						"state":            "merged",
+						"merge_commit_sha": "stale-sha",
+						"merged_at":        "2024-01-01T00:00:00Z",
+						"updated_at":       "2024-06-01T00:00:00Z",
+					},
+					{
+						"iid":              8,
+						"title":            "chore: release v1.1.0",
+						"description":      "fresh mr",
+						"web_url":          "https://gitlab.com/o/r/-/merge_requests/8",
+						"source_branch":    "yeet/release-main",
+						"state":            "merged",
+						"merge_commit_sha": "fresh-sha",
+						"merged_at":        "2024-05-01T00:00:00Z",
+						"updated_at":       "2024-02-01T00:00:00Z",
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: finding merged release MR
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+
+		// then: the most recently merged MR is returned, not the most recently updated
+		testastic.NoError(t, err)
+		testastic.Equal(t, 8, pr.Number)
+		testastic.Equal(t, "fresh-sha", pr.MergeCommitSHA)
+	})
 }
 
 func TestGitLabEnsureLabel(t *testing.T) {
