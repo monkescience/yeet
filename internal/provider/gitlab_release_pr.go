@@ -232,20 +232,41 @@ func (g *GitLab) CommitPullRequestBody(ctx context.Context, hash string) (string
 		return "", false, nil
 	}
 
-	mrs, _, err := g.client.Commits.ListMergeRequestsByCommit(g.pid, commitHash, gitlab.WithContext(ctx))
+	var (
+		body  string
+		found bool
+	)
+
+	err := paginate(ctx, fmt.Sprintf("listing merge requests for commit %q", commitHash),
+		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
+			options := []gitlab.RequestOptionFunc{gitlab.WithContext(ctx)}
+			if page > 0 {
+				options = append(options, gitlab.WithOffsetPaginationParameters(int64(page)))
+			}
+
+			mrs, resp, err := g.client.Commits.ListMergeRequestsByCommit(g.pid, commitHash, options...)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list merge requests for commit %q: %w", commitHash, err)
+			}
+
+			return mrs, gitLabNextPage(resp), nil
+		},
+		func(mr *gitlab.BasicMergeRequest) (bool, error) {
+			if gitLabMergeRequestCommitSHA(mr) != commitHash {
+				return false, nil
+			}
+
+			body = mr.Description
+			found = true
+
+			return true, nil
+		},
+	)
 	if err != nil {
-		return "", false, fmt.Errorf("list merge requests for commit %q: %w", commitHash, err)
+		return "", false, err
 	}
 
-	for _, mr := range mrs {
-		if gitLabMergeRequestCommitSHA(mr) != commitHash {
-			continue
-		}
-
-		return mr.Description, true, nil
-	}
-
-	return "", false, nil
+	return body, found, nil
 }
 
 func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {

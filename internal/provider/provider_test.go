@@ -2209,6 +2209,60 @@ func TestGitLabCommitPullRequestBody(t *testing.T) {
 	testastic.Equal(t, "override body", body)
 }
 
+func TestGitLabCommitPullRequestBodyPaginatesPastFirstPage(t *testing.T) {
+	t.Parallel()
+
+	// given: the matching merge-commit MR is only present on the second page
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() ==
+			"/api/v4/projects/o%2Fr/repository/commits/abc123/merge_requests":
+			switch r.URL.Query().Get("page") {
+			case "":
+				w.Header().Set("X-Next-Page", "2")
+				writeJSON(t, w, []map[string]any{
+					{
+						"iid":              1,
+						"description":      "wrong body",
+						"merge_commit_sha": "def456",
+					},
+				})
+			case "2":
+				writeJSON(t, w, []map[string]any{
+					{
+						"iid":              2,
+						"description":      "override body",
+						"merge_commit_sha": "abc123",
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab commits page: %s", r.URL.RawQuery)
+			}
+		default:
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, err := gitlabapi.NewClient(
+		"",
+		gitlabapi.WithBaseURL(server.URL),
+		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithoutRetries(),
+	)
+	testastic.NoError(t, err)
+
+	gl := provider.NewGitLab(client, "o/r")
+
+	// when: finding an MR body for the commit
+	body, found, err := gl.CommitPullRequestBody(context.Background(), "abc123")
+
+	// then: the MR on the second page is found
+	testastic.NoError(t, err)
+	testastic.True(t, found)
+	testastic.Equal(t, "override body", body)
+}
+
 func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
 	t.Parallel()
 
