@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.7](https://github.com/monkescience/yeet/compare/v0.10.6...v0.10.7) (2026-06-26)
+
+### Bug Fixes
+
+- **gitlab:** select the most recently merged release MR instead of the most recently updated ([07ee0ed](https://github.com/monkescience/yeet/commit/07ee0ed7f7d32f199e8182a6a9dec738780c6f95))
+- **gitlab:** paginate CommitPullRequestBody to find merge requests past the first page ([bb6ea44](https://github.com/monkescience/yeet/commit/bb6ea44b0e8164b3074914037009a61f201e0d70))
+
 ## [v0.10.6](https://github.com/monkescience/yeet/compare/v0.10.5...v0.10.6) (2026-06-23)
 
 ### Bug Fixes
