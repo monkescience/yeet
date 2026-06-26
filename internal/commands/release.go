@@ -221,8 +221,14 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 	}
 
 	currentBranch, branchErr := currentGitBranch(ctx)
-	if branchErr != nil && !options.dryRun && len(cfg.Release.Channels) > 0 {
-		return nil, fmt.Errorf("resolve current branch: %w", branchErr)
+	if branchErr != nil {
+		if !options.dryRun && len(cfg.Release.Channels) > 0 {
+			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
+		}
+
+		slog.DebugContext(ctx, "could not determine current branch; proceeding with the configured default branch",
+			slog.Any("error", branchErr),
+		)
 	}
 
 	if err := resolveReleaseMode(cfg, currentBranch, options); err != nil {
