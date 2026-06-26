@@ -330,19 +330,6 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 	})
 }
 
-func TestSemVerTag(t *testing.T) {
-	t.Parallel()
-
-	// given: a semver strategy with prefix
-	sv := &version.SemVer{Prefix: "v"}
-
-	// when: generating a tag
-	tag := sv.Tag("1.2.3")
-
-	// then: tag has the prefix
-	testastic.Equal(t, "v1.2.3", tag)
-}
-
 func TestSemVerInitialVersion(t *testing.T) {
 	t.Parallel()
 

@@ -432,7 +432,6 @@ func (a *releaseAnalyzer) newTargetPlan(
 	plan := TargetPlan{
 		ID:             target.ID,
 		Type:           string(target.Type),
-		Path:           target.Path,
 		CurrentVersion: currentVersion,
 		BumpType:       bumpType,
 		Files: map[string]string{

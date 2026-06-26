@@ -1690,7 +1690,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog is created with the release-please style header
 		testastic.NoError(t, err)
@@ -1729,7 +1729,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and version file are updated
 		testastic.NoError(t, err)
@@ -1769,7 +1769,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and JSON version file are updated
 		expected := strings.Join([]string{
@@ -1812,7 +1812,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and JSON version file are updated with the calver string
 		testastic.NoError(t, err)
@@ -1843,7 +1843,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: missing markers abort the release and no provider updates are dispatched
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
@@ -1883,7 +1883,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: new entry is prepended and the changelog gains a top-level header
 		testastic.NoError(t, err)
@@ -1939,7 +1939,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: the shared changelog contains both new entries instead of conflicting
 		testastic.NoError(t, err)
@@ -1968,7 +1968,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := r.updateReleaseBranchFiles(context.Background(), "yeet/release-v1.2.4", result)
+		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), "yeet/release-v1.2.4", result)
 
 		// then: missing file error is returned
 		testastic.Error(t, err)

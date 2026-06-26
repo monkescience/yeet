@@ -16,7 +16,6 @@ type Commit struct {
 	Body        string
 	Footers     []Footer
 	Breaking    bool
-	Raw         string
 }
 
 type Footer struct {
@@ -37,14 +36,6 @@ const (
 // Types not present produce BumpNone. Breaking commits always produce BumpMajor regardless of mapping.
 type BumpMapping map[string]BumpType
 
-func DefaultBumpMapping() BumpMapping {
-	return BumpMapping{
-		"feat": BumpMinor,
-		"fix":  BumpPatch,
-		"perf": BumpPatch,
-	}
-}
-
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
 	`^(?P<type>[a-zA-Z]+)` +
@@ -57,7 +48,6 @@ var conventionalCommitPattern = regexp.MustCompile(
 func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c := Commit{
 		Hash: hash,
-		Raw:  rawMessage,
 	}
 
 	lines := strings.Split(rawMessage, "\n")

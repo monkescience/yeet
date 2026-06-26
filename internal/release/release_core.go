@@ -54,7 +54,6 @@ func (c *releaseCore) releasePROptions(result *Result, releaseBranch string) (pr
 		Body:          c.releasePRBody(changelogBody, manifestMarker),
 		BaseBranch:    c.cfg.Branch,
 		ReleaseBranch: releaseBranch,
-		Files:         map[string]string{},
 	}, nil
 }
 

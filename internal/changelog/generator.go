@@ -21,7 +21,6 @@ type Generator struct {
 	pathPrefix string
 	compareURL func(fromRef, toRef string) string
 	references config.ReferencesConfig
-	nowFunc    func() time.Time
 
 	compiledPatterns []compiledPattern
 }
@@ -69,11 +68,6 @@ func WithReferences(references config.ReferencesConfig) Option {
 	return func(g *Generator) { g.references = references }
 }
 
-// WithNow overrides the clock used to date entries. Defaults to time.Now.
-func WithNow(now func() time.Time) Option {
-	return func(g *Generator) { g.nowFunc = now }
-}
-
 type compiledPattern struct {
 	re  *regexp.Regexp
 	url string
@@ -117,7 +111,7 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 
 	entry := Entry{
 		Version: version,
-		Date:    g.now(),
+		Date:    time.Now(),
 		Body:    sb.String(),
 	}
 
@@ -324,14 +318,6 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	}
 
 	return strings.Join(refs, ", ")
-}
-
-func (g *Generator) now() time.Time {
-	if g.nowFunc != nil {
-		return g.nowFunc()
-	}
-
-	return time.Now()
 }
 
 func capitalizeFirst(s string) string {

@@ -186,8 +186,6 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("repository resolution failed: %w", err)
 	}
 
-	cfg.Provider = config.ProviderType(repository.Provider)
-
 	p, err := createProvider(repository)
 	if err != nil {
 		return fmt.Errorf("provider setup failed: %w", err)

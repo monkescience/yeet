@@ -91,10 +91,6 @@ func (s *SemVer) Less(leftVersion, rightVersion, leftRef, rightRef string) bool 
 	return leftRef < rightRef
 }
 
-func (s *SemVer) Tag(version string) string {
-	return s.Prefix + version
-}
-
 func (s *SemVer) InitialVersion() string {
 	return "0.0.0"
 }

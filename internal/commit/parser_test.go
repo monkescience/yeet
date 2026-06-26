@@ -177,6 +177,12 @@ func TestParse(t *testing.T) {
 func TestDetermineBump(t *testing.T) {
 	t.Parallel()
 
+	mapping := commit.BumpMapping{
+		"feat": commit.BumpMinor,
+		"fix":  commit.BumpPatch,
+		"perf": commit.BumpPatch,
+	}
+
 	t.Run("no commits", func(t *testing.T) {
 		t.Parallel()
 
@@ -184,7 +190,7 @@ func TestDetermineBump(t *testing.T) {
 		commits := []commit.Commit{}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: no bump is needed
 		testastic.Equal(t, commit.BumpNone, bump)
@@ -200,7 +206,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: patch bump
 		testastic.Equal(t, commit.BumpPatch, bump)
@@ -216,7 +222,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: minor bump (feat > fix)
 		testastic.Equal(t, commit.BumpMinor, bump)
@@ -232,7 +238,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: major bump
 		testastic.Equal(t, commit.BumpMajor, bump)
@@ -248,7 +254,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: no bump
 		testastic.Equal(t, commit.BumpNone, bump)
@@ -263,7 +269,7 @@ func TestDetermineBump(t *testing.T) {
 		}
 
 		// when: determining bump
-		bump := commit.DetermineBump(commits, commit.DefaultBumpMapping())
+		bump := commit.DetermineBump(commits, mapping)
 
 		// then: patch bump
 		testastic.Equal(t, commit.BumpPatch, bump)

@@ -88,10 +88,6 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 	return format.render(nowParts), nil
 }
 
-func (c *CalVer) Tag(version string) string {
-	return c.Prefix + version
-}
-
 // InitialVersion returns an empty string since calver starts from the current date.
 func (c *CalVer) InitialVersion() string {
 	return ""

@@ -39,7 +39,6 @@ type Result struct {
 type TargetPlan struct {
 	ID              string
 	Type            string
-	Path            string
 	CurrentVersion  string
 	NextVersion     string
 	NextTag         string
@@ -196,10 +195,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
 	return newReleasePublisher(r.core, r.publisher).finalizeMergedReleasePR(ctx)
-}
-
-func (r *Releaser) updateReleaseBranchFiles(ctx context.Context, branch string, result *Result) error {
-	return newReleaseBranchUpdater(r.core, r.files).updateFiles(ctx, branch, result)
 }
 
 func releaseBumpOrder(bumpType commit.BumpType) int {

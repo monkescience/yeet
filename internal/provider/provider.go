@@ -43,7 +43,6 @@ type ReleasePROptions struct {
 	Body          string
 	BaseBranch    string
 	ReleaseBranch string
-	Files         map[string]string
 }
 
 type ReleaseOptions struct {
