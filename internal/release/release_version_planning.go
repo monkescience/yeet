@@ -11,12 +11,7 @@ import (
 )
 
 func currentVersionOrInitial(target config.ResolvedTarget) string {
-	strategy := versionStrategyForResolvedTarget(target)
-	if semverStrategy, ok := strategy.strategy.(*version.SemVer); ok {
-		return semverStrategy.InitialVersion()
-	}
-
-	return ""
+	return versionStrategyForResolvedTarget(target).strategy.InitialVersion()
 }
 
 func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrategy {

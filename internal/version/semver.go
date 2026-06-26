@@ -17,6 +17,7 @@ type Strategy interface {
 	Current(tag string) (string, error)
 	Next(current string, bump commit.BumpType) (string, error)
 	Less(leftVersion, rightVersion, leftRef, rightRef string) bool
+	InitialVersion() string
 }
 
 type SemVer struct {
