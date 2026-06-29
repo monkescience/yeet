@@ -20,13 +20,13 @@ scoop install yeet
 Or with Go:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.10.7 # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.10.8 # x-yeet-version
 ```
 
 Or use the published container image:
 
 ```sh
-docker run --rm ghcr.io/monkescience/yeet:v0.10.7 --help # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.10.8 --help # x-yeet-version
 ```
 
 ## Quick start
@@ -245,15 +245,15 @@ Types not listed produce no version bump. Breaking changes always bump major reg
 
 ```txt
 # inline markers (semver project)
-VERSION = "0.10.7" # x-yeet-version
+VERSION = "0.10.8" # x-yeet-version
 MAJOR = 0 # x-yeet-major
 MINOR = 10 # x-yeet-minor
-PATCH = 7 # x-yeet-patch
+PATCH = 8 # x-yeet-patch
 
 # block markers
 # x-yeet-start-version
-image: ghcr.io/acme/app:0.10.7
-appVersion: "0.10.7"
+image: ghcr.io/acme/app:0.10.8
+appVersion: "0.10.8"
 # x-yeet-end
 ```
 
@@ -580,7 +580,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run yeet
-        uses: docker://ghcr.io/monkescience/yeet:v0.10.7 # x-yeet-version
+        uses: docker://ghcr.io/monkescience/yeet:v0.10.8 # x-yeet-version
         with:
           args: release
         env:
@@ -596,7 +596,7 @@ GitLab runs the job script with `sh` instead of the image's default `yeet` entry
 release:
   stage: release
   image:
-    name: ghcr.io/monkescience/yeet:v0.10.7 # x-yeet-version
+    name: ghcr.io/monkescience/yeet:v0.10.8 # x-yeet-version
     entrypoint: [""]
   variables:
     GIT_STRATEGY: fetch
@@ -633,7 +633,7 @@ steps:
         -v "$(Build.SourcesDirectory):/workspace" \
         -w /workspace \
         -e AZURE_DEVOPS_SYSTEM_ACCESSTOKEN \
-        ghcr.io/monkescience/yeet:v0.10.7 release # x-yeet-version
+        ghcr.io/monkescience/yeet:v0.10.8 release # x-yeet-version
     displayName: Run yeet
     env:
       AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
