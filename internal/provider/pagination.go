@@ -99,7 +99,7 @@ func paginateAzureDevOps[T any](
 // paginateAzureDevOpsBySkip iterates a paginated ADO endpoint that uses the
 // $skip/$top offset model (e.g. GetCommits, which returns no continuation
 // token). fetch is called with the current skip offset (0 on the first call)
-// and returns the page items; pagination stops when a page returns fewer than
+// and returns the page items. Pagination stops when a page returns fewer than
 // pageSize items. ctx is checked between pages, and items are handed to handle,
 // which may signal early termination by returning stop=true.
 func paginateAzureDevOpsBySkip[T any](

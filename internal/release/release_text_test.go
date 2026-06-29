@@ -30,7 +30,7 @@ func TestReleasePRBody(t *testing.T) {
 			"## ٩(^ᴗ^)۶ release created\n\n"+
 				strings.TrimSpace(changelogBody)+
 				"\n\n<!-- yeet-release-tag: v1.2.4 -->"+
-				"\n\n_Auto-generated preview — edit `CHANGELOG.md` to customize release notes._\n\n"+
+				"\n\n_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n"+
 				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 			body,
 		)

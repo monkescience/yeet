@@ -85,7 +85,7 @@ linters:
     - funcorder       # consistent function ordering within a file
 
     # --- Strict error handling ---
-    # These are strict — relaxed in test files via exclusions above.
+    # These are strict, relaxed in test files via exclusions above.
     - err113          # dynamic errors must be wrapped or predefined
     - wrapcheck       # errors from external packages must be wrapped
 
@@ -162,7 +162,7 @@ linters:
         - name: error-return
         - name: error-strings
     sloglint:
-      attr-only: true     # forbid the loose "key", val form; require slog.String/Int/Any/...
+      attr-only: true     # forbid the loose "key", val form, require slog.String/Int/Any/...
       context: scope      # require *Context variants when a ctx is in scope
     tagliatelle:
       case:
@@ -191,22 +191,22 @@ linters:
   # or team policy needs it.
   # - arangolint: only relevant for projects using the ArangoDB client
   # - depguard: useful only with project-specific import policy
-  # - embeddedstructfieldcheck: style preference for embedded fields; can be noisy
+  # - embeddedstructfieldcheck: style preference for embedded fields, can be noisy
   # - ginkgolinter: only relevant for projects using Ginkgo/Gomega
   # - goheader: requires project-specific license/header text
   # - gomodguard_v2: useful only with project-specific dependency policy
   # - gosmopolitan: only relevant for i18n/l10n-sensitive projects
-  # - loggercheck: sloglint covers slog; other logger stacks are project-specific
+  # - loggercheck: sloglint covers slog, other logger stacks are project-specific
   # - paralleltest: overlaps with tparallel and is often too strict for integration tests
   # - testifylint: only relevant for projects using testify
-  # - unqueryvet: useful for SQL-heavy projects; too domain-specific as a default
+  # - unqueryvet: useful for SQL-heavy projects, too domain-specific as a default
   # - zerologlint: only relevant for projects using zerolog
 
   # Intentionally not default: too noisy, overlaps better-focused linters, or
   # conflicts with the style this config encourages.
   # - cyclop: overlaps with gocognit/nestif/funlen complexity checks
   # - exhaustruct: too strict for ordinary DTO/options structs
-  # - gochecknoglobals: too strict; consts, sentinels, and package vars can be valid
+  # - gochecknoglobals: too strict, consts, sentinels, and package vars can be valid
   # - gocyclo: overlaps with gocognit
   # - ireturn: conflicts with idiomatic interfaces at package boundaries
   # - maintidx: aggregate score is less actionable than targeted complexity linters

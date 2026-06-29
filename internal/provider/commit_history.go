@@ -42,8 +42,8 @@ func WithMaxConcurrentRequests(limit int) Option {
 
 // latestVersionRefWithReleaseFallback returns the tag of the latest release,
 // falling back to the most recent tag when the provider reports ErrNoRelease.
-// It is shared by providers that expose a release concept (GitHub, GitLab);
-// providers without one resolve the latest version ref from tags directly.
+// It is shared by providers that expose a release concept (GitHub, GitLab).
+// Providers without one resolve the latest version ref from tags directly.
 func latestVersionRefWithReleaseFallback(
 	ctx context.Context,
 	latestReleaseTag func(context.Context) (string, error),

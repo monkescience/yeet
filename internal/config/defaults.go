@@ -47,7 +47,7 @@ func Default() *Config {
 			AutoMergeForce:       false,
 			AutoMergeMethod:      AutoMergeMethodAuto,
 			PRBodyHeader:         "## ٩(^ᴗ^)۶ release created",
-			PRBodyFooter: "_Auto-generated preview — edit `CHANGELOG.md` to customize release notes._\n\n" +
+			PRBodyFooter: "_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n" +
 				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		},
 		Changelog: ChangelogConfig{

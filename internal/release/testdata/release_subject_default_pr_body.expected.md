@@ -10,6 +10,6 @@
 {"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v0.0.1","changelog_file":"CHANGELOG.md"}]}
 -->
 
-_Auto-generated preview — edit `CHANGELOG.md` to customize release notes._
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
 
 _Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

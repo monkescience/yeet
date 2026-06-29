@@ -101,7 +101,7 @@ These options can also be overridden per target in monorepo configurations.
 
 `Release-As` commit footers (for example `Release-As: 1.0.0`) override automatic semver bumping.
 The value must be a stable semver version greater than the current version. `Release-As` is
-case-insensitive and applies only to semver repositories; calver repositories ignore it.
+case-insensitive and applies only to semver repositories. Calver repositories ignore it.
 
 ### Calendar Versioning (calver)
 
@@ -115,19 +115,19 @@ calver:
   format: YYYY.0M.0D.MICRO
 ```
 
-Supported date tokens are `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`, `DD`, and `0D`. `MICRO` is required as the final token so multiple releases in the same calendar period can produce unique versions. Tokens must be dot-separated; week tokens cannot be combined with month or day tokens, and day tokens require a month token.
+Supported date tokens are `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`, `DD`, and `0D`. `MICRO` is required as the final token so multiple releases in the same calendar period can produce unique versions. Tokens must be dot-separated. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.
 
 ## Configuration
 
 yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to generate one with sensible defaults, or pass `--config` to write to a custom path. The generated file includes a YAML language server schema modeline for editor validation and autocomplete.
 
-The default `yeet init` output is intentionally minimal — a single path target named after the repository directory, with everything else inheriting from schema defaults:
+The default `yeet init` output is intentionally minimal. It declares a single path target named after the repository directory, with everything else inheriting from schema defaults:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
 
 targets:
-  myrepo:        # auto-derived from the repo directory name; falls back to "root"
+  myrepo:        # auto-derived from the repo directory name, falls back to "root"
     type: path
     path: .
     tag_prefix: v
@@ -146,8 +146,8 @@ yeet resolves the target repository from these sources, highest priority first:
 
 Automatic provider detection intentionally only classifies the public hosts `github.com`,
 `gitlab.com`, and `dev.azure.com`. For custom or enterprise domains, set the provider
-explicitly; this avoids sending provider tokens to an arbitrary host based only on hostname
-text. Repository host and path are discovered from `repository.remote`/`origin`; set
+explicitly. This avoids sending provider tokens to an arbitrary host based only on hostname
+text. Repository host and path are discovered from `repository.remote`/`origin`. Set
 `repository:` only when overriding remote discovery or when no usable remote exists.
 
 When `repository:` is set, exactly one provider sub-section may be set, and it must match
@@ -184,7 +184,7 @@ repository:
     organization: contoso
     project: MyProject
     repo: widgets
-    # collection: DefaultCollection   # optional; defaults to organization
+    # collection: DefaultCollection   # optional, defaults to organization
 ```
 
 ### Targets
@@ -269,7 +269,7 @@ version_files:
 The pointer must resolve to a JSON string. Nested values use standard RFC 6901 JSON Pointer syntax, for example `/packages/0/version`. The version file update preserves the existing JSON formatting and only replaces the targeted string value.
 
 The marker surface depends on the project's versioning scheme. yeet validates each
-marker against the configured scheme and the configured calver format; a marker
+marker against the configured scheme and the configured calver format. A marker
 that doesn't apply to the scheme returns an error with a suggested replacement.
 
 | Scheme | Allowed scopes |
@@ -285,7 +285,7 @@ Examples by calver format:
 - `YYYY.MICRO`: `version`, `year`, `micro`
 
 Block markers use the same scope names: `x-yeet-start-<scope>` opens the block,
-`x-yeet-end` closes it. Substitution width follows the format token — for example,
+`x-yeet-end` closes it. Substitution width follows the format token, for example,
 `0M` zero-pads the month to two digits, `MM` does not.
 
 Earlier yeet releases accepted `x-yeet-major|minor|patch` in calver projects via
@@ -401,12 +401,12 @@ release:
   pr_body_max_length: 0              # cap PR/MR body length in characters (0 = provider limit only)
 ```
 
-`auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults; `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
+`auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults. `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
 
 `pr_body_max_length` caps the generated PR/MR body. When the body would exceed the cap, yeet drops the changelog from the body entirely and replaces it with a short notice pointing to the changelog file (the header, footer, and the hidden manifest marker that identifies the release are always preserved). `0` applies no extra cap. Azure DevOps rejects PR descriptions longer than 4000 characters, so yeet always enforces that hard limit on Azure DevOps regardless of this setting. The full notes still live in the changelog file committed to the release branch.
 
 The default `pr_body_footer` carries an "auto-generated preview" notice alongside the yeet
-attribution. Overriding `pr_body_footer` replaces both; setting it to an empty string removes the
+attribution. Overriding `pr_body_footer` replaces both. Setting it to an empty string removes the
 footer entirely. The PR/MR body is regenerated by `yeet release`, so do not use it for final
 release-note edits.
 
@@ -423,7 +423,7 @@ When `yeet release` updates an existing release PR/MR, yeet preserves manual cha
 that are not part of the regenerated conventional-commit sections.
 
 Migration note: older yeet versions used `BEGIN_YEET_RELEASE_NOTES` / `END_YEET_RELEASE_NOTES`
-markers in the PR/MR body. Those blocks are now ignored during finalization; move custom notes into
+markers in the PR/MR body. Those blocks are now ignored during finalization. Move custom notes into
 the committed changelog entry before merging the release PR/MR.
 
 ### Prerelease channels
@@ -443,9 +443,9 @@ release:
       prerelease: rc
 ```
 
-On `main`, `yeet release` runs the stable release flow. On `beta`, it creates or updates a beta release PR/MR targeting `beta`; after that PR/MR is merged, the next run creates a provider prerelease such as `v1.3.0-beta.1`. Stable releases ignore prerelease tags when choosing the stable baseline.
+On `main`, `yeet release` runs the stable release flow. On `beta`, it creates or updates a beta release PR/MR targeting `beta`. After that PR/MR is merged, the next run creates a provider prerelease such as `v1.3.0-beta.1`. Stable releases ignore prerelease tags when choosing the stable baseline.
 
-Prerelease channels write to channel-specific changelogs by default, so stable `CHANGELOG.md` entries stay clean. For `CHANGELOG.md`, beta writes `CHANGELOG.beta.md`; for `services/api/CHANGELOG.md`, beta writes `services/api/CHANGELOG.beta.md`. Version files are still updated to the prerelease version on the channel branch.
+Prerelease channels write to channel-specific changelogs by default, so stable `CHANGELOG.md` entries stay clean. For `CHANGELOG.md`, beta writes `CHANGELOG.beta.md`. For `services/api/CHANGELOG.md`, beta writes `services/api/CHANGELOG.beta.md`. Version files are still updated to the prerelease version on the channel branch.
 
 `yeet release` fails on branches that are not configured as `branch` or a `release.channels.<name>.branch`. Use `--dry-run` for exploratory runs from other branches, or pass `--channel beta` to explicitly select a configured channel.
 
@@ -609,7 +609,7 @@ release:
 
 ### Azure Pipelines
 
-This example uses Azure Pipelines `System.AccessToken`. Map it explicitly into the step env;
+This example uses Azure Pipelines `System.AccessToken`. Map it explicitly into the step env.
 yeet sends it to Azure DevOps as bearer auth.
 
 ```yaml
@@ -646,7 +646,7 @@ category so you can pick the next fix quickly:
 
 - `configuration file not found`: create `.yeet.yaml` with `yeet init` at the repo root or pass `--config`.
 - `invalid configuration`: fix invalid values in `.yeet.yaml` before rerunning.
-- `repository resolution failed`: set `provider` explicitly for custom or enterprise hosts; set
+- `repository resolution failed`: set `provider` explicitly for custom or enterprise hosts. Set
   `repository` too when remote discovery cannot provide the host and path.
 - `provider setup failed`: export the required token (`GITHUB_TOKEN`/`GH_TOKEN`,
   `GITLAB_TOKEN`/`GL_TOKEN`, `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, or `AZURE_DEVOPS_EXT_PAT`)
