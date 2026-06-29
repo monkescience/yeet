@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/monkescience/testastic"
 )
 
@@ -41,6 +42,58 @@ func TestNewAzureDevOpsUsesPATBasicAuth(t *testing.T) {
 	decoded, err := base64.StdEncoding.DecodeString(auth)
 	testastic.NoError(t, err)
 	testastic.Equal(t, ":pat-token", string(decoded))
+}
+
+func TestBuildAzureDevOpsCommitCriteria(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unbounded history filters commits by branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: no boundary ref, so the full branch history is requested
+		// when: building the commit criteria for a branch with no boundary
+		criteria := buildAzureDevOpsCommitCriteria("main", "")
+
+		// then: the branch is the item-version filter (not the compare version),
+		// so Azure restricts to commits reachable from the branch rather than
+		// returning every commit in the repository
+		testastic.NotNil(t, criteria.ItemVersion)
+		testastic.Equal(t, "main", *criteria.ItemVersion.Version)
+		testastic.Equal(t, git.GitVersionTypeValues.Branch, *criteria.ItemVersion.VersionType)
+		testastic.Nil(t, criteria.CompareVersion)
+	})
+
+	t.Run("tag boundary stops at the tag and walks from the branch head", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag boundary
+		// when: building the commit criteria
+		criteria := buildAzureDevOpsCommitCriteria("main", "v1.0.0")
+
+		// then: the tag is the item-version boundary and the branch is the
+		// compare-version head, so Azure computes the graph range itself
+		testastic.NotNil(t, criteria.ItemVersion)
+		testastic.Equal(t, "v1.0.0", *criteria.ItemVersion.Version)
+		testastic.Equal(t, git.GitVersionTypeValues.Tag, *criteria.ItemVersion.VersionType)
+		testastic.NotNil(t, criteria.CompareVersion)
+		testastic.Equal(t, "main", *criteria.CompareVersion.Version)
+		testastic.Equal(t, git.GitVersionTypeValues.Branch, *criteria.CompareVersion.VersionType)
+	})
+
+	t.Run("commit sha boundary uses the commit version type", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a 40-character commit SHA boundary
+		sha := "a29bbfeda10bff1ba8ef28d0949b4e5ee84a49b7"
+
+		// when: building the commit criteria
+		criteria := buildAzureDevOpsCommitCriteria("main", sha)
+
+		// then: the boundary is typed as a commit, not a tag
+		testastic.NotNil(t, criteria.ItemVersion)
+		testastic.Equal(t, sha, *criteria.ItemVersion.Version)
+		testastic.Equal(t, git.GitVersionTypeValues.Commit, *criteria.ItemVersion.VersionType)
+	})
 }
 
 func TestAzureDevOpsPullRequestWebURL(t *testing.T) {

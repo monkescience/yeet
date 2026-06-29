@@ -200,22 +200,40 @@ func (a *AzureDevOps) listAzureDevOpsCommits(
 	return entries, nil
 }
 
-// Azure DevOps inverts the usual naming: CompareVersion is where it starts
-// walking history (the head), and ItemVersion is the boundary it stops at.
-// Swapping them yields the wrong (inverse or empty) range.
+// buildAzureDevOpsCommitCriteria builds the GetCommits search criteria for the
+// branch's history relative to boundaryRef.
+//
+// Bounded (boundaryRef != ""): Azure DevOps inverts the usual naming, so
+// CompareVersion is where it starts walking history (the head) and ItemVersion
+// is the boundary it stops at. Swapping them yields the wrong (inverse or empty)
+// range.
+//
+// Unbounded (boundaryRef == ""): the branch must be the ItemVersion filter. A
+// lone CompareVersion does not scope the query to the branch, so Azure returns
+// repository-wide commits instead of the branch's own history.
 func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCommitsCriteria {
 	criteria := &git.GitQueryCommitsCriteria{}
 
-	if boundaryRef != "" {
-		itemType := git.GitVersionTypeValues.Tag
-		if isAzureDevOpsCommitSHA(boundaryRef) {
-			itemType = git.GitVersionTypeValues.Commit
+	if boundaryRef == "" {
+		if branch != "" {
+			branchType := git.GitVersionTypeValues.Branch
+			criteria.ItemVersion = &git.GitVersionDescriptor{
+				Version:     new(branch),
+				VersionType: &branchType,
+			}
 		}
 
-		criteria.ItemVersion = &git.GitVersionDescriptor{
-			Version:     new(boundaryRef),
-			VersionType: &itemType,
-		}
+		return criteria
+	}
+
+	itemType := git.GitVersionTypeValues.Tag
+	if isAzureDevOpsCommitSHA(boundaryRef) {
+		itemType = git.GitVersionTypeValues.Commit
+	}
+
+	criteria.ItemVersion = &git.GitVersionDescriptor{
+		Version:     new(boundaryRef),
+		VersionType: &itemType,
 	}
 
 	if branch != "" {
