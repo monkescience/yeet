@@ -368,6 +368,10 @@ func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*Re
 
 func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*RepositoryDescriptor, error) {
 	// Legacy subdomain form: org is the host subdomain, path is {project}/_git/{repo}.
+	// The host is normalized to dev.azure.com (as the SSH parser already does) so
+	// the provider builds the API base URL as dev.azure.com/{org}. Keeping the
+	// {org}.visualstudio.com host would append the org a second time
+	// (https://{org}.visualstudio.com/{org}/_apis) and 404.
 	org := strings.TrimSuffix(host, azureDevOpsLegacyHostSuffix)
 	if org == "" {
 		return nil, ErrUnknownRemote
@@ -387,7 +391,7 @@ func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*R
 
 	return &RepositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
-		Host:         host,
+		Host:         DefaultAzureDevOpsHost,
 		Organization: org,
 		Project:      project,
 		Repo:         repo,

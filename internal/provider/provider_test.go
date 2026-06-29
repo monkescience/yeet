@@ -121,6 +121,58 @@ func TestParseRemote(t *testing.T) {
 		testastic.Equal(t, "group/service.api", info.Project)
 	})
 
+	t.Run("azure devops cloud https", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a cloud Azure DevOps HTTPS remote
+		url := "https://dev.azure.com/contoso/platform/_git/yeet"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
+
+		// then: org, project, and repo are extracted under the cloud host
+		testastic.NoError(t, err)
+		testastic.Equal(t, "dev.azure.com", info.Host)
+		testastic.Equal(t, "contoso", info.Organization)
+		testastic.Equal(t, "platform", info.Project)
+		testastic.Equal(t, "yeet", info.Repo)
+	})
+
+	t.Run("azure devops legacy visualstudio https", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a legacy Azure DevOps remote where the org is the host subdomain
+		url := "https://contoso.visualstudio.com/platform/_git/yeet"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
+
+		// then: the host is normalized to dev.azure.com so the API base URL
+		// resolves to dev.azure.com/{org}, not the broken {org}.visualstudio.com/{org}
+		testastic.NoError(t, err)
+		testastic.Equal(t, "dev.azure.com", info.Host)
+		testastic.Equal(t, "contoso", info.Organization)
+		testastic.Equal(t, "platform", info.Project)
+		testastic.Equal(t, "yeet", info.Repo)
+	})
+
+	t.Run("azure devops ssh", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an Azure DevOps SSH remote
+		url := "git@ssh.dev.azure.com:v3/contoso/platform/yeet"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemote(url)
+
+		// then: org, project, and repo are extracted under the cloud host
+		testastic.NoError(t, err)
+		testastic.Equal(t, "dev.azure.com", info.Host)
+		testastic.Equal(t, "contoso", info.Organization)
+		testastic.Equal(t, "platform", info.Project)
+		testastic.Equal(t, "yeet", info.Repo)
+	})
+
 	t.Run("invalid url", func(t *testing.T) {
 		t.Parallel()
 
