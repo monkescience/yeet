@@ -1,0 +1,21 @@
+{
+  "commits": [
+    {
+      "id": "inter-sha",
+      "message": "fix: patch between releases",
+      "committed_date": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "mid-sha",
+      "message": "chore: tag v1.4.0",
+      "committed_date": "2026-01-02T00:00:00Z"
+    },
+    {
+      "id": "head-sha",
+      "message": "feat: ship api",
+      "committed_date": "2026-01-03T00:00:00Z"
+    }
+  ],
+  "compare_timeout": false,
+  "compare_same_ref": false
+}

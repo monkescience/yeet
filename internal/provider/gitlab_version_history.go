@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
+	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
-	"golang.org/x/sync/errgroup"
 )
 
 func (g *GitLab) GetLatestVersionRef(ctx context.Context) (string, error) {
@@ -62,29 +63,111 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
 func (g *GitLab) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
 	branch string,
 	includePaths bool,
 ) (CommitHistory, error) {
-	normalizedRefs := normalizeCommitHistoryRefs(refs)
-	if len(normalizedRefs) == 0 {
-		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
-	}
-
-	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(
-		ctx, normalizedRefs, g.resolveCommitID, g.maxConcurrentRequests)
-	if err != nil {
-		return CommitHistory{}, err
-	}
-
-	if len(boundaryRefsByID) == 0 && !hasUnboundedRef {
-		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
-	}
-
 	branch = strings.TrimSpace(branch)
+
+	return fetchCommitHistoryByRef(ctx, refs, g.maxConcurrentRequests,
+		func(ctx context.Context, ref string) ([]CommitEntry, error) {
+			return g.commitsSinceRef(ctx, ref, branch, includePaths)
+		},
+	)
+}
+
+// commitsSinceRef returns the commits reachable from branch but not from ref,
+// newest-first. It uses the compare endpoint so GitLab computes the graph range
+// server-side rather than walking the branch and slicing it, which
+// over-includes commits on non-linear histories. ref == "" lists the whole
+// branch history.
+func (g *GitLab) commitsSinceRef(
+	ctx context.Context,
+	ref, branch string,
+	includePaths bool,
+) ([]CommitEntry, error) {
+	boundaryRef := strings.TrimSpace(ref)
+
+	slog.DebugContext(ctx, "gitlab: fetching commits",
+		slog.String("branch", branch),
+		slog.String("boundary_ref", boundaryRef),
+		slog.Bool("include_paths", includePaths),
+	)
+
+	var (
+		entries []CommitEntry
+		err     error
+	)
+
+	if boundaryRef == "" {
+		entries, err = g.listBranchCommits(ctx, branch)
+	} else {
+		entries, err = g.compareCommits(ctx, boundaryRef, branch)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if includePaths && len(entries) > 0 {
+		err = hydrateCommitPaths(ctx, entries, g.maxConcurrentRequests, g.commitPaths)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	slog.DebugContext(ctx, "gitlab: fetched commits", slog.Int("count", len(entries)))
+
+	return entries, nil
+}
+
+// compareCommits returns the commits in from..to, newest-first. GitLab's
+// compare endpoint does not page. Its commits array is always complete (the
+// compare_timeout flag only warns that the diffs, which we do not read, may be
+// truncated). An unknown from ref answers 404, mapped to ErrRefNotFound so the
+// batch records a missing ref.
+func (g *GitLab) compareCommits(ctx context.Context, from, to string) ([]CommitEntry, error) {
+	comparison, resp, err := g.client.Repositories.Compare(g.pid, &gitlab.CompareOptions{
+		From: &from,
+		To:   &to,
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
+		}
+
+		return nil, fmt.Errorf("compare commits %q..%q: %w", from, to, err)
+	}
+
+	commits := comparison.Commits
+
+	// GitLab does not document the compare commit order, so sort newest-first by
+	// committed date to give a stable, provider-consistent changelog order.
+	slices.SortStableFunc(commits, func(a, b *gitlab.Commit) int {
+		return gitLabCommitTime(b).Compare(gitLabCommitTime(a))
+	})
+
+	entries := make([]CommitEntry, 0, len(commits))
+	for _, c := range commits {
+		entries = append(entries, CommitEntry{Hash: c.ID, Message: c.Message})
+	}
+
+	return entries, nil
+}
+
+func gitLabCommitTime(c *gitlab.Commit) time.Time {
+	if c.CommittedDate != nil {
+		return *c.CommittedDate
+	}
+
+	return time.Time{}
+}
+
+// listBranchCommits walks the entire branch history newest-first. It backs the
+// unbounded ("") ref, used when a target has no previous release to bound from.
+func (g *GitLab) listBranchCommits(ctx context.Context, branch string) ([]CommitEntry, error) {
 	opts := &gitlab.ListCommitsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
@@ -93,15 +176,9 @@ func (g *GitLab) GetCommitsSinceRefs(
 		opts.RefName = new(branch)
 	}
 
-	slog.DebugContext(ctx, "gitlab: fetching commits for refs",
-		slog.Int("refs", len(normalizedRefs)),
-		slog.String("branch", branch),
-		slog.Bool("include_paths", includePaths),
-	)
+	entries := make([]CommitEntry, 0)
 
-	scanner := newCommitBoundaryScanner(boundaryRefsByID, hasUnboundedRef)
-
-	err = paginate(ctx, "listing commits",
+	err := paginate(ctx, "listing commits",
 		func(page int) ([]*gitlab.Commit, int, error) {
 			opts.Page = int64(page)
 
@@ -113,47 +190,16 @@ func (g *GitLab) GetCommitsSinceRefs(
 			return commits, gitLabNextPage(resp), nil
 		},
 		func(c *gitlab.Commit) (bool, error) {
-			return scanner.observe(c.ID, c.Message), nil
+			entries = append(entries, CommitEntry{Hash: c.ID, Message: c.Message})
+
+			return false, nil
 		},
 	)
 	if err != nil {
-		return CommitHistory{}, err
+		return nil, err
 	}
 
-	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
-
-	if includePaths && len(entries) > 0 {
-		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(g.maxConcurrentRequests)
-
-		for idx := range entries {
-			eg.Go(func() error {
-				paths, err := g.commitPaths(egCtx, entries[idx].Hash)
-				if err != nil {
-					return err
-				}
-
-				entries[idx].Paths = paths
-
-				return nil
-			})
-		}
-
-		err := eg.Wait()
-		if err != nil {
-			return CommitHistory{}, fmt.Errorf("fetch commit paths: %w", err)
-		}
-	}
-
-	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, scanner.positions)
-	slog.DebugContext(ctx, "gitlab: fetched commits for refs",
-		slog.Int("entries", len(entries)),
-		slog.Int("missing_refs", len(history.MissingRefs)),
-		slog.Bool("early_terminated", scanner.earlyTerminated()),
-		slog.Bool("unbounded_ref", hasUnboundedRef),
-	)
-
-	return history, nil
+	return entries, nil
 }
 
 func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
@@ -169,23 +215,6 @@ func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
 	}
 
 	return releases[0], nil
-}
-
-func (g *GitLab) resolveCommitID(ctx context.Context, ref string) (string, error) {
-	commit, resp, err := g.client.Commits.GetCommit(g.pid, ref, nil, gitlab.WithContext(ctx))
-	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return "", fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
-		}
-
-		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
-	}
-
-	if commit.ID == "" {
-		return "", fmt.Errorf("%w: ref %q", ErrEmptyCommitID, ref)
-	}
-
-	return commit.ID, nil
 }
 
 func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) {

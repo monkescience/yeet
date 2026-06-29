@@ -1,0 +1,25 @@
+{
+  "status": "ahead",
+  "ahead_by": 3,
+  "total_commits": 3,
+  "commits": [
+    {
+      "sha": "inter-sha",
+      "commit": {
+        "message": "fix: patch between releases"
+      }
+    },
+    {
+      "sha": "mid-sha",
+      "commit": {
+        "message": "chore: tag v1.4.0"
+      }
+    },
+    {
+      "sha": "head-sha",
+      "commit": {
+        "message": "feat: ship api"
+      }
+    }
+  ]
+}

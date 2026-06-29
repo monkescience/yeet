@@ -90,44 +90,76 @@ func (a *AzureDevOps) paginateTagRefs(
 	)
 }
 
-//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
 func (a *AzureDevOps) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
 	branch string,
 	includePaths bool,
 ) (CommitHistory, error) {
-	normalizedRefs := normalizeCommitHistoryRefs(refs)
-	if len(normalizedRefs) == 0 {
-		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
-	}
-
-	boundaryRefsByID, hasUnboundedRef, err := resolveBoundaryRefs(
-		ctx, normalizedRefs, a.resolveAzureDevOpsObjectID, a.maxConcurrentRequests)
-	if err != nil {
-		return CommitHistory{}, err
-	}
-
-	if len(boundaryRefsByID) == 0 && !hasUnboundedRef {
-		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
-	}
-
 	branch = strings.TrimSpace(branch)
 
-	slog.DebugContext(ctx, "azure devops: fetching commits for refs",
-		slog.Int("refs", len(normalizedRefs)),
+	return fetchCommitHistoryByRef(ctx, refs, a.maxConcurrentRequests,
+		func(ctx context.Context, ref string) ([]CommitEntry, error) {
+			return a.commitsSinceRef(ctx, ref, branch, includePaths)
+		},
+	)
+}
+
+// commitsSinceRef returns the commits reachable from branch but not from ref,
+// newest-first. It asks Azure DevOps for the graph-aware range directly
+// (ItemVersion is the stop boundary, CompareVersion is the head) instead of
+// walking the whole branch and slicing it client-side, which over-includes
+// commits on non-linear histories. ref == "" walks the full branch history.
+//
+// A bounded query against a boundary that does not exist returns a 404/400,
+// which surfaces as ErrRefNotFound so the batch records it as a missing ref
+// rather than failing.
+func (a *AzureDevOps) commitsSinceRef(
+	ctx context.Context,
+	ref, branch string,
+	includePaths bool,
+) ([]CommitEntry, error) {
+	boundaryRef := strings.TrimSpace(ref)
+
+	slog.DebugContext(ctx, "azure devops: fetching commits",
 		slog.String("branch", branch),
+		slog.String("boundary_ref", boundaryRef),
 		slog.Bool("include_paths", includePaths),
 	)
 
-	gitClient, err := a.client(ctx)
+	entries, err := a.listAzureDevOpsCommits(ctx, branch, boundaryRef)
 	if err != nil {
-		return CommitHistory{}, err
+		return nil, err
 	}
 
+	if includePaths && len(entries) > 0 {
+		err = a.fillAzureDevOpsCommitPaths(ctx, entries)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	slog.DebugContext(ctx, "azure devops: fetched commits", slog.Int("count", len(entries)))
+
+	return entries, nil
+}
+
+// listAzureDevOpsCommits walks the graph-aware range boundaryRef..branch
+// (boundaryRef == "" walks the full branch), newest-first. A boundary the API
+// rejects with 404/400 becomes ErrRefNotFound so the batch records a missing
+// ref rather than failing.
+func (a *AzureDevOps) listAzureDevOpsCommits(
+	ctx context.Context,
+	branch, boundaryRef string,
+) ([]CommitEntry, error) {
+	gitClient, err := a.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]CommitEntry, 0)
 	top := azureDevOpsRefPageSize
-	criteria := buildAzureDevOpsCommitCriteria(branch, "")
-	scanner := newCommitBoundaryScanner(boundaryRefsByID, hasUnboundedRef)
+	criteria := buildAzureDevOpsCommitCriteria(branch, boundaryRef)
 
 	err = paginateAzureDevOpsBySkip(ctx, "listing commits", top,
 		func(skip int) ([]git.GitCommitRef, error) {
@@ -139,6 +171,10 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 				Top:            &top,
 			})
 			if err != nil {
+				if boundaryRef != "" && azureDevOpsBoundaryError(err) {
+					return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, boundaryRef)
+				}
+
 				return nil, fmt.Errorf("list commits: %w", err)
 			}
 
@@ -149,49 +185,24 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 			return *pageCommits, nil
 		},
 		func(commit git.GitCommitRef) (bool, error) {
-			return scanner.observe(derefString(commit.CommitId), derefString(commit.Comment)), nil
+			entries = append(entries, CommitEntry{
+				Hash:    derefString(commit.CommitId),
+				Message: derefString(commit.Comment),
+			})
+
+			return false, nil
 		},
 	)
 	if err != nil {
-		return CommitHistory{}, err
+		return nil, err
 	}
 
-	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
-
-	return a.commitHistoryWithPaths(
-		ctx, normalizedRefs, entries, scanner.positions, includePaths, scanner.earlyTerminated(), hasUnboundedRef)
-}
-
-func (a *AzureDevOps) commitHistoryWithPaths(
-	ctx context.Context,
-	refs []string,
-	entries []CommitEntry,
-	positions map[string]int,
-	includePaths bool,
-	earlyTerminated bool,
-	hasUnboundedRef bool,
-) (CommitHistory, error) {
-	if includePaths && len(entries) > 0 {
-		err := a.fillAzureDevOpsCommitPaths(ctx, entries)
-		if err != nil {
-			return CommitHistory{}, err
-		}
-	}
-
-	history := commitHistoryFromBoundaryPositions(refs, entries, positions)
-	slog.DebugContext(ctx, "azure devops: fetched commits for refs",
-		slog.Int("entries", len(entries)),
-		slog.Int("missing_refs", len(history.MissingRefs)),
-		slog.Bool("early_terminated", earlyTerminated),
-		slog.Bool("unbounded_ref", hasUnboundedRef),
-	)
-
-	return history, nil
+	return entries, nil
 }
 
 // Azure DevOps inverts the usual naming: CompareVersion is where it starts
 // walking history (the head), and ItemVersion is the boundary it stops at.
-// Swapping them returns nothing.
+// Swapping them yields the wrong (inverse or empty) range.
 func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCommitsCriteria {
 	criteria := &git.GitQueryCommitsCriteria{}
 

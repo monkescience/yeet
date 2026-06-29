@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -525,26 +524,20 @@ func TestGitLabVersionLookup(t *testing.T) {
 func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns commits from requested branch until boundary across pages", func(t *testing.T) {
+	t.Run("returns the compare range newest-first across pages", func(t *testing.T) {
 		t.Parallel()
 
 		const (
-			branch = "release/main"
+			branch = "main"
 			ref    = "v1.0.0"
 		)
 
-		var listCalls atomic.Int32
-
-		var resolveCalls atomic.Int32
+		var compareCalls atomic.Int32
 
 		var server *httptest.Server
 
 		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+ref:
-				resolveCalls.Add(1)
-
-				writeJSON(t, w, map[string]any{"sha": "base-sha"})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
 				writeJSON(t, w, map[string]any{
 					"sha":   "head-1",
@@ -555,33 +548,35 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 					"sha":   "head-2",
 					"files": []map[string]any{{"filename": "services/api/http.go"}},
 				})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
-				listCalls.Add(1)
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/compare/"+ref+"..."+branch:
+				compareCalls.Add(1)
 
-				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
 				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
 
+				// Compare returns oldest-first, provider reverses to newest-first.
 				switch r.URL.Query().Get("page") {
 				case "":
 					w.Header().Set(
 						"Link",
-						fmt.Sprintf(
-							`<%s/repos/o/r/commits?sha=%s&per_page=100&page=2>; rel="next"`,
-							server.URL,
-							url.QueryEscape(branch),
-						),
+						fmt.Sprintf(`<%s/repos/o/r/compare/%s...%s?per_page=100&page=2>; rel="next"`, server.URL, ref, branch),
 					)
-					writeJSON(t, w, []map[string]any{
-						{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
-						{"sha": "head-2", "commit": map[string]any{"message": "fix: patch API"}},
+					writeJSON(t, w, map[string]any{
+						"status":        "ahead",
+						"total_commits": 2,
+						"commits": []map[string]any{
+							{"sha": "head-2", "commit": map[string]any{"message": "fix: patch API"}},
+						},
 					})
 				case "2":
-					writeJSON(t, w, []map[string]any{
-						{"sha": "base-sha", "commit": map[string]any{"message": "chore: previous release"}},
-						{"sha": "older", "commit": map[string]any{"message": "docs: older commit"}},
+					writeJSON(t, w, map[string]any{
+						"status":        "ahead",
+						"total_commits": 2,
+						"commits": []map[string]any{
+							{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
+						},
 					})
 				default:
-					t.Fatalf("unexpected GitHub commits page: %s", r.URL.RawQuery)
+					t.Fatalf("unexpected GitHub compare page: %s", r.URL.RawQuery)
 				}
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
@@ -597,8 +592,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		entries := history.EntriesByRef[ref]
 
 		testastic.NoError(t, err)
-		testastic.Equal(t, int32(1), resolveCalls.Load())
-		testastic.Equal(t, int32(2), listCalls.Load())
+		testastic.Equal(t, int32(2), compareCalls.Load())
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "feat: add API", entries[0].Message)
@@ -606,37 +600,23 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		testastic.Equal(t, 0, len(history.MissingRefs))
 	})
 
-	t.Run("reports missing ref when ref is not reachable from branch", func(t *testing.T) {
+	t.Run("reports missing ref when boundary is not an ancestor of branch", func(t *testing.T) {
 		t.Parallel()
 
 		const (
-			branch = "release/main"
+			branch = "main"
 			ref    = "v1.0.0"
 		)
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+ref:
-				writeJSON(t, w, map[string]any{"sha": "base-sha"})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
-				writeJSON(t, w, map[string]any{
-					"sha":   "head-1",
-					"files": []map[string]any{{"filename": "services/api/main.go"}},
-				})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-2":
-				writeJSON(t, w, map[string]any{
-					"sha":   "head-2",
-					"files": []map[string]any{{"filename": "services/api/http.go"}},
-				})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
-				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
-				writeJSON(t, w, []map[string]any{
-					{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
-					{"sha": "head-2", "commit": map[string]any{"message": "fix: patch API"}},
-				})
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/compare/"+ref+"..."+branch {
+				// Diverged means the boundary is off-branch: not reachable.
+				writeJSON(t, w, map[string]any{"status": "diverged", "commits": []map[string]any{}})
+
+				return
 			}
+
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
 		}))
 		defer server.Close()
 
@@ -654,7 +634,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 	t.Run("allows initial release without boundary", func(t *testing.T) {
 		t.Parallel()
 
-		const branch = "release/main"
+		const branch = "main"
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
@@ -697,28 +677,28 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		t.Parallel()
 
 		const (
-			branch       = "release/main"
+			branch       = "main"
 			reachableRef = "v1.0.0"
 			deletedRef   = "v0.5.0"
 		)
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+reachableRef:
-				writeJSON(t, w, map[string]any{"sha": "base-sha"})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+deletedRef:
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/compare/"+reachableRef+"..."+branch:
+				writeJSON(t, w, map[string]any{
+					"status":        "ahead",
+					"total_commits": 1,
+					"commits": []map[string]any{
+						{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
+					},
+				})
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/compare/"+deletedRef+"..."+branch:
 				w.WriteHeader(http.StatusNotFound)
 				writeJSON(t, w, map[string]any{"message": "Not Found"})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/head-1":
 				writeJSON(t, w, map[string]any{
 					"sha":   "head-1",
 					"files": []map[string]any{{"filename": "services/api/main.go"}},
-				})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
-				testastic.Equal(t, branch, r.URL.Query().Get("sha"))
-				writeJSON(t, w, []map[string]any{
-					{"sha": "head-1", "commit": map[string]any{"message": "feat: add API"}},
-					{"sha": "base-sha", "commit": map[string]any{"message": "chore: previous release"}},
 				})
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
@@ -738,11 +718,11 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		testastic.Equal(t, "head-1", history.EntriesByRef[reachableRef][0].Hash)
 	})
 
-	t.Run("skips the branch walk when every requested ref is unresolvable", func(t *testing.T) {
+	t.Run("never walks the full branch when every requested ref is unresolvable", func(t *testing.T) {
 		t.Parallel()
 
 		const (
-			branch       = "release/main"
+			branch       = "main"
 			firstMissing = "v0.5.0"
 			thirdMissing = "v0.7.0"
 		)
@@ -753,7 +733,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
-			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/commits/"):
+			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/compare/"):
 				w.WriteHeader(http.StatusNotFound)
 				writeJSON(t, w, map[string]any{"message": "Not Found"})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits":
@@ -789,7 +769,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub commit whose changed files span multiple commit detail pages
-		const branch = "release/main"
+		const branch = "main"
 
 		var server *httptest.Server
 
@@ -861,7 +841,7 @@ func TestGitHubGetCommitsSinceRefs(t *testing.T) {
 func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns commits from requested branch until boundary across pages", func(t *testing.T) {
+	t.Run("returns the compare range newest-first", func(t *testing.T) {
 		t.Parallel()
 
 		const (
@@ -869,9 +849,7 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 			ref    = "v1.0.0"
 		)
 
-		var listCalls atomic.Int32
-
-		var resolveCalls atomic.Int32
+		var compareCalls atomic.Int32
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
@@ -879,31 +857,18 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
 			case isGitLabCommitDiffRequest(r, "head-2"):
 				writeJSON(t, w, []map[string]any{{"new_path": "services/api/http.go", "old_path": "services/api/http.go"}})
-			case isGitLabCommitResolveRequest(r):
-				resolveCalls.Add(1)
+			case isGitLabCompareRequest(r, ref):
+				compareCalls.Add(1)
 
-				writeJSON(t, w, map[string]any{"id": "base-sha"})
-			case isGitLabCommitsListRequest(r):
-				listCalls.Add(1)
+				testastic.Equal(t, branch, r.URL.Query().Get("to"))
 
-				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
-				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
-
-				switch r.URL.Query().Get("page") {
-				case "":
-					w.Header().Set("X-Next-Page", "2")
-					writeJSON(t, w, []map[string]any{
-						{"id": "head-1", "message": "feat: add API"},
-						{"id": "head-2", "message": "fix: patch API"},
-					})
-				case "2":
-					writeJSON(t, w, []map[string]any{
-						{"id": "base-sha", "message": "chore: previous release"},
-						{"id": "older", "message": "docs: older commit"},
-					})
-				default:
-					t.Fatalf("unexpected GitLab commits page: %s", r.URL.RawQuery)
-				}
+				// Returned oldest-first, the provider sorts newest-first by date.
+				writeJSON(t, w, map[string]any{
+					"commits": []map[string]any{
+						{"id": "head-2", "message": "fix: patch API", "committed_date": "2026-01-01T00:00:00Z"},
+						{"id": "head-1", "message": "feat: add API", "committed_date": "2026-01-02T00:00:00Z"},
+					},
+				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 			}
@@ -924,58 +889,12 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 		entries := history.EntriesByRef[ref]
 
 		testastic.NoError(t, err)
-		testastic.Equal(t, int32(1), resolveCalls.Load())
-		testastic.Equal(t, int32(2), listCalls.Load())
+		testastic.Equal(t, int32(1), compareCalls.Load())
 		testastic.Equal(t, 2, len(entries))
 		testastic.Equal(t, "head-1", entries[0].Hash)
 		testastic.Equal(t, "feat: add API", entries[0].Message)
 		testastic.Equal(t, "head-2", entries[1].Hash)
 		testastic.Equal(t, 0, len(history.MissingRefs))
-	})
-
-	t.Run("reports missing ref when ref is not reachable from branch", func(t *testing.T) {
-		t.Parallel()
-
-		const (
-			branch = "release/main"
-			ref    = "v1.0.0"
-		)
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case isGitLabCommitDiffRequest(r, "head-1"):
-				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
-			case isGitLabCommitDiffRequest(r, "head-2"):
-				writeJSON(t, w, []map[string]any{{"new_path": "services/api/http.go", "old_path": "services/api/http.go"}})
-			case isGitLabCommitResolveRequest(r):
-				writeJSON(t, w, map[string]any{"id": "base-sha"})
-			case isGitLabCommitsListRequest(r):
-				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
-				writeJSON(t, w, []map[string]any{
-					{"id": "head-1", "message": "feat: add API"},
-					{"id": "head-2", "message": "fix: patch API"},
-				})
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
-
-		gl := provider.NewGitLab(client, "o/r")
-
-		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, true)
-
-		testastic.NoError(t, err)
-		testastic.Equal(t, 0, len(history.EntriesByRef[ref]))
-		testastic.SliceEqual(t, []string{ref}, history.MissingRefs)
 	})
 
 	t.Run("allows initial release without boundary", func(t *testing.T) {
@@ -1033,19 +952,15 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 			switch {
 			case isGitLabCommitDiffRequest(r, "head-1"):
 				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
-			case r.Method == http.MethodGet &&
-				r.URL.Path == "/api/v4/projects/o/r/repository/commits/"+reachableRef:
-				writeJSON(t, w, map[string]any{"id": "base-sha"})
-			case r.Method == http.MethodGet &&
-				r.URL.Path == "/api/v4/projects/o/r/repository/commits/"+deletedRef:
+			case isGitLabCompareRequest(r, reachableRef):
+				writeJSON(t, w, map[string]any{
+					"commits": []map[string]any{
+						{"id": "head-1", "message": "feat: add API", "committed_date": "2026-01-02T00:00:00Z"},
+					},
+				})
+			case isGitLabCompareRequest(r, deletedRef):
 				w.WriteHeader(http.StatusNotFound)
 				writeJSON(t, w, map[string]any{"message": "404 Commit Not Found"})
-			case isGitLabCommitsListRequest(r):
-				testastic.Equal(t, branch, r.URL.Query().Get("ref_name"))
-				writeJSON(t, w, []map[string]any{
-					{"id": "head-1", "message": "feat: add API"},
-					{"id": "base-sha", "message": "chore: previous release"},
-				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 			}
@@ -1070,7 +985,7 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 		testastic.Equal(t, "head-1", history.EntriesByRef[reachableRef][0].Hash)
 	})
 
-	t.Run("skips the branch walk when every requested ref is unresolvable", func(t *testing.T) {
+	t.Run("never walks the full branch when every requested ref is unresolvable", func(t *testing.T) {
 		t.Parallel()
 
 		const (
@@ -1086,7 +1001,7 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet &&
-				strings.HasPrefix(r.URL.Path, "/api/v4/projects/o/r/repository/commits/"):
+				r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/compare":
 				w.WriteHeader(http.StatusNotFound)
 				writeJSON(t, w, map[string]any{"message": "404 Commit Not Found"})
 			case isGitLabCommitsListRequest(r):
@@ -1379,11 +1294,6 @@ func writeJSON(t *testing.T, w http.ResponseWriter, value any) {
 	testastic.NoError(t, err)
 }
 
-func isGitLabCommitResolveRequest(r *http.Request) bool {
-	return r.Method == http.MethodGet &&
-		strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/repository/commits/")
-}
-
 func isGitLabCommitsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits"
@@ -1392,6 +1302,12 @@ func isGitLabCommitsListRequest(r *http.Request) bool {
 func isGitLabCommitDiffRequest(r *http.Request, commitID string) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits/"+commitID+"/diff"
+}
+
+func isGitLabCompareRequest(r *http.Request, from string) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/compare" &&
+		r.URL.Query().Get("from") == from
 }
 
 func isGitHubCreateReleaseRequest(r *http.Request) bool {

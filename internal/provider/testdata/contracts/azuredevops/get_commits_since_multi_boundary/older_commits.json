@@ -1,5 +1,5 @@
 {
-  "count": 4,
+  "count": 3,
   "value": [
     {
       "commitId": "head-sha",
@@ -12,10 +12,6 @@
     {
       "commitId": "inter-sha",
       "comment": "fix: patch between releases"
-    },
-    {
-      "commitId": "base-sha",
-      "comment": "chore: tag v1.2.3"
     }
   ]
 }

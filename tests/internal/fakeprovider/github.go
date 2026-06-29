@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -165,9 +166,83 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 		writeJSON(w, githubCommitsList(opts.Commits))
 	})
 
+	mux.HandleFunc("GET "+prefix+"/compare/{spec...}", githubCompareHandler(opts))
+
 	mux.HandleFunc("GET "+prefix+"/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, githubCommitDetail(r.PathValue("ref"), opts))
 	})
+}
+
+// githubCompareHandler serves base...head as GitHub's compare endpoint does:
+// the commits ahead of the boundary, oldest-first. An unknown base answers 404.
+// Under PaginateCommits the range is delivered on page 2 behind a next-page
+// link, so the test proves yeet follows compare pagination.
+func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		base, _, _ := strings.Cut(r.PathValue("spec"), "...")
+
+		boundarySHA, ok := githubResolveRefSHA(base, opts)
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		ahead, reachable := githubCommitsAhead(opts.Commits, boundarySHA)
+		if !reachable {
+			// Boundary exists but is not an ancestor of the branch.
+			writeJSON(w, githubComparisonPayload(nil, 0, "diverged"))
+
+			return
+		}
+
+		slices.Reverse(ahead) // compare returns oldest-first
+
+		if opts.PaginateCommits && r.URL.Query().Get("page") != "2" {
+			w.Header().Set("Link", `<https://api.github.com/?page=2>; rel="next"`)
+			writeJSON(w, githubComparisonPayload(nil, len(ahead), "ahead"))
+
+			return
+		}
+
+		writeJSON(w, githubComparisonPayload(ahead, len(ahead), "ahead"))
+	}
+}
+
+func githubResolveRefSHA(ref string, opts GitHubOptions) (string, bool) {
+	if ref == opts.LatestTag || slices.Contains(opts.ExtraTags, ref) {
+		return opts.BoundarySHA, true
+	}
+
+	for _, c := range opts.Commits {
+		if c.SHA == ref {
+			return c.SHA, true
+		}
+	}
+
+	return "", false
+}
+
+// githubCommitsAhead returns the commits ahead of the boundary in the
+// newest-first list (the boundary commit and anything older are dropped). A
+// boundary absent from the list models an off-branch ref: not reachable.
+func githubCommitsAhead(commits []GitHubCommit, boundarySHA string) ([]GitHubCommit, bool) {
+	for idx, c := range commits {
+		if c.SHA == boundarySHA {
+			return slices.Clone(commits[:idx]), true
+		}
+	}
+
+	return nil, false
+}
+
+func githubComparisonPayload(commits []GitHubCommit, total int, status string) map[string]any {
+	return map[string]any{
+		"status":        status,
+		"ahead_by":      total,
+		"total_commits": total,
+		keyCommits:      githubCommitsList(commits),
+	}
 }
 
 func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {

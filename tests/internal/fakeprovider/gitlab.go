@@ -96,6 +96,8 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 		writeJSON(w, gitlabCommitsList(opts.Commits))
 	})
 
+	mux.HandleFunc("GET "+prefix+"/repository/compare", gitlabCompareHandler(opts))
+
 	mux.HandleFunc("GET "+prefix+"/repository/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, gitlabCommitDetail(r.PathValue("ref"), opts))
 	})
@@ -341,6 +343,52 @@ func gitlabCommitDetail(ref string, opts GitLabOptions) map[string]any {
 	}
 
 	return map[string]any{gitlabKeyID: ref}
+}
+
+// gitlabCompareHandler serves from..to as GitLab's compare endpoint does: the
+// commits ahead of the boundary. An unknown from ref answers 404.
+func gitlabCompareHandler(opts GitLabOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		boundarySHA, ok := gitlabResolveRefSHA(r.URL.Query().Get("from"), opts)
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		writeJSON(w, map[string]any{
+			keyCommits:         gitlabCommitsList(gitlabCommitsSince(opts.Commits, boundarySHA)),
+			"compare_timeout":  false,
+			"compare_same_ref": false,
+		})
+	}
+}
+
+func gitlabResolveRefSHA(ref string, opts GitLabOptions) (string, bool) {
+	if ref != "" && ref == opts.LatestTag {
+		return opts.BoundarySHA, true
+	}
+
+	for _, c := range opts.Commits {
+		if c.SHA == ref {
+			return c.SHA, true
+		}
+	}
+
+	return "", false
+}
+
+// gitlabCommitsSince returns the commits ahead of the boundary in the
+// newest-first list (the boundary commit and anything older are dropped). A
+// boundary absent from the list is treated as older than every listed commit.
+func gitlabCommitsSince(commits []GitLabCommit, boundarySHA string) []GitLabCommit {
+	for idx, c := range commits {
+		if c.SHA == boundarySHA {
+			return commits[:idx]
+		}
+	}
+
+	return commits
 }
 
 func gitlabCommitsList(commits []GitLabCommit) []map[string]any {

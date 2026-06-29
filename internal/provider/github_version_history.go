@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/go-github/v88/github"
-	"golang.org/x/sync/errgroup"
 )
 
 func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
@@ -60,48 +60,153 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-//nolint:funlen // Multi-boundary scanning and path hydration are clearer kept together.
 func (g *GitHub) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
 	branch string,
 	includePaths bool,
 ) (CommitHistory, error) {
-	normalizedRefs := normalizeCommitHistoryRefs(refs)
-	if len(normalizedRefs) == 0 {
-		return CommitHistory{EntriesByRef: map[string][]CommitEntry{}}, nil
-	}
-
-	boundaryRefsBySHA, hasUnboundedRef, err := resolveBoundaryRefs(
-		ctx, normalizedRefs, g.resolveCommitSHA, g.maxConcurrentRequests)
-	if err != nil {
-		return CommitHistory{}, err
-	}
-
-	if len(boundaryRefsBySHA) == 0 && !hasUnboundedRef {
-		return commitHistoryFromBoundaryPositions(normalizedRefs, nil, nil), nil
-	}
-
 	branch = strings.TrimSpace(branch)
+
+	return fetchCommitHistoryByRef(ctx, refs, g.maxConcurrentRequests,
+		func(ctx context.Context, ref string) ([]CommitEntry, error) {
+			return g.commitsSinceRef(ctx, ref, branch, includePaths)
+		},
+	)
+}
+
+// commitsSinceRef returns the commits reachable from branch but not from ref,
+// newest-first. It uses the compare endpoint so GitHub computes the graph range
+// (ref...branch) server-side rather than walking the branch and slicing it,
+// which over-includes commits on non-linear histories. ref == "" lists the
+// whole branch history.
+func (g *GitHub) commitsSinceRef(
+	ctx context.Context,
+	ref, branch string,
+	includePaths bool,
+) ([]CommitEntry, error) {
+	boundaryRef := strings.TrimSpace(ref)
+
+	slog.DebugContext(ctx, "github: fetching commits",
+		slog.String("branch", branch),
+		slog.String("boundary_ref", boundaryRef),
+		slog.Bool("include_paths", includePaths),
+	)
+
+	var (
+		entries []CommitEntry
+		err     error
+	)
+
+	if boundaryRef == "" {
+		entries, err = g.listBranchCommits(ctx, branch)
+	} else {
+		entries, err = g.compareCommits(ctx, boundaryRef, branch)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if includePaths && len(entries) > 0 {
+		err = hydrateCommitPaths(ctx, entries, g.maxConcurrentRequests, g.commitPaths)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	slog.DebugContext(ctx, "github: fetched commits", slog.Int("count", len(entries)))
+
+	return entries, nil
+}
+
+// compareCommits returns the commits in base...head, newest-first. GitHub
+// returns compare commits oldest-first. The unpaginated call caps at 250, but
+// we page (PerPage 100) so the full comparison is retrieved up to
+// total_commits. An unknown base ref answers 404, mapped to ErrRefNotFound so
+// the batch records a missing ref.
+func (g *GitHub) compareCommits(ctx context.Context, base, head string) ([]CommitEntry, error) {
+	opts := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable page size
+
+	entries := make([]CommitEntry, 0)
+	total := 0
+	status := ""
+
+	err := paginate(ctx, "comparing commits",
+		func(page int) ([]*github.RepositoryCommit, int, error) {
+			opts.Page = page
+
+			comparison, resp, err := g.client.Repositories.CompareCommits(ctx, g.repo.Owner, g.repo.Name, base, head, opts)
+			if err != nil {
+				if resp != nil && resp.StatusCode == http.StatusNotFound {
+					return nil, 0, fmt.Errorf("%w: ref %q", ErrRefNotFound, base)
+				}
+
+				return nil, 0, fmt.Errorf("compare commits %q...%q: %w", base, head, err)
+			}
+
+			total = comparison.GetTotalCommits()
+			status = comparison.GetStatus()
+
+			return comparison.Commits, gitHubNextPage(resp), nil
+		},
+		func(c *github.RepositoryCommit) (bool, error) {
+			entries = append(entries, CommitEntry{Hash: c.GetSHA(), Message: c.GetCommit().GetMessage()})
+
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// "diverged"/"behind" mean base is not an ancestor of head, so head is not
+	// reachable from the boundary. Surface it as a missing ref, matching the old
+	// behavior where an off-branch boundary never appeared in the walk.
+	if !gitHubBoundaryReachable(status) {
+		return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, base)
+	}
+
+	// Pagination drains the full comparison, so total should equal what we
+	// collected. A shortfall means pagination stopped early (the page-count
+	// safety cap or a cancelled context), not an API-side 250 truncation.
+	if total > len(entries) {
+		slog.DebugContext(ctx, "github: compare pagination stopped before draining range",
+			slog.String("base", base),
+			slog.String("head", head),
+			slog.Int("total_commits", total),
+			slog.Int("returned", len(entries)),
+		)
+	}
+
+	// GitHub returns base...head oldest-first, but callers expect newest-first.
+	slices.Reverse(entries)
+
+	return entries, nil
+}
+
+// gitHubBoundaryReachable reports whether a compare status means the boundary
+// ref is an ancestor of the head. "ahead" is the normal "head has new commits"
+// case and "identical" is "nothing new", and both are reachable. An empty
+// status is treated as reachable so an unexpected payload does not block a release.
+func gitHubBoundaryReachable(status string) bool {
+	return status == "" || status == "ahead" || status == "identical"
+}
+
+// listBranchCommits walks the entire branch history newest-first. It backs the
+// unbounded ("") ref, used when a target has no previous release to bound from.
+func (g *GitHub) listBranchCommits(ctx context.Context, branch string) ([]CommitEntry, error) {
 	opts := &github.CommitsListOptions{
 		ListOptions: github.ListOptions{PerPage: 100}, //nolint:mnd // reasonable page size
 	}
 
 	if branch != "" {
 		opts.SHA = branch
-	} else if len(boundaryRefsBySHA) > 0 {
-		opts.SHA = "HEAD"
 	}
 
-	slog.DebugContext(ctx, "github: fetching commits for refs",
-		slog.Int("refs", len(normalizedRefs)),
-		slog.String("branch", branch),
-		slog.Bool("include_paths", includePaths),
-	)
+	entries := make([]CommitEntry, 0)
 
-	scanner := newCommitBoundaryScanner(boundaryRefsBySHA, hasUnboundedRef)
-
-	err = paginate(ctx, "listing commits",
+	err := paginate(ctx, "listing commits",
 		func(page int) ([]*github.RepositoryCommit, int, error) {
 			opts.Page = page
 
@@ -113,47 +218,16 @@ func (g *GitHub) GetCommitsSinceRefs(
 			return commits, gitHubNextPage(resp), nil
 		},
 		func(c *github.RepositoryCommit) (bool, error) {
-			return scanner.observe(c.GetSHA(), c.GetCommit().GetMessage()), nil
+			entries = append(entries, CommitEntry{Hash: c.GetSHA(), Message: c.GetCommit().GetMessage()})
+
+			return false, nil
 		},
 	)
 	if err != nil {
-		return CommitHistory{}, err
+		return nil, err
 	}
 
-	entries := trimEntriesToReferencedRange(scanner.entries, scanner.positions, hasUnboundedRef)
-
-	if includePaths && len(entries) > 0 {
-		eg, egCtx := errgroup.WithContext(ctx)
-		eg.SetLimit(g.maxConcurrentRequests)
-
-		for idx := range entries {
-			eg.Go(func() error {
-				paths, err := g.commitPaths(egCtx, entries[idx].Hash)
-				if err != nil {
-					return err
-				}
-
-				entries[idx].Paths = paths
-
-				return nil
-			})
-		}
-
-		err := eg.Wait()
-		if err != nil {
-			return CommitHistory{}, fmt.Errorf("fetch commit paths: %w", err)
-		}
-	}
-
-	history := commitHistoryFromBoundaryPositions(normalizedRefs, entries, scanner.positions)
-	slog.DebugContext(ctx, "github: fetched commits for refs",
-		slog.Int("entries", len(entries)),
-		slog.Int("missing_refs", len(history.MissingRefs)),
-		slog.Bool("early_terminated", scanner.earlyTerminated()),
-		slog.Bool("unbounded_ref", hasUnboundedRef),
-	)
-
-	return history, nil
+	return entries, nil
 }
 
 func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, error) {

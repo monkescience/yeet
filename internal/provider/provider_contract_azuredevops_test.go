@@ -229,18 +229,25 @@ func azureDevOpsListTagsHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
+// azureDevOpsBoundedCommitsRequest matches the graph-aware range query the
+// provider now issues per ref: ItemVersion is the boundary tag and
+// CompareVersion is the branch head, so Azure computes "commits reachable from
+// the branch but not from the tag" itself.
+func azureDevOpsBoundedCommitsRequest(r *http.Request, boundaryTag string) bool {
+	query := r.URL.Query()
+
+	return isAzureDevOpsCommitsListRequest(r) &&
+		query.Get("searchCriteria.itemVersion.version") == boundaryTag &&
+		query.Get("searchCriteria.compareVersion.version") == providerContractBaseBranch
+}
+
 func azureDevOpsGetCommitsSinceHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
+		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
 			testastic.Equal(t, "tag", r.URL.Query().Get("searchCriteria.itemVersion.versionType"))
-			testastic.Equal(t, "1", r.URL.Query().Get("searchCriteria.$top"))
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
-		case isAzureDevOpsCommitsListRequest(r):
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
 			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
 		case r.Method == http.MethodGet &&
@@ -257,16 +264,12 @@ func azureDevOpsGetCommitsSinceMissingHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractMissingTag:
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve_missing.json"))
-		case isAzureDevOpsCommitsListRequest(r):
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
-			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
+		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
+		case azureDevOpsBoundedCommitsRequest(r, providerContractMissingTag):
+			// Azure rejects an unknown boundary with 404, which the provider maps
+			// to a missing ref without failing the batch.
+			http.NotFound(w, r)
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
@@ -281,16 +284,12 @@ func azureDevOpsGetCommitsSinceUnresolvedHandler(t *testing.T) http.HandlerFunc 
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve.json"))
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractMissingTag:
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "resolve_empty.json"))
-		case isAzureDevOpsCommitsListRequest(r):
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
-			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
+		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "commits.json"))
+		case azureDevOpsBoundedCommitsRequest(r, providerContractMissingTag):
+			// A boundary Azure cannot use as a comparison point answers 400, which
+			// also maps to a missing ref.
+			http.Error(w, "invalid boundary", http.StatusBadRequest)
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractHeadSHA+"/changes"):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
@@ -305,20 +304,14 @@ func azureDevOpsGetCommitsSinceMultiBoundaryHandler(t *testing.T) http.HandlerFu
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractTag:
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "older_resolve.json"))
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.version") == providerContractIntermediateTag:
+		case azureDevOpsBoundedCommitsRequest(r, providerContractIntermediateTag):
 			writeJSONFixture(
 				t,
 				w,
-				azureDevOpsContractFixture("get_commits_since_multi_boundary", "intermediate_resolve.json"),
+				azureDevOpsContractFixture("get_commits_since_multi_boundary", "intermediate_commits.json"),
 			)
-		case isAzureDevOpsCommitsListRequest(r):
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.compareVersion.version"))
-			testastic.Equal(t, "branch", r.URL.Query().Get("searchCriteria.compareVersion.versionType"))
-			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "commits.json"))
+		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "older_commits.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}

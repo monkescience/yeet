@@ -162,17 +162,6 @@ func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*gi
 	return tag, nil
 }
 
-// Boundary refs from GetCommitsSinceRefs are almost always tags, so try Tag
-// first. Fall back to Branch so non-tag boundaries still resolve.
-func (a *AzureDevOps) resolveAzureDevOpsObjectID(ctx context.Context, ref string) (string, error) {
-	return a.resolveAzureDevOpsObjectIDPreferring(
-		ctx,
-		ref,
-		git.GitVersionTypeValues.Tag,
-		git.GitVersionTypeValues.Branch,
-	)
-}
-
 // For CreateRelease callers typically pass a branch name, so try Branch first.
 // Fall back to Tag so a tag ref still works. Crucially, this means a repo with
 // both a branch and a tag of the same name (e.g. "main") tags the branch HEAD,

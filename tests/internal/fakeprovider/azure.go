@@ -100,25 +100,70 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 	mux.HandleFunc("GET "+repoAPI+"/refs", azureRefsHandler(opts))
 
-	mux.HandleFunc("GET "+repoAPI+"/commits", func(w http.ResponseWriter, r *http.Request) {
-		itemVersion := r.URL.Query().Get("searchCriteria.itemVersion.version")
-		if itemVersion != "" {
-			writeJSON(w, azureResolveCommitPayload(itemVersion, opts))
-
-			return
-		}
-
-		writeJSON(w, map[string]any{
-			azureKeyCount: len(opts.Commits),
-			azureKeyValue: azureCommitsList(opts.Commits),
-		})
-	})
+	mux.HandleFunc("GET "+repoAPI+"/commits", azureCommitsHandler(opts))
 
 	mux.HandleFunc("GET "+repoAPI+"/annotatedTags/{id}", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
 	mux.HandleFunc("GET "+repoAPI+"/commits/{id}/changes", azureCommitChangesHandler(opts))
+}
+
+// azureCommitsHandler serves the commits endpoint for the three shapes yeet
+// issues: a top=1 resolve (no compare version) used by CreateRelease, the
+// unbounded branch walk (compare version, no boundary) used for an initial
+// release, and the graph-aware bounded range (boundary tag + compare branch)
+// used for every "commits since the previous tag" lookup. The bounded range
+// returns the commits ahead of the boundary commit, mirroring what Azure
+// computes server-side.
+func azureCommitsHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		itemVersion := query.Get("searchCriteria.itemVersion.version")
+		compareVersion := query.Get("searchCriteria.compareVersion.version")
+
+		if compareVersion == "" {
+			writeJSON(w, azureResolveCommitPayload(itemVersion, opts))
+
+			return
+		}
+
+		if itemVersion == "" {
+			writeJSON(w, map[string]any{
+				azureKeyCount: len(opts.Commits),
+				azureKeyValue: azureCommitsList(opts.Commits),
+			})
+
+			return
+		}
+
+		boundarySHA, ok := azureResolveRefSHA(itemVersion, opts)
+		if !ok {
+			http.Error(w, "unknown boundary", http.StatusNotFound)
+
+			return
+		}
+
+		since := azureCommitsSince(opts.Commits, boundarySHA)
+		writeJSON(w, map[string]any{
+			azureKeyCount: len(since),
+			azureKeyValue: azureCommitsList(since),
+		})
+	}
+}
+
+// azureCommitsSince returns the commits ahead of the boundary commit in the
+// newest-first list. The fixtures place the boundary commit at the tail, so
+// this drops it (and anything older). A boundary absent from the list is
+// treated as older than every listed commit.
+func azureCommitsSince(commits []AzureCommit, boundarySHA string) []AzureCommit {
+	for idx, c := range commits {
+		if c.SHA == boundarySHA {
+			return commits[:idx]
+		}
+	}
+
+	return commits
 }
 
 func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
@@ -372,7 +417,7 @@ func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 	})
 
 	mux.HandleFunc("POST "+repoAPI+"/pushes", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{"pushId": 1, "commits": []any{}})
+		writeJSON(w, map[string]any{"pushId": 1, keyCommits: []any{}})
 	})
 
 	mux.HandleFunc("POST "+repoAPI+"/annotatedTags", func(w http.ResponseWriter, _ *http.Request) {

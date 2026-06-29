@@ -1,0 +1,11 @@
+{
+  "commits": [
+    {
+      "id": "head-sha",
+      "message": "feat: ship api",
+      "committed_date": "2026-01-03T00:00:00Z"
+    }
+  ],
+  "compare_timeout": false,
+  "compare_same_ref": false
+}

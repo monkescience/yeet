@@ -16,6 +16,7 @@ const (
 	azureKeyValue    = "value"
 	azureKeyObjectID = "objectId"
 	azureKeyResults  = "results"
+	keyCommits       = "commits"
 )
 
 // Shared values for merged-pending-release PR fixtures.

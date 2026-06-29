@@ -2,51 +2,66 @@
 package provider
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/monkescience/testastic"
 )
 
-func TestCommitHistoryFromBoundaryPositions(t *testing.T) {
+func TestFetchCommitHistoryByRef(t *testing.T) {
 	t.Parallel()
 
-	// given: one branch scan ordered newest-first and multiple boundary positions
-	entries := []CommitEntry{
-		{Hash: "newest", Paths: []string{"services/api/main.go"}},
-		{Hash: "middle", Paths: []string{"apps/web/app.tsx"}},
-		{Hash: "oldest", Paths: []string{"README.md"}},
-	}
-	positions := map[string]int{
-		"tag-middle": 1,
-		"tag-oldest": 2,
+	// given: a per-ref fetch returning distinct ranges, a missing ref, and an
+	// unbounded ("") whole-history scan
+	fetch := func(_ context.Context, ref string) ([]CommitEntry, error) {
+		switch ref {
+		case "v1.1.0":
+			return []CommitEntry{{Hash: "newest"}}, nil
+		case "v1.0.0":
+			return []CommitEntry{{Hash: "newest"}, {Hash: "middle"}}, nil
+		case "":
+			return []CommitEntry{{Hash: "newest"}, {Hash: "middle"}, {Hash: "oldest"}}, nil
+		case "gone":
+			return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
+		default:
+			return nil, fmt.Errorf("unexpected ref %q", ref)
+		}
 	}
 
-	// when: building per-ref histories from one shared scan
-	history := commitHistoryFromBoundaryPositions(
-		[]string{"tag-middle", "tag-oldest", "missing", ""},
-		entries,
-		positions,
+	// when: assembling history for the reachable, missing, and unbounded refs
+	history, err := fetchCommitHistoryByRef(
+		context.Background(),
+		[]string{"v1.1.0", "v1.0.0", "gone", ""},
+		4,
+		fetch,
 	)
 
-	// then: each ref receives only commits newer than its own boundary
-	testastic.SliceEqual(t, []string{"newest"}, commitHistoryHashes(history.EntriesByRef["tag-middle"]))
-	testastic.SliceEqual(t, []string{"newest", "middle"}, commitHistoryHashes(history.EntriesByRef["tag-oldest"]))
+	// then: each ref receives its own range, the missing ref is reported, and the
+	// batch still succeeds
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"newest"}, commitHistoryHashes(history.EntriesByRef["v1.1.0"]))
+	testastic.SliceEqual(t, []string{"newest", "middle"}, commitHistoryHashes(history.EntriesByRef["v1.0.0"]))
 	testastic.SliceEqual(t, []string{"newest", "middle", "oldest"}, commitHistoryHashes(history.EntriesByRef[""]))
-	testastic.SliceEqual(t, []string{"missing"}, history.MissingRefs)
+	testastic.SliceEqual(t, []string{"gone"}, history.MissingRefs)
 }
 
-func TestCommitHistoryFromBoundaryPositionsClonesEntries(t *testing.T) {
+func TestFetchCommitHistoryByRefPropagatesFetchErrors(t *testing.T) {
 	t.Parallel()
 
-	// given: entries with path slices that will be shared into target histories
-	entries := []CommitEntry{{Hash: "newest", Paths: []string{"before.go"}}}
+	// given: a fetch that fails with a non-ErrRefNotFound error
+	wantErr := errors.New("boom")
+	fetch := func(_ context.Context, _ string) ([]CommitEntry, error) {
+		return nil, wantErr
+	}
 
-	// when: building a history slice
-	history := commitHistoryFromBoundaryPositions([]string{"tag"}, entries, map[string]int{"tag": 1})
+	// when: assembling history
+	_, err := fetchCommitHistoryByRef(context.Background(), []string{"v1.0.0"}, 4, fetch)
 
-	// then: callers cannot mutate the scanned entries through the returned history
-	history.EntriesByRef["tag"][0].Paths[0] = "after.go"
-	testastic.Equal(t, "before.go", entries[0].Paths[0])
+	// then: the error fails the whole batch rather than becoming a missing ref
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, wantErr)
 }
 
 func commitHistoryHashes(entries []CommitEntry) []string {

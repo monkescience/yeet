@@ -168,3 +168,14 @@ func azureDevOpsStatusCode(err error) int {
 func isAzureDevOpsNotFound(err error) bool {
 	return azureDevOpsStatusCode(err) == http.StatusNotFound
 }
+
+// azureDevOpsBoundaryError reports whether a GetCommits failure is the API
+// rejecting the boundary ref (ItemVersion) rather than a transport fault. Azure
+// answers a bounded commit query with 404 when the boundary ref is unknown and
+// 400 when it is otherwise unusable as a boundary, so both map to "ref not
+// reachable".
+func azureDevOpsBoundaryError(err error) bool {
+	status := azureDevOpsStatusCode(err)
+
+	return status == http.StatusNotFound || status == http.StatusBadRequest
+}
