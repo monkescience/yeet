@@ -45,6 +45,12 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	}, nil
 }
 
+// MaxPRBodyLength reports no enforced limit: GitLab accepts merge request
+// descriptions far larger than the release notes yeet generates.
+func (g *GitLab) MaxPRBodyLength() int {
+	return 0
+}
+
 func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
 	slog.DebugContext(ctx, "gitlab: updating merge request", slog.Int("iid", number))
 

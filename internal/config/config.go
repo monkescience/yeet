@@ -188,6 +188,7 @@ type ReleaseConfig struct {
 	AutoMergeMethod      AutoMergeMethod                 `yaml:"auto_merge_method"`
 	PRBodyHeader         string                          `yaml:"pr_body_header"`
 	PRBodyFooter         string                          `yaml:"pr_body_footer"`
+	PRBodyMaxLength      int                             `yaml:"pr_body_max_length"`
 	Channels             map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
 }
 

@@ -97,6 +97,8 @@ type Provider interface {
 	MarkReleasePRTagged(ctx context.Context, number int) error
 	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
 
+	MaxPRBodyLength() int
+
 	CreateBranch(ctx context.Context, name, base string) error
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.

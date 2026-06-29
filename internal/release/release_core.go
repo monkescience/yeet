@@ -1,12 +1,19 @@
 package release
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
+
+const prBodyPartSeparator = "\n\n"
+
+const prBodyOmittedNotice = "_Release notes omitted to fit this provider's pull request body limit. " +
+	"See the changelog in this pull request for the full notes._"
 
 // releaseCore bundles the resolved configuration and repository metadata shared
 // by every release sub-component, along with the config-derived text helpers
@@ -37,7 +44,12 @@ func (c *releaseCore) isPrerelease() bool {
 	return c.activePrereleaseIdentifier() != ""
 }
 
-func (c *releaseCore) releasePROptions(result *Result, releaseBranch string) (provider.ReleasePROptions, error) {
+func (c *releaseCore) releasePROptions(
+	ctx context.Context,
+	result *Result,
+	releaseBranch string,
+	providerBodyLimit int,
+) (provider.ReleasePROptions, error) {
 	manifest := releaseManifestForPlans(result.BaseBranch, result.Plans)
 	manifest.Channel = strings.TrimSpace(c.cfg.ActiveChannel)
 	manifest.Prerelease = c.isPrerelease()
@@ -48,13 +60,35 @@ func (c *releaseCore) releasePROptions(result *Result, releaseBranch string) (pr
 	}
 
 	changelogBody := c.combinedPRChangelog(result)
+	limit := c.effectivePRBodyLimit(providerBodyLimit)
+
+	body, omitted := c.releasePRBody(changelogBody, manifestMarker, limit)
+	if omitted {
+		slog.WarnContext(ctx, "omitted release notes from PR body to fit provider limit",
+			slog.Int("limit", limit),
+			slog.Int("body_length", len(body)),
+		)
+	}
 
 	return provider.ReleasePROptions{
 		Title:         c.releaseSubject(result),
-		Body:          c.releasePRBody(changelogBody, manifestMarker),
+		Body:          body,
 		BaseBranch:    c.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 	}, nil
+}
+
+func (c *releaseCore) effectivePRBodyLimit(providerLimit int) int {
+	configured := c.cfg.Release.PRBodyMaxLength
+
+	switch {
+	case providerLimit > 0 && configured > 0:
+		return min(providerLimit, configured)
+	case providerLimit > 0:
+		return providerLimit
+	default:
+		return configured
+	}
 }
 
 func (c *releaseCore) releaseSubject(result *Result) string {
@@ -105,24 +139,28 @@ func (c *releaseCore) combinedPRChangelog(result *Result) string {
 	return body.String()
 }
 
-func (c *releaseCore) releasePRBody(changelogBody, manifestMarker string) string {
-	parts := make([]string, 0)
+func (c *releaseCore) releasePRBody(changelogBody, manifestMarker string, limit int) (string, bool) {
+	header := strings.TrimSpace(c.cfg.Release.PRBodyHeader)
+	changelog := strings.TrimSpace(changelogBody)
+	marker := strings.TrimSpace(manifestMarker)
+	footer := strings.TrimSpace(c.cfg.Release.PRBodyFooter)
 
-	if header := strings.TrimSpace(c.cfg.Release.PRBodyHeader); header != "" {
-		parts = append(parts, header)
+	body := joinPRBodyParts(header, changelog, marker, footer)
+	if limit <= 0 || len(body) <= limit {
+		return body, false
 	}
 
-	if body := strings.TrimSpace(changelogBody); body != "" {
-		parts = append(parts, body)
+	return joinPRBodyParts(header, prBodyOmittedNotice, marker, footer), true
+}
+
+func joinPRBodyParts(parts ...string) string {
+	nonEmpty := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
 	}
 
-	if marker := strings.TrimSpace(manifestMarker); marker != "" {
-		parts = append(parts, marker)
-	}
-
-	if footer := strings.TrimSpace(c.cfg.Release.PRBodyFooter); footer != "" {
-		parts = append(parts, footer)
-	}
-
-	return strings.Join(parts, "\n\n")
+	return strings.Join(nonEmpty, prBodyPartSeparator)
 }

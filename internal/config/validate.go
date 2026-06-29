@@ -231,6 +231,14 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		)
 	}
 
+	if release.PRBodyMaxLength < 0 {
+		return fmt.Errorf(
+			"%w: release.pr_body_max_length must not be negative, got %d",
+			ErrInvalidConfig,
+			release.PRBodyMaxLength,
+		)
+	}
+
 	if err := validateReleaseChannels(release.Channels); err != nil {
 		return err
 	}

@@ -2669,6 +2669,55 @@ func TestGitLabListTagsPaginationLimit(t *testing.T) {
 	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
 }
 
+func TestMaxPRBodyLength(t *testing.T) {
+	t.Parallel()
+
+	t.Run("azure devops enforces its 4000 character limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an Azure DevOps provider
+		az := provider.NewAzureDevOps(http.DefaultClient, "https://dev.azure.com", "pat", "org", "org", "proj", "repo")
+
+		// when: reading its max PR body length
+		limit := az.MaxPRBodyLength()
+
+		// then: the Azure DevOps hard limit is reported
+		testastic.Equal(t, 4000, limit)
+	})
+
+	t.Run("github reports no enforced limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub provider
+		client, err := githubapi.NewClient()
+		testastic.NoError(t, err)
+
+		gh := provider.NewGitHub(client, "o", "r")
+
+		// when: reading its max PR body length
+		limit := gh.MaxPRBodyLength()
+
+		// then: no limit is enforced
+		testastic.Equal(t, 0, limit)
+	})
+
+	t.Run("gitlab reports no enforced limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab provider
+		client, err := gitlabapi.NewClient("")
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: reading its max PR body length
+		limit := gl.MaxPRBodyLength()
+
+		// then: no limit is enforced
+		testastic.Equal(t, 0, limit)
+	})
+}
+
 var (
 	_ provider.Provider = (*provider.GitHub)(nil)
 	_ provider.Provider = (*provider.GitLab)(nil)

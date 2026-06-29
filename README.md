@@ -398,9 +398,12 @@ release:
   auto_merge_method: squash          # auto|squash|rebase|merge (default: auto)
   pr_body_header: "## Release"       # markdown before changelog in PR/MR body
   pr_body_footer: "_Automated._"     # markdown after changelog in PR/MR body
+  pr_body_max_length: 0              # cap PR/MR body length in characters (0 = provider limit only)
 ```
 
 `auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults; `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
+
+`pr_body_max_length` caps the generated PR/MR body. When the body would exceed the cap, yeet drops the changelog from the body entirely and replaces it with a short notice pointing to the changelog file (the header, footer, and the hidden manifest marker that identifies the release are always preserved). `0` applies no extra cap. Azure DevOps rejects PR descriptions longer than 4000 characters, so yeet always enforces that hard limit on Azure DevOps regardless of this setting. The full notes still live in the changelog file committed to the release branch.
 
 The default `pr_body_footer` carries an "auto-generated preview" notice alongside the yeet
 attribution. Overriding `pr_body_footer` replaces both; setting it to an empty string removes the

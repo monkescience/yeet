@@ -13,6 +13,12 @@ import (
 
 const azureDevOpsPRPageSize = 100
 
+// azureDevOpsMaxPRBodyLength is Azure DevOps's hard limit on pull request
+// descriptions. The REST API rejects a longer body with "a description for a
+// pull request must not be longer than 4000 characters".
+// Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/update
+const azureDevOpsMaxPRBodyLength = 4000
+
 var errAzureDevOpsLabelIDMissing = errors.New("azure devops label id missing")
 
 func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
@@ -56,6 +62,10 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 		URL:    a.pullRequestWebURL(prNumber),
 		Branch: opts.ReleaseBranch,
 	}, nil
+}
+
+func (a *AzureDevOps) MaxPRBodyLength() int {
+	return azureDevOpsMaxPRBodyLength
 }
 
 func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {

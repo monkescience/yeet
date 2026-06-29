@@ -30,6 +30,7 @@ type releasePRProvider interface {
 	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) error
 	MarkReleasePRPending(ctx context.Context, number int) error
 	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
+	MaxPRBodyLength() int
 	CreateBranch(ctx context.Context, name, base string) error
 }
 

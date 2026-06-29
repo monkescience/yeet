@@ -51,7 +51,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 			return nil, err
 		}
 
-		prOpts, prErr := r.releasePROptions(result, existing.Branch)
+		prOpts, prErr := r.releasePROptions(ctx, result, existing.Branch, w.prs.MaxPRBodyLength())
 		if prErr != nil {
 			return nil, prErr
 		}
@@ -61,7 +61,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 
 	releaseBranch := stableReleaseBranch(r.cfg.Branch)
 
-	prOpts, err := r.releasePROptions(result, releaseBranch)
+	prOpts, err := r.releasePROptions(ctx, result, releaseBranch, w.prs.MaxPRBodyLength())
 	if err != nil {
 		return nil, err
 	}

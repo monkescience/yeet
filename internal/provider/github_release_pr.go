@@ -40,6 +40,12 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	}, nil
 }
 
+// MaxPRBodyLength reports no enforced limit: GitHub accepts pull request bodies
+// far larger than the release notes yeet generates.
+func (g *GitHub) MaxPRBodyLength() int {
+	return 0
+}
+
 func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
 	slog.DebugContext(ctx, "github: updating pull request", slog.Int("pr_number", number))
 

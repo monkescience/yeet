@@ -209,6 +209,12 @@
           "type": "string",
           "description": "Optional markdown appended after changelog in release PR/MR body."
         },
+        "pr_body_max_length": {
+          "type": "integer",
+          "description": "Cap on the release PR/MR body length in characters. When the body exceeds the cap the changelog is dropped from the body and replaced with a notice pointing to the changelog file, while the manifest marker, header, and footer are preserved. 0 means no extra cap. The provider's own hard limit (Azure DevOps: 4000) is always enforced.",
+          "minimum": 0,
+          "default": 0
+        },
         "channels": {
           "type": "object",
           "description": "Named prerelease channels. Each channel runs only on its configured branch and creates semver prerelease versions.",
