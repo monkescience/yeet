@@ -10,6 +10,24 @@ import (
 )
 
 func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget, error) {
+	resolved, err := c.resolveTargets()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range resolved {
+		slog.DebugContext(ctx, "config: resolved target",
+			slog.String("id", t.ID),
+			slog.String("type", string(t.Type)),
+			slog.String("path", t.Path),
+			slog.String("versioning", string(t.Versioning)),
+		)
+	}
+
+	return resolved, nil
+}
+
+func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 	if len(c.Targets) == 0 {
 		return nil, fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
 	}
@@ -31,15 +49,6 @@ func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget
 
 	if err := validateResolvedTargets(resolved); err != nil {
 		return nil, err
-	}
-
-	for _, t := range resolved {
-		slog.DebugContext(ctx, "config: resolved target",
-			slog.String("id", t.ID),
-			slog.String("type", string(t.Type)),
-			slog.String("path", t.Path),
-			slog.String("versioning", string(t.Versioning)),
-		)
 	}
 
 	return resolved, nil

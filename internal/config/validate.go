@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,7 +9,7 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
-func (c *Config) Validate(ctx context.Context) error {
+func (c *Config) Validate() error {
 	if c.Versioning != VersioningSemver && c.Versioning != VersioningCalVer {
 		return fmt.Errorf("%w: versioning must be %q or %q, got %q",
 			ErrInvalidConfig, VersioningSemver, VersioningCalVer, c.Versioning)
@@ -66,7 +65,7 @@ func (c *Config) Validate(ctx context.Context) error {
 		return err
 	}
 
-	if _, err := c.ResolvedTargets(ctx); err != nil {
+	if _, err := c.resolveTargets(); err != nil {
 		return err
 	}
 

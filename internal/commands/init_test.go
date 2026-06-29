@@ -138,7 +138,7 @@ func TestRunInit(t *testing.T) {
 		testastic.HasPrefix(t, contentStr, config.SchemaDirective+"\n")
 		testastic.Contains(t, contentStr, "\n  my-cool-app:\n")
 
-		cfg, parseErr := config.Parse(t.Context(), content)
+		cfg, parseErr := config.Parse(content)
 		testastic.NoError(t, parseErr)
 
 		_, exists := cfg.Targets["my-cool-app"]
@@ -164,7 +164,7 @@ func TestRunInit(t *testing.T) {
 		contentStr := string(content)
 		testastic.Contains(t, contentStr, "\n  root:\n")
 
-		cfg, parseErr := config.Parse(t.Context(), content)
+		cfg, parseErr := config.Parse(content)
 		testastic.NoError(t, parseErr)
 
 		_, exists := cfg.Targets["root"]

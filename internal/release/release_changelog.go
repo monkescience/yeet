@@ -10,13 +10,13 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
-func renderTargetChangelog(
+func newTargetChangelogEntry(
 	ctx context.Context,
 	target config.ResolvedTarget,
-	nextTag, ref, compareTarget string,
+	nextTag, ref string,
 	commits []commit.Commit,
 	metadata repoMetadataProvider,
-) string {
+) changelog.Entry {
 	gen := changelog.New(
 		changelog.WithSections(target.Changelog.Sections),
 		changelog.WithInclude(target.Changelog.Include),
@@ -26,12 +26,27 @@ func renderTargetChangelog(
 		changelog.WithReferences(target.Changelog.References),
 	)
 
-	entry := gen.Generate(ctx, nextTag, ref, commits)
+	return gen.Generate(ctx, nextTag, ref, commits)
+}
+
+func renderChangelogEntry(entry changelog.Entry, ref, compareTarget string, metadata repoMetadataProvider) string {
 	if ref != "" && compareTarget != "" {
 		entry.CompareURL = metadata.CompareURL(ref, compareTarget)
 	}
 
 	return changelog.Render(entry)
+}
+
+func renderTargetChangelog(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	nextTag, ref, compareTarget string,
+	commits []commit.Commit,
+	metadata repoMetadataProvider,
+) string {
+	entry := newTargetChangelogEntry(ctx, target, nextTag, ref, commits, metadata)
+
+	return renderChangelogEntry(entry, ref, compareTarget, metadata)
 }
 
 func renderDerivedChangelog(

@@ -447,12 +447,13 @@ func (a *releaseAnalyzer) newTargetPlan(
 
 	setPlanVersions(&plan, strategy, baseVersion)
 
-	plan.Changelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, plan.NextTag, commits, a.core.metadata)
+	entry := newTargetChangelogEntry(ctx, target, plan.NextTag, ref, commits, a.core.metadata)
+	plan.Changelog = renderChangelogEntry(entry, ref, plan.NextTag, a.core.metadata)
 	plan.PRChangelog = plan.Changelog
 
 	if ref != "" && len(entries) > 0 {
 		plan.PRCompareRef = strings.TrimSpace(entries[0].Hash)
-		plan.PRChangelog = renderTargetChangelog(ctx, target, plan.NextTag, ref, entries[0].Hash, commits, a.core.metadata)
+		plan.PRChangelog = renderChangelogEntry(entry, ref, entries[0].Hash, a.core.metadata)
 	}
 
 	return plan

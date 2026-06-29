@@ -256,7 +256,7 @@ func Load(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
-	cfg, err := Parse(ctx, data)
+	cfg, err := Parse(data)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func Load(ctx context.Context, path string) (*Config, error) {
 	return cfg, nil
 }
 
-func Parse(ctx context.Context, data []byte) (*Config, error) {
+func Parse(data []byte) (*Config, error) {
 	cfg := Default()
 
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
@@ -285,7 +285,7 @@ func Parse(ctx context.Context, data []byte) (*Config, error) {
 		return nil, err
 	}
 
-	if err := cfg.Validate(ctx); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 

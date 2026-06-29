@@ -216,7 +216,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	if err := cfg.Validate(ctx); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 

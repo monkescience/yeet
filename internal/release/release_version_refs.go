@@ -173,6 +173,10 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string
 	reachable := !slices.Contains(history.MissingRefs, ref)
 	a.refReachable[ref] = reachable
 
+	if reachable {
+		a.commitCache[commitCacheKey{ref: ref, branch: a.core.cfg.Branch, includePaths: false}] = history.EntriesByRef[ref]
+	}
+
 	return reachable, nil
 }
 
