@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.10.8](https://github.com/monkescience/yeet/compare/v0.10.7...v0.10.8) (2026-06-29)
+
+### Features
+
+- **release:** cap PR body length and enforce Azure DevOps 4000-char limit ([68f65ab](https://github.com/monkescience/yeet/commit/68f65ab79d0ad20aba0cbf797d1c43f88ca4b51e))
+### Bug Fixes
+
+- **provider:** scope unbounded azure commit listing to the branch ([7e3d1b5](https://github.com/monkescience/yeet/commit/7e3d1b5a71217841469c0978a31f4235b1ead240))
+- **provider:** resolve legacy visualstudio.com remotes to dev.azure.com ([617d8e1](https://github.com/monkescience/yeet/commit/617d8e1ae9152b59ae888e24d0d8d002f073a836))
+- **release:** eliminate duplicate debug log messages ([fb03a25](https://github.com/monkescience/yeet/commit/fb03a25ab3dc18926c2ee442caa287aa2249f0f0))
+- **provider:** query commit ranges per ref to stop changelog over-inclusion ([900e29b](https://github.com/monkescience/yeet/commit/900e29b0bdf41565e9293cc4802e8cfd126f756e))
+
 ## [v0.10.7](https://github.com/monkescience/yeet/compare/v0.10.6...v0.10.7) (2026-06-26)
 
 ### Bug Fixes
