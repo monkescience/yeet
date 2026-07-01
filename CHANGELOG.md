@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.10.9](https://github.com/monkescience/yeet/compare/v0.10.8...v0.10.9) (2026-07-01)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.43.0 (#150) ([e0cdd20](https://github.com/monkescience/yeet/commit/e0cdd2030d87188ccfe47ced9bc0c5e034eee38c))
+- **changelog:** sanitize commit text to block manifest and escape injection ([9d604df](https://github.com/monkescience/yeet/commit/9d604df9a107b3a1ec1b28ffc80707eb49381dd5))
+- **release:** reject release PR bodies with multiple manifest markers ([5b91ac8](https://github.com/monkescience/yeet/commit/5b91ac8bbc781a5420b3a4b6130d56b75b786701))
+
 ## [v0.10.8](https://github.com/monkescience/yeet/compare/v0.10.7...v0.10.8) (2026-06-29)
 
 ### Features
