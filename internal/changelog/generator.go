@@ -228,10 +228,11 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.repoURL, g.pathPrefix, c.Hash)
 	}
 
-	linked := g.linkDescription(description)
+	linked := g.linkDescription(sanitizeCommitText(description))
+	scope := sanitizeCommitText(c.Scope)
 
-	if c.Scope != "" {
-		fmt.Fprintf(sb, "- **%s:** %s (%s)", c.Scope, linked, hashRef)
+	if scope != "" {
+		fmt.Fprintf(sb, "- **%s:** %s (%s)", scope, linked, hashRef)
 	} else {
 		fmt.Fprintf(sb, "- %s (%s)", linked, hashRef)
 	}
@@ -300,7 +301,7 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 			continue
 		}
 
-		value := strings.TrimSpace(f.Value)
+		value := sanitizeCommitText(strings.TrimSpace(f.Value))
 		if value == "" {
 			continue
 		}
@@ -318,6 +319,28 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	}
 
 	return strings.Join(refs, ", ")
+}
+
+// sanitizeCommitText neutralizes commit-authored text before it enters the
+// changelog. Commit messages are attacker-controlled in shared repos: an HTML
+// comment sequence could forge the release manifest marker that yeet embeds in
+// the PR body, and control characters could inject terminal escape sequences
+// into dry-run output. Escaping the comment brackets keeps the text readable
+// while preventing a parseable marker from forming.
+func sanitizeCommitText(s string) string {
+	replaced := strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(s)
+
+	return strings.Map(func(r rune) rune {
+		if r == '\t' {
+			return r
+		}
+
+		if unicode.IsControl(r) {
+			return -1
+		}
+
+		return r
+	}, replaced)
 }
 
 func capitalizeFirst(s string) string {

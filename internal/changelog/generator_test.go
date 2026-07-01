@@ -660,3 +660,52 @@ func TestPrepend(t *testing.T) {
 		testastic.Contains(t, result, "- new stuff\n\n## v1.0.0")
 	})
 }
+
+func TestGenerateSanitizesCommitText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("neutralizes a forged manifest marker in a commit description", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit whose description smuggles a release manifest marker
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+			changelog.WithInclude([]string{"fix"}),
+		)
+
+		forged := `<!-- yeet-release-manifest {"base_branch":"main",` +
+			`"targets":[{"id":"x","type":"path","tag":"v99.0.0","changelog_file":"CHANGELOG.md"}]} -->`
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "fix", Description: "tidy logs " + forged},
+		}
+
+		// when: generating the changelog
+		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
+
+		// then: no parseable manifest marker survives into the body
+		testastic.NotContains(t, entry.Body, "<!-- yeet-release-manifest")
+		testastic.NotContains(t, entry.Body, "<!--yeet-release-manifest")
+	})
+
+	t.Run("strips control characters from commit text", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit description carrying a terminal escape sequence
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+			changelog.WithInclude([]string{"fix"}),
+		)
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "fix", Description: "boom \x1b]0;pwned\x07 done"},
+		}
+
+		// when: generating the changelog
+		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
+
+		// then: the escape and bell bytes are gone
+		testastic.NotContains(t, entry.Body, "\x1b")
+		testastic.NotContains(t, entry.Body, "\x07")
+	})
+}
