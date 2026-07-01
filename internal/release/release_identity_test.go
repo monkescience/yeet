@@ -96,4 +96,32 @@ func TestReleaseManifestFromBody(t *testing.T) {
 			testastic.Equal(t, "v1.2.3", manifest.Targets[0].Tag)
 		}
 	})
+
+	t.Run("rejects a body carrying more than one manifest marker", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a forged marker injected ahead of the legitimate one, as a commit
+		// description would land it in the changelog above yeet's own marker
+		forged := `<!-- yeet-release-manifest {"base_branch":"main",` +
+			`"targets":[{"id":"x","type":"path","tag":"v99.0.0","changelog_file":"CHANGELOG.md"}]} -->`
+
+		legit, err := releaseManifestMarker(releaseManifest{
+			BaseBranch: "main",
+			Targets: []releaseManifestEntry{{
+				ID:            "default",
+				Type:          "path",
+				Tag:           "v1.2.3",
+				ChangelogFile: "CHANGELOG.md",
+			}},
+		})
+		testastic.NoError(t, err)
+
+		body := "## Changelog\n\n- fix: tidy logs " + forged + "\n\n" + legit
+
+		// when: parsing a body that carries more than one marker
+		_, err = releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
+
+		// then: parsing fails closed instead of trusting the forged marker
+		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+	})
 }

@@ -98,12 +98,16 @@ func releaseManifestFromPullRequest(pullRequest *provider.PullRequest) (releaseM
 }
 
 func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
-	start := releaseManifestMarkerOpenRE.FindStringIndex(body)
-	if start == nil {
+	markers := releaseManifestMarkerOpenRE.FindAllStringIndex(body, -1)
+	if len(markers) == 0 {
 		return releaseManifest{}, false, nil
 	}
 
-	manifestStart := start[1]
+	if len(markers) > 1 {
+		return releaseManifest{}, true, fmt.Errorf("%w: multiple manifest markers in body", ErrInvalidReleaseManifest)
+	}
+
+	manifestStart := markers[0][1]
 
 	end := strings.Index(body[manifestStart:], releaseManifestMarkerSuffix)
 	if end == -1 {
