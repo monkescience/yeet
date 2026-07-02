@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.11](https://github.com/monkescience/yeet/compare/v0.10.10...v0.10.11) (2026-07-02)
+
+### Bug Fixes
+
+- **provider:** bound azure devops file reads to 10 MiB ([659f8f2](https://github.com/monkescience/yeet/commit/659f8f257fe86890c4da69e930be8650a5d22a36))
+- **provider:** redact remote url credentials in unknown remote errors ([b3d35a4](https://github.com/monkescience/yeet/commit/b3d35a4cf9adcb5df470df598d332c436df8ad37))
+
 ## [v0.10.10](https://github.com/monkescience/yeet/compare/v0.10.9...v0.10.10) (2026-07-02)
 
 ### Features
