@@ -1,5 +1,7 @@
 name: Renovate
 
+permissions: {}
+
 on:
   schedule:
     - cron: '0 6 * * 5' # Every Friday at 6:00 AM UTC
