@@ -256,8 +256,6 @@ func handleGitHubCreateReleasePRReviewersContract(
 	t.Helper()
 
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/user":
-		writeJSONFixture(t, w, "contracts/github/create_release_pr_reviewers/user.json")
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/collaborators/"):
 		login := strings.TrimPrefix(r.URL.Path, "/repos/o/r/collaborators/")
 		if login != providerContractReviewerAlice && login != providerContractReviewerBob {
@@ -288,8 +286,6 @@ func handleGitHubUnknownReviewerContract(t *testing.T, w http.ResponseWriter, r 
 	t.Helper()
 
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/user":
-		writeJSONFixture(t, w, "contracts/github/create_release_pr_reviewers/user.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/collaborators/"+providerContractUnknownReviewerName:
 		w.WriteHeader(http.StatusNotFound)
 	default:
@@ -304,8 +300,6 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 	// request itself is rejected after the PR exists
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/user":
-			writeJSONFixture(t, w, "contracts/github/create_release_pr_reviewers/user.json")
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/collaborators/"+providerContractReviewerAlice:
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls":
@@ -333,38 +327,6 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 	// then: the run fails naming the reviewer
 	testastic.Error(t, err)
 	testastic.ErrorContains(t, err, providerContractReviewerAlice)
-}
-
-func TestGitHubRejectsAuthenticatedUserAsReviewer(t *testing.T) {
-	t.Parallel()
-
-	// given: a GitHub server whose authenticated token identity is release-bot
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/user" {
-			writeJSONFixture(t, w, "contracts/github/create_release_pr_reviewers/user.json")
-
-			return
-		}
-
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}))
-	defer server.Close()
-
-	p := newGitHubContractProvider(t, server)
-
-	// when: creating a release PR that lists the token identity as reviewer
-	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
-		Title:         providerContractReleaseTitle,
-		Body:          providerContractReleaseBody,
-		BaseBranch:    providerContractBaseBranch,
-		ReleaseBranch: providerContractReleaseBranch,
-		Reviewers:     []string{"release-bot"},
-	})
-
-	// then: the run fails before any PR is created, naming the reviewer
-	testastic.Error(t, err)
-	testastic.ErrorIs(t, err, provider.ErrReviewerInvalid)
-	testastic.ErrorContains(t, err, "release-bot")
 }
 
 func handleGitHubUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

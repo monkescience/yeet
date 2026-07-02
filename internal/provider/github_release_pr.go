@@ -61,8 +61,7 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 // validateReviewers runs before the pull request is created: a reviewer
 // failure after creation would leave an unlabeled PR that
 // FindOpenPendingReleasePRs cannot pick up, wedging every subsequent run.
-// GitHub only accepts collaborators as reviewers and rejects the PR author,
-// which is always the authenticated token identity here.
+// GitHub only accepts collaborators as reviewers.
 func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) error {
 	if len(reviewers) == 0 {
 		return nil
@@ -70,20 +69,7 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 
 	slog.DebugContext(ctx, "github: validating reviewers", slog.Any("reviewers", reviewers))
 
-	authenticated, _, err := g.client.Users.Get(ctx, "")
-	if err != nil {
-		return fmt.Errorf("get authenticated user: %w", err)
-	}
-
 	for _, reviewer := range reviewers {
-		if strings.EqualFold(reviewer, authenticated.GetLogin()) {
-			return fmt.Errorf(
-				"%w: %q is the authenticated user and GitHub rejects the pull request author as reviewer",
-				ErrReviewerInvalid,
-				reviewer,
-			)
-		}
-
 		isCollaborator, _, err := g.client.Repositories.IsCollaborator(ctx, g.repo.Owner, g.repo.Name, reviewer)
 		if err != nil {
 			return fmt.Errorf("check reviewer %q: %w", reviewer, err)

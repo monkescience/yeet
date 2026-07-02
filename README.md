@@ -407,7 +407,7 @@ release:
 
 `reviewers` requests reviews from the listed users when the release PR/MR is created. Reviewers are applied on create only, so later `yeet release` runs never overwrite manual reviewer changes on an open release PR/MR. A reviewer that cannot be resolved or assigned fails the release run before the PR/MR is created. Per provider:
 
-- GitHub: entries are usernames. Each must be a repository collaborator, and the token identity must not be listed (it authors the PR, and GitHub rejects the author as reviewer). Both are validated before the PR is created.
+- GitHub: entries are usernames. Each must be a repository collaborator, validated before the PR is created. When running with a personal access token, do not list the token owner: GitHub rejects the PR author as reviewer, and that failure happens only after the PR exists, leaving an unlabeled release PR that later runs cannot pick up. Releases run through a GitHub App or Actions token are not affected.
 - GitLab: entries are usernames and must be project members (inherited group members count). GitLab silently applies fewer reviewers in some cases (the Free tier supports only a single MR reviewer), so yeet verifies the created MR and fails the run when a requested reviewer was dropped.
 - Azure DevOps: entries are an email (unique name) or display name, resolved via the identities API. This needs the Identity (Read) PAT scope (`vso.identity`). A name matching multiple identities fails the run, and display names can also match groups, so prefer emails.
 
