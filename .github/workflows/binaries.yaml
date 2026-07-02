@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: yeet-binaries-${{ github.event.release.tag_name || inputs.tag }}
@@ -64,6 +66,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_TOKEN: ${{ steps.generate-tap-token.outputs.token }}
           SCOOP_BUCKET_TOKEN: ${{ steps.generate-scoop-token.outputs.token }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
 
       - name: Enable auto-merge on Homebrew tap PR
         if: ${{ !contains(env.RELEASE_TAG, '-') }}

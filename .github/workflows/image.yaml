@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: yeet-image-${{ github.event.release.tag_name || inputs.tag }}
@@ -43,13 +45,14 @@ jobs:
           version: ${{ env.KO_VERSION }}
 
       - name: Publish image to GHCR
+        id: publish
         run: |
           tags=(--tags "${RELEASE_TAG}")
           if [[ "${RELEASE_TAG}" != *-* ]]; then
             tags+=(--tags latest)
           fi
 
-          ko build --bare \
+          image=$(ko build --bare \
             "${tags[@]}" \
             --image-label "org.opencontainers.image.title=${IMAGE_TITLE}" \
             --image-label "org.opencontainers.image.description=${IMAGE_DESCRIPTION}" \
@@ -69,7 +72,8 @@ jobs:
             --image-annotation "org.opencontainers.image.version=${RELEASE_TAG}" \
             --image-annotation "org.opencontainers.image.revision=${IMAGE_REVISION}" \
             --image-annotation "org.opencontainers.image.created=${IMAGE_CREATED}" \
-            ./cmd/yeet
+            ./cmd/yeet)
+          echo "digest=${image##*@}" >> "$GITHUB_OUTPUT"
         env:
           IMAGE_CREATED: ${{ github.event.release.published_at || github.event.repository.updated_at }}
           IMAGE_DESCRIPTION: "Yeet CLI for automated releases from conventional commits"
@@ -79,3 +83,9 @@ jobs:
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           IMAGE_TITLE: yeet
           VERSION: ${{ env.RELEASE_TAG }}
+
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
