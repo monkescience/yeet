@@ -144,9 +144,26 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 		_ = body.Close()
 	}()
 
-	contents, err := io.ReadAll(body)
+	return readAzureDevOpsFileBody(body, path, branch)
+}
+
+const azureDevOpsMaxFileBytes = 10 << 20
+
+var errAzureDevOpsFileTooLarge = errors.New("file exceeds size limit")
+
+// readAzureDevOpsFileBody bounds the response read because GetItemText streams
+// the raw body without a size limit, unlike the GitHub and GitLab SDKs.
+func readAzureDevOpsFileBody(body io.Reader, path, branch string) (string, error) {
+	contents, err := io.ReadAll(io.LimitReader(body, azureDevOpsMaxFileBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read file %q on branch %q: %w", path, branch, err)
+	}
+
+	if len(contents) > azureDevOpsMaxFileBytes {
+		return "", fmt.Errorf(
+			"%w: file %q on branch %q is larger than %d bytes",
+			errAzureDevOpsFileTooLarge, path, branch, azureDevOpsMaxFileBytes,
+		)
 	}
 
 	return string(contents), nil

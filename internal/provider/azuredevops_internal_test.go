@@ -168,3 +168,34 @@ func TestAzureDevOpsCompareURL(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureDevOpsReadFileBody(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads file within the limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a file body below the size limit
+		body := strings.NewReader("changelog contents")
+
+		// when: reading the body
+		contents, err := readAzureDevOpsFileBody(body, "CHANGELOG.md", "main")
+
+		// then: the contents are returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "changelog contents", contents)
+	})
+
+	t.Run("rejects file exceeding the limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a file body one byte over the size limit
+		body := strings.NewReader(strings.Repeat("a", azureDevOpsMaxFileBytes+1))
+
+		// when: reading the body
+		_, err := readAzureDevOpsFileBody(body, "CHANGELOG.md", "main")
+
+		// then: the read fails with the file size error
+		testastic.ErrorIs(t, err, errAzureDevOpsFileTooLarge)
+	})
+}
