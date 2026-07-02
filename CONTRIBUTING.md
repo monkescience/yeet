@@ -1,5 +1,8 @@
 # Contributing
 
+For larger changes, open an issue first so the approach is agreed on before
+you invest the work.
+
 ## Setup
 
 Tool versions are managed with [mise](https://mise.jdx.dev):
