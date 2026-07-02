@@ -1,8 +1,30 @@
 # yeet
 
-Automate releases based on [conventional commits](https://www.conventionalcommits.org/). Analyzes commit history, calculates the next version, generates changelogs, creates release PRs/MRs, and finalizes merged releases on GitHub, GitLab, or Azure DevOps.
+[![CI](https://github.com/monkescience/yeet/actions/workflows/ci.yaml/badge.svg)](https://github.com/monkescience/yeet/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/monkescience/yeet)](https://github.com/monkescience/yeet/releases)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/monkescience/yeet)](go.mod)
+[![License](https://img.shields.io/github/license/monkescience/yeet)](LICENSE)
+
+Release automation for **GitHub, GitLab, and Azure DevOps**, driven by [conventional commits](https://www.conventionalcommits.org/).
+
+yeet analyzes commit history, calculates the next version (semver or calver), generates changelogs, opens a release PR/MR, and tags the release when it merges. It ships as a single static binary with no runtime dependencies.
 
 Inspired by [release-please](https://github.com/googleapis/release-please).
+
+## Why yeet
+
+If you want release-please's release-PR workflow but your code lives on GitLab or Azure DevOps, or you want it without a Node.js runtime in your pipeline, that is the gap yeet fills.
+
+|  | yeet | [release-please](https://github.com/googleapis/release-please) | [semantic-release](https://github.com/semantic-release/semantic-release) |
+|---|---|---|---|
+| Providers | GitHub, GitLab, Azure DevOps | GitHub | GitHub, GitLab |
+| Workflow | release PR/MR, tag on merge | release PR, tag on merge | publishes directly on push |
+| Runtime | single binary or container image | Node.js | Node.js plus plugins |
+| Versioning | semver and calver | semver | semver |
+| Monorepo | built in (targets) | built in (manifest) | third-party plugins |
+| Configuration | one YAML file with a JSON schema | JSON config plus manifest | plugin config in `.releaserc` |
+
+Self-hosted instances (GitHub Enterprise, self-managed GitLab, Azure DevOps Server) are supported, see [Authentication](#authentication).
 
 ## Install
 
