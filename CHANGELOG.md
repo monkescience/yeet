@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.10.10](https://github.com/monkescience/yeet/compare/v0.10.9...v0.10.10) (2026-07-02)
+
+### Features
+
+- **release:** request reviewers on release PR creation ([bb55bee](https://github.com/monkescience/yeet/commit/bb55beee19fc3b899481aefbc26797126df6c36c))
+### Bug Fixes
+
+- **release:** drop author check that breaks GitHub App tokens ([0a2b0e9](https://github.com/monkescience/yeet/commit/0a2b0e9ceac90ecef8f874d857c069c7abe369ab))
+
 ## [v0.10.9](https://github.com/monkescience/yeet/compare/v0.10.8...v0.10.9) (2026-07-01)
 
 ### Bug Fixes
