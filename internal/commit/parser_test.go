@@ -2,6 +2,7 @@ package commit_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -378,5 +379,30 @@ func TestFilterByTypes(t *testing.T) {
 
 		// then: breaking chore is also included
 		testastic.Equal(t, 2, len(filtered))
+	})
+}
+
+func FuzzParse(f *testing.F) {
+	seeds := []string{
+		"feat: add user authentication",
+		"feat(auth)!: drop token v1\n\nbody text\n\nBREAKING CHANGE: tokens are invalid",
+		"fix(api): return 401 for expired sessions\n\nRefs: JIRA-123\nCloses #45",
+		"not a conventional message",
+		"",
+		"feat(scope with spaces): description",
+		"FEAT: uppercase type",
+		"feat:no space after colon",
+		"chore(deps): bump\n\nSigned-off-by: bot <bot@example.com>\n continuation line",
+	}
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, rawMessage string) {
+		c := commit.Parse(t.Context(), "abc1234", rawMessage)
+
+		testastic.Equal(t, "abc1234", c.Hash)
+		testastic.Equal(t, strings.ToLower(c.Type), c.Type)
+		testastic.Equal(t, c.Type != "", c.IsConventional())
 	})
 }
