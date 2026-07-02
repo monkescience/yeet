@@ -4,6 +4,8 @@ version_files:
   - README.md
 
 release:
+  reviewers:
+    - ValentinLutz
   channels:
     beta:
       branch: beta
