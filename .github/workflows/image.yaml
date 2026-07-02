@@ -12,9 +12,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
 
 concurrency:
   group: yeet-image-${{ github.event.release.tag_name || inputs.tag }}
@@ -26,6 +23,11 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
