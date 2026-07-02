@@ -38,6 +38,37 @@ func TestParseRemote(t *testing.T) {
 		testastic.Equal(t, "owner/repo", info.Project)
 	})
 
+	t.Run("unknown remote error redacts user and password", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unparseable remote URL with user:password credentials
+		url := "https://ci:secret-token@"
+
+		// when: parsing the remote
+		_, err := provider.ParseRemote(url)
+
+		// then: the error names the URL with the entire userinfo redacted
+		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
+		testastic.False(t, strings.Contains(err.Error(), "secret-token"))
+		testastic.False(t, strings.Contains(err.Error(), "ci:"))
+		testastic.True(t, strings.Contains(err.Error(), "https://***@"))
+	})
+
+	t.Run("unknown remote error redacts username-only token", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unparseable remote URL with a token in the username position
+		url := "https://ghp-secret-token@"
+
+		// when: parsing the remote
+		_, err := provider.ParseRemote(url)
+
+		// then: the error hides the token
+		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
+		testastic.False(t, strings.Contains(err.Error(), "ghp-secret-token"))
+		testastic.True(t, strings.Contains(err.Error(), "https://***@"))
+	})
+
 	t.Run("github https", func(t *testing.T) {
 		t.Parallel()
 

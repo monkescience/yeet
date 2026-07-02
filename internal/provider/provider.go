@@ -210,7 +210,16 @@ func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
 		return parsed, nil
 	}
 
-	return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
+	return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, redactRemoteURL(remoteURL))
+}
+
+var remoteURLUserinfoPattern = regexp.MustCompile(`://[^/@]+@`)
+
+// redactRemoteURL hides the entire userinfo because tokens appear both as
+// password (user:token@) and as username (token@), and must never reach
+// error output or CI logs.
+func redactRemoteURL(remoteURL string) string {
+	return remoteURLUserinfoPattern.ReplaceAllString(remoteURL, "://***@")
 }
 
 func DetectType(host string) (string, error) {
