@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a problem with yeet
+labels:
+  - bug
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, what did you expect, and what happened instead.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: yeet version
+      description: Output of `yeet --version`.
+      placeholder: v0.10.10
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - GitHub
+        - GitHub Enterprise
+        - GitLab (gitlab.com)
+        - GitLab (self-managed)
+        - Azure DevOps
+        - Azure DevOps Server
+        - Not provider-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: .yeet.yaml
+      description: Your config, redact anything sensitive.
+      render: yaml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of the failing command with `--verbose`, redact tokens and URLs if needed.
+      render: shell

@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an improvement for yeet
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that yeet currently makes hard or impossible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working, config or CLI sketches welcome.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - All providers
+        - GitHub
+        - GitLab
+        - Azure DevOps
+    validations:
+      required: true
