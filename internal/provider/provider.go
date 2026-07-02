@@ -43,6 +43,7 @@ type ReleasePROptions struct {
 	Body          string
 	BaseBranch    string
 	ReleaseBranch string
+	Reviewers     []string
 }
 
 type ReleaseOptions struct {
@@ -140,6 +141,10 @@ var (
 	ErrRefNotFound             = errors.New("ref not found")
 	ErrMergeBlocked            = errors.New("release PR merge blocked")
 	ErrMergeMethodUnsupported  = errors.New("merge method unsupported")
+	ErrReviewerNotFound        = errors.New("reviewer not found")
+	ErrReviewerAmbiguous       = errors.New("reviewer is ambiguous")
+	ErrReviewerInvalid         = errors.New("reviewer invalid")
+	ErrReviewerNotApplied      = errors.New("reviewer not applied")
 	ErrPaginationLimitExceeded = errors.New("pagination safety limit exceeded")
 )
 

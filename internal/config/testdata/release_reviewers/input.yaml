@@ -1,0 +1,11 @@
+versioning: semver
+branch: main
+release:
+  reviewers:
+    - alice
+    - bob
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v

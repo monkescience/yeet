@@ -21,14 +21,28 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		slog.String("target_branch", opts.BaseBranch),
 	)
 
-	mr, _, err := g.client.MergeRequests.CreateMergeRequest(g.pid, &gitlab.CreateMergeRequestOptions{
+	reviewerIDs, err := g.resolveReviewerIDs(ctx, opts.Reviewers)
+	if err != nil {
+		return nil, err
+	}
+
+	createOptions := &gitlab.CreateMergeRequestOptions{
 		Title:        new(opts.Title),
 		Description:  new(opts.Body),
 		SourceBranch: new(opts.ReleaseBranch),
 		TargetBranch: new(opts.BaseBranch),
-	}, gitlab.WithContext(ctx))
+	}
+	if len(reviewerIDs) > 0 {
+		createOptions.ReviewerIDs = new(reviewerIDs)
+	}
+
+	mr, _, err := g.client.MergeRequests.CreateMergeRequest(g.pid, createOptions, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("create merge request: %w", err)
+	}
+
+	if err := verifyGitLabReviewers(opts.Reviewers, reviewerIDs, mr.Reviewers); err != nil {
+		return nil, err
 	}
 
 	slog.DebugContext(ctx, "gitlab: created merge request",
@@ -43,6 +57,79 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		URL:    mr.WebURL,
 		Branch: opts.ReleaseBranch,
 	}, nil
+}
+
+// resolveReviewerIDs resolves usernames against project members (including
+// inherited group members) instead of the instance-wide users API: on
+// gitlab.com an instance-wide lookup resolves almost any typo to some
+// unrelated account, and GitLab silently drops reviewer IDs that cannot read
+// the merge request instead of failing.
+func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]int64, error) {
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+
+	slog.DebugContext(ctx, "gitlab: resolving reviewers", slog.Any("reviewers", usernames))
+
+	ids := make([]int64, 0, len(usernames))
+
+	for _, username := range usernames {
+		members, _, err := g.client.ProjectMembers.ListAllProjectMembers(g.pid, &gitlab.ListProjectMembersOptions{
+			Query: new(username),
+		}, gitlab.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("look up reviewer %q: %w", username, err)
+		}
+
+		id, found := matchGitLabMember(members, username)
+		if !found {
+			return nil, fmt.Errorf("%w: %q is not a project member", ErrReviewerNotFound, username)
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+// matchGitLabMember picks the exact username match: the members query
+// parameter is a fuzzy search over name and username.
+func matchGitLabMember(members []*gitlab.ProjectMember, username string) (int64, bool) {
+	for _, member := range members {
+		if strings.EqualFold(member.Username, username) {
+			return member.ID, true
+		}
+	}
+
+	return 0, false
+}
+
+// verifyGitLabReviewers guards against GitLab silently applying fewer
+// reviewers than requested: the create API drops IDs without read access, and
+// the Free tier truncates the list to a single reviewer, both without error.
+func verifyGitLabReviewers(usernames []string, requestedIDs []int64, applied []*gitlab.BasicUser) error {
+	appliedIDs := make(map[int64]struct{}, len(applied))
+	for _, user := range applied {
+		appliedIDs[user.ID] = struct{}{}
+	}
+
+	missing := make([]string, 0, len(requestedIDs))
+
+	for i, id := range requestedIDs {
+		if _, exists := appliedIDs[id]; !exists {
+			missing = append(missing, usernames[i])
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf(
+			"%w: %v (multiple merge request reviewers require GitLab Premium or Ultimate)",
+			ErrReviewerNotApplied,
+			missing,
+		)
+	}
+
+	return nil
 }
 
 // MaxPRBodyLength reports no enforced limit: GitLab accepts merge request

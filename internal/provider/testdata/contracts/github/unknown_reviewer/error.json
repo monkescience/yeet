@@ -1,0 +1,4 @@
+{
+  "message": "Reviews may only be requested from collaborators.",
+  "documentation_url": "https://docs.github.com/rest/pulls/review-requests"
+}

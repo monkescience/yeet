@@ -215,6 +215,17 @@
           "minimum": 0,
           "default": 0
         },
+        "reviewers": {
+          "type": "array",
+          "description": "Reviewers requested on the release PR/MR when it is created. GitHub and GitLab: usernames. Azure DevOps: email or unique display name. Applied on create only, never reapplied on update.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
         "channels": {
           "type": "object",
           "description": "Named prerelease channels. Each channel runs only on its configured branch and creates semver prerelease versions.",

@@ -263,8 +263,9 @@ type releasePRWorkflowStub struct {
 
 	commitOverrideBodies map[string]string
 
-	createPRCalls int
-	updatePRCalls int
+	createPRCalls   int
+	createPROptions []provider.ReleasePROptions
+	updatePRCalls   int
 
 	markPendingCalls []int
 
@@ -281,6 +282,7 @@ func (s *releasePRWorkflowStub) CreateReleasePR(
 	opts provider.ReleasePROptions,
 ) (*provider.PullRequest, error) {
 	s.createPRCalls++
+	s.createPROptions = append(s.createPROptions, opts)
 
 	number := s.createPRCalls
 

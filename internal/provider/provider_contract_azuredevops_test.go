@@ -1,6 +1,7 @@
 package provider_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -132,6 +133,10 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsTagExistsHandler(t)
 	case providerContractCreateReleasePR:
 		return azureDevOpsCreateReleasePRHandler(t)
+	case providerContractCreateReleasePRReviewers:
+		return azureDevOpsCreateReleasePRReviewersHandler(t)
+	case providerContractUnknownReviewer:
+		return azureDevOpsUnknownReviewerHandler(t)
 	case providerContractUpdateReleasePR:
 		return azureDevOpsUpdateReleasePRHandler(t)
 	case providerContractFindOpenPRs:
@@ -372,6 +377,112 @@ func azureDevOpsCreateReleasePRHandler(t *testing.T) http.HandlerFunc {
 
 		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr", "pull_request.json"))
 	}
+}
+
+const (
+	azureDevOpsContractReviewerAliceID = "11111111-1111-1111-1111-111111111111"
+	azureDevOpsContractReviewerBobID   = "22222222-2222-2222-2222-222222222222"
+)
+
+func isAzureDevOpsIdentitiesRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.Path == fmt.Sprintf("/%s/_apis/identities", azureDevOpsContractOrg)
+}
+
+func azureDevOpsCreateReleasePRReviewersHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case isAzureDevOpsIdentitiesRequest(r):
+			writeAzureDevOpsIdentityFixture(t, w, r)
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests"):
+			var request struct {
+				Title     string `json:"title"`
+				Reviewers []struct {
+					ID string `json:"id"`
+				} `json:"reviewers"`
+			}
+			decodeJSONRequest(t, r, &request)
+			testastic.Equal(t, providerContractReleaseTitle, request.Title)
+			testastic.Equal(t, 2, len(request.Reviewers))
+			testastic.Equal(t, azureDevOpsContractReviewerAliceID, request.Reviewers[0].ID)
+			testastic.Equal(t, azureDevOpsContractReviewerBobID, request.Reviewers[1].ID)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr", "pull_request.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+func azureDevOpsUnknownReviewerHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if isAzureDevOpsIdentitiesRequest(r) {
+			testastic.Equal(t, providerContractUnknownReviewerName, r.URL.Query().Get("filterValue"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("unknown_reviewer", "identities_empty.json"))
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func writeAzureDevOpsIdentityFixture(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	testastic.Equal(t, "General", r.URL.Query().Get("searchFilter"))
+
+	switch filterValue := r.URL.Query().Get("filterValue"); filterValue {
+	case providerContractReviewerAlice:
+		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_alice.json"))
+	case providerContractReviewerBob:
+		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_bob.json"))
+	default:
+		t.Fatalf("unexpected Azure DevOps identity lookup: %s", filterValue)
+	}
+}
+
+func TestAzureDevOpsRejectsAmbiguousReviewer(t *testing.T) {
+	t.Parallel()
+
+	// given: an Azure DevOps server whose identity search returns two matches
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if isAzureDevOpsIdentitiesRequest(r) {
+			testastic.Equal(t, "alex", r.URL.Query().Get("filterValue"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_ambiguous.json"))
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: creating a release PR with a reviewer name matching two identities
+	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+		Title:         providerContractReleaseTitle,
+		Body:          providerContractReleaseBody,
+		BaseBranch:    providerContractBaseBranch,
+		ReleaseBranch: providerContractReleaseBranch,
+		Reviewers:     []string{"alex"},
+	})
+
+	// then: the run fails before any PR is created, flagging the ambiguity
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, provider.ErrReviewerAmbiguous)
+	testastic.ErrorContains(t, err, "alex")
 }
 
 func azureDevOpsUpdateReleasePRHandler(t *testing.T) http.HandlerFunc {

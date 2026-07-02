@@ -29,6 +29,7 @@ type ConfigOptions struct {
 	Targets           []TargetOptions
 	ReferencePatterns []ReferencePatternOptions
 	ReferenceFooters  map[string]string
+	Reviewers         []string
 }
 
 // ReferencePatternOptions configures one entry under changelog.references.patterns.
@@ -84,11 +85,31 @@ func renderConfig(opts ConfigOptions) string {
 	writeTop(&b, opts)
 	writeRepository(&b, opts)
 	writeVersionFiles(&b, opts.VersionFiles)
-	writeChannels(&b, opts.Channels)
+	writeRelease(&b, opts)
 	writeChangelog(&b, opts)
 	writeTargets(&b, opts.Targets)
 
 	return b.String()
+}
+
+func writeRelease(b *strings.Builder, opts ConfigOptions) {
+	if len(opts.Reviewers) == 0 && len(opts.Channels) == 0 {
+		return
+	}
+
+	b.WriteString("release:\n")
+
+	if len(opts.Reviewers) > 0 {
+		b.WriteString("  reviewers:\n")
+
+		for _, reviewer := range opts.Reviewers {
+			b.WriteString("    - ")
+			b.WriteString(reviewer)
+			b.WriteString("\n")
+		}
+	}
+
+	writeChannels(b, opts.Channels)
 }
 
 func writeChangelog(b *strings.Builder, opts ConfigOptions) {
@@ -216,7 +237,7 @@ func writeChannels(b *strings.Builder, channels map[string]ChannelOptions) {
 		return
 	}
 
-	b.WriteString("release:\n  channels:\n")
+	b.WriteString("  channels:\n")
 
 	for name, channel := range channels {
 		b.WriteString("    ")

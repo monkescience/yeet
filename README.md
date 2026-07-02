@@ -399,9 +399,17 @@ release:
   pr_body_header: "## Release"       # markdown before changelog in PR/MR body
   pr_body_footer: "_Automated._"     # markdown after changelog in PR/MR body
   pr_body_max_length: 0              # cap PR/MR body length in characters (0 = provider limit only)
+  reviewers:                         # reviewers requested when the PR/MR is created
+    - alice
 ```
 
 `auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults. `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
+
+`reviewers` requests reviews from the listed users when the release PR/MR is created. Reviewers are applied on create only, so later `yeet release` runs never overwrite manual reviewer changes on an open release PR/MR. A reviewer that cannot be resolved or assigned fails the release run before the PR/MR is created. Per provider:
+
+- GitHub: entries are usernames. Each must be a repository collaborator, and the token identity must not be listed (it authors the PR, and GitHub rejects the author as reviewer). Both are validated before the PR is created.
+- GitLab: entries are usernames and must be project members (inherited group members count). GitLab silently applies fewer reviewers in some cases (the Free tier supports only a single MR reviewer), so yeet verifies the created MR and fails the run when a requested reviewer was dropped.
+- Azure DevOps: entries are an email (unique name) or display name, resolved via the identities API. This needs the Identity (Read) PAT scope (`vso.identity`). A name matching multiple identities fails the run, and display names can also match groups, so prefer emails.
 
 `pr_body_max_length` caps the generated PR/MR body. When the body would exceed the cap, yeet drops the changelog from the body entirely and replaces it with a short notice pointing to the changelog file (the header, footer, and the hidden manifest marker that identifies the release are always preserved). `0` applies no extra cap. Azure DevOps rejects PR descriptions longer than 4000 characters, so yeet always enforces that hard limit on Azure DevOps regardless of this setting. The full notes still live in the changelog file committed to the release branch.
 
@@ -520,6 +528,11 @@ yeet release
 The pipeline build service identity or PAT needs repository permissions to create branches,
 create/update pull requests, manage pull request labels, complete pull requests when auto-merge
 is enabled, and create tags.
+
+When `release.reviewers` is configured, the PAT additionally needs the Identity (Read) scope
+(`vso.identity`), because reviewer names are resolved through the identities API. Whether a
+pipeline `System.AccessToken` is authorized for identity reads (especially with "Limit job
+authorization scope" enabled) has not been verified.
 
 ## Performance
 

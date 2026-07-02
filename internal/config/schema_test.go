@@ -31,7 +31,13 @@ type releaseDefinition struct {
 }
 
 type releaseProperties struct {
-	AutoMergeMethod enumDefinition `json:"auto_merge_method"`
+	AutoMergeMethod enumDefinition  `json:"auto_merge_method"`
+	Reviewers       arrayDefinition `json:"reviewers"`
+}
+
+type arrayDefinition struct {
+	Type  string          `json:"type"`
+	Items json.RawMessage `json:"items"`
 }
 
 type enumDefinition struct {
@@ -81,6 +87,25 @@ func TestConfigSchema(t *testing.T) {
 			[]string{"auto", "squash", "rebase", "merge"},
 			doc.Defs.Release.Properties.AutoMergeMethod.Enum,
 		)
+	})
+
+	t.Run("contains release reviewers array", func(t *testing.T) {
+		t.Parallel()
+
+		// given: parsed schema document
+		schemaPath := schemaFilePath(t)
+
+		data, readErr := os.ReadFile(schemaPath)
+		testastic.NoError(t, readErr)
+
+		var doc schemaDocument
+
+		unmarshalErr := json.Unmarshal(data, &doc)
+		testastic.NoError(t, unmarshalErr)
+
+		// then: release.reviewers is an array of strings
+		testastic.Equal(t, "array", doc.Defs.Release.Properties.Reviewers.Type)
+		testastic.True(t, len(doc.Defs.Release.Properties.Reviewers.Items) > 0)
 	})
 
 	t.Run("contains string and object version file forms", func(t *testing.T) {

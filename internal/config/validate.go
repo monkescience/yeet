@@ -238,8 +238,38 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		)
 	}
 
+	if err := validateReleaseReviewers(release.Reviewers); err != nil {
+		return err
+	}
+
 	if err := validateReleaseChannels(release.Channels); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateReleaseReviewers(reviewers []string) error {
+	seen := make(map[string]struct{}, len(reviewers))
+
+	for _, reviewer := range reviewers {
+		if strings.TrimSpace(reviewer) == "" {
+			return fmt.Errorf("%w: release.reviewers must not contain empty strings", ErrInvalidConfig)
+		}
+
+		if reviewer != strings.TrimSpace(reviewer) {
+			return fmt.Errorf(
+				"%w: release.reviewers entry %q must not have leading or trailing whitespace",
+				ErrInvalidConfig,
+				reviewer,
+			)
+		}
+
+		if _, exists := seen[reviewer]; exists {
+			return fmt.Errorf("%w: release.reviewers contains duplicate %q", ErrInvalidConfig, reviewer)
+		}
+
+		seen[reviewer] = struct{}{}
 	}
 
 	return nil

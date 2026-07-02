@@ -231,6 +231,76 @@ func TestReleaseCreatesPR(t *testing.T) {
 	})
 }
 
+func TestReleaseReviewers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("gitlab requests configured reviewers on the release MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitLab server that knows the configured reviewer
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+			Users: map[string]int64{"alice": 101},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:  "gitlab",
+			Branch:    "main",
+			Host:      "gitlab.com",
+			Project:   "group/service",
+			Reviewers: []string{"alice"},
+		})
+
+		// when: invoking `yeet release` against the fake server
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet exits 0 after resolving the reviewer and creating the MR
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("gitlab fails the release for an unknown reviewer", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitLab server that cannot resolve the configured reviewer
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:     "group/service",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "boundary-sha",
+			Commits: []fakeprovider.GitLabCommit{
+				{SHA: "head-sha", Message: "feat: add a thing"},
+				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:  "gitlab",
+			Branch:    "main",
+			Host:      "gitlab.com",
+			Project:   "group/service",
+			Reviewers: []string{"ghost"},
+		})
+
+		// when: invoking `yeet release` against the fake server
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: yeet fails and names the unresolved reviewer
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "ghost")
+	})
+}
+
 func TestReleaseAutoMerge(t *testing.T) {
 	t.Parallel()
 

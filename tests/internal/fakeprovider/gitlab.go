@@ -1,6 +1,7 @@
 package fakeprovider
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,6 +35,10 @@ type GitLabOptions struct {
 	// listing return a single pending release MR with this body so yeet drives
 	// the update-existing-MR workflow.
 	ExistingOpenReleasePRBody string
+	// Users maps usernames to user IDs for the project-members lookup that
+	// resolves release reviewers. Unknown usernames return an empty list. The
+	// create-MR response echoes requested reviewer IDs back as reviewers.
+	Users map[string]int64
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
@@ -71,6 +76,7 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 
 	registerGitLabHistory(mux, prefix, opts)
 	registerGitLabMerge(mux, prefix, opts)
+	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
 	registerGitLabLabels(mux, prefix)
 	registerGitLabReleases(mux, prefix)
@@ -183,9 +189,7 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) 
 		writeJSON(w, []any{})
 	})
 
-	mux.HandleFunc("POST "+prefix+"/merge_requests", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabFakeMR())
-	})
+	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
 
 	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
 		mr := gitlabFakeMR()
@@ -210,6 +214,44 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) 
 
 	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{gitlabKeyID: "new-commit-sha"})
+	})
+}
+
+// handleGitLabCreateMR echoes requested reviewer IDs back as applied
+// reviewers, mirroring a GitLab tier where all requested reviewers stick.
+func handleGitLabCreateMR(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		ReviewerIDs []int64 `json:"reviewer_ids"`
+	}
+
+	_ = json.NewDecoder(r.Body).Decode(&request)
+
+	mr := gitlabFakeMR()
+
+	if len(request.ReviewerIDs) > 0 {
+		reviewers := make([]map[string]any, 0, len(request.ReviewerIDs))
+		for _, id := range request.ReviewerIDs {
+			reviewers = append(reviewers, map[string]any{gitlabKeyID: id})
+		}
+
+		mr["reviewers"] = reviewers
+	}
+
+	writeJSON(w, mr)
+}
+
+func registerGitLabMembers(mux *http.ServeMux, prefix string, opts GitLabOptions) {
+	mux.HandleFunc("GET "+prefix+"/members/all", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+
+		id, exists := opts.Users[query]
+		if !exists {
+			writeJSON(w, []any{})
+
+			return
+		}
+
+		writeJSON(w, []map[string]any{{gitlabKeyID: id, "username": query}})
 	})
 }
 

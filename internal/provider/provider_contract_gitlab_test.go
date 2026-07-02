@@ -1,6 +1,7 @@
 package provider_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,6 +51,10 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabTagExistsContract(t, w, r)
 		case providerContractCreateReleasePR:
 			handleGitLabCreateReleasePRContract(t, w, r)
+		case providerContractCreateReleasePRReviewers:
+			handleGitLabCreateReleasePRReviewersContract(t, w, r)
+		case providerContractUnknownReviewer:
+			handleGitLabUnknownReviewerContract(t, w, r)
 		case providerContractUpdateReleasePR:
 			handleGitLabUpdateReleasePRContract(t, w, r)
 		case providerContractFindOpenPRs:
@@ -230,6 +235,86 @@ func handleGitLabCreateReleasePRContract(t *testing.T, w http.ResponseWriter, r 
 	testastic.Equal(t, providerContractBaseBranch, request.TargetBranch)
 
 	writeJSONFixture(t, w, "contracts/gitlab/create_release_pr/response.json")
+}
+
+func handleGitLabCreateReleasePRReviewersContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
+		writeGitLabMemberFixture(t, w, r.URL.Query().Get("query"))
+	case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+		var request struct {
+			Title       string  `json:"title"`
+			ReviewerIDs []int64 `json:"reviewer_ids"`
+		}
+		decodeJSONRequest(t, r, &request)
+		testastic.Equal(t, providerContractReleaseTitle, request.Title)
+		testastic.SliceEqual(t, []int64{101, 102}, request.ReviewerIDs)
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+func handleGitLabUnknownReviewerContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all" {
+		testastic.Equal(t, providerContractUnknownReviewerName, r.URL.Query().Get("query"))
+		writeJSONFixture(t, w, "contracts/gitlab/unknown_reviewer/members_empty.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func writeGitLabMemberFixture(t *testing.T, w http.ResponseWriter, query string) {
+	t.Helper()
+
+	switch query {
+	case providerContractReviewerAlice:
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/members_alice.json")
+	case providerContractReviewerBob:
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/members_bob.json")
+	default:
+		t.Fatalf("unexpected GitLab member lookup: %s", query)
+	}
+}
+
+func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab server that resolves both reviewers but applies only the
+	// first one on the created MR (Free-tier truncation behavior)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
+			writeGitLabMemberFixture(t, w, r.URL.Query().Get("query"))
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+			writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response_dropped.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: creating a release MR with two reviewers
+	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+		Title:         providerContractReleaseTitle,
+		Body:          providerContractReleaseBody,
+		BaseBranch:    providerContractBaseBranch,
+		ReleaseBranch: providerContractReleaseBranch,
+		Reviewers:     []string{providerContractReviewerAlice, providerContractReviewerBob},
+	})
+
+	// then: the run fails naming the reviewer GitLab silently dropped
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, provider.ErrReviewerNotApplied)
+	testastic.ErrorContains(t, err, providerContractReviewerBob)
 }
 
 func handleGitLabUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

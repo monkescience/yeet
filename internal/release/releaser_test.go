@@ -924,6 +924,30 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-manifest")
 }
 
+func TestReleasePRCarriesReviewers(t *testing.T) {
+	t.Parallel()
+
+	// given: a config with release reviewers and a releasable commit
+	cfg := config.Default()
+	cfg.Release.Reviewers = []string{"alice", "bob"}
+
+	stub := newProviderStub()
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "feat: add feature",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: creating a release PR
+	_, err := r.Release(context.Background(), false)
+
+	// then: the create options carry the configured reviewers
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, stub.createPRCalls)
+	testastic.SliceEqual(t, []string{"alice", "bob"}, stub.createPROptions[0].Reviewers)
+}
+
 func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 	t.Parallel()
 

@@ -2246,3 +2246,109 @@ func TestRepoPathContains(t *testing.T) {
 		})
 	}
 }
+
+func TestReleaseReviewers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parses reviewers from yaml", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with release reviewers
+		data, err := os.ReadFile("testdata/release_reviewers/input.yaml")
+		testastic.NoError(t, err)
+
+		// when: parsing the config
+		cfg, err := config.Parse(data)
+
+		// then: reviewers are parsed in order
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{"alice", "bob"}, cfg.Release.Reviewers)
+	})
+
+	t.Run("no reviewers by default", func(t *testing.T) {
+		t.Parallel()
+
+		// given: nothing
+
+		// when: creating a default config
+		cfg := config.Default()
+
+		// then: no reviewers are configured
+		testastic.Equal(t, 0, len(cfg.Release.Reviewers))
+	})
+
+	t.Run("blank reviewer entry fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a whitespace-only reviewer
+		cfg := config.Default()
+		cfg.Release.Reviewers = []string{"alice", "   "}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "release.reviewers")
+	})
+
+	t.Run("whitespace-padded reviewer fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a reviewer that has trailing whitespace
+		cfg := config.Default()
+		cfg.Release.Reviewers = []string{"alice "}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails naming the padded entry
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "alice ")
+	})
+
+	t.Run("duplicate reviewer after trimming fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with the same reviewer once padded and once plain
+		cfg := config.Default()
+		cfg.Release.Reviewers = []string{"alice", " alice"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails (the padded entry is rejected outright)
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+	})
+
+	t.Run("duplicate reviewer fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with a duplicated reviewer
+		cfg := config.Default()
+		cfg.Release.Reviewers = []string{"alice", "alice"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails naming the duplicate
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "alice")
+	})
+}

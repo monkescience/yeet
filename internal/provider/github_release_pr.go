@@ -11,6 +11,10 @@ import (
 )
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+	if err := g.validateReviewers(ctx, opts.Reviewers); err != nil {
+		return nil, err
+	}
+
 	slog.DebugContext(ctx, "github: creating pull request",
 		slog.String("head", opts.ReleaseBranch),
 		slog.String("base", opts.BaseBranch),
@@ -31,6 +35,20 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		slog.String("url", pr.GetHTMLURL()),
 	)
 
+	if len(opts.Reviewers) > 0 {
+		_, _, err = g.client.PullRequests.RequestReviewers(ctx, g.repo.Owner, g.repo.Name, pr.GetNumber(),
+			github.ReviewersRequest{Reviewers: opts.Reviewers})
+		if err != nil {
+			return nil, fmt.Errorf("request reviewers %v for pull request #%d: %w",
+				opts.Reviewers, pr.GetNumber(), err)
+		}
+
+		slog.DebugContext(ctx, "github: requested reviewers",
+			slog.Int("pr_number", pr.GetNumber()),
+			slog.Any("reviewers", opts.Reviewers),
+		)
+	}
+
 	return &PullRequest{
 		Number: pr.GetNumber(),
 		Title:  pr.GetTitle(),
@@ -38,6 +56,45 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		URL:    pr.GetHTMLURL(),
 		Branch: opts.ReleaseBranch,
 	}, nil
+}
+
+// validateReviewers runs before the pull request is created: a reviewer
+// failure after creation would leave an unlabeled PR that
+// FindOpenPendingReleasePRs cannot pick up, wedging every subsequent run.
+// GitHub only accepts collaborators as reviewers and rejects the PR author,
+// which is always the authenticated token identity here.
+func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) error {
+	if len(reviewers) == 0 {
+		return nil
+	}
+
+	slog.DebugContext(ctx, "github: validating reviewers", slog.Any("reviewers", reviewers))
+
+	authenticated, _, err := g.client.Users.Get(ctx, "")
+	if err != nil {
+		return fmt.Errorf("get authenticated user: %w", err)
+	}
+
+	for _, reviewer := range reviewers {
+		if strings.EqualFold(reviewer, authenticated.GetLogin()) {
+			return fmt.Errorf(
+				"%w: %q is the authenticated user and GitHub rejects the pull request author as reviewer",
+				ErrReviewerInvalid,
+				reviewer,
+			)
+		}
+
+		isCollaborator, _, err := g.client.Repositories.IsCollaborator(ctx, g.repo.Owner, g.repo.Name, reviewer)
+		if err != nil {
+			return fmt.Errorf("check reviewer %q: %w", reviewer, err)
+		}
+
+		if !isCollaborator {
+			return fmt.Errorf("%w: %q is not a repository collaborator", ErrReviewerNotFound, reviewer)
+		}
+	}
+
+	return nil
 }
 
 // MaxPRBodyLength reports no enforced limit: GitHub accepts pull request bodies

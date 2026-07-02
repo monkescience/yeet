@@ -75,6 +75,7 @@ func (c *releaseCore) releasePROptions(
 		Body:          body,
 		BaseBranch:    c.cfg.Branch,
 		ReleaseBranch: releaseBranch,
+		Reviewers:     c.cfg.Release.Reviewers,
 	}, nil
 }
 

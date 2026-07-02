@@ -36,6 +36,8 @@ const (
 	providerContractGetReleaseByTag                  providerContractScenario = "get release by tag"
 	providerContractTagExists                        providerContractScenario = "tag exists"
 	providerContractCreateReleasePR                  providerContractScenario = "create release pr"
+	providerContractCreateReleasePRReviewers         providerContractScenario = "create release pr reviewers"
+	providerContractUnknownReviewer                  providerContractScenario = "unknown reviewer"
 	providerContractUpdateReleasePR                  providerContractScenario = "update release pr"
 	providerContractFindOpenPRs                      providerContractScenario = "find open prs"
 	providerContractFindMergedPR                     providerContractScenario = "find merged pr"
@@ -63,6 +65,9 @@ const (
 	providerContractIntermediateTag                                           = "v1.4.0"
 	providerContractMidSHA                                                    = "mid-sha"
 	providerContractIntermediateSHA                                           = "inter-sha"
+	providerContractReviewerAlice                                             = "alice"
+	providerContractReviewerBob                                               = "bob"
+	providerContractUnknownReviewerName                                       = "ghost"
 )
 
 func TestProviderContract(t *testing.T) {
@@ -327,6 +332,53 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, harness.expectedReleasePRURL(server.URL), pr.URL)
 			})
 
+			t.Run("creates release pull request with reviewers", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server accepting a new release pull request and reviewer assignment
+				server := httptest.NewServer(harness.handler(t, providerContractCreateReleasePRReviewers))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: CreateReleasePR is invoked with two reviewers
+				pr, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+					Title:         providerContractReleaseTitle,
+					Body:          providerContractReleaseBody,
+					BaseBranch:    providerContractBaseBranch,
+					ReleaseBranch: providerContractReleaseBranch,
+					Reviewers:     []string{providerContractReviewerAlice, providerContractReviewerBob},
+				})
+
+				// then: the pull request is created and the reviewer requests reach the server
+				testastic.NoError(t, err)
+				testastic.Equal(t, 42, pr.Number)
+			})
+
+			t.Run("fails when a reviewer cannot be assigned", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server that cannot resolve or assign the requested reviewer
+				server := httptest.NewServer(harness.handler(t, providerContractUnknownReviewer))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: CreateReleasePR is invoked with an unknown reviewer
+				_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+					Title:         providerContractReleaseTitle,
+					Body:          providerContractReleaseBody,
+					BaseBranch:    providerContractBaseBranch,
+					ReleaseBranch: providerContractReleaseBranch,
+					Reviewers:     []string{providerContractUnknownReviewerName},
+				})
+
+				// then: the error names the reviewer and wraps the not-found sentinel
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrReviewerNotFound)
+				testastic.ErrorContains(t, err, providerContractUnknownReviewerName)
+			})
+
 			t.Run("updates release pull request", func(t *testing.T) {
 				t.Parallel()
 
@@ -336,13 +388,14 @@ func TestProviderContract(t *testing.T) {
 
 				p := harness.newProvider(t, server)
 
-				// when: UpdateReleasePR is invoked with a new body for PR 42
+				// when: UpdateReleasePR is invoked with a new body and reviewers for PR 42
 				err := p.UpdateReleasePR(context.Background(), 42, provider.ReleasePROptions{
-					Title: providerContractReleaseTitle,
-					Body:  "updated release body",
+					Title:     providerContractReleaseTitle,
+					Body:      "updated release body",
+					Reviewers: []string{providerContractReviewerAlice},
 				})
 
-				// then: the update completes without error
+				// then: the update completes without touching reviewers
 				testastic.NoError(t, err)
 			})
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/identity"
 )
 
 const azureDevOpsPRPageSize = 100
@@ -32,11 +33,19 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 		slog.String("target_branch", opts.BaseBranch),
 	)
 
+	reviewers, err := a.resolveReviewers(ctx, opts.Reviewers)
+	if err != nil {
+		return nil, err
+	}
+
 	pr := git.GitPullRequest{
 		SourceRefName: new("refs/heads/" + opts.ReleaseBranch),
 		TargetRefName: new("refs/heads/" + opts.BaseBranch),
 		Title:         new(opts.Title),
 		Description:   new(opts.Body),
+	}
+	if len(reviewers) > 0 {
+		pr.Reviewers = new(reviewers)
 	}
 
 	created, err := gitClient.CreatePullRequest(ctx, git.CreatePullRequestArgs{
@@ -62,6 +71,51 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts ReleasePROptions
 		URL:    a.pullRequestWebURL(prNumber),
 		Branch: opts.ReleaseBranch,
 	}, nil
+}
+
+// resolveReviewers maps reviewer names (email, display name, or account name)
+// to identity GUIDs via the identity search API, since the pull request API
+// only accepts reviewers by GUID.
+func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]git.IdentityRefWithVote, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+
+	slog.DebugContext(ctx, "azure devops: resolving reviewers", slog.Any("reviewers", names))
+
+	identityClient, err := identity.NewClient(ctx, a.conn)
+	if err != nil {
+		return nil, fmt.Errorf("create identity client: %w", err)
+	}
+
+	reviewers := make([]git.IdentityRefWithVote, 0, len(names))
+
+	for _, name := range names {
+		identities, err := identityClient.ReadIdentities(ctx, identity.ReadIdentitiesArgs{
+			SearchFilter: new("General"),
+			FilterValue:  new(name),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("look up reviewer %q: %w", name, err)
+		}
+
+		if identities == nil || len(*identities) == 0 {
+			return nil, fmt.Errorf("%w: %q", ErrReviewerNotFound, name)
+		}
+
+		if len(*identities) > 1 {
+			return nil, fmt.Errorf("%w: %q matches %d identities", ErrReviewerAmbiguous, name, len(*identities))
+		}
+
+		resolved := (*identities)[0]
+		if resolved.Id == nil {
+			return nil, fmt.Errorf("%w: %q resolved without an id", ErrReviewerNotFound, name)
+		}
+
+		reviewers = append(reviewers, git.IdentityRefWithVote{Id: new(resolved.Id.String())})
+	}
+
+	return reviewers, nil
 }
 
 func (a *AzureDevOps) MaxPRBodyLength() int {

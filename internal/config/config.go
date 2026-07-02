@@ -189,6 +189,7 @@ type ReleaseConfig struct {
 	PRBodyHeader         string                          `yaml:"pr_body_header"`
 	PRBodyFooter         string                          `yaml:"pr_body_footer"`
 	PRBodyMaxLength      int                             `yaml:"pr_body_max_length"`
+	Reviewers            []string                        `yaml:"reviewers,omitempty"`
 	Channels             map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
 }
 
