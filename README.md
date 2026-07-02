@@ -52,6 +52,37 @@ Or use the published container image:
 docker run --rm ghcr.io/monkescience/yeet:v0.10.11 --help # x-yeet-version
 ```
 
+## Verify a release
+
+Release archives and the container image are signed with [Sigstore](https://www.sigstore.dev)
+keyless signing, and both carry GitHub build provenance attestations.
+
+Verify an archive against the `.sigstore.json` bundle published next to it:
+
+```sh
+cosign verify-blob \
+  --bundle yeet_linux_amd64.tar.gz.sigstore.json \
+  --certificate-identity-regexp 'https://github.com/monkescience/yeet/.github/workflows/binaries.yaml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  yeet_linux_amd64.tar.gz
+```
+
+Verify the container image signature:
+
+```sh
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/monkescience/yeet/.github/workflows/image.yaml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/monkescience/yeet:v0.10.11 # x-yeet-version
+```
+
+Verify build provenance (which workflow and commit produced the artifact) with the GitHub CLI:
+
+```sh
+gh attestation verify yeet_linux_amd64.tar.gz --repo monkescience/yeet
+gh attestation verify oci://ghcr.io/monkescience/yeet:v0.10.11 --repo monkescience/yeet # x-yeet-version
+```
+
 ## Quick start
 
 ```sh
