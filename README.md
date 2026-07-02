@@ -3,6 +3,7 @@
 [![CI](https://github.com/monkescience/yeet/actions/workflows/ci.yaml/badge.svg)](https://github.com/monkescience/yeet/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/monkescience/yeet)](https://github.com/monkescience/yeet/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/monkescience/yeet)](go.mod)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/monkescience/yeet/badge)](https://scorecard.dev/viewer/?uri=github.com/monkescience/yeet)
 [![License](https://img.shields.io/github/license/monkescience/yeet)](LICENSE)
 
 Release automation for **GitHub, GitLab, and Azure DevOps**, driven by [conventional commits](https://www.conventionalcommits.org/).
