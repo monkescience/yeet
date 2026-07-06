@@ -2,6 +2,7 @@
 
 version_files:
   - README.md
+  - docs/ci.md
 
 release:
   reviewers:

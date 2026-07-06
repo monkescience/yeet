@@ -189,8 +189,6 @@ func semverValues(nextVersion string) (map[markerScope]string, map[markerScope]b
 }
 
 func (s Scheme) calverValues(nextVersion string) (map[markerScope]string, map[markerScope]bool, error) {
-	// CalVer never carries prerelease/build suffixes (see README "Prerelease
-	// channels"), so the next version is parsed verbatim.
 	tokens, err := s.calver.MarkerValues(nextVersion)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidNextVersion, err)
