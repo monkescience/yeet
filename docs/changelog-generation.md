@@ -1,4 +1,4 @@
-# Changelog
+# Changelog generation
 
 yeet generates a changelog from conventional commits. Two settings control the output: `include` lists the commit types that appear, and `sections` maps commit types to heading text.
 

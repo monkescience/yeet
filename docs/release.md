@@ -2,7 +2,7 @@
 
 Settings under `release:` apply to the combined release PR/MR, not to individual targets.
 
-## Customization
+## PR/MR body and merge settings
 
 ```yaml
 release:

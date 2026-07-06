@@ -95,6 +95,8 @@ gh attestation verify oci://ghcr.io/monkescience/yeet:v0.10.11 --repo monkescien
 
 ## Quick start
 
+yeet talks to the provider API, so export a token first (`GITHUB_TOKEN`, `GITLAB_TOKEN`, or `AZURE_DEVOPS_EXT_PAT`, see [Authentication](docs/authentication.md)).
+
 ```sh
 # Initialize config in your repo
 yeet init
@@ -139,10 +141,15 @@ approvals, or missing permissions.
 
 ## Documentation
 
-- [Versioning](docs/versioning.md): semver, calver, and `Release-As` overrides
-- [Configuration](docs/configuration.md): config file, repository targeting, monorepo targets, bump types, version files
-- [Changelog](docs/changelog.md): sections, issue tracker references, commit overrides
-- [Release PRs/MRs](docs/release.md): PR/MR customization, auto-merge, release notes, prerelease channels
+Getting started:
+
 - [Authentication](docs/authentication.md): tokens and self-hosted setup per provider
 - [CI setup](docs/ci.md): GitHub Actions, GitLab CI, and Azure Pipelines examples, performance tuning
 - [Troubleshooting](docs/troubleshooting.md): error categories and debug logging
+
+Customization:
+
+- [Configuration](docs/configuration.md): config file, repository targeting, monorepo targets, bump types, version files
+- [Versioning](docs/versioning.md): semver, calver, and `Release-As` overrides
+- [Changelog generation](docs/changelog-generation.md): sections, issue tracker references, commit overrides
+- [Release PRs/MRs](docs/release.md): PR/MR body and merge settings, release notes, prerelease channels
