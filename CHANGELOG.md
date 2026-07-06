@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.12](https://github.com/monkescience/yeet/compare/v0.10.11...v0.10.12) (2026-07-06)
+
+### Bug Fixes
+
+- **commands:** let explicit GITHUB_URL and GITLAB_URL override host derivation ([fcb190b](https://github.com/monkescience/yeet/commit/fcb190bee34968ed3fe113c5988cf3c65b9673d0))
+- **deps:** update module charm.land/lipgloss/v2 to v2.0.5 (#155) ([91026ee](https://github.com/monkescience/yeet/commit/91026ee2aab88efb2d3fb937dcf22471bb042df7))
+
 ## [v0.10.11](https://github.com/monkescience/yeet/compare/v0.10.10...v0.10.11) (2026-07-02)
 
 ### Bug Fixes
