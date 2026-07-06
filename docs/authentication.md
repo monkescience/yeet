@@ -21,8 +21,9 @@ export GITHUB_URL=https://github.example.com/api/v3/
 yeet release
 ```
 
-A configured non-`github.com` host takes precedence over `GITHUB_URL`, so the env var only
-applies when no custom host is configured.
+An explicitly set `GITHUB_URL` takes precedence over the derived URL. Use it when the API is
+not served at `https://<host>/api/v3/`, for example on GHE data-residency domains where the
+API lives at `https://api.<subdomain>.ghe.com`.
 
 The token needs `contents: write`, `pull-requests: write`, and `issues: write` permissions.
 
@@ -44,7 +45,8 @@ export GITLAB_URL=https://gitlab.example.com/api/v4
 yeet release
 ```
 
-As with GitHub, a configured non-`gitlab.com` host takes precedence over `GITLAB_URL`.
+As with GitHub, an explicitly set `GITLAB_URL` takes precedence over the derived URL. Use it
+when the instance is served under a relative URL such as `https://example.com/gitlab`.
 
 The token must be able to create merge requests, manage labels, and publish releases.
 
@@ -75,8 +77,9 @@ export AZURE_DEVOPS_URL=https://devops.example.com
 yeet release
 ```
 
-Unlike GitHub and GitLab, `AZURE_DEVOPS_URL` takes precedence over the host configured in the
-repository settings.
+As with the other providers, `AZURE_DEVOPS_URL` takes precedence over the host configured in
+the repository settings. Use it when the server lives under a path prefix such as
+`https://server/tfs`.
 
 The pipeline build service identity or PAT needs repository permissions to create branches,
 create/update pull requests, manage pull request labels, complete pull requests when auto-merge

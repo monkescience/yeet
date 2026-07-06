@@ -447,10 +447,10 @@ func TestNewRetryableHTTPClient(t *testing.T) {
 	testastic.True(t, roundTripper.Client.Logger == nil)
 }
 
-func TestCreateGitHubProviderUsesRepositoryHost(t *testing.T) {
-	// given: a custom github enterprise host and the GITHUB_URL pointing elsewhere
+func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {
+	// given: a custom github enterprise host and an explicit GITHUB_URL
 	t.Setenv("GITHUB_TOKEN", "test-token")
-	t.Setenv("GITHUB_URL", "https://ignored.example/api/v3/")
+	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
 
 	// when: creating the github provider
 	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
@@ -459,15 +459,32 @@ func TestCreateGitHubProviderUsesRepositoryHost(t *testing.T) {
 		Repo:  "yeet",
 	})
 
-	// then: the repository host wins over the GITHUB_URL environment variable
+	// then: the explicit GITHUB_URL wins over the URL derived from the repository host
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://ghe-proxy.example/platform/yeet", githubProvider.RepoURL())
+}
+
+func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
+	// given: a custom github enterprise host and no GITHUB_URL
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv("GITHUB_URL", "")
+
+	// when: creating the github provider
+	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
+		Host:  "github.company.com",
+		Owner: "platform",
+		Repo:  "yeet",
+	})
+
+	// then: the API URL is derived from the repository host
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://github.company.com/platform/yeet", githubProvider.RepoURL())
 }
 
-func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
-	// given: a custom gitlab host and the GITLAB_URL pointing elsewhere
+func TestCreateGitLabProviderPrefersGitLabURLOverRepositoryHost(t *testing.T) {
+	// given: a custom gitlab host and an explicit GITLAB_URL
 	t.Setenv("GITLAB_TOKEN", "test-token")
-	t.Setenv("GITLAB_URL", "https://ignored.example/api/v4")
+	t.Setenv("GITLAB_URL", "https://gitlab-proxy.example/api/v4")
 
 	// when: creating the gitlab provider
 	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
@@ -475,7 +492,23 @@ func TestCreateGitLabProviderUsesRepositoryHost(t *testing.T) {
 		Project: "group/subgroup/service",
 	})
 
-	// then: the repository host wins over the GITLAB_URL environment variable
+	// then: the explicit GITLAB_URL wins over the URL derived from the repository host
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://gitlab-proxy.example/group/subgroup/service", gitlabProvider.RepoURL())
+}
+
+func TestCreateGitLabProviderDerivesURLFromRepositoryHost(t *testing.T) {
+	// given: a custom gitlab host and no GITLAB_URL
+	t.Setenv("GITLAB_TOKEN", "test-token")
+	t.Setenv("GITLAB_URL", "")
+
+	// when: creating the gitlab provider
+	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
+		Host:    "gitlab.company.com",
+		Project: "group/subgroup/service",
+	})
+
+	// then: the API URL is derived from the repository host
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
 }
