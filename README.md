@@ -21,7 +21,8 @@ If you want release-please's release-PR workflow but your code lives on GitLab o
 | Providers | GitHub, GitLab, Azure DevOps | GitHub | GitHub, GitLab |
 | Self-hosted instances | GitHub Enterprise, self-managed GitLab, Azure DevOps Server | GitHub Enterprise | GitHub Enterprise, self-managed GitLab |
 | Workflow | release PR/MR, tag on merge | release PR, tag on merge | publishes directly on push |
-| Auto-merge release PR/MR | built in | external automation | no release PR |
+| Auto-merge release PR/MR | built in (auto/squash/rebase/merge) | external automation | no release PR |
+| Release PR/MR reviewers | built in (`release.reviewers`, validated per provider) | not supported (use CODEOWNERS) | no release PR |
 | Runtime | single binary or container image | Node.js | Node.js plus plugins |
 | Versioning | semver and calver | semver | semver |
 | Prerelease channels | branch-scoped channels (semver) | prerelease versioning strategy, no branch channels | branch-based channels built in |
