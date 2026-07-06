@@ -145,6 +145,7 @@ Getting started:
 
 - [Authentication](docs/authentication.md): tokens and self-hosted setup per provider
 - [CI setup](docs/ci.md): GitHub Actions, GitLab CI, and Azure Pipelines examples, performance tuning
+- [Migrating from release-please](docs/migrate-from-release-please.md): config mapping and switch-over steps
 - [Troubleshooting](docs/troubleshooting.md): error categories and debug logging
 
 Customization:
