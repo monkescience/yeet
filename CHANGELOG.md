@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.10.13](https://github.com/monkescience/yeet/compare/v0.10.12...v0.10.13) (2026-07-09)
+
+### Bug Fixes
+
+- **build:** pin go toolchain to go1.26.5 ([2aa9683](https://github.com/monkescience/yeet/commit/2aa9683a22f1e0a0b021feb9fb072dd0ec284578))
+- **provider:** only send auth token to trusted hosts ([7b716c5](https://github.com/monkescience/yeet/commit/7b716c56beff64e796505e096852acc4a6057752))
+- **changelog:** strip control chars before escaping comment markers ([2378321](https://github.com/monkescience/yeet/commit/2378321641407a90019e3e03de46f5bc20482d31))
+
 ## [v0.10.12](https://github.com/monkescience/yeet/compare/v0.10.11...v0.10.12) (2026-07-06)
 
 ### Bug Fixes
