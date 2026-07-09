@@ -15,6 +15,7 @@ concurrency:
 
 env:
   GOLANGCI_LINT_VERSION: v2.12.2 # renovate: datasource=github-releases depName=golangci/golangci-lint
+  GOVULNCHECK_VERSION: v1.6.0 # renovate: datasource=go depName=golang.org/x/vuln
 
 jobs:
   test:
@@ -67,6 +68,20 @@ jobs:
 
       - name: Verify go.mod and go.sum are tidy
         run: go mod tidy -diff
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...
 
   gitleaks:
     runs-on: ubuntu-latest
