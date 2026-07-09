@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go/v2 v2.43.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
-	golang.org/x/sync v0.21.0
+	golang.org/x/sync v0.22.0
 )
 
 require (
