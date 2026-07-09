@@ -3,6 +3,14 @@
 yeet needs a provider API token whenever it creates or updates PRs/MRs, applies release labels, or
 publishes releases.
 
+## Host trust
+
+A custom `host` in `repository.<provider>.host` receives the API token only when it matches the host
+of the git remote the repository is cloned from. If they differ, yeet refuses to send the token and
+fails, so a config committed to the repository cannot redirect the token to another server. To point
+the API at a different host on purpose (for example a separate API domain), set the provider's `*_URL`
+environment variable (`GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`), which is always trusted.
+
 ## GitHub
 
 Export either `GITHUB_TOKEN` or `GH_TOKEN` (`GITHUB_TOKEN` wins when both are set):

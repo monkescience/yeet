@@ -68,7 +68,8 @@ func TestReleaseCommand(t *testing.T) {
 	})
 
 	t.Run("provider flag overrides unsupported host auto detection", func(t *testing.T) {
-		// given: repository coordinates on an unknown host with an explicit github provider
+		// given: repository coordinates on an unknown host with an explicit github
+		// provider, and an operator-set GITHUB_URL that trusts that host
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
 		clearBranchEnv(t)
@@ -80,6 +81,7 @@ func TestReleaseCommand(t *testing.T) {
 				Repo:  "yeet",
 			}
 		})
+		t.Setenv("GITHUB_URL", "https://code.company.com/api/v3/")
 		t.Setenv("GITHUB_TOKEN", "")
 		t.Setenv("GH_TOKEN", "")
 
@@ -293,6 +295,142 @@ func TestApplyReleaseOptions(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "explicit --provider")
 	})
+}
+
+func githubTrustConfig(host string) *config.Config {
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitHub
+	cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+		Host:  host,
+		Owner: "platform",
+		Repo:  "yeet",
+	}
+
+	return cfg
+}
+
+func TestResolveRepositoryHostTrust(t *testing.T) {
+	t.Parallel()
+
+	t.Run("custom host matching the git remote is trusted", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a custom enterprise host that matches where the repo is cloned from
+		cfg := githubTrustConfig("github.company.com")
+
+		// when: resolving with a remote on the same host
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "https://github.company.com/platform/yeet.git", nil
+			},
+		)
+
+		// then: the host is accepted
+		testastic.NoError(t, err)
+		testastic.Equal(t, "github.company.com", repository.Host)
+	})
+
+	t.Run("custom host not matching the git remote is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a custom host pointing somewhere other than the git remote
+		cfg := githubTrustConfig("evil.example")
+
+		// when: resolving with a remote on github.com
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "https://github.com/platform/yeet.git", nil
+			},
+		)
+
+		// then: yeet refuses to send the token to the mismatched host
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "does not match git remote host")
+	})
+
+	t.Run("default public host does not require a remote lookup", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the default github host
+		cfg := githubTrustConfig(provider.DefaultGitHubHost)
+
+		// when: resolving with a getter that fails if called
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", errors.New("git remote lookup should not run for a public host")
+			},
+		)
+
+		// then: the public host is trusted without consulting the remote
+		testastic.NoError(t, err)
+		testastic.Equal(t, provider.DefaultGitHubHost, repository.Host)
+	})
+
+	t.Run("host with embedded credentials is rejected as malformed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host that hides the real destination behind userinfo
+		cfg := githubTrustConfig("github.com@evil.example")
+
+		// when: resolving
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", errors.New("git remote lookup should not run for a malformed host")
+			},
+		)
+
+		// then: the malformed host is rejected before any remote lookup
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "bare hostname")
+	})
+
+	t.Run("custom host with an unresolvable remote is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a custom host and no resolvable git remote to verify against
+		cfg := githubTrustConfig("github.company.com")
+
+		// when: resolving with a getter that errors
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", errors.New("no remote")
+			},
+		)
+
+		// then: trust cannot be established, so the host is rejected
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "could not be verified against git remote")
+	})
+}
+
+func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
+	// given: an operator-set GITHUB_URL and a config host that mismatches the remote
+	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
+
+	cfg := githubTrustConfig("github.company.com")
+
+	// when: resolving with a remote on a different host
+	repository, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "https://github.com/platform/yeet.git", nil
+		},
+	)
+
+	// then: the operator-controlled env var is trusted regardless of the remote
+	testastic.NoError(t, err)
+	testastic.Equal(t, "github.company.com", repository.Host)
 }
 
 func TestResolveReleaseMode(t *testing.T) {

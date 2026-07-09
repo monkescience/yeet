@@ -66,10 +66,10 @@ func TestProviderConcurrencyOptions(t *testing.T) {
 func TestResolveRepository(t *testing.T) {
 	t.Parallel()
 
-	t.Run("uses explicit config without git remote access", func(t *testing.T) {
+	t.Run("verifies an explicit custom host against the git remote", func(t *testing.T) {
 		t.Parallel()
 
-		// given: explicit gitlab coordinates in config
+		// given: explicit gitlab coordinates on a custom enterprise host
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitLab
 		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
@@ -79,20 +79,20 @@ func TestResolveRepository(t *testing.T) {
 
 		remoteLookedUp := false
 
-		// when: resolving the repository
+		// when: resolving the repository against a remote on the same host
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
 				remoteLookedUp = true
 
-				return "", errors.New("git remote lookup should not run")
+				return "https://gitlab.company.com/group/subgroup/service.git", nil
 			},
 		)
 
-		// then: the explicit config is used without consulting the git remote
+		// then: the custom host is accepted only after matching the git remote
 		testastic.NoError(t, err)
-		testastic.False(t, remoteLookedUp)
+		testastic.True(t, remoteLookedUp)
 		testastic.Equal(t, "gitlab", repository.Provider)
 		testastic.Equal(t, "gitlab.company.com", repository.Host)
 		testastic.Equal(t, "group/subgroup", repository.Owner)

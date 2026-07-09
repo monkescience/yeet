@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/go-github/v88/github"
 	"github.com/hashicorp/go-retryablehttp"
@@ -25,6 +26,14 @@ var (
 	ErrGitLabProjectNeeded     = errors.New("resolve gitlab repository: project or owner/repo are required")
 	ErrAzureDevOpsCoordsNeeded = errors.New("resolve azuredevops repository: organization, project, and repo are required")
 	ErrRepositoryConflict      = errors.New("resolve repository: project does not match owner/repo")
+	ErrInvalidHost             = errors.New("invalid provider host")
+	ErrUntrustedHost           = errors.New("provider host is not trusted")
+)
+
+const (
+	githubURLEnv = "GITHUB_URL"
+	gitlabURLEnv = "GITLAB_URL"
+	azureURLEnv  = "AZURE_DEVOPS_URL"
 )
 
 var ErrInvalidMaxConcurrentRequests = errors.New("invalid " + maxConcurrentRequestsEnv)
@@ -105,7 +114,7 @@ func createGitHubProvider(
 		return nil, fmt.Errorf("%w: GITHUB_TOKEN or GH_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	baseURL := strings.TrimSpace(os.Getenv("GITHUB_URL"))
+	baseURL := strings.TrimSpace(os.Getenv(githubURLEnv))
 
 	if baseURL == "" {
 		host := strings.TrimSpace(repository.Host)
@@ -143,7 +152,7 @@ func createGitLabProvider(
 		return nil, fmt.Errorf("%w: GITLAB_TOKEN or GL_TOKEN environment variable is required", ErrMissingToken)
 	}
 
-	baseURL := strings.TrimSpace(os.Getenv("GITLAB_URL"))
+	baseURL := strings.TrimSpace(os.Getenv(gitlabURLEnv))
 
 	if baseURL == "" {
 		host := strings.TrimSpace(repository.Host)
@@ -180,7 +189,7 @@ func createAzureDevOpsProvider(
 		)
 	}
 
-	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("AZURE_DEVOPS_URL")), "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(azureURLEnv)), "/")
 
 	host := strings.TrimSpace(repository.Host)
 	if host != "" && baseURL == "" {
@@ -290,7 +299,86 @@ func resolveRepository(
 		return nil, err
 	}
 
+	if err := validateProviderHostTrust(ctx, repository, getRemoteURL); err != nil {
+		return nil, err
+	}
+
 	return repository, nil
+}
+
+// validateProviderHostTrust ensures the host that will receive the auth token is
+// one the operator controls, not one an attacker set through the repo-controlled
+// config. An operator-supplied *_URL env var or a known public host is trusted
+// outright. Any other host must match the git remote the repo is cloned from,
+// which lives in .git/config (set by CI, not the committed tree).
+func validateProviderHostTrust(
+	ctx context.Context,
+	repository *provider.RepositoryDescriptor,
+	getRemoteURL gitRemoteURLGetter,
+) error {
+	host := strings.TrimSpace(repository.Host)
+	if err := validateHostFormat(host); err != nil {
+		return err
+	}
+
+	if providerURLEnvSet(repository.Provider) {
+		return nil
+	}
+
+	if _, err := provider.DetectType(host); err == nil {
+		return nil
+	}
+
+	remoteURL, err := getRemoteURL(ctx, repository.Remote)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: %q could not be verified against git remote %q: %s",
+			ErrUntrustedHost, host, repository.Remote, err.Error(),
+		)
+	}
+
+	detected, err := provider.ParseRemote(remoteURL)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: %q could not be verified against git remote %q: %s",
+			ErrUntrustedHost, host, repository.Remote, err.Error(),
+		)
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
+		return fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host)
+	}
+
+	return nil
+}
+
+func validateHostFormat(host string) error {
+	if host == "" {
+		return fmt.Errorf("%w: host must not be empty", ErrInvalidHost)
+	}
+
+	for _, r := range host {
+		if r == '/' || r == '@' || unicode.IsSpace(r) || unicode.IsControl(r) {
+			return fmt.Errorf("%w: %q must be a bare hostname without scheme, credentials, or path", ErrInvalidHost, host)
+		}
+	}
+
+	return nil
+}
+
+func providerURLEnvSet(providerType string) bool {
+	switch config.ProviderType(providerType) {
+	case config.ProviderGitHub:
+		return strings.TrimSpace(os.Getenv(githubURLEnv)) != ""
+	case config.ProviderGitLab:
+		return strings.TrimSpace(os.Getenv(gitlabURLEnv)) != ""
+	case config.ProviderAzureDevOps:
+		return strings.TrimSpace(os.Getenv(azureURLEnv)) != ""
+	case config.ProviderAuto:
+		return false
+	default:
+		return false
+	}
 }
 
 func unsupportedAutoProviderError(host string, err error) error {
