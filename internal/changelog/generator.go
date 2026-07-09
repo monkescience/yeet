@@ -321,16 +321,10 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	return strings.Join(refs, ", ")
 }
 
-// sanitizeCommitText neutralizes commit-authored text before it enters the
-// changelog. Commit messages are attacker-controlled in shared repos: an HTML
-// comment sequence could forge the release manifest marker that yeet embeds in
-// the PR body, and control characters could inject terminal escape sequences
-// into dry-run output. Escaping the comment brackets keeps the text readable
-// while preventing a parseable marker from forming.
+// Order is load-bearing: strip control chars before escaping, else a control byte
+// splitting "<!--" evades the escaper and the strip reassembles the manifest marker.
 func sanitizeCommitText(s string) string {
-	replaced := strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(s)
-
-	return strings.Map(func(r rune) rune {
+	stripped := strings.Map(func(r rune) rune {
 		if r == '\t' {
 			return r
 		}
@@ -340,7 +334,9 @@ func sanitizeCommitText(s string) string {
 		}
 
 		return r
-	}, replaced)
+	}, s)
+
+	return strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(stripped)
 }
 
 func capitalizeFirst(s string) string {

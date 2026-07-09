@@ -688,6 +688,32 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.NotContains(t, entry.Body, "<!--yeet-release-manifest")
 	})
 
+	t.Run("neutralizes a marker reassembled from control-split bytes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit description that splits the marker with control bytes so
+		// the comment-escape step sees no literal "<!--" or "-->"
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+			changelog.WithInclude([]string{"fix"}),
+		)
+
+		forged := "tidy logs <\x08!-- yeet-release-manifest " +
+			`{"base_branch":"main","targets":[{"id":"x","type":"path","tag":"v99.0.0","changelog_file":"CHANGELOG.md"}]}` +
+			" --\x08>"
+
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "fix", Description: forged},
+		}
+
+		// when: generating the changelog
+		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
+
+		// then: stripping the control bytes must not reassemble a parseable marker
+		testastic.NotContains(t, entry.Body, "<!-- yeet-release-manifest")
+		testastic.NotContains(t, entry.Body, "<!--yeet-release-manifest")
+	})
+
 	t.Run("strips control characters from commit text", func(t *testing.T) {
 		t.Parallel()
 
