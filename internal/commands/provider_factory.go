@@ -306,11 +306,6 @@ func resolveRepository(
 	return repository, nil
 }
 
-// validateProviderHostTrust ensures the host that will receive the auth token is
-// one the operator controls, not one an attacker set through the repo-controlled
-// config. An operator-supplied *_URL env var or a known public host is trusted
-// outright. Any other host must match the git remote the repo is cloned from,
-// which lives in .git/config (set by CI, not the committed tree).
 func validateProviderHostTrust(
 	ctx context.Context,
 	repository *provider.RepositoryDescriptor,
