@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.14](https://github.com/monkescience/yeet/compare/v0.10.13...v0.10.14) (2026-07-09)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.44.0 (#165) ([08fc63d](https://github.com/monkescience/yeet/commit/08fc63d2602c745eb03d420200bab9ea8c921323))
+- **deps:** update module golang.org/x/sync to v0.22.0 (#166) ([65ea93d](https://github.com/monkescience/yeet/commit/65ea93ddbd89d1f2d8ca8dd21ce61b1e2b9681f7))
+
 ## [v0.10.13](https://github.com/monkescience/yeet/compare/v0.10.12...v0.10.13) (2026-07-09)
 
 ### Bug Fixes
