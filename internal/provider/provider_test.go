@@ -937,6 +937,7 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case handleGitLabBoundaryRequest(t, w, r, map[string]string{ref: "boundary-sha"}):
 			case isGitLabCommitDiffRequest(r, "head-1"):
 				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
 			case isGitLabCommitDiffRequest(r, "head-2"):
@@ -1034,6 +1035,10 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case handleGitLabBoundaryRequest(t, w, r, map[string]string{
+				reachableRef: "boundary-sha",
+				deletedRef:   "",
+			}):
 			case isGitLabCommitDiffRequest(r, "head-1"):
 				writeJSON(t, w, []map[string]any{{"new_path": "services/api/main.go", "old_path": "services/api/main.go"}})
 			case isGitLabCompareRequest(r, reachableRef):
@@ -1069,6 +1074,56 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 		testastic.Equal(t, "head-1", history.EntriesByRef[reachableRef][0].Hash)
 	})
 
+	t.Run("reports off-branch ref as missing", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a tag that exists but is not an ancestor of the release branch
+		const (
+			branch = "release/main"
+			ref    = "v1.0.0"
+		)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasPrefix(
+				r.URL.EscapedPath(),
+				"/api/v4/projects/o%2Fr/repository/commits/",
+			):
+				writeJSON(t, w, map[string]any{"id": "off-branch-sha"})
+			case r.Method == http.MethodGet &&
+				r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/merge_base":
+				testastic.SliceEqual(t, []string{ref, branch}, r.URL.Query()["refs[]"])
+				writeJSON(t, w, map[string]any{"id": "common-sha"})
+			case isGitLabCompareRequest(r, ref):
+				writeJSON(t, w, map[string]any{
+					"commits": []map[string]any{{"id": "head-1", "message": "feat: add API"}},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: fetching commits since the off-branch tag
+		history, err := gl.GetCommitsSinceRefs(context.Background(), []string{ref}, branch, false)
+
+		// then: the tag is treated as unreachable rather than producing a range
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{ref}, history.MissingRefs)
+		_, entriesPresent := history.EntriesByRef[ref]
+		testastic.False(t, entriesPresent)
+	})
+
 	t.Run("never walks the full branch when every requested ref is unresolvable", func(t *testing.T) {
 		t.Parallel()
 
@@ -1084,6 +1139,11 @@ func TestGitLabGetCommitsSinceRefs(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
+			case handleGitLabBoundaryRequest(t, w, r, map[string]string{
+				firstMissing:  "",
+				secondMissing: "",
+				thirdMissing:  "",
+			}):
 			case r.Method == http.MethodGet &&
 				r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/compare":
 				w.WriteHeader(http.StatusNotFound)
@@ -1392,6 +1452,64 @@ func isGitLabCompareRequest(r *http.Request, from string) bool {
 	return r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/compare" &&
 		r.URL.Query().Get("from") == from
+}
+
+func handleGitLabBoundaryRequest(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	boundaries map[string]string,
+) bool {
+	t.Helper()
+
+	const commitPath = "/repository/commits/"
+
+	if r.Method != http.MethodGet {
+		return false
+	}
+
+	_, ref, isCommitRequest := strings.Cut(r.URL.Path, commitPath)
+	if isCommitRequest && !strings.HasSuffix(ref, "/diff") {
+		sha, ok := boundaries[ref]
+		if !ok {
+			return false
+		}
+
+		writeGitLabBoundaryResponse(t, w, sha)
+
+		return true
+	}
+
+	if r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/repository/merge_base" {
+		return false
+	}
+
+	refs := r.URL.Query()["refs[]"]
+	if len(refs) < 2 {
+		t.Fatalf("GitLab merge-base request has fewer than two refs: %s", r.URL.String())
+	}
+
+	sha, ok := boundaries[refs[0]]
+	if !ok {
+		return false
+	}
+
+	writeGitLabBoundaryResponse(t, w, sha)
+
+	return true
+}
+
+func writeGitLabBoundaryResponse(t *testing.T, w http.ResponseWriter, sha string) {
+	t.Helper()
+
+	if sha == "" {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(t, w, map[string]any{"message": "404 Commit Not Found"})
+
+		return
+	}
+
+	writeJSON(t, w, map[string]any{"id": sha})
 }
 
 func isGitHubCreateReleaseRequest(r *http.Request) bool {

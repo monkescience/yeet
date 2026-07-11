@@ -77,6 +77,7 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	merged := &atomic.Bool{}
 
 	registerGitLabHistory(mux, prefix, opts)
+	registerGitLabMergeBase(mux, prefix, opts)
 	registerGitLabMerge(mux, prefix, opts, merged)
 	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
@@ -105,7 +106,6 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	})
 
 	mux.HandleFunc("GET "+prefix+"/repository/compare", gitlabCompareHandler(opts))
-
 	mux.HandleFunc("GET "+prefix+"/repository/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, gitlabCommitDetail(r.PathValue("ref"), opts))
 	})
@@ -156,6 +156,10 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 
 		writeJSON(w, []any{})
 	})
+}
+
+func registerGitLabMergeBase(mux *http.ServeMux, prefix string, opts GitLabOptions) {
+	mux.HandleFunc("GET "+prefix+"/repository/merge_base", gitlabMergeBaseHandler(opts))
 }
 
 func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions, merged *atomic.Bool) {
@@ -406,6 +410,26 @@ func gitlabCompareHandler(opts GitLabOptions) http.HandlerFunc {
 			"compare_timeout":  false,
 			"compare_same_ref": false,
 		})
+	}
+}
+
+func gitlabMergeBaseHandler(opts GitLabOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		refs := r.URL.Query()["refs[]"]
+		if len(refs) == 0 {
+			http.Error(w, "refs are required", http.StatusBadRequest)
+
+			return
+		}
+
+		boundarySHA, ok := gitlabResolveRefSHA(refs[0], opts)
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		writeJSON(w, map[string]any{gitlabKeyID: boundarySHA})
 	}
 }
 

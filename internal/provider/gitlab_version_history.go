@@ -126,9 +126,34 @@ func (g *GitLab) commitsSinceRef(
 // compareCommits returns the commits in from..to, newest-first. GitLab's
 // compare endpoint does not page. Its commits array is always complete (the
 // compare_timeout flag only warns that the diffs, which we do not read, may be
-// truncated). An unknown from ref answers 404, mapped to ErrRefNotFound so the
-// batch records a missing ref.
+// truncated).
 func (g *GitLab) compareCommits(ctx context.Context, from, to string) ([]CommitEntry, error) {
+	boundary, resp, err := g.client.Commits.GetCommit(g.pid, from, nil, gitlab.WithContext(ctx))
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
+		}
+
+		return nil, fmt.Errorf("resolve compare boundary %q: %w", from, err)
+	}
+
+	refs := []string{from, to}
+
+	mergeBase, resp, err := g.client.Repositories.MergeBase(g.pid, &gitlab.MergeBaseOptions{
+		Ref: &refs,
+	}, gitlab.WithContext(ctx))
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
+		}
+
+		return nil, fmt.Errorf("find merge base for %q and %q: %w", from, to, err)
+	}
+
+	if mergeBase.ID != boundary.ID {
+		return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
+	}
+
 	comparison, resp, err := g.client.Repositories.Compare(g.pid, &gitlab.CompareOptions{
 		From: &from,
 		To:   &to,

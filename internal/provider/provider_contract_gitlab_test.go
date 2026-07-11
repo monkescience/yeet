@@ -30,6 +30,14 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleGitLabBoundaryRequest(t, w, r, map[string]string{
+			providerContractTag:             "boundary-sha",
+			providerContractIntermediateTag: "intermediate-boundary-sha",
+			providerContractMissingTag:      "",
+		}) {
+			return
+		}
+
 		switch scenario {
 		case providerContractLatestRelease:
 			handleGitLabLatestReleaseContract(t, w, r)
