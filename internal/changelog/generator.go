@@ -154,11 +154,20 @@ func Prepend(existing, newEntry string) string {
 		return header + entry + "\n"
 	}
 
+	releaseStart := strings.Index(existing, "\n## ")
+	if releaseStart >= 0 {
+		releaseStart++
+	}
+
 	if strings.HasPrefix(existing, "# ") {
-		idx := strings.Index(existing, "\n\n")
-		if idx >= 0 {
-			return existing[:idx+2] + entry + "\n\n" + strings.TrimLeft(existing[idx+2:], "\n")
+		if releaseStart >= 0 {
+			preamble := strings.TrimRight(existing[:releaseStart], "\n")
+			releases := strings.TrimLeft(existing[releaseStart:], "\n")
+
+			return preamble + "\n\n" + entry + "\n\n" + releases
 		}
+
+		return strings.TrimRight(existing, "\n") + "\n\n" + entry + "\n"
 	}
 
 	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")

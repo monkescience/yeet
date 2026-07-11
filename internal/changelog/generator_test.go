@@ -659,6 +659,54 @@ func TestPrepend(t *testing.T) {
 		// then: adjacent release entries remain separated by a blank line
 		testastic.Contains(t, result, "- new stuff\n\n## v1.0.0")
 	})
+
+	t.Run("preserves header without trailing blank line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog containing only an H1 without a trailing blank line
+		existing := "# Changelog\n"
+		newEntry := "## v1.0.0 (2026-02-28)\n\n- initial release\n"
+
+		// when: prepending the entry
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: the existing H1 is reused instead of duplicated
+		testastic.Equal(t, "# Changelog\n\n## v1.0.0 (2026-02-28)\n\n- initial release\n", result)
+	})
+
+	t.Run("inserts before release heading without splitting its body", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog whose H1 is not followed by a blank line
+		existing := "# Changelog\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
+		newEntry := "## v1.1.0 (2026-02-28)\n\n- new stuff\n"
+
+		// when: prepending the entry
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: the old release heading remains attached to its body
+		expected := "# Changelog\n\n" +
+			"## v1.1.0 (2026-02-28)\n\n- new stuff\n\n" +
+			"## v1.0.0 (2026-01-01)\n\n- old stuff\n"
+		testastic.Equal(t, expected, result)
+	})
+
+	t.Run("preserves preamble before release entries", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog with explanatory text before its first release
+		existing := "# Changelog\n\nAll notable changes are documented here.\n\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
+		newEntry := "## v1.1.0 (2026-02-28)\n\n- new stuff\n"
+
+		// when: prepending the entry
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: the preamble remains above the new release
+		expected := "# Changelog\n\nAll notable changes are documented here.\n\n" +
+			"## v1.1.0 (2026-02-28)\n\n- new stuff\n\n" +
+			"## v1.0.0 (2026-01-01)\n\n- old stuff\n"
+		testastic.Equal(t, expected, result)
+	})
 }
 
 func TestGenerateSanitizesCommitText(t *testing.T) {
