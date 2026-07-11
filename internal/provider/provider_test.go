@@ -405,26 +405,27 @@ func TestGitHubVersionLookup(t *testing.T) {
 func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 	t.Parallel()
 
-	// given: a merged pending release pull request on GitHub
+	// given: a merged pending release pull request returned by GitHub search
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
-			writeJSON(t, w, []map[string]any{{
+		case r.Method == http.MethodGet && r.URL.Path == "/search/issues":
+			testastic.Equal(t, `repo:o/r is:pr is:merged base:main label:"autorelease: pending"`, r.URL.Query().Get("q"))
+			writeJSON(t, w, map[string]any{
+				"total_count": 1,
+				"items": []map[string]any{{
+					"number": 42,
+				}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+			writeJSON(t, w, map[string]any{
 				"number":    42,
 				"title":     "chore: release 1.2.3",
 				"body":      "<!-- yeet-release-tag: v1.2.3 -->",
 				"html_url":  "https://example.com/pr/42",
 				"merged_at": "2026-03-01T00:00:00Z",
-				"labels": []map[string]any{{
-					"name": provider.ReleaseLabelPending,
-				}},
 				"head": map[string]any{
 					"ref": "yeet/release-main",
 				},
-			}})
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
-			writeJSON(t, w, map[string]any{
-				"number":           42,
 				"merge_commit_sha": "merge-sha",
 			})
 		default:

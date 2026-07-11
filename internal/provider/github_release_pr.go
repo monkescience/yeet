@@ -164,13 +164,13 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 	return pendingPRs, nil
 }
 
-//nolint:funlen // Pagination closure layout inflates line count without adding complexity.
+//nolint:funlen // Pagination closures keep the search and candidate handling together.
 func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
-	options := &github.PullRequestListOptions{
-		State:     "closed",
-		Base:      baseBranch,
-		Sort:      "updated",
-		Direction: sortDirectionDesc,
+	query := fmt.Sprintf("repo:%s/%s is:pr is:merged base:%s label:%q",
+		g.repo.Owner, g.repo.Name, baseBranch, ReleaseLabelPending)
+	options := &github.SearchOptions{
+		Sort:  "updated",
+		Order: sortDirectionDesc,
 		ListOptions: github.ListOptions{
 			PerPage: 100, //nolint:mnd // reasonable API page size
 		},
@@ -183,41 +183,33 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 
 	var found *PullRequest
 
-	err := paginate(ctx, "listing merged release PRs",
-		func(page int) ([]*github.PullRequest, int, error) {
+	err := paginate(ctx, "searching merged release PRs",
+		func(page int) ([]*github.Issue, int, error) {
 			options.Page = page
 
-			prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+			result, resp, err := g.client.Search.Issues(ctx, query, options)
 			if err != nil {
-				return nil, 0, fmt.Errorf("list pull requests: %w", err)
+				return nil, 0, fmt.Errorf("search pull requests: %w", err)
 			}
 
-			return prs, gitHubNextPage(resp), nil
+			return result.Issues, gitHubNextPage(resp), nil
 		},
-		func(pr *github.PullRequest) (bool, error) {
-			if pr.GetMergedAt().IsZero() {
-				return false, nil
+		func(issue *github.Issue) (bool, error) {
+			fullPR, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, issue.GetNumber())
+			if err != nil {
+				return false, fmt.Errorf("get pull request #%d: %w", issue.GetNumber(), err)
 			}
 
-			branch := pr.GetHead().GetRef()
+			branch := fullPR.GetHead().GetRef()
 			if !strings.HasPrefix(branch, releaseBranchPrefix) {
 				return false, nil
 			}
 
-			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
-				return false, nil
-			}
-
-			fullPR, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, pr.GetNumber())
-			if err != nil {
-				return false, fmt.Errorf("get pull request #%d: %w", pr.GetNumber(), err)
-			}
-
 			found = &PullRequest{
-				Number:         pr.GetNumber(),
-				Title:          pr.GetTitle(),
-				Body:           pr.GetBody(),
-				URL:            pr.GetHTMLURL(),
+				Number:         fullPR.GetNumber(),
+				Title:          fullPR.GetTitle(),
+				Body:           fullPR.GetBody(),
+				URL:            fullPR.GetHTMLURL(),
 				Branch:         branch,
 				MergeCommitSHA: fullPR.GetMergeCommitSHA(),
 			}

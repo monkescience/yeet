@@ -29,7 +29,7 @@ type GitHubOptions struct {
 	// terminate the walk.
 	Commits []GitHubCommit
 	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
-	// fixture: when true, the closed-pulls listing returns one merged PR with
+	// fixture: when true, merged-PR search returns one PR with
 	// the autorelease:pending label so yeet enters the finalization path.
 	MergedPendingRelease bool
 	// Files maps repository-relative paths to their raw content. The contents
@@ -79,6 +79,7 @@ const (
 	githubKeyType    = "type"
 	githubKeyTagName = "tag_name"
 	githubKeyHTMLURL = "html_url"
+	githubKeyNumber  = "number"
 	githubFakePRID   = 42
 	githubChangelog  = "CHANGELOG.md"
 )
@@ -96,7 +97,8 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 
 	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
-	registerGitHubPullsRead(mux, prefix, opts, merged)
+	registerGitHubSearch(mux, opts, merged)
+	registerGitHubPullsRead(mux, prefix, opts)
 	registerGitHubWritePath(mux, prefix, opts, merged)
 	registerGitHubUser(mux)
 
@@ -109,6 +111,21 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func registerGitHubSearch(mux *http.ServeMux, opts GitHubOptions, merged *atomic.Bool) {
+	mux.HandleFunc("GET /api/v3/search/issues", func(w http.ResponseWriter, _ *http.Request) {
+		items := []map[string]any{}
+		if opts.MergedPendingRelease || merged.Load() {
+			items = append(items, map[string]any{githubKeyNumber: githubFakePRID})
+		}
+
+		writeJSON(w, map[string]any{
+			"total_count":        len(items),
+			"incomplete_results": false,
+			"items":              items,
+		})
+	})
 }
 
 func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOptions) {
@@ -247,7 +264,7 @@ func githubComparisonPayload(commits []GitHubCommit, total int, status string) m
 	}
 }
 
-func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
+func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, r *http.Request) {
 		sha := r.PathValue("sha")
 		for _, c := range opts.Commits {
@@ -270,12 +287,6 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 
 	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
-
-		if state == "closed" && (opts.MergedPendingRelease || merged.Load()) {
-			writeJSON(w, []map[string]any{githubMergedPendingPR()})
-
-			return
-		}
 
 		if state == fakeStateOpen && opts.MultipleOpenPRs {
 			const (
@@ -471,7 +482,7 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOpti
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
-		if merged.Load() {
+		if opts.MergedPendingRelease || merged.Load() {
 			writeJSON(w, githubMergedPendingPR())
 
 			return

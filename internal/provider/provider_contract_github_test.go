@@ -367,9 +367,11 @@ func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	t.Helper()
 
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
-		testastic.Equal(t, "closed", r.URL.Query().Get("state"))
-		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("base"))
+	case r.Method == http.MethodGet && r.URL.Path == "/search/issues":
+		testastic.Equal(t,
+			`repo:o/r is:pr is:merged base:main label:"autorelease: pending"`,
+			r.URL.Query().Get("q"),
+		)
 		writeJSONFixture(t, w, "contracts/github/find_merged_pr/prs.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
 		writeJSONFixture(t, w, "contracts/github/find_merged_pr/pr.json")
@@ -557,7 +559,7 @@ func handleGitHubMissingReleaseContract(t *testing.T, w http.ResponseWriter, r *
 func handleGitHubMissingPRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
-	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls" {
+	if r.Method == http.MethodGet && r.URL.Path == "/search/issues" {
 		writeJSONFixture(t, w, "contracts/github/missing_pr/prs.json")
 
 		return
