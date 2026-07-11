@@ -1263,6 +1263,51 @@ repository:
 		testastic.Contains(t, updatedChangelog, manualNotes)
 		testastic.Contains(t, result.PullRequest.Body, manualNotes)
 	})
+
+	t.Run("existing release branch manual section is preserved when planned tag changes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a patch release PR with manual notes and a new feature commit that raises the planned version
+		cfg := config.Default()
+		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
+
+		existingPR := &provider.PullRequest{
+			Number: 42,
+			Title:  "chore: release 1.2.4",
+			Body:   testManifestBody(t, "v1.2.4", cfg.Changelog.File),
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-main",
+		}
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{existingPR}
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add release automation",
+		}}
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
+
+## v1.2.4 (2026-03-01)
+
+### Bug Fixes
+
+- patch bug (1234567)
+
+` + manualNotes + `
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: refreshing the existing release PR
+		result, err := r.Release(context.Background(), false)
+
+		// then: the old manifest tag locates and preserves manual notes in the new minor release entry
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.3.0", result.Plans[0].NextTag)
+		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
+		testastic.Contains(t, stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)], manualNotes)
+	})
 }
 
 func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {

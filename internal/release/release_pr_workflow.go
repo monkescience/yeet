@@ -54,7 +54,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
 
-		if err := w.preserveExistingChangelogEdits(ctx, existing.Branch, result); err != nil {
+		if err := w.preserveExistingChangelogEdits(ctx, existing, result); err != nil {
 			return nil, err
 		}
 
@@ -78,7 +78,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 
 func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	ctx context.Context,
-	releaseBranch string,
+	existing *provider.PullRequest,
 	result *Result,
 ) error {
 	if result == nil {
@@ -86,6 +86,18 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	}
 
 	r := w.core
+	previousTags := make(map[string]string)
+
+	manifest, hasManifest, err := releaseManifestFromBody(existing.Body)
+	if err != nil {
+		return fmt.Errorf("parse existing release PR manifest: %w", err)
+	}
+
+	if hasManifest {
+		for _, targetManifest := range manifest.Targets {
+			previousTags[targetManifest.ID] = targetManifest.Tag
+		}
+	}
 
 	for idx := range result.Plans {
 		plan := &result.Plans[idx]
@@ -95,7 +107,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		existingChangelog, err := w.files.GetFile(ctx, releaseBranch, target.Changelog.File)
+		existingChangelog, err := w.files.GetFile(ctx, existing.Branch, target.Changelog.File)
 		if err != nil {
 			if errors.Is(err, provider.ErrFileNotFound) {
 				continue
@@ -104,13 +116,17 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			return fmt.Errorf("get release branch changelog file %s: %w", target.Changelog.File, err)
 		}
 
-		existingEntry, err := changelogEntryByTag(existingChangelog, plan.NextTag)
+		existingEntry, found, err := changelogEntryForRefresh(
+			existingChangelog,
+			plan.NextTag,
+			previousTags[plan.ID],
+		)
 		if err != nil {
-			if errors.Is(err, ErrChangelogEntryNotFound) {
-				continue
-			}
-
 			return err
+		}
+
+		if !found {
+			continue
 		}
 
 		plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry)
@@ -120,6 +136,32 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	}
 
 	return nil
+}
+
+func changelogEntryForRefresh(changelogBody, nextTag, previousTag string) (string, bool, error) {
+	entry, err := changelogEntryByTag(changelogBody, nextTag)
+	if err == nil {
+		return entry, true, nil
+	}
+
+	if !errors.Is(err, ErrChangelogEntryNotFound) {
+		return "", false, err
+	}
+
+	if previousTag == "" || previousTag == nextTag {
+		return "", false, nil
+	}
+
+	entry, err = changelogEntryByTag(changelogBody, previousTag)
+	if err == nil {
+		return entry, true, nil
+	}
+
+	if errors.Is(err, ErrChangelogEntryNotFound) {
+		return "", false, nil
+	}
+
+	return "", false, err
 }
 
 func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {
