@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.10.16](https://github.com/monkescience/yeet/compare/v0.10.15...v0.10.16) (2026-07-11)
+
+### Bug Fixes
+
+- **changelog:** insert new entries before first release heading ([0d1d61d](https://github.com/monkescience/yeet/commit/0d1d61dae748df8f9cd1999ea1775a4051ce315f))
+- **changelog:** preserve multiline footer spacing ([7ee994c](https://github.com/monkescience/yeet/commit/7ee994c74bf7162a34935189946f264d8610aac8))
+- **commit:** parse compact breaking footers ([f517786](https://github.com/monkescience/yeet/commit/f517786a3ab16b4fc99bd170e240f6c8b7689356))
+- **commit:** parse footers from final block ([4f7a3e1](https://github.com/monkescience/yeet/commit/4f7a3e1b1d7ddf4c54ea9c1e9fad8f66c5f5de75))
+- **release:** find merged release PR via search instead of closed-PR scan ([427a1f4](https://github.com/monkescience/yeet/commit/427a1f4331c019ae2fbd874fd418726dba95e93f))
+- **release:** preserve changelog edits across retags ([e9f6eb9](https://github.com/monkescience/yeet/commit/e9f6eb954618b5bb7349472a9e55bb910cbc585a))
+- **release:** tag auto-merged release commit ([01b3cc9](https://github.com/monkescience/yeet/commit/01b3cc9014943f079cb4b75f35c7b8f640ab5d14))
+- **release:** preserve channel on derived versions ([3166b10](https://github.com/monkescience/yeet/commit/3166b10ba367a2d4bd7a005eced25e0ca7744ee6))
+
 ## [v0.10.15](https://github.com/monkescience/yeet/compare/v0.10.14...v0.10.15) (2026-07-11)
 
 ### Bug Fixes
