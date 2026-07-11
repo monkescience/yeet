@@ -191,13 +191,13 @@ func createAzureDevOpsProvider(
 
 	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(azureURLEnv)), "/")
 
-	host := strings.TrimSpace(repository.Host)
-	if host != "" && baseURL == "" {
-		baseURL = "https://" + host
-	}
-
 	if baseURL == "" {
-		baseURL = "https://" + provider.DefaultAzureDevOpsHost
+		host := strings.TrimSpace(repository.Host)
+		if host == "" || strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
+			host = provider.DefaultAzureDevOpsHost
+		}
+
+		baseURL = "https://" + host
 	}
 
 	collection := strings.TrimSpace(repository.Collection)

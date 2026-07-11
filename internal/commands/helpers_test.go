@@ -563,6 +563,24 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
 }
 
+func TestCreateAzureDevOpsProviderNormalizesLegacyHost(t *testing.T) {
+	// given: configured legacy Azure DevOps coordinates and no endpoint override
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
+	t.Setenv(azureURLEnv, "")
+
+	// when: creating the Azure DevOps provider
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+		Host:         "contoso.visualstudio.com",
+		Organization: "contoso",
+		Project:      "release-tools",
+		Repo:         "yeet",
+	})
+
+	// then: the legacy host is normalized before the organization is appended
+	testastic.NoError(t, err)
+	testastic.Equal(t, "https://dev.azure.com/contoso/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
+}
+
 func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
 	// given: a token supplied via AZURE_DEVOPS_SYSTEM_ACCESSTOKEN
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
