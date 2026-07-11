@@ -780,6 +780,27 @@ func TestPrintDryRun(t *testing.T) {
 func TestApplyReleaseBehaviorOptions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("explicit auto merge false disables configured force", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with force merge enabled and an explicit auto-merge=false option
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeForce = true
+
+		options := releaseRunOptions{
+			autoMergeSet: true,
+			autoMerge:    false,
+		}
+
+		// when: applying options
+		applyReleaseBehaviorOptions(cfg, options)
+
+		// then: the explicit flag disables both normal and forced auto-merge
+		testastic.False(t, cfg.Release.AutoMerge)
+		testastic.False(t, cfg.Release.AutoMergeForce)
+	})
+
 	t.Run("auto merge force implies auto merge", func(t *testing.T) {
 		t.Parallel()
 

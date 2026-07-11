@@ -547,6 +547,9 @@ func providerChanged(previous, next config.ProviderType) bool {
 func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) {
 	if options.autoMergeSet {
 		cfg.Release.AutoMerge = options.autoMerge
+		if !options.autoMerge {
+			cfg.Release.AutoMergeForce = false
+		}
 	}
 
 	if options.autoMergeForceSet {
