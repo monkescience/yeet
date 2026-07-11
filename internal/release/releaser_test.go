@@ -271,6 +271,51 @@ func TestPrereleaseChannels(t *testing.T) {
 		testastic.Equal(t, "v1.3.0-beta.2", result.Plans[0].NextTag)
 	})
 
+	t.Run("derived target keeps prerelease identifier from child bump", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel with a derived target whose release comes from a child feature
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add token rotation",
+			Paths:   []string{"services/api/main.go"},
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating the beta release wave
+		result, err := r.Release(context.Background(), true)
+
+		// then: both child and derived versions stay in the beta channel
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, "api-v1.3.0-beta.1", result.Plans[0].NextTag)
+		testastic.Equal(t, "v3.1.0-beta.1", result.Plans[1].NextTag)
+	})
+
 	t.Run("channel release writes channel changelog", func(t *testing.T) {
 		// given: a beta channel release with a version file
 		cfg := config.Default()

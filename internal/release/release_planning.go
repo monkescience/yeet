@@ -350,12 +350,16 @@ func (a *releaseAnalyzer) planDerivedTarget(
 
 	nextVersion := directNextVersion
 	if !directShouldRelease || releaseBumpOrder(finalBumpType) > releaseBumpOrder(directNextBumpType) {
-		nextVersion, err = versionStrategyForResolvedTarget(target).strategy.Next(
+		nextVersion, _, _, err = resolveNextVersion(
+			versionStrategyForResolvedTarget(target),
+			target.Versioning,
 			currentVersionWithInitial(target, currentVersion),
 			finalBumpType,
+			"",
+			a.core.activePrereleaseIdentifier(),
 		)
 		if err != nil {
-			return TargetPlan{}, false, fmt.Errorf("calculate next version: %w", err)
+			return TargetPlan{}, false, err
 		}
 	}
 
