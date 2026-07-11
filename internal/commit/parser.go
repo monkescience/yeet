@@ -154,12 +154,12 @@ func isWordChar(ch rune) bool {
 }
 
 func parseFooter(line string) Footer {
-	if after, found := strings.CutPrefix(line, "BREAKING CHANGE: "); found {
-		return Footer{Key: "BREAKING CHANGE", Value: after}
+	if after, found := strings.CutPrefix(line, "BREAKING CHANGE:"); found {
+		return Footer{Key: "BREAKING CHANGE", Value: strings.TrimPrefix(after, " ")}
 	}
 
-	if after, found := strings.CutPrefix(line, "BREAKING-CHANGE: "); found {
-		return Footer{Key: "BREAKING-CHANGE", Value: after}
+	if after, found := strings.CutPrefix(line, "BREAKING-CHANGE:"); found {
+		return Footer{Key: "BREAKING-CHANGE", Value: strings.TrimPrefix(after, " ")}
 	}
 
 	if parts := strings.SplitN(line, ": ", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format

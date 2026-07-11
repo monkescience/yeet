@@ -77,6 +77,22 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "old auth tokens are no longer valid", c.Footers[0].Value)
 	})
 
+	t.Run("breaking change footer without space", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a BREAKING CHANGE footer without a space after the separator
+		raw := "feat: remove legacy API\n\nBREAKING CHANGE:drop legacy API"
+
+		// when: parsing the commit
+		c := commit.Parse(t.Context(), "nos1234", raw)
+
+		// then: the footer is parsed and marks the commit as breaking
+		testastic.True(t, c.Breaking)
+		testastic.Equal(t, 1, len(c.Footers))
+		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
+		testastic.Equal(t, "drop legacy API", c.Footers[0].Value)
+	})
+
 	t.Run("fix commit", func(t *testing.T) {
 		t.Parallel()
 
