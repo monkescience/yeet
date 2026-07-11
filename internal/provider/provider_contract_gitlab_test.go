@@ -296,12 +296,20 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 
 	// given: a GitLab server that resolves both reviewers but applies only the
 	// first one on the created MR (Free-tier truncation behavior)
+	pendingMarked := false
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
 			writeGitLabMemberFixture(t, w, r.URL.Query().Get("query"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 			writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response_dropped.json")
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
+			writeGitLabLabelFixture(t, w, pathLabel(t, r))
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+			pendingMarked = true
+
+			writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/update.json")
 		default:
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
@@ -323,6 +331,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, provider.ErrReviewerNotApplied)
 	testastic.ErrorContains(t, err, providerContractReviewerBob)
+	testastic.True(t, pendingMarked)
 }
 
 func handleGitLabUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

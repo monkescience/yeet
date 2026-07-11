@@ -42,6 +42,10 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	}
 
 	if err := verifyGitLabReviewers(opts.Reviewers, reviewerIDs, mr.Reviewers); err != nil {
+		if markErr := g.MarkReleasePRPending(ctx, int(mr.IID)); markErr != nil {
+			return nil, errors.Join(err, markErr)
+		}
+
 		return nil, err
 	}
 
