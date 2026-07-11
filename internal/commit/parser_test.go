@@ -122,6 +122,22 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, 2, len(c.Footers))
 	})
 
+	t.Run("footer-shaped lines inside body", func(t *testing.T) {
+		t.Parallel()
+
+		// given: body prose that resembles footers before the final footer block
+		raw := "feat: improve retries\n\nExplain the retry behavior.\nNote: this is body text\nretries: 3\n\nRefs: #123"
+
+		// when: parsing the commit
+		c := commit.Parse(t.Context(), "ftr1234", raw)
+
+		// then: only the final blank-line-separated block is parsed as footers
+		testastic.Equal(t, "Explain the retry behavior.\nNote: this is body text\nretries: 3", c.Body)
+		testastic.Equal(t, 1, len(c.Footers))
+		testastic.Equal(t, "Refs", c.Footers[0].Key)
+		testastic.Equal(t, "#123", c.Footers[0].Value)
+	})
+
 	t.Run("multi-line breaking change footer", func(t *testing.T) {
 		t.Parallel()
 

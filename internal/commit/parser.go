@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -80,9 +79,13 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 }
 
 func parseBody(c *Commit, lines []string) {
-	footerStart := slices.IndexFunc(lines, func(line string) bool {
-		return isFooter(strings.TrimSpace(line))
-	})
+	footerStart := -1
+
+	for i, line := range lines {
+		if i > 0 && strings.TrimSpace(lines[i-1]) == "" && isFooter(strings.TrimSpace(line)) {
+			footerStart = i
+		}
+	}
 
 	if footerStart == -1 {
 		c.Body = strings.TrimSpace(strings.Join(lines, "\n"))
