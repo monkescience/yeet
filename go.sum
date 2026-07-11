@@ -110,8 +110,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJuqunuUZ/Dhy/avygyECGrLceyNeo4LiM=
-gitlab.com/gitlab-org/api/client-go/v2 v2.44.0 h1:Vtv2WKC8p9BAygu5VCZlZUwDhTQ7UMlS3PErXyjUmeY=
-gitlab.com/gitlab-org/api/client-go/v2 v2.44.0/go.mod h1:pTbeBowtVA+0/ZExWEZYUGOrpu5qlRN5ZyOUf27BnVY=
+gitlab.com/gitlab-org/api/client-go/v2 v2.45.0 h1:jWWTMpyGUkdMllT9QF9HA6Jtc6CWtaP5tg/Hyh/1VqA=
+gitlab.com/gitlab-org/api/client-go/v2 v2.45.0/go.mod h1:1LK5UOowqo9apkL+zn7sM8t/hCzBV6F1b2RUIHL9+Oo=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
 go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
