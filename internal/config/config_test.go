@@ -713,7 +713,7 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorContains(t, err, "must be repo-relative")
 	})
 
-	t.Run("duplicate inherited version file across targets fails", func(t *testing.T) {
+	t.Run("shared inherited version file across targets succeeds", func(t *testing.T) {
 		t.Parallel()
 
 		// given: multiple targets that inherit the same top-level version file path
@@ -737,7 +737,36 @@ func TestValidate(t *testing.T) {
 		// when: validating the config
 		err := cfg.Validate()
 
-		// then: validation rejects the shared version file ownership before release time
+		// then: validation allows targets to share the inherited version file
+		testastic.NoError(t, err)
+	})
+
+	t.Run("duplicate explicit version file across targets fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: multiple targets that explicitly claim the same version file path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:         config.TargetTypePath,
+				Path:         "services/api",
+				TagPrefix:    "api-v",
+				VersionFiles: []config.VersionFile{{Path: "VERSION"}},
+				Changelog:    config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"web": {
+				Type:         config.TargetTypePath,
+				Path:         "apps/web",
+				TagPrefix:    "web-v",
+				VersionFiles: []config.VersionFile{{Path: "VERSION"}},
+				Changelog:    config.ChangelogConfig{File: "apps/web/CHANGELOG.md"},
+			},
+		}
+
+		// when: validating the config
+		err := cfg.Validate()
+
+		// then: validation rejects the duplicate explicit ownership before release time
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.ErrorContains(t, err, "version_files")

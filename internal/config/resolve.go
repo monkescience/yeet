@@ -51,6 +51,10 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 		return nil, err
 	}
 
+	if err := validateTargetVersionFileOwnership(c.Targets); err != nil {
+		return nil, err
+	}
+
 	return resolved, nil
 }
 
@@ -347,14 +351,10 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 		}
 	}
 
-	if err := validateResolvedTargetVersionFileOwnership(targets); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func validateResolvedTargetVersionFileOwnership(targets map[string]ResolvedTarget) error {
+func validateTargetVersionFileOwnership(targets map[string]Target) error {
 	targetIDs := make([]string, 0, len(targets))
 	for id := range targets {
 		targetIDs = append(targetIDs, id)
@@ -366,21 +366,23 @@ func validateResolvedTargetVersionFileOwnership(targets map[string]ResolvedTarge
 
 	for _, id := range targetIDs {
 		target := targets[id]
+		targetID := strings.TrimSpace(id)
+
 		for _, versionFile := range target.VersionFiles {
 			normalizedVersionFilePath := strings.TrimSpace(versionFile.Path)
 
 			otherID, exists := versionFileOwners[normalizedVersionFilePath]
-			if exists && otherID != id {
+			if exists && otherID != targetID {
 				return fmt.Errorf(
 					"%w: targets.%s.version_files entry %q duplicates targets.%s.version_files entry",
 					ErrInvalidConfig,
-					id,
+					targetID,
 					normalizedVersionFilePath,
 					otherID,
 				)
 			}
 
-			versionFileOwners[normalizedVersionFilePath] = id
+			versionFileOwners[normalizedVersionFilePath] = targetID
 		}
 	}
 
