@@ -504,7 +504,7 @@ func (g *GitLab) ensureLabel(ctx context.Context, name, color, description strin
 
 func isGitLabMergeStatusMergeable(status string) bool {
 	switch status {
-	case "", "mergeable", "can_be_merged":
+	case "", "mergeable", "can_be_merged", "checking", "unchecked", "preparing":
 		return true
 	default:
 		return false

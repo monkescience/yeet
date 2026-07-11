@@ -342,6 +342,49 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 func TestGitLabMergeReleasePR(t *testing.T) {
 	t.Parallel()
 
+	for _, status := range []string{"checking", "unchecked", "preparing"} {
+		t.Run("allows transient status "+status, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitLab server reporting a transient merge status while recomputing readiness
+			merged := false
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
+					writeJSON(t, w, map[string]any{
+						"iid":                   8,
+						"state":                 "opened",
+						"draft":                 false,
+						"has_conflicts":         false,
+						"detailed_merge_status": status,
+					})
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+					writeJSON(t, w, map[string]any{
+						"merge_method":  string(gitlabapi.NoFastForwardMerge),
+						"squash_option": "default_off",
+					})
+				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
+					merged = true
+
+					writeJSON(t, w, map[string]any{"iid": 8})
+				default:
+					t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			gl := newGitLabProvider(t, server)
+
+			// when: MergeReleasePR is invoked without force while readiness is recomputed
+			err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+
+			// then: the transient status does not prevent the merge request
+			testastic.NoError(t, err)
+			testastic.True(t, merged)
+		})
+	}
+
 	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
 		t.Parallel()
 
