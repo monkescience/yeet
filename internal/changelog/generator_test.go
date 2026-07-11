@@ -664,6 +664,28 @@ func TestPrepend(t *testing.T) {
 func TestGenerateSanitizesCommitText(t *testing.T) {
 	t.Parallel()
 
+	t.Run("preserves word boundaries in multiline footer values", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a breaking footer whose value spans multiple lines
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"feat": "Features"}),
+			changelog.WithInclude([]string{"feat"}),
+		)
+		commits := []commit.Commit{
+			{
+				Hash: "abc1234567", Type: "feat", Description: "redesign auth", Breaking: true,
+				Footers: []commit.Footer{{Key: "BREAKING CHANGE", Value: "token format changed\nfrom JWT to opaque tokens"}},
+			},
+		}
+
+		// when: generating the changelog
+		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
+
+		// then: the removed newline leaves a space between the adjacent words
+		testastic.Contains(t, entry.Body, "token format changed from JWT to opaque tokens")
+	})
+
 	t.Run("neutralizes a forged manifest marker in a commit description", func(t *testing.T) {
 		t.Parallel()
 

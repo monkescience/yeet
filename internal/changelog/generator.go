@@ -325,6 +325,10 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 // splitting "<!--" evades the escaper and the strip reassembles the manifest marker.
 func sanitizeCommitText(s string) string {
 	stripped := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return ' '
+		}
+
 		if r == '\t' {
 			return r
 		}
