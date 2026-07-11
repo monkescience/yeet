@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.10.17](https://github.com/monkescience/yeet/compare/v0.10.16...v0.10.17) (2026-07-11)
+
+### Bug Fixes
+
+- **azuredevops:** normalize configured legacy hosts ([618aca4](https://github.com/monkescience/yeet/commit/618aca46d7e53e08a59ce559f180cbb9069830fb))
+- **cli:** honor disabled auto merge flag ([61d58cf](https://github.com/monkescience/yeet/commit/61d58cfdb1fdd4a98c2a14bc09796feddbb40e04))
+- **config:** allow shared inherited version files ([69bdd75](https://github.com/monkescience/yeet/commit/69bdd756851391a495042d47842fbd834348fd4e))
+- **gitlab:** allow transient merge statuses ([5662df7](https://github.com/monkescience/yeet/commit/5662df754f405d0663555845d1949209fec45b02))
+- **gitlab:** preserve failed reviewer merge requests ([00eec24](https://github.com/monkescience/yeet/commit/00eec243ec8948524d4b1d73ebc10eb5b4d9c756))
+- **gitlab:** reject unreachable version refs ([73c33bd](https://github.com/monkescience/yeet/commit/73c33bd3e13f8d9505597c8f6593d8a611f91ea9))
+
 ## [v0.10.16](https://github.com/monkescience/yeet/compare/v0.10.15...v0.10.16) (2026-07-11)
 
 ### Bug Fixes
