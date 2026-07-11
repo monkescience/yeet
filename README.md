@@ -4,6 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/monkescience/yeet)](https://github.com/monkescience/yeet/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/monkescience/yeet)](go.mod)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/monkescience/yeet/badge)](https://scorecard.dev/viewer/?uri=github.com/monkescience/yeet)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13506/badge)](https://www.bestpractices.dev/projects/13506)
 [![License](https://img.shields.io/github/license/monkescience/yeet)](LICENSE)
 
 Release automation for **GitHub, GitLab, and Azure DevOps**, driven by [conventional commits](https://www.conventionalcommits.org/).
@@ -112,7 +113,19 @@ yeet release
 yeet release --auto-merge
 ```
 
-Run `yeet --help` for the full list of commands and flags.
+## Command reference
+
+| Command | Purpose |
+|---|---|
+| `yeet init` | Create a `.yeet.yaml` configuration file |
+| `yeet release` | Preview or perform the release workflow |
+| `yeet version` | Print build and version information |
+| `yeet completion` | Generate shell completion scripts |
+
+Run `yeet --help` for global flags and `yeet <command> --help` for each
+command's inputs, options, environment variables, and examples. The
+[configuration reference](docs/configuration.md) documents every `.yeet.yaml`
+setting.
 
 ## How it works
 
@@ -155,3 +168,10 @@ Customization:
 - [Versioning](docs/versioning.md): semver, calver, and `Release-As` overrides
 - [Changelog generation](docs/changelog-generation.md): sections, issue tracker references, commit overrides
 - [Release PRs/MRs](docs/release.md): PR/MR body and merge settings, release notes, prerelease channels
+
+## Feedback and contributions
+
+- [Report a bug](https://github.com/monkescience/yeet/issues/new?template=bug_report.yaml)
+- [Request an enhancement](https://github.com/monkescience/yeet/issues/new?template=feature_request.yaml)
+- [Contribute a change](CONTRIBUTING.md)
+- [Report a vulnerability privately](SECURITY.md)
