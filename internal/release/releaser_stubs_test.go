@@ -107,6 +107,34 @@ func providerFileKey(branch, path string) string {
 	return branch + ":" + path
 }
 
+func (s *providerStub) MergeReleasePR(
+	ctx context.Context,
+	number int,
+	opts provider.MergeReleasePROptions,
+) error {
+	if err := s.releasePRWorkflowStub.MergeReleasePR(ctx, number, opts); err != nil {
+		return err
+	}
+
+	if s.mergedPR != nil || len(s.mergedPRResponses) > 0 {
+		return nil
+	}
+
+	for _, pullRequest := range s.pullRequests {
+		if pullRequest.Number != number {
+			continue
+		}
+
+		mergedPR := *pullRequest
+		mergedPR.MergeCommitSHA = "merged-sha"
+		s.mergedPR = &mergedPR
+
+		break
+	}
+
+	return nil
+}
+
 type repoMetadataStub struct {
 	repoURL    string
 	pathPrefix string
@@ -416,7 +444,9 @@ func (s *releaseFileStub) UpdateFiles(
 }
 
 type releasePublishingStub struct {
-	mergedPR *provider.PullRequest
+	mergedPR          *provider.PullRequest
+	mergedPRResponses []*provider.PullRequest
+	findMergedPRCalls int
 
 	markTaggedCalls []int
 
@@ -431,6 +461,16 @@ type releasePublishingStub struct {
 }
 
 func (s *releasePublishingStub) FindMergedReleasePR(context.Context, string) (*provider.PullRequest, error) {
+	s.findMergedPRCalls++
+	if len(s.mergedPRResponses) >= s.findMergedPRCalls {
+		mergedPR := s.mergedPRResponses[s.findMergedPRCalls-1]
+		if mergedPR == nil {
+			return nil, provider.ErrNoPR
+		}
+
+		return mergedPR, nil
+	}
+
 	if s.mergedPR == nil {
 		return nil, provider.ErrNoPR
 	}

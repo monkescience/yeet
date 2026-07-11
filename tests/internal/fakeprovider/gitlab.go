@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 )
 
@@ -73,9 +74,10 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	prefix := "/api/v4/projects/" + pid
 
 	mux := http.NewServeMux()
+	merged := &atomic.Bool{}
 
 	registerGitLabHistory(mux, prefix, opts)
-	registerGitLabMerge(mux, prefix, opts)
+	registerGitLabMerge(mux, prefix, opts, merged)
 	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
 	registerGitLabLabels(mux, prefix)
@@ -156,11 +158,11 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	})
 }
 
-func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) {
+func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions, merged *atomic.Bool) {
 	mux.HandleFunc("GET "+prefix+"/merge_requests", func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
 
-		if state == fakeStateMerged && opts.MergedPendingRelease {
+		if state == fakeStateMerged && (opts.MergedPendingRelease || merged.Load()) {
 			writeJSON(w, []map[string]any{gitlabMergedPendingMR()})
 
 			return
@@ -205,7 +207,8 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions) 
 	})
 
 	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}/merge", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabFakeMR())
+		merged.Store(true)
+		writeJSON(w, gitlabMergedPendingMR())
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {

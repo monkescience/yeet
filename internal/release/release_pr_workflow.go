@@ -5,8 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/monkescience/yeet/internal/provider"
+)
+
+const (
+	mergedPullRequestPollInterval = 250 * time.Millisecond
+	mergedPullRequestPollTimeout  = 30 * time.Second
 )
 
 type releasePRWorkflow struct {
@@ -139,7 +146,14 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 
 	slog.InfoContext(ctx, "merged release PR", slog.String("url", result.PullRequest.URL))
 
-	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, r.cfg.Branch)
+	mergedPR, err := w.waitForMergedPullRequest(ctx, result.PullRequest.Number)
+	if err != nil {
+		return err
+	}
+
+	releaseRef := releaseRefForPullRequest(mergedPR, r.cfg.Branch)
+
+	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, releaseRef)
 	if err != nil {
 		return err
 	}
@@ -151,6 +165,34 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 	result.Releases = releaseInfos
 
 	return nil
+}
+
+func (w *releasePRWorkflow) waitForMergedPullRequest(
+	ctx context.Context,
+	number int,
+) (*provider.PullRequest, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, mergedPullRequestPollTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(mergedPullRequestPollInterval)
+	defer ticker.Stop()
+
+	for {
+		mergedPR, err := w.publisher.publisher.FindMergedReleasePR(waitCtx, w.core.cfg.Branch)
+		if err == nil && mergedPR.Number == number && strings.TrimSpace(mergedPR.MergeCommitSHA) != "" {
+			return mergedPR, nil
+		}
+
+		if err != nil && !errors.Is(err, provider.ErrNoPR) {
+			return nil, fmt.Errorf("find merged release PR: %w", err)
+		}
+
+		select {
+		case <-waitCtx.Done():
+			return nil, fmt.Errorf("wait for merged release PR #%d: %w", number, waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (w *releasePRWorkflow) updateExisting(

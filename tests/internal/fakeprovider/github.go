@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -91,11 +92,12 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	prefix := "/api/v3/repos/" + opts.Owner + "/" + opts.Repo
 
 	mux := http.NewServeMux()
+	merged := &atomic.Bool{}
 
 	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
-	registerGitHubPullsRead(mux, prefix, opts)
-	registerGitHubWritePath(mux, prefix, opts)
+	registerGitHubPullsRead(mux, prefix, opts, merged)
+	registerGitHubWritePath(mux, prefix, opts, merged)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +247,7 @@ func githubComparisonPayload(commits []GitHubCommit, total int, status string) m
 	}
 }
 
-func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
 	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, r *http.Request) {
 		sha := r.PathValue("sha")
 		for _, c := range opts.Commits {
@@ -269,7 +271,7 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
 
-		if state == "closed" && opts.MergedPendingRelease {
+		if state == "closed" && (opts.MergedPendingRelease || merged.Load()) {
 			writeJSON(w, []map[string]any{githubMergedPendingPR()})
 
 			return
@@ -363,10 +365,10 @@ func githubFilesPayload(paths []string) []map[string]any {
 // release (creating a release branch, updating files, opening the PR, and
 // managing labels). All responses are canned. The test asserts side effects
 // via exit code / stdout rather than payload bodies.
-func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
 	registerGitHubGitData(mux, prefix)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(mux, prefix, opts)
+	registerGitHubPullsWrite(mux, prefix, opts, merged)
 	registerGitHubLabels(mux, prefix)
 
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
@@ -459,7 +461,7 @@ func githubFileContent(path, raw string) map[string]any {
 	}
 }
 
-func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
 	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, githubFakePR())
 	})
@@ -469,6 +471,12 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOpti
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+		if merged.Load() {
+			writeJSON(w, githubMergedPendingPR())
+
+			return
+		}
+
 		pr := githubFakePR()
 		if opts.MergeBlocked {
 			pr["draft"] = true
@@ -482,6 +490,7 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOpti
 	})
 
 	mux.HandleFunc("PUT "+prefix+"/pulls/{number}/merge", func(w http.ResponseWriter, _ *http.Request) {
+		merged.Store(true)
 		writeJSON(w, map[string]any{fakeStateMerged: true, githubKeySHA: fakeMergeSHA})
 	})
 }

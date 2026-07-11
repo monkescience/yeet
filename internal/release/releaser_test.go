@@ -849,6 +849,42 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, result.PullRequest.Number, stub.markTaggedCalls[0])
 	})
 
+	t.Run("creates release at merged commit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled and the base branch may advance after the merge
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		stub.mergedPRResponses = []*provider.PullRequest{
+			nil,
+			nil,
+			{
+				Number:         1,
+				URL:            "https://example.com/pr/1",
+				Branch:         "yeet/release-main",
+				MergeCommitSHA: "merged-sha",
+			},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running release end-to-end
+		_, err := r.Release(context.Background(), false)
+
+		// then: tag creation uses the merged commit instead of the moving base branch
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, 3, stub.findMergedPRCalls)
+	})
+
 	t.Run("force mode forwards force option to provider merge", func(t *testing.T) {
 		t.Parallel()
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -68,6 +69,7 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	repoAPI := "/" + opts.Organization + "/" + opts.Project + "/_apis/git/repositories/" + opts.Repo
 
 	mux := http.NewServeMux()
+	merged := &atomic.Bool{}
 
 	mux.HandleFunc("OPTIONS "+rootAPI, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -82,7 +84,7 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	})
 
 	registerAzureHistory(mux, repoAPI, opts)
-	registerAzurePullRequests(mux, repoAPI, opts)
+	registerAzurePullRequests(mux, repoAPI, opts, merged)
 	registerAzureWrite(mux, repoAPI, opts)
 	registerAzureReleases(mux, opts.Organization, opts.Project)
 
@@ -237,11 +239,11 @@ func azureTagRefsPayload(opts AzureOptions) map[string]any {
 	}
 }
 
-func azurePullRequestsListHandler(opts AzureOptions) http.HandlerFunc {
+func azurePullRequestsListHandler(opts AzureOptions, merged *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("searchCriteria.status")
 
-		if status == azureStatusCompleted && opts.MergedPendingRelease {
+		if status == azureStatusCompleted && (opts.MergedPendingRelease || merged.Load()) {
 			writeJSON(w, map[string]any{
 				azureKeyCount: 1,
 				azureKeyValue: []map[string]any{azureMergedPendingPR(opts)},
@@ -339,8 +341,26 @@ func azureCommitChangesHandler(opts AzureOptions) http.HandlerFunc {
 	}
 }
 
-func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
-	mux.HandleFunc("GET "+repoAPI+"/pullRequests", azurePullRequestsListHandler(opts))
+func azureUpdatePullRequestHandler(opts AzureOptions, merged *atomic.Bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Status string `json:"status"`
+		}
+
+		_ = json.NewDecoder(r.Body).Decode(&request)
+		if request.Status == azureStatusCompleted {
+			merged.Store(true)
+			writeJSON(w, azureMergedPendingPR(opts))
+
+			return
+		}
+
+		writeJSON(w, azureFakePR(opts))
+	}
+}
+
+func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOptions, merged *atomic.Bool) {
+	mux.HandleFunc("GET "+repoAPI+"/pullRequests", azurePullRequestsListHandler(opts, merged))
 
 	mux.HandleFunc("POST "+repoAPI+"/pullRequestQuery", azurePullRequestQueryHandler(opts))
 
@@ -348,12 +368,10 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 		writeJSON(w, azureFakePR(opts))
 	})
 
-	mux.HandleFunc("PATCH "+repoAPI+"/pullRequests/{id}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, azureFakePR(opts))
-	})
+	mux.HandleFunc("PATCH "+repoAPI+"/pullRequests/{id}", azureUpdatePullRequestHandler(opts, merged))
 
 	mux.HandleFunc("GET "+repoAPI+"/pullRequests/{id}", func(w http.ResponseWriter, _ *http.Request) {
-		if opts.MergedPendingRelease {
+		if opts.MergedPendingRelease || merged.Load() {
 			writeJSON(w, azureMergedPendingPR(opts))
 
 			return
@@ -391,7 +409,7 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 	mux.HandleFunc(
 		"GET /"+opts.Organization+"/"+opts.Project+"/_apis/git/pullRequests/{id}",
 		func(w http.ResponseWriter, _ *http.Request) {
-			if opts.MergedPendingRelease {
+			if opts.MergedPendingRelease || merged.Load() {
 				writeJSON(w, azureMergedPendingPR(opts))
 
 				return
