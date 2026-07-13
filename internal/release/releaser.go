@@ -23,12 +23,6 @@ var (
 	ErrConflictingFileUpdate     = errors.New("conflicting file update")
 )
 
-const (
-	releaseBumpMajorOrder = 3
-	releaseBumpMinorOrder = 2
-	releaseBumpPatchOrder = 1
-)
-
 type Result struct {
 	BaseBranch  string
 	Plans       []TargetPlan
@@ -195,21 +189,6 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
 	return newReleasePublisher(r.core, r.publisher).finalizeMergedReleasePR(ctx)
-}
-
-func releaseBumpOrder(bumpType commit.BumpType) int {
-	switch bumpType {
-	case commit.BumpMajor:
-		return releaseBumpMajorOrder
-	case commit.BumpMinor:
-		return releaseBumpMinorOrder
-	case commit.BumpPatch:
-		return releaseBumpPatchOrder
-	case commit.BumpNone:
-		return 0
-	default:
-		return 0
-	}
 }
 
 func multiplePendingReleasePRError(pendingPRs []*provider.PullRequest) error {

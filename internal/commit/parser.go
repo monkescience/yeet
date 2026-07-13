@@ -87,8 +87,11 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 	footerStart := -1
 
 	for i, line := range lines {
-		_, isFooter := parseFooter(strings.TrimSpace(line))
-		if i > 0 && strings.TrimSpace(lines[i-1]) == "" && isFooter {
+		if i == 0 || strings.TrimSpace(lines[i-1]) != "" {
+			continue
+		}
+
+		if _, isFooter := parseFooter(strings.TrimSpace(line)); isFooter {
 			footerStart = i
 		}
 	}
@@ -169,7 +172,7 @@ func DetermineBump(commits []Commit, mapping BumpMapping) BumpType {
 	for _, c := range commits {
 		b := commitBump(c, mapping)
 
-		if compareBump(b, bump) > 0 {
+		if CompareBump(b, bump) > 0 {
 			bump = b
 		}
 
@@ -193,7 +196,8 @@ func commitBump(c Commit, mapping BumpMapping) BumpType {
 	return BumpNone
 }
 
-func compareBump(a, b BumpType) int {
+// CompareBump orders bump types by severity: none < patch < minor < major.
+func CompareBump(a, b BumpType) int {
 	return bumpOrder(a) - bumpOrder(b)
 }
 
