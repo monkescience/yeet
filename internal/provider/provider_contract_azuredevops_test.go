@@ -127,6 +127,8 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsGetCommitsSinceUnresolvedHandler(t)
 	case providerContractGetCommitsSinceRefsMultiBoundary:
 		return azureDevOpsGetCommitsSinceMultiBoundaryHandler(t)
+	case providerContractGetCommitsSinceRefsSharedPaths:
+		return azureDevOpsSharedPathsHandler(t)
 	case providerContractGetReleaseByTag:
 		return azureDevOpsGetReleaseByTagHandler(t)
 	case providerContractTagExists:
@@ -317,6 +319,41 @@ func azureDevOpsGetCommitsSinceMultiBoundaryHandler(t *testing.T) http.HandlerFu
 			)
 		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "older_commits.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+func isAzureDevOpsCommitChangesRequest(r *http.Request, sha string) bool {
+	return r.Method == http.MethodGet &&
+		r.URL.Path == azureDevOpsContractRepoAPI("commits/"+sha+"/changes")
+}
+
+func azureDevOpsSharedPathsHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	recorder := newCommitPathsRecorder(t)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case azureDevOpsBoundedCommitsRequest(r, providerContractIntermediateTag):
+			writeJSONFixture(
+				t,
+				w,
+				azureDevOpsContractFixture("get_commits_since_multi_boundary", "intermediate_commits.json"),
+			)
+		case azureDevOpsBoundedCommitsRequest(r, providerContractTag):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since_multi_boundary", "older_commits.json"))
+		case isAzureDevOpsCommitChangesRequest(r, providerContractHeadSHA):
+			recorder.record(providerContractHeadSHA)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
+		case isAzureDevOpsCommitChangesRequest(r, providerContractMidSHA):
+			recorder.record(providerContractMidSHA)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
+		case isAzureDevOpsCommitChangesRequest(r, providerContractIntermediateSHA):
+			recorder.record(providerContractIntermediateSHA)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_commits_since", "changes.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}

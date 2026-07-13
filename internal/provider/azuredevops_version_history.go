@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
-	"golang.org/x/sync/errgroup"
 )
 
 const azureDevOpsTagRefPrefix = "refs/tags/"
@@ -98,11 +97,22 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 ) (CommitHistory, error) {
 	branch = strings.TrimSpace(branch)
 
-	return fetchCommitHistoryByRef(ctx, refs, a.maxConcurrentRequests,
+	history, err := fetchCommitHistoryByRef(ctx, refs, a.maxConcurrentRequests,
 		func(ctx context.Context, ref string) ([]CommitEntry, error) {
-			return a.commitsSinceRef(ctx, ref, branch, includePaths)
+			return a.commitsSinceRef(ctx, ref, branch)
 		},
 	)
+	if err != nil {
+		return CommitHistory{}, err
+	}
+
+	if includePaths {
+		if err := hydrateCommitHistoryPaths(ctx, history, a.maxConcurrentRequests, a.commitPaths); err != nil {
+			return CommitHistory{}, err
+		}
+	}
+
+	return history, nil
 }
 
 // commitsSinceRef returns the commits reachable from branch but not from ref,
@@ -117,26 +127,17 @@ func (a *AzureDevOps) GetCommitsSinceRefs(
 func (a *AzureDevOps) commitsSinceRef(
 	ctx context.Context,
 	ref, branch string,
-	includePaths bool,
 ) ([]CommitEntry, error) {
 	boundaryRef := strings.TrimSpace(ref)
 
 	slog.DebugContext(ctx, "azure devops: fetching commits",
 		slog.String("branch", branch),
 		slog.String("boundary_ref", boundaryRef),
-		slog.Bool("include_paths", includePaths),
 	)
 
 	entries, err := a.listAzureDevOpsCommits(ctx, branch, boundaryRef)
 	if err != nil {
 		return nil, err
-	}
-
-	if includePaths && len(entries) > 0 {
-		err = a.fillAzureDevOpsCommitPaths(ctx, entries)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	slog.DebugContext(ctx, "azure devops: fetched commits", slog.Int("count", len(entries)))
@@ -245,31 +246,6 @@ func buildAzureDevOpsCommitCriteria(branch, boundaryRef string) *git.GitQueryCom
 	}
 
 	return criteria
-}
-
-func (a *AzureDevOps) fillAzureDevOpsCommitPaths(ctx context.Context, entries []CommitEntry) error {
-	eg, egCtx := errgroup.WithContext(ctx)
-	eg.SetLimit(a.maxConcurrentRequests)
-
-	for idx := range entries {
-		eg.Go(func() error {
-			paths, err := a.commitPaths(egCtx, entries[idx].Hash)
-			if err != nil {
-				return err
-			}
-
-			entries[idx].Paths = paths
-
-			return nil
-		})
-	}
-
-	err := eg.Wait()
-	if err != nil {
-		return fmt.Errorf("fetch commit paths: %w", err)
-	}
-
-	return nil
 }
 
 func (a *AzureDevOps) commitPaths(ctx context.Context, sha string) ([]string, error) {

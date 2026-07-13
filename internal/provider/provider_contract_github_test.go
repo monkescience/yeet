@@ -25,6 +25,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 
 	var reviewersRequested atomic.Bool
 
+	sharedPathsRecorder := newCommitPathsRecorder(t)
+
 	if scenario == providerContractCreateReleasePRReviewers {
 		t.Cleanup(func() {
 			if !reviewersRequested.Load() {
@@ -49,6 +51,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubGetCommitsSinceUnresolvedContract(t, w, r)
 		case providerContractGetCommitsSinceRefsMultiBoundary:
 			handleGitHubGetCommitsSinceMultiBoundaryContract(t, w, r)
+		case providerContractGetCommitsSinceRefsSharedPaths:
+			handleGitHubSharedPathsContract(t, w, r, sharedPathsRecorder)
 		case providerContractGetReleaseByTag:
 			handleGitHubGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -179,6 +183,38 @@ func handleGitHubGetCommitsSinceUnresolvedContract(t *testing.T, w http.Response
 		w.WriteHeader(http.StatusNotFound)
 		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	}
+}
+
+func isGitHubCommitDetailRequest(r *http.Request, sha string) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+sha
+}
+
+func handleGitHubSharedPathsContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	recorder *commitPathsRecorder,
+) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet &&
+		r.URL.Path == gitHubComparePath(providerContractIntermediateTag):
+		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/intermediate_compare.json")
+	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
+		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/older_compare.json")
+	case isGitHubCommitDetailRequest(r, providerContractHeadSHA):
+		recorder.record(providerContractHeadSHA)
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+	case isGitHubCommitDetailRequest(r, providerContractMidSHA):
+		recorder.record(providerContractMidSHA)
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+	case isGitHubCommitDetailRequest(r, providerContractIntermediateSHA):
+		recorder.record(providerContractIntermediateSHA)
 		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)

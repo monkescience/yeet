@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -33,6 +34,7 @@ const (
 	providerContractGetCommitsSinceRefsMissing       providerContractScenario = "get commits since refs missing"
 	providerContractGetCommitsSinceRefsUnresolved    providerContractScenario = "get commits since refs unresolved"
 	providerContractGetCommitsSinceRefsMultiBoundary providerContractScenario = "get commits since refs multi boundary"
+	providerContractGetCommitsSinceRefsSharedPaths   providerContractScenario = "get commits since refs shared paths"
 	providerContractGetReleaseByTag                  providerContractScenario = "get release by tag"
 	providerContractTagExists                        providerContractScenario = "tag exists"
 	providerContractCreateReleasePR                  providerContractScenario = "create release pr"
@@ -242,6 +244,40 @@ func TestProviderContract(t *testing.T) {
 					},
 					commitEntryHashes(olderEntries),
 				)
+			})
+
+			t.Run("fetches each commit's changed paths once across overlapping refs", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server with two refs whose ranges overlap and which
+				// fails when a commit's changed paths are requested more than once
+				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefsSharedPaths))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: GetCommitsSinceRefs hydrates paths for the intermediate and older tags
+				history, err := p.GetCommitsSinceRefs(
+					context.Background(),
+					[]string{providerContractIntermediateTag, providerContractTag},
+					providerContractBaseBranch,
+					true,
+				)
+
+				// then: every entry of both refs is hydrated even though the shared
+				// commit's paths were fetched only once
+				testastic.NoError(t, err)
+
+				intermediateEntries := history.EntriesByRef[providerContractIntermediateTag]
+				testastic.Equal(t, 1, len(intermediateEntries))
+				testastic.SliceEqual(t, []string{"CHANGELOG.md", "VERSION.txt"}, intermediateEntries[0].Paths)
+
+				olderEntries := history.EntriesByRef[providerContractTag]
+				testastic.Equal(t, 3, len(olderEntries))
+
+				for _, entry := range olderEntries {
+					testastic.SliceEqual(t, []string{"CHANGELOG.md", "VERSION.txt"}, entry.Paths)
+				}
 			})
 
 			t.Run("reports unresolvable ref as missing without failing the batch", func(t *testing.T) {
@@ -745,4 +781,27 @@ func fatalUnexpectedProviderRequest(t *testing.T, providerName string, r *http.R
 	t.Helper()
 
 	t.Fatalf("unexpected %s request: %s %s", providerName, r.Method, r.URL.String())
+}
+
+type commitPathsRecorder struct {
+	t    *testing.T
+	mu   sync.Mutex
+	seen map[string]bool
+}
+
+func newCommitPathsRecorder(t *testing.T) *commitPathsRecorder {
+	t.Helper()
+
+	return &commitPathsRecorder{t: t, seen: make(map[string]bool)}
+}
+
+func (rec *commitPathsRecorder) record(sha string) {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+
+	if rec.seen[sha] {
+		rec.t.Errorf("changed paths for commit %q fetched more than once", sha)
+	}
+
+	rec.seen[sha] = true
 }

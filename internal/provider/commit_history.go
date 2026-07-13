@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -163,25 +164,43 @@ func fetchCommitHistoryByRef(
 	return history, nil
 }
 
-// hydrateCommitPaths fills each entry's changed-file Paths by calling
-// commitPaths per commit, in parallel and bounded by maxConcurrentRequests.
-func hydrateCommitPaths(
+// commitPathsFetch resolves the changed-file paths of one commit.
+type commitPathsFetch func(ctx context.Context, sha string) ([]string, error)
+
+// hydrateCommitHistoryPaths fetches each commit's paths once, then assigns
+// independent slices to entries shared across overlapping ref ranges.
+func hydrateCommitHistoryPaths(
 	ctx context.Context,
-	entries []CommitEntry,
+	history CommitHistory,
 	maxConcurrentRequests int,
-	commitPaths func(ctx context.Context, sha string) ([]string, error),
+	commitPaths commitPathsFetch,
 ) error {
+	pathIndexes := make(map[string]int)
+	hashes := make([]string, 0)
+
+	for _, entries := range history.EntriesByRef {
+		for _, entry := range entries {
+			if _, exists := pathIndexes[entry.Hash]; exists {
+				continue
+			}
+
+			pathIndexes[entry.Hash] = len(hashes)
+			hashes = append(hashes, entry.Hash)
+		}
+	}
+
+	paths := make([][]string, len(hashes))
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(maxConcurrentRequests)
 
-	for idx := range entries {
+	for idx, hash := range hashes {
 		eg.Go(func() error {
-			paths, err := commitPaths(egCtx, entries[idx].Hash)
+			fetchedPaths, err := commitPaths(egCtx, hash)
 			if err != nil {
 				return err
 			}
 
-			entries[idx].Paths = paths
+			paths[idx] = fetchedPaths
 
 			return nil
 		})
@@ -190,6 +209,14 @@ func hydrateCommitPaths(
 	err := eg.Wait()
 	if err != nil {
 		return fmt.Errorf("fetch commit paths: %w", err)
+	}
+
+	for ref, entries := range history.EntriesByRef {
+		for idx := range entries {
+			entries[idx].Paths = slices.Clone(paths[pathIndexes[entries[idx].Hash]])
+		}
+
+		history.EntriesByRef[ref] = entries
 	}
 
 	return nil

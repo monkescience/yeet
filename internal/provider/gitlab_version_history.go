@@ -71,11 +71,22 @@ func (g *GitLab) GetCommitsSinceRefs(
 ) (CommitHistory, error) {
 	branch = strings.TrimSpace(branch)
 
-	return fetchCommitHistoryByRef(ctx, refs, g.maxConcurrentRequests,
+	history, err := fetchCommitHistoryByRef(ctx, refs, g.maxConcurrentRequests,
 		func(ctx context.Context, ref string) ([]CommitEntry, error) {
-			return g.commitsSinceRef(ctx, ref, branch, includePaths)
+			return g.commitsSinceRef(ctx, ref, branch)
 		},
 	)
+	if err != nil {
+		return CommitHistory{}, err
+	}
+
+	if includePaths {
+		if err := hydrateCommitHistoryPaths(ctx, history, g.maxConcurrentRequests, g.commitPaths); err != nil {
+			return CommitHistory{}, err
+		}
+	}
+
+	return history, nil
 }
 
 // commitsSinceRef returns the commits reachable from branch but not from ref,
@@ -86,14 +97,12 @@ func (g *GitLab) GetCommitsSinceRefs(
 func (g *GitLab) commitsSinceRef(
 	ctx context.Context,
 	ref, branch string,
-	includePaths bool,
 ) ([]CommitEntry, error) {
 	boundaryRef := strings.TrimSpace(ref)
 
 	slog.DebugContext(ctx, "gitlab: fetching commits",
 		slog.String("branch", branch),
 		slog.String("boundary_ref", boundaryRef),
-		slog.Bool("include_paths", includePaths),
 	)
 
 	var (
@@ -109,13 +118,6 @@ func (g *GitLab) commitsSinceRef(
 
 	if err != nil {
 		return nil, err
-	}
-
-	if includePaths && len(entries) > 0 {
-		err = hydrateCommitPaths(ctx, entries, g.maxConcurrentRequests, g.commitPaths)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	slog.DebugContext(ctx, "gitlab: fetched commits", slog.Int("count", len(entries)))

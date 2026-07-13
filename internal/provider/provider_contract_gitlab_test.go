@@ -28,6 +28,7 @@ func newGitLabContractProvider(t *testing.T, server *httptest.Server) provider.P
 
 func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
+	sharedPathsRecorder := newCommitPathsRecorder(t)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if handleGitLabBoundaryRequest(t, w, r, map[string]string{
@@ -53,6 +54,8 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabGetCommitsSinceUnresolvedContract(t, w, r)
 		case providerContractGetCommitsSinceRefsMultiBoundary:
 			handleGitLabGetCommitsSinceMultiBoundaryContract(t, w, r)
+		case providerContractGetCommitsSinceRefsSharedPaths:
+			handleGitLabSharedPathsContract(t, w, r, sharedPathsRecorder)
 		case providerContractGetReleaseByTag:
 			handleGitLabGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -160,6 +163,33 @@ func handleGitLabGetCommitsSinceMissingContract(t *testing.T, w http.ResponseWri
 		w.WriteHeader(http.StatusNotFound)
 		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+func handleGitLabSharedPathsContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	recorder *commitPathsRecorder,
+) {
+	t.Helper()
+
+	switch {
+	case isGitLabCompareRequest(r, providerContractIntermediateTag):
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/intermediate_compare.json")
+	case isGitLabCompareRequest(r, providerContractTag):
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/older_compare.json")
+	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
+		recorder.record(providerContractHeadSHA)
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
+	case isGitLabCommitDiffRequest(r, providerContractMidSHA):
+		recorder.record(providerContractMidSHA)
+		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
+	case isGitLabCommitDiffRequest(r, providerContractIntermediateSHA):
+		recorder.record(providerContractIntermediateSHA)
 		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
