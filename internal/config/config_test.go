@@ -351,6 +351,28 @@ func TestParse(t *testing.T) {
 		testastic.ErrorContains(t, err, "targets.api.tag_prefix must not be empty")
 	})
 
+	t.Run("target tag prefix validation precedes versioning", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with both an empty tag prefix and invalid versioning
+		data := []byte(`versioning: semver
+branch: main
+targets:
+  api:
+    type: path
+    path: services/api
+    versioning: broken
+`)
+
+		// when: parsing the config
+		_, err := config.Parse(data)
+
+		// then: the missing required prefix is reported first
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.ErrorContains(t, err, "targets.api.tag_prefix must not be empty")
+	})
+
 	t.Run("explicit empty targets config is invalid", func(t *testing.T) {
 		t.Parallel()
 
