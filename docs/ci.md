@@ -47,7 +47,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run yeet
-        uses: docker://ghcr.io/monkescience/yeet:v0.10.17 # x-yeet-version
+        uses: docker://ghcr.io/monkescience/yeet:v0.10.18 # x-yeet-version
         with:
           args: release
         env:
@@ -63,7 +63,7 @@ GitLab runs the job script with `sh` instead of the image's default `yeet` entry
 release:
   stage: release
   image:
-    name: ghcr.io/monkescience/yeet:v0.10.17 # x-yeet-version
+    name: ghcr.io/monkescience/yeet:v0.10.18 # x-yeet-version
     entrypoint: [""]
   variables:
     GIT_STRATEGY: fetch
@@ -100,7 +100,7 @@ steps:
         -v "$(Build.SourcesDirectory):/workspace" \
         -w /workspace \
         -e AZURE_DEVOPS_SYSTEM_ACCESSTOKEN \
-        ghcr.io/monkescience/yeet:v0.10.17 release # x-yeet-version
+        ghcr.io/monkescience/yeet:v0.10.18 release # x-yeet-version
     displayName: Run yeet
     env:
       AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
