@@ -415,13 +415,12 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return fmt.Errorf("get merge request !%d: %w", number, err)
 	}
 
-	merged, err := validateGitLabMergeRequestForMerge(number, mr, opts.BypassMergeChecks)
-	if err != nil {
-		return err
+	if mr.State == gitlabMergeRequestMergedState {
+		return nil
 	}
 
-	if merged {
-		return nil
+	if err := validateGitLabMergeRequestForMerge(number, mr, opts.BypassMergeChecks); err != nil {
+		return err
 	}
 
 	project, err := g.projectMergeSettings(ctx)
@@ -461,29 +460,25 @@ func validateGitLabMergeRequestForMerge(
 	number int,
 	mergeRequest *gitlab.MergeRequest,
 	bypassMergeChecks bool,
-) (bool, error) {
-	if mergeRequest.State == gitlabMergeRequestMergedState {
-		return true, nil
-	}
-
+) error {
 	if mergeRequest.State != gitlabMergeRequestOpenedState {
-		return false, fmt.Errorf("%w: merge request !%d is %s", ErrMergeBlocked, number, mergeRequest.State)
+		return fmt.Errorf("%w: merge request !%d is %s", ErrMergeBlocked, number, mergeRequest.State)
 	}
 
 	if mergeRequest.Draft {
-		return false, fmt.Errorf("%w: merge request !%d is draft", ErrMergeBlocked, number)
+		return fmt.Errorf("%w: merge request !%d is draft", ErrMergeBlocked, number)
 	}
 
 	if mergeRequest.HasConflicts {
-		return false, fmt.Errorf("%w: merge request !%d has conflicts", ErrMergeBlocked, number)
+		return fmt.Errorf("%w: merge request !%d has conflicts", ErrMergeBlocked, number)
 	}
 
 	mergeStatus := strings.TrimSpace(mergeRequest.DetailedMergeStatus)
 	if !bypassMergeChecks && !isGitLabMergeStatusMergeable(mergeStatus) {
-		return false, fmt.Errorf("%w: merge request !%d detailed_merge_status=%s", ErrMergeBlocked, number, mergeStatus)
+		return fmt.Errorf("%w: merge request !%d detailed_merge_status=%s", ErrMergeBlocked, number, mergeStatus)
 	}
 
-	return false, nil
+	return nil
 }
 
 func (g *GitLab) ensureReleaseLabels(ctx context.Context) error {

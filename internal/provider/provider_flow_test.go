@@ -170,7 +170,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		// when: MergeReleasePR is invoked with force enabled and auto method selection
+		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
 		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 			Method:            provider.MergeMethodAuto,
@@ -454,7 +454,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
-		// when: MergeReleasePR is invoked with force enabled and the squash merge method
+		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
 		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 			Method:            provider.MergeMethodSquash,

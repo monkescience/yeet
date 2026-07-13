@@ -322,13 +322,12 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return fmt.Errorf("get pull request #%d: %w", number, err)
 	}
 
-	merged, err := validateGitHubPullRequestForMerge(number, pr, opts.BypassMergeChecks)
-	if err != nil {
-		return err
+	if pr.GetMerged() {
+		return nil
 	}
 
-	if merged {
-		return nil
+	if err := validateGitHubPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
+		return err
 	}
 
 	mergeMethod, err := g.resolveGitHubMergeMethod(ctx, opts.Method)
@@ -370,29 +369,25 @@ func validateGitHubPullRequestForMerge(
 	number int,
 	pullRequest *github.PullRequest,
 	bypassMergeChecks bool,
-) (bool, error) {
-	if pullRequest.GetMerged() {
-		return true, nil
-	}
-
+) error {
 	if pullRequest.GetState() != "open" {
-		return false, fmt.Errorf("%w: pull request #%d is %s", ErrMergeBlocked, number, pullRequest.GetState())
+		return fmt.Errorf("%w: pull request #%d is %s", ErrMergeBlocked, number, pullRequest.GetState())
 	}
 
 	mergeableState := strings.TrimSpace(pullRequest.GetMergeableState())
 	if pullRequest.GetDraft() || mergeableState == "draft" {
-		return false, fmt.Errorf("%w: pull request #%d is draft", ErrMergeBlocked, number)
+		return fmt.Errorf("%w: pull request #%d is draft", ErrMergeBlocked, number)
 	}
 
 	if isGitHubMergeStateConflicted(mergeableState) {
-		return false, fmt.Errorf("%w: pull request #%d has conflicts", ErrMergeBlocked, number)
+		return fmt.Errorf("%w: pull request #%d has conflicts", ErrMergeBlocked, number)
 	}
 
 	if !bypassMergeChecks && isGitHubMergeStateReadinessBlocked(mergeableState) {
-		return false, fmt.Errorf("%w: pull request #%d mergeable_state=%s", ErrMergeBlocked, number, mergeableState)
+		return fmt.Errorf("%w: pull request #%d mergeable_state=%s", ErrMergeBlocked, number, mergeableState)
 	}
 
-	return false, nil
+	return nil
 }
 
 func (g *GitHub) ensureReleaseLabels(ctx context.Context) error {

@@ -299,13 +299,12 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		return err
 	}
 
-	alreadyCompleted, err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks)
-	if err != nil {
-		return err
+	if derefString((*string)(pr.Status)) == string(git.PullRequestStatusValues.Completed) {
+		return nil
 	}
 
-	if alreadyCompleted {
-		return nil
+	if err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
+		return err
 	}
 
 	strategy, err := azureDevOpsMergeStrategy(opts.Method)
@@ -353,26 +352,22 @@ func validateAzureDevOpsPullRequestForMerge(
 	number int,
 	pullRequest *git.GitPullRequest,
 	bypassMergeChecks bool,
-) (bool, error) {
+) error {
 	status := derefString((*string)(pullRequest.Status))
-	if status == string(git.PullRequestStatusValues.Completed) {
-		return true, nil
-	}
-
 	if status != string(git.PullRequestStatusValues.Active) {
-		return false, fmt.Errorf("%w: pull request !%d is %s", ErrMergeBlocked, number, status)
+		return fmt.Errorf("%w: pull request !%d is %s", ErrMergeBlocked, number, status)
 	}
 
 	if pullRequest.IsDraft != nil && *pullRequest.IsDraft {
-		return false, fmt.Errorf("%w: pull request !%d is draft", ErrMergeBlocked, number)
+		return fmt.Errorf("%w: pull request !%d is draft", ErrMergeBlocked, number)
 	}
 
 	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
 	if !bypassMergeChecks && azureDevOpsMergeStatusBlocked(mergeStatus) {
-		return false, fmt.Errorf("%w: pull request !%d merge_status=%s", ErrMergeBlocked, number, mergeStatus)
+		return fmt.Errorf("%w: pull request !%d merge_status=%s", ErrMergeBlocked, number, mergeStatus)
 	}
 
-	return false, nil
+	return nil
 }
 
 func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int) error {
