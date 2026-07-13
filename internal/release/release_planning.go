@@ -267,64 +267,121 @@ func (a *releaseAnalyzer) planDirectTarget(
 	return plan, true, nil
 }
 
-//nolint:funlen // Derived target planning keeps child and direct-commit logic together.
+type derivedPlanInputs struct {
+	history       targetHistory
+	allEntries    []provider.CommitEntry
+	directEntries []provider.CommitEntry
+	childEntries  []provider.CommitEntry
+	directCommits []commit.Commit
+}
+
 func (a *releaseAnalyzer) planDerivedTarget(
 	ctx context.Context,
 	target config.ResolvedTarget,
 	childPlans []TargetPlan,
 	includeDirectCommits bool,
 ) (TargetPlan, bool, error) {
-	var (
-		currentVersion string
-		ref            string
-		err            error
-	)
-
-	sharedHistory, ok := a.sharedTargetHistory(target)
-	if ok {
-		currentVersion = sharedHistory.currentVersion
-		ref = sharedHistory.ref
-	} else {
-		if a.historyIndex != nil {
-			slog.DebugContext(ctx, "shared history miss: per-target lookup",
-				slog.String("target", target.ID),
-			)
-		}
-
-		currentVersion, ref, err = a.currentVersionFromReleaseHistory(ctx, target)
-		if err != nil {
-			return TargetPlan{}, false, err
-		}
-	}
-
-	allEntries := []provider.CommitEntry{}
-
-	if target.Path != "" || len(childPlans) > 0 {
-		if ok {
-			allEntries = sharedHistory.entries
-		} else {
-			entries, commitsErr := a.commitsSince(ctx, ref, a.core.cfg.Branch, needsPathFiltering(a.analyzedTargets))
-			if commitsErr != nil {
-				return TargetPlan{}, false, commitsErr
-			}
-
-			allEntries = entries
-		}
-	}
-
-	directEntries := []provider.CommitEntry{}
-
-	if includeDirectCommits && target.Path != "" {
-		directEntries = filterEntriesForTarget(allEntries, target)
-	}
-
-	childEntries := filterEntriesForPlans(allEntries, childPlans, a.core.targets)
-
-	directCommits, err := a.parseCommits(ctx, directEntries)
+	inputs, err := a.loadDerivedPlanInputs(ctx, target, childPlans, includeDirectCommits)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
 
+	nextVersion, bumpType, shouldRelease, err := a.derivedVersionPlan(
+		target,
+		inputs.history.currentVersion,
+		inputs.directCommits,
+		childPlans,
+	)
+	if err != nil {
+		return TargetPlan{}, false, err
+	}
+
+	if !shouldRelease {
+		return TargetPlan{}, false, nil
+	}
+
+	plan := a.newDerivedTargetPlan(
+		ctx,
+		target,
+		nextVersion,
+		bumpType,
+		inputs,
+		childPlans,
+		includeDirectCommits,
+	)
+
+	return plan, true, nil
+}
+
+func (a *releaseAnalyzer) loadDerivedPlanInputs(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	childPlans []TargetPlan,
+	includeDirectCommits bool,
+) (derivedPlanInputs, error) {
+	history, err := a.loadDerivedTargetHistory(ctx, target, target.Path != "" || len(childPlans) > 0)
+	if err != nil {
+		return derivedPlanInputs{}, err
+	}
+
+	directEntries := []provider.CommitEntry{}
+	if includeDirectCommits && target.Path != "" {
+		directEntries = filterEntriesForTarget(history.entries, target)
+	}
+
+	directCommits, err := a.parseCommits(ctx, directEntries)
+	if err != nil {
+		return derivedPlanInputs{}, err
+	}
+
+	return derivedPlanInputs{
+		history:       history,
+		allEntries:    history.entries,
+		directEntries: directEntries,
+		childEntries:  filterEntriesForPlans(history.entries, childPlans, a.core.targets),
+		directCommits: directCommits,
+	}, nil
+}
+
+func (a *releaseAnalyzer) loadDerivedTargetHistory(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	includeEntries bool,
+) (targetHistory, error) {
+	if history, ok := a.sharedTargetHistory(target); ok {
+		return history, nil
+	}
+
+	if a.historyIndex != nil {
+		slog.DebugContext(ctx, "shared history miss: per-target lookup",
+			slog.String("target", target.ID),
+		)
+	}
+
+	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
+	if err != nil {
+		return targetHistory{}, err
+	}
+
+	history := targetHistory{currentVersion: currentVersion, ref: ref}
+	if !includeEntries {
+		return history, nil
+	}
+
+	history.entries, err = a.commitsSince(ctx, ref, a.core.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+	if err != nil {
+		return targetHistory{}, err
+	}
+
+	return history, nil
+}
+
+func (a *releaseAnalyzer) derivedVersionPlan(
+	target config.ResolvedTarget,
+	currentVersion string,
+	directCommits []commit.Commit,
+	childPlans []TargetPlan,
+) (string, commit.BumpType, bool, error) {
 	directBumpType := commit.DetermineBump(directCommits, a.bumpMapping)
 
 	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(
@@ -334,7 +391,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		directBumpType,
 	)
 	if err != nil {
-		return TargetPlan{}, false, err
+		return "", commit.BumpNone, false, err
 	}
 
 	finalBumpType := directNextBumpType
@@ -345,81 +402,99 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	}
 
 	if finalBumpType == commit.BumpNone {
-		return TargetPlan{}, false, nil
+		return "", commit.BumpNone, false, nil
 	}
 
-	nextVersion := directNextVersion
-	if !directShouldRelease || releaseBumpOrder(finalBumpType) > releaseBumpOrder(directNextBumpType) {
-		nextVersion, _, _, err = resolveNextVersion(
-			versionStrategyForResolvedTarget(target),
-			target.Versioning,
-			currentVersionWithInitial(target, currentVersion),
-			finalBumpType,
-			"",
-			a.core.activePrereleaseIdentifier(),
-		)
-		if err != nil {
-			return TargetPlan{}, false, err
-		}
+	if directShouldRelease && releaseBumpOrder(finalBumpType) <= releaseBumpOrder(directNextBumpType) {
+		return directNextVersion, finalBumpType, true, nil
 	}
 
+	nextVersion, _, _, err := resolveNextVersion(
+		versionStrategyForResolvedTarget(target),
+		target.Versioning,
+		currentVersionWithInitial(target, currentVersion),
+		finalBumpType,
+		"",
+		a.core.activePrereleaseIdentifier(),
+	)
+	if err != nil {
+		return "", commit.BumpNone, false, err
+	}
+
+	return nextVersion, finalBumpType, true, nil
+}
+
+func (a *releaseAnalyzer) newDerivedTargetPlan(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	nextVersion string,
+	bumpType commit.BumpType,
+	inputs derivedPlanInputs,
+	childPlans []TargetPlan,
+	includeDirectCommits bool,
+) TargetPlan {
 	plan := a.newTargetPlan(
 		ctx,
 		target,
-		currentVersion,
+		inputs.history.currentVersion,
 		nextVersion,
-		finalBumpType,
-		ref,
-		directEntries,
-		directCommits,
+		bumpType,
+		inputs.history.ref,
+		inputs.directEntries,
+		inputs.directCommits,
 	)
 	plan.PRCompareRef = derivedPRCompareRef(
-		allEntries,
+		inputs.allEntries,
 		target,
 		childPlans,
 		includeDirectCommits,
 		a.core.targets,
 	)
-	plan.commitHashes = uniqueEntryHashes(directEntries, childEntries)
+	plan.commitHashes = uniqueEntryHashes(inputs.directEntries, inputs.childEntries)
+	plan.CommitCount = derivedCommitCount(plan.commitHashes, inputs.directCommits, childPlans)
+	plan.IncludedTargets = make([]string, 0, len(childPlans))
 
-	plan.CommitCount = len(plan.commitHashes)
-	if plan.CommitCount == 0 {
-		plan.CommitCount = len(directCommits)
-
-		for _, childPlan := range childPlans {
-			plan.CommitCount += childPlan.CommitCount
-		}
+	for _, childPlan := range childPlans {
+		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
 	}
 
-	plan.IncludedTargets = make([]string, 0, len(childPlans))
 	plan.Changelog = renderDerivedChangelog(
 		ctx,
 		target,
 		plan.NextTag,
-		ref,
-		directCommits,
+		inputs.history.ref,
+		inputs.directCommits,
 		childPlans,
 		plan.PRCompareRef,
-		false,
+		derivedChangelogRelease,
 		a.core.metadata,
 	)
 	plan.PRChangelog = renderDerivedChangelog(
 		ctx,
 		target,
 		plan.NextTag,
-		ref,
-		directCommits,
+		inputs.history.ref,
+		inputs.directCommits,
 		childPlans,
 		plan.PRCompareRef,
-		true,
+		derivedChangelogPreview,
 		a.core.metadata,
 	)
 
-	for _, childPlan := range childPlans {
-		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
+	return plan
+}
+
+func derivedCommitCount(hashes []string, directCommits []commit.Commit, childPlans []TargetPlan) int {
+	if len(hashes) > 0 {
+		return len(hashes)
 	}
 
-	return plan, true, nil
+	count := len(directCommits)
+	for _, childPlan := range childPlans {
+		count += childPlan.CommitCount
+	}
+
+	return count
 }
 
 func (a *releaseAnalyzer) newTargetPlan(

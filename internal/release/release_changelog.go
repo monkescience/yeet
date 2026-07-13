@@ -10,6 +10,13 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
+type derivedChangelogMode uint8
+
+const (
+	derivedChangelogRelease derivedChangelogMode = iota
+	derivedChangelogPreview
+)
+
 func newTargetChangelogEntry(
 	ctx context.Context,
 	target config.ResolvedTarget,
@@ -57,7 +64,7 @@ func renderDerivedChangelog(
 	directCommits []commit.Commit,
 	childPlans []TargetPlan,
 	prCompareRef string,
-	prMode bool,
+	mode derivedChangelogMode,
 	metadata repoMetadataProvider,
 ) string {
 	var body strings.Builder
@@ -75,7 +82,7 @@ func renderDerivedChangelog(
 		fmt.Fprintf(&body, "### %s\n\n", childPlan.ID)
 
 		childChangelog := childPlan.Changelog
-		if prMode && childPlan.PRChangelog != "" {
+		if mode == derivedChangelogPreview && childPlan.PRChangelog != "" {
 			childChangelog = childPlan.PRChangelog
 		}
 
@@ -90,7 +97,8 @@ func renderDerivedChangelog(
 
 	if ref != "" {
 		compareTarget := nextTag
-		if prMode {
+		if mode == derivedChangelogPreview {
+			// The future tag does not exist while the release pull request is open.
 			compareTarget = prCompareRef
 		}
 
