@@ -335,7 +335,7 @@ func (p *markerParser) checkAllowed(scope markerScope, lineNo int) error {
 }
 
 func (p *markerParser) schemeDescription() string {
-	if p.scheme.calver != nil {
+	if p.scheme.kind == schemeCalVer {
 		return fmt.Sprintf("calver format %q", p.scheme.calver.Format())
 	}
 
@@ -343,11 +343,11 @@ func (p *markerParser) schemeDescription() string {
 }
 
 func (p *markerParser) suggestion(scope markerScope) string {
-	if p.scheme.calver == nil {
-		return semVerSuggestion(scope)
+	if p.scheme.kind == schemeCalVer {
+		return calVerSuggestion(scope, p.scheme.calver)
 	}
 
-	return calVerSuggestion(scope, p.scheme.calver)
+	return semVerSuggestion(scope)
 }
 
 func semVerSuggestion(scope markerScope) string {
