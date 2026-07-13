@@ -335,7 +335,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 			writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response_dropped.json")
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-			writeGitLabLabelFixture(t, w, pathLabel(t, r))
+			writeGitLabLabelFixture(t, w, decodedPathTail(t, r))
 		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 			pendingMarked = true
 
@@ -417,7 +417,7 @@ func handleGitLabMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *h
 
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-		writeGitLabLabelFixture(t, w, pathLabel(t, r))
+		writeGitLabLabelFixture(t, w, decodedPathTail(t, r))
 	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 		var request struct {
 			AddLabels    string `json:"add_labels"`

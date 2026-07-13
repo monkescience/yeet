@@ -28,14 +28,14 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-				writeJSON(t, w, map[string]any{"name": pathLabel(t, r)})
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
 				err := json.NewDecoder(r.Body).Decode(&addLabels)
 				testastic.NoError(t, err)
 
 				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelPending}})
 			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
-				removedLabel = pathLabel(t, r)
+				removedLabel = decodedPathTail(t, r)
 				http.NotFound(w, r)
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
@@ -67,14 +67,14 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-				writeJSON(t, w, map[string]any{"name": pathLabel(t, r)})
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/7/labels":
 				err := json.NewDecoder(r.Body).Decode(&addLabels)
 				testastic.NoError(t, err)
 
 				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelTagged}})
 			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/7/labels/"):
-				removedLabel = pathLabel(t, r)
+				removedLabel = decodedPathTail(t, r)
 
 				w.WriteHeader(http.StatusNoContent)
 			default:
@@ -280,7 +280,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-				writeJSON(t, w, map[string]any{"name": pathLabel(t, r)})
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/12":
 				err := json.NewDecoder(r.Body).Decode(&updateRequest)
 				testastic.NoError(t, err)
@@ -315,7 +315,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-				writeJSON(t, w, map[string]any{"name": pathLabel(t, r)})
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/5":
 				err := json.NewDecoder(r.Body).Decode(&updateRequest)
 				testastic.NoError(t, err)
@@ -533,7 +533,7 @@ func newGitLabProvider(t *testing.T, server *httptest.Server) *provider.GitLab {
 	return provider.NewGitLab(client, "o/r")
 }
 
-func pathLabel(t *testing.T, request *http.Request) string {
+func decodedPathTail(t *testing.T, request *http.Request) string {
 	t.Helper()
 
 	segments := strings.Split(request.URL.EscapedPath(), "/")

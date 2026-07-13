@@ -22,7 +22,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: executing init through the root command with --config
-		_, _, err := executeCommand(t, "--config", "custom.yaml", "init")
+		_, _, err := executeRootCommand(t, "--config", "custom.yaml", "init")
 
 		// then: the custom path is written instead of the default path
 		testastic.NoError(t, err)
@@ -46,7 +46,7 @@ func TestRunInit(t *testing.T) {
 		path := filepath.Join("missing", "custom.yaml")
 
 		// when: executing init through the root command with a missing parent directory
-		_, _, err := executeCommand(t, "--config", path, "init")
+		_, _, err := executeRootCommand(t, "--config", path, "init")
 
 		// then: command fails with a not-exist error that mentions the requested path
 		testastic.Error(t, err)
@@ -79,7 +79,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: executing init from the nested directory
-		_, _, err = executeCommand(t, "init")
+		_, _, err = executeRootCommand(t, "init")
 
 		// then: the config file is created at the repository root
 		testastic.NoError(t, err)
@@ -110,7 +110,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: executing init from the nested directory
-		_, _, err = executeCommand(t, "init")
+		_, _, err = executeRootCommand(t, "init")
 
 		// then: init reports that the repository root config already exists
 		testastic.Error(t, err)
@@ -192,7 +192,7 @@ func TestRootCommand(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: initializing config with quiet logging
-		stdout, stderr, err := executeCommand(t, "--quiet", "init")
+		stdout, stderr, err := executeRootCommand(t, "--quiet", "init")
 
 		// then: config is created without emitting info logs
 		testastic.NoError(t, err)
@@ -209,7 +209,7 @@ func TestRootCommand(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: initializing config with verbose logging
-		stdout, stderr, err := executeCommand(t, "--verbose", "init")
+		stdout, stderr, err := executeRootCommand(t, "--verbose", "init")
 
 		// then: debug and info logs are emitted to stderr
 		testastic.NoError(t, err)
@@ -221,7 +221,7 @@ func TestRootCommand(t *testing.T) {
 	})
 }
 
-func executeCommand(t *testing.T, args ...string) (string, string, error) {
+func executeRootCommand(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 
 	var stdout bytes.Buffer

@@ -412,7 +412,7 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 	t.Parallel()
 
-	t.Run("gitlab --auto-merge-force overrides merge-blocked MR", func(t *testing.T) {
+	t.Run("gitlab --auto-merge-force does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab server reporting the MR as draft

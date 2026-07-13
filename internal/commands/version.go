@@ -13,7 +13,7 @@ type buildInfo struct {
 	name      string
 	version   string
 	commit    string
-	built     string
+	buildDate string
 	platform  string
 	goVersion string
 	moduleSum string
@@ -35,7 +35,7 @@ func currentBuildInfo() buildInfo {
 		name:      build.ServiceName,
 		version:   build.Version(),
 		commit:    build.Commit(),
-		built:     build.Date(),
+		buildDate: build.Date(),
 		platform:  build.Platform(),
 		goVersion: build.GoVersion(),
 		moduleSum: build.Module(),
@@ -61,7 +61,7 @@ func printVersion(w io.Writer, info buildInfo) error {
 	_, err = fmt.Fprintf(
 		w,
 		"built: %s\nplatform: %s\ngo-version: %s\n",
-		info.built, info.platform, info.goVersion,
+		info.buildDate, info.platform, info.goVersion,
 	)
 	if err != nil {
 		return fmt.Errorf("print build info: %w", err)

@@ -94,7 +94,7 @@ func TestReleasePRBody(t *testing.T) {
 		// then: nothing is truncated and the marker survives
 		testastic.False(t, truncated)
 		testastic.Contains(t, body, "- one note")
-		assertManifestSurvives(t, body, "v1.2.4")
+		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 
 	t.Run("oversized body drops the whole changelog but preserves marker, header, and footer", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestReleasePRBody(t *testing.T) {
 		testastic.Contains(t, body, "Release notes omitted")
 		testastic.NotContains(t, body, "- feature number 0")
 		testastic.NotContains(t, body, "### Features")
-		assertManifestSurvives(t, body, "v1.2.4")
+		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 
 	t.Run("body one byte over the limit drops the changelog entirely", func(t *testing.T) {
@@ -147,11 +147,11 @@ func TestReleasePRBody(t *testing.T) {
 		testastic.True(t, omitted)
 		testastic.NotContains(t, body, "a note that will not fit")
 		testastic.Contains(t, body, "Release notes omitted")
-		assertManifestSurvives(t, body, "v1.2.4")
+		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 }
 
-func assertManifestSurvives(t *testing.T, body, wantTag string) {
+func assertSingleManifestTag(t *testing.T, body, wantTag string) {
 	t.Helper()
 
 	manifest, ok, err := releaseManifestFromBody(body)
@@ -171,8 +171,8 @@ func TestEffectivePRBodyLimit(t *testing.T) {
 		want          int
 	}{
 		{name: "both unbounded", configured: 0, providerLimit: 0, want: 0},
-		{name: "provider only", configured: 0, providerLimit: 4000, want: 4000},
-		{name: "config only", configured: 2000, providerLimit: 0, want: 2000},
+		{name: "uses provider limit when config is unbounded", configured: 0, providerLimit: 4000, want: 4000},
+		{name: "uses config limit when provider is unbounded", configured: 2000, providerLimit: 0, want: 2000},
 		{name: "config tighter than provider", configured: 1000, providerLimit: 4000, want: 1000},
 		{name: "provider tighter than config", configured: 8000, providerLimit: 4000, want: 4000},
 	}

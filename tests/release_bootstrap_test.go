@@ -97,7 +97,7 @@ func TestReleaseCommitMix(t *testing.T) {
 func TestReleaseAutoMergeForce(t *testing.T) {
 	t.Parallel()
 
-	t.Run("github --auto-merge-force overrides a merge-blocked state", func(t *testing.T) {
+	t.Run("github --auto-merge-force does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server that flags the PR as draft (merge-blocked)

@@ -213,7 +213,7 @@ func TestReleaseFlagsRepositoryOverrides(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 
-	t.Run("github --remote and --provider auto from CLI", func(t *testing.T) {
+	t.Run("github --remote override from CLI", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server and CLI flag overrides

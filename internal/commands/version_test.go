@@ -17,7 +17,7 @@ func TestPrintVersion_buildBinary(t *testing.T) {
 		name:      "yeet",
 		version:   "v1.2.3",
 		commit:    "abc1234",
-		built:     "2026-03-20T12:34:56Z",
+		buildDate: "2026-03-20T12:34:56Z",
 		platform:  "linux/amd64",
 		goVersion: "go1.26.0",
 	}
@@ -46,7 +46,7 @@ func TestPrintVersion_goInstallBinary(t *testing.T) {
 		name:      "yeet",
 		version:   "v1.2.3",
 		commit:    "unknown",
-		built:     "unknown",
+		buildDate: "unknown",
 		platform:  "darwin/arm64",
 		goVersion: "go1.26.0",
 		moduleSum: "h1:ModuleSumExample=",

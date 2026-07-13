@@ -421,7 +421,7 @@ func handleGitHubMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *h
 
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-		writeGitHubLabelFixture(t, w, pathLabel(t, r))
+		writeGitHubLabelFixture(t, w, decodedPathTail(t, r))
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
 		var labels []string
 		decodeJSONRequest(t, r, &labels)

@@ -172,10 +172,10 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 	})
 }
 
-func TestReleaseExistingPRMergeBlockedFroceAzure(t *testing.T) {
+func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 	t.Parallel()
 
-	t.Run("azuredevops --auto-merge-force overrides merge-blocked PR", func(t *testing.T) {
+	t.Run("azuredevops --auto-merge-force does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an Azure server that reports the PR as draft
@@ -216,7 +216,7 @@ func TestReleaseExistingPRMergeBlockedFroceAzure(t *testing.T) {
 	})
 }
 
-func TestReleaseDryRunAzureWithSubmoduleSearch(t *testing.T) {
+func TestReleaseAzureAutoMergeTagsMultipleTargets(t *testing.T) {
 	t.Parallel()
 
 	t.Run("azuredevops --auto-merge with multi-target tags both targets", func(t *testing.T) {
