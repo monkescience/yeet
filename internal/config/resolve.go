@@ -58,23 +58,15 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 	return resolved, nil
 }
 
-//nolint:funlen,gocognit // Target resolution intentionally centralizes validation and defaulting.
 func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error) {
 	targetID := strings.TrimSpace(id)
 	if targetID == "" {
 		return ResolvedTarget{}, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
 	}
 
-	targetType := TargetType(strings.TrimSpace(string(target.Type)))
-	if targetType != TargetTypePath && targetType != TargetTypeDerived {
-		return ResolvedTarget{}, fmt.Errorf(
-			"%w: targets.%s.type must be %q or %q, got %q",
-			ErrInvalidConfig,
-			targetID,
-			TargetTypePath,
-			TargetTypeDerived,
-			target.Type,
-		)
+	targetType, err := resolveTargetType(targetID, target.Type)
+	if err != nil {
+		return ResolvedTarget{}, err
 	}
 
 	resolved := ResolvedTarget{
@@ -91,101 +83,150 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		Includes:                   normalizeTargetIDs(target.Includes),
 	}
 
-	preMajorErr := validatePreMajorCalVer(targetID, resolved.Versioning, target)
-	if preMajorErr != nil {
-		return ResolvedTarget{}, preMajorErr
+	if err := validateResolvedTargetConfig(targetID, target, resolved); err != nil {
+		return ResolvedTarget{}, err
 	}
 
-	if resolved.Versioning != VersioningSemver && resolved.Versioning != VersioningCalVer {
-		return ResolvedTarget{}, fmt.Errorf(
+	resolved.Path, resolved.ExcludePaths, err = resolveTargetPaths(targetID, targetType, target)
+	if err != nil {
+		return ResolvedTarget{}, err
+	}
+
+	if err := validateTargetShape(resolved); err != nil {
+		return ResolvedTarget{}, err
+	}
+
+	return resolved, nil
+}
+
+func resolveTargetType(targetID string, value TargetType) (TargetType, error) {
+	targetType := TargetType(strings.TrimSpace(string(value)))
+	if targetType == TargetTypePath || targetType == TargetTypeDerived {
+		return targetType, nil
+	}
+
+	return "", fmt.Errorf(
+		"%w: targets.%s.type must be %q or %q, got %q",
+		ErrInvalidConfig,
+		targetID,
+		TargetTypePath,
+		TargetTypeDerived,
+		value,
+	)
+}
+
+func validateResolvedTargetConfig(targetID string, target Target, resolved ResolvedTarget) error {
+	if err := validatePreMajorCalVer(targetID, resolved.Versioning, target); err != nil {
+		return err
+	}
+
+	if resolved.TagPrefix == "" {
+		return fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
+	}
+
+	if err := validateTargetVersioning(targetID, resolved); err != nil {
+		return err
+	}
+
+	if err := validateTargetChangelog(targetID, resolved.Changelog); err != nil {
+		return err
+	}
+
+	for _, versionFile := range resolved.VersionFiles {
+		if err := validateVersionFile("targets."+targetID+".version_files", versionFile); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateTargetVersioning(targetID string, target ResolvedTarget) error {
+	if target.Versioning != VersioningSemver && target.Versioning != VersioningCalVer {
+		return fmt.Errorf(
 			"%w: targets.%s.versioning must be %q or %q, got %q",
 			ErrInvalidConfig,
 			targetID,
 			VersioningSemver,
 			VersioningCalVer,
-			resolved.Versioning,
+			target.Versioning,
 		)
 	}
 
-	if err := validateCalVerConfig("targets."+targetID+".calver.format", resolved.CalVer); err != nil {
-		return ResolvedTarget{}, err
+	return validateCalVerConfig("targets."+targetID+".calver.format", target.CalVer)
+}
+
+func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
+	if changelog.File == "" {
+		return fmt.Errorf("%w: targets.%s.changelog.file must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	if resolved.TagPrefix == "" {
-		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
+	if len(changelog.Include) == 0 {
+		return fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	if resolved.Changelog.File == "" {
-		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.file must not be empty", ErrInvalidConfig, targetID)
-	}
+	return validateReferencesConfig("targets."+targetID+".changelog.references", changelog.References)
+}
 
-	if len(resolved.Changelog.Include) == 0 {
-		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
-	}
-
-	err := validateReferencesConfig("targets."+targetID+".changelog.references", resolved.Changelog.References)
-	if err != nil {
-		return ResolvedTarget{}, err
-	}
-
-	for _, versionFile := range resolved.VersionFiles {
-		err := validateVersionFile("targets."+targetID+".version_files", versionFile)
-		if err != nil {
-			return ResolvedTarget{}, err
-		}
-	}
+func resolveTargetPaths(targetID string, targetType TargetType, target Target) (string, []string, error) {
+	targetPath := ""
 
 	if targetType == TargetTypePath || strings.TrimSpace(target.Path) != "" {
 		normalizedPath, err := normalizeRepoPath(target.Path)
 		if err != nil {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path %v", ErrInvalidConfig, targetID, err)
+			return "", nil, fmt.Errorf("%w: targets.%s.path %v", ErrInvalidConfig, targetID, err)
 		}
 
-		resolved.Path = normalizedPath
+		targetPath = normalizedPath
 	}
 
+	excludePaths := make([]string, 0, len(target.ExcludePaths))
 	for _, excludePath := range target.ExcludePaths {
 		normalizedExcludePath, err := normalizeRepoPath(excludePath)
 		if err != nil {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.exclude_paths contains %v", ErrInvalidConfig, targetID, err)
+			return "", nil, fmt.Errorf("%w: targets.%s.exclude_paths contains %v", ErrInvalidConfig, targetID, err)
 		}
 
-		resolved.ExcludePaths = append(resolved.ExcludePaths, normalizedExcludePath)
+		excludePaths = append(excludePaths, normalizedExcludePath)
 	}
 
-	if resolved.Path != "." {
-		for _, excludePath := range resolved.ExcludePaths {
-			if !RepoPathContains(resolved.Path, excludePath) {
-				return ResolvedTarget{}, fmt.Errorf(
+	if targetPath != "." {
+		for _, excludePath := range excludePaths {
+			if !RepoPathContains(targetPath, excludePath) {
+				return "", nil, fmt.Errorf(
 					"%w: targets.%s.exclude_paths entry %q must be inside %q",
 					ErrInvalidConfig,
 					targetID,
 					excludePath,
-					resolved.Path,
+					targetPath,
 				)
 			}
 		}
 	}
 
-	if targetType == TargetTypePath {
-		if resolved.Path == "" {
-			return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.path must not be empty", ErrInvalidConfig, targetID)
+	return targetPath, excludePaths, nil
+}
+
+func validateTargetShape(target ResolvedTarget) error {
+	if target.Type == TargetTypePath {
+		if target.Path == "" {
+			return fmt.Errorf("%w: targets.%s.path must not be empty", ErrInvalidConfig, target.ID)
 		}
 
-		if len(resolved.Includes) > 0 {
-			return ResolvedTarget{}, fmt.Errorf(
+		if len(target.Includes) > 0 {
+			return fmt.Errorf(
 				"%w: targets.%s.includes is only valid for derived targets",
 				ErrInvalidConfig,
-				targetID,
+				target.ID,
 			)
 		}
 	}
 
-	if targetType == TargetTypeDerived && len(resolved.Includes) == 0 {
-		return ResolvedTarget{}, fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, targetID)
+	if target.Type == TargetTypeDerived && len(target.Includes) == 0 {
+		return fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, target.ID)
 	}
 
-	return resolved, nil
+	return nil
 }
 
 func normalizeTargetIDs(ids []string) []string {
@@ -272,12 +313,23 @@ func mergeCalVerConfig(defaultConfig, overrideConfig CalVerConfig) CalVerConfig 
 	return merged
 }
 
-//nolint:funlen // Cross-target validation is easier to review in one place.
 func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 	if len(targets) == 0 {
 		return fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
 	}
 
+	if err := validateUniqueTagPrefixes(targets); err != nil {
+		return err
+	}
+
+	if err := validateDerivedIncludes(targets); err != nil {
+		return err
+	}
+
+	return validateDirectPathOwnership(targets)
+}
+
+func validateUniqueTagPrefixes(targets map[string]ResolvedTarget) error {
 	tagPrefixes := make(map[string]string, len(targets))
 
 	for id, target := range targets {
@@ -294,6 +346,10 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 		tagPrefixes[target.TagPrefix] = id
 	}
 
+	return nil
+}
+
+func validateDerivedIncludes(targets map[string]ResolvedTarget) error {
 	for id, target := range targets {
 		if target.Type != TargetTypeDerived {
 			continue
@@ -323,6 +379,10 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 		}
 	}
 
+	return nil
+}
+
+func validateDirectPathOwnership(targets map[string]ResolvedTarget) error {
 	directTargets := make([]ResolvedTarget, 0, len(targets))
 	for _, target := range targets {
 		if target.Path == "" {
