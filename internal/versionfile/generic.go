@@ -25,8 +25,7 @@ const (
 	semVerPartCount = 3
 )
 
-// allMarkerScopes is the single source of truth for the supported scope names.
-// The marker regex and the value-extraction switch both derive from it.
+// allMarkerScopes defines the scope names accepted by marker regular expressions.
 var allMarkerScopes = []markerScope{
 	markerScopeMajor,
 	markerScopeMinor,
@@ -53,6 +52,8 @@ var (
 	ErrMarkerSchemeMismatch = errors.New("yeet marker scope not valid for configured scheme")
 	// ErrInvalidNextVersion is returned when the next version cannot be parsed under the configured scheme.
 	ErrInvalidNextVersion = errors.New("invalid next version")
+	// ErrInvalidScheme is returned when marker replacement receives an incomplete versioning scheme.
+	ErrInvalidScheme = errors.New("invalid versioning scheme")
 )
 
 var versionPattern = regexp.MustCompile(`\d+(?:\.\d+)+(?:-[\w.]+)?(?:\+[-\w.]+)?`)
@@ -87,18 +88,26 @@ func buildScopeAlternation() string {
 // extract token values from the next-version string. Use SemVerScheme or
 // CalVerScheme to construct.
 type Scheme struct {
+	kind   schemeKind
 	calver *version.CalVerScheme
 }
 
+type schemeKind uint8
+
+const (
+	schemeSemVer schemeKind = iota + 1
+	schemeCalVer
+)
+
 func SemVerScheme() Scheme {
-	return Scheme{}
+	return Scheme{kind: schemeSemVer}
 }
 
 // CalVerScheme returns the scheme for CalVer repositories using the given
 // compiled CalVer format. The compiled format is reused across files so the
 // caller pays the compilation cost once per target.
 func CalVerScheme(calver *version.CalVerScheme) Scheme {
-	return Scheme{calver: calver}
+	return Scheme{kind: schemeCalVer, calver: calver}
 }
 
 // ApplyGenericMarkers applies yeet marker-based version replacements to file content.
@@ -119,10 +128,9 @@ func ApplyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bo
 	updated := make([]string, 0, len(lines))
 
 	parser := &markerParser{
-		nextVersion: nextVersion,
-		values:      values,
-		allowed:     allowed,
-		scheme:      scheme,
+		values:  values,
+		allowed: allowed,
+		scheme:  scheme,
 	}
 
 	for i, line := range lines {
@@ -150,11 +158,18 @@ func ApplyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bo
 }
 
 func (s Scheme) markerValues(nextVersion string) (map[markerScope]string, map[markerScope]bool, error) {
-	if s.calver != nil {
-		return s.calverValues(nextVersion)
-	}
+	switch s.kind {
+	case schemeSemVer:
+		return semverValues(nextVersion)
+	case schemeCalVer:
+		if s.calver == nil {
+			return nil, nil, fmt.Errorf("%w: calver format is nil", ErrInvalidScheme)
+		}
 
-	return semverValues(nextVersion)
+		return s.calverValues(nextVersion)
+	default:
+		return nil, nil, fmt.Errorf("%w: unknown scheme", ErrInvalidScheme)
+	}
 }
 
 func semverValues(nextVersion string) (map[markerScope]string, map[markerScope]bool, error) {
@@ -241,7 +256,6 @@ func calverMarkerScope(token version.MarkerToken) markerScope {
 }
 
 type markerParser struct {
-	nextVersion    string
 	values         map[markerScope]string
 	allowed        map[markerScope]bool
 	scheme         Scheme
@@ -388,15 +402,10 @@ func markerScopeFromLine(line string, pattern *regexp.Regexp) (markerScope, bool
 	return markerScope(matches[1]), true
 }
 
-// replaceForScope returns the possibly-updated line along with whether the
-// numeric pattern for this scope found a replacement target on the line.
-// The bool lets callers distinguish "marker present but value missing" from
-// "no numeric target on the line", where only the latter indicates user error
-// for inline markers.
 func replaceForScope(line string, scope markerScope, values map[markerScope]string) (string, bool) {
 	value, ok := values[scope]
 	if !ok {
-		return line, true
+		return line, false
 	}
 
 	switch scope {
@@ -408,7 +417,7 @@ func replaceForScope(line string, scope markerScope, values map[markerScope]stri
 		markerScopeMonth, markerScopeWeek, markerScopeDay, markerScopeMicro:
 		return replaceFirst(minorPatchPattern, line, value)
 	default:
-		return line, true
+		return line, false
 	}
 }
 

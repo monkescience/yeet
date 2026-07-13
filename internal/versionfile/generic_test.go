@@ -10,6 +10,19 @@ import (
 	"github.com/monkescience/yeet/internal/versionfile"
 )
 
+func TestApplyGenericMarkers_InvalidScheme(t *testing.T) {
+	t.Parallel()
+
+	// given: a CalVer scheme without a compiled format
+	scheme := versionfile.CalVerScheme(nil)
+
+	// when: applying a version marker with the invalid scheme
+	_, _, err := versionfile.ApplyGenericMarkers("# x-yeet-version: 1.2.3", "2026.07.1", scheme)
+
+	// then: the invalid scheme is rejected instead of being treated as SemVer
+	testastic.ErrorIs(t, err, versionfile.ErrInvalidScheme)
+}
+
 func TestApplyGenericMarkers_SemVer(t *testing.T) {
 	t.Parallel()
 

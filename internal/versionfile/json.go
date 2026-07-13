@@ -236,6 +236,7 @@ func stringTokenStart(data []byte, end int) (int, error) {
 		return 0, ErrInvalidJSON
 	}
 
+	// Decoder.InputOffset points after the closing quote. An even backslash run identifies an unescaped opener.
 	for i := end - jsonStringQuoteCount; i >= 0; i-- {
 		if data[i] != '"' || hasOddBackslashesBefore(data, i) {
 			continue

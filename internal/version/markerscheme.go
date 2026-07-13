@@ -61,29 +61,26 @@ func (s *CalVerScheme) MarkerValues(version string) (map[MarkerToken]string, err
 	}
 
 	values := map[MarkerToken]string{
-		MarkerTokenYear:  s.renderFor(MarkerTokenYear, parts),
+		MarkerTokenYear:  s.renderConfiguredToken(MarkerTokenYear, parts),
 		MarkerTokenMicro: renderCalVerToken(calverTokenMicro, parts),
 	}
 
 	if s.format.hasMonth {
-		values[MarkerTokenMonth] = s.renderFor(MarkerTokenMonth, parts)
+		values[MarkerTokenMonth] = s.renderConfiguredToken(MarkerTokenMonth, parts)
 	}
 
 	if s.format.hasWeek {
-		values[MarkerTokenWeek] = s.renderFor(MarkerTokenWeek, parts)
+		values[MarkerTokenWeek] = s.renderConfiguredToken(MarkerTokenWeek, parts)
 	}
 
 	if s.format.hasDay {
-		values[MarkerTokenDay] = s.renderFor(MarkerTokenDay, parts)
+		values[MarkerTokenDay] = s.renderConfiguredToken(MarkerTokenDay, parts)
 	}
 
 	return values, nil
 }
 
-// renderFor finds the format's token for a marker kind and renders it. Falls
-// back to a width-less render when no matching token is present (only happens
-// for the year, which is always present, so the loop always finds a match).
-func (s *CalVerScheme) renderFor(kind MarkerToken, parts calverParts) string {
+func (s *CalVerScheme) renderConfiguredToken(kind MarkerToken, parts calverParts) string {
 	for _, token := range s.format.tokens {
 		if markerKindFor(token) == kind {
 			return renderCalVerToken(token, parts)

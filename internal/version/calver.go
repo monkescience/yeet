@@ -54,8 +54,8 @@ func (c *CalVer) Current(tag string) (string, error) {
 	return format.render(parts), nil
 }
 
-// Next increments the micro counter if the current calendar period matches.
-// Otherwise, it resets the micro counter to 1.
+// Next advances MICRO for every non-none bump because conventional bump
+// severity does not map to CalVer calendar components.
 func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 	if bump == commit.BumpNone {
 		return current, nil
@@ -179,6 +179,7 @@ type calverTokenSpec struct {
 }
 
 var calverTokenSpecs = []calverTokenSpec{
+	// Overlapping tokens must stay longest-first so YYYY wins before YY.
 	{text: string(calverTokenMicro), token: calverTokenMicro},
 	{text: string(calverTokenYearFull), token: calverTokenYearFull},
 	{text: string(calverTokenYearShort), token: calverTokenYearShort},
@@ -444,9 +445,14 @@ func (f calverFormat) partsFromTime(t time.Time) calverParts {
 	return calverParts{
 		Year:  t.Year(),
 		Month: int(t.Month()),
-		Week:  ((t.YearDay() - 1) / weekDays) + 1,
+		Week:  ordinalWeek(t),
 		Day:   t.Day(),
 	}
+}
+
+// ordinalWeek numbers seven-day periods from January 1, not ISO weeks.
+func ordinalWeek(t time.Time) int {
+	return ((t.YearDay() - 1) / weekDays) + 1
 }
 
 func (f calverFormat) render(parts calverParts) string {
