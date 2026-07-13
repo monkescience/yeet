@@ -172,8 +172,8 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 		// when: MergeReleasePR is invoked with force enabled and auto method selection
 		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-			Force:  true,
-			Method: provider.MergeMethodAuto,
+			BypassMergeChecks: true,
+			Method:            provider.MergeMethodAuto,
 		})
 
 		// then: the squash merge method is chosen and the head SHA is sent in the merge request
@@ -456,8 +456,8 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		// when: MergeReleasePR is invoked with force enabled and the squash merge method
 		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
-			Force:  true,
-			Method: provider.MergeMethodSquash,
+			BypassMergeChecks: true,
+			Method:            provider.MergeMethodSquash,
 		})
 
 		// then: the head SHA is forwarded and the squash flag is set on the merge request

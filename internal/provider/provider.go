@@ -64,8 +64,8 @@ const (
 )
 
 type MergeReleasePROptions struct {
-	Force  bool
-	Method MergeMethod
+	BypassMergeChecks bool
+	Method            MergeMethod
 }
 
 type CommitEntry struct {
@@ -75,13 +75,16 @@ type CommitEntry struct {
 }
 
 type CommitHistory struct {
+	// EntriesByRef contains each reachable commit range in newest-first order.
 	EntriesByRef map[string][]CommitEntry
-	MissingRefs  []string
+	// MissingRefs contains refs that do not exist or are unreachable from the branch.
+	MissingRefs []string
 }
 
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
+	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
 	GetCommitsSinceRefs(ctx context.Context, refs []string, branch string, includePaths bool) (CommitHistory, error)
 
@@ -96,8 +99,10 @@ type Provider interface {
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MarkReleasePRTagged(ctx context.Context, number int) error
-	CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error)
+	// CommitPullRequestBody finds the pull request whose merge result is hash.
+	CommitPullRequestBody(ctx context.Context, hash string) (body string, found bool, err error)
 
+	// MaxPRBodyLength returns zero when the provider has no known limit.
 	MaxPRBodyLength() int
 
 	CreateBranch(ctx context.Context, name, base string) error

@@ -841,7 +841,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.mergePRNumbers))
 		testastic.Equal(t, result.PullRequest.Number, stub.mergePRNumbers[0])
 		testastic.Equal(t, 1, len(stub.mergePROptions))
-		testastic.False(t, stub.mergePROptions[0].Force)
+		testastic.False(t, stub.mergePROptions[0].BypassMergeChecks)
 		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
@@ -910,7 +910,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.True(t, len(result.Releases) > 0)
 		testastic.Equal(t, 1, stub.mergePRCalls)
 		testastic.Equal(t, 1, len(stub.mergePROptions))
-		testastic.True(t, stub.mergePROptions[0].Force)
+		testastic.True(t, stub.mergePROptions[0].BypassMergeChecks)
 		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
 	})
 

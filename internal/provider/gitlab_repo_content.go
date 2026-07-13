@@ -17,7 +17,7 @@ func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
 		slog.String("base", base),
 	)
 
-	_, _, err := g.client.Branches.CreateBranch(g.pid, &gitlab.CreateBranchOptions{
+	_, _, err := g.client.Branches.CreateBranch(g.projectID, &gitlab.CreateBranchOptions{
 		Branch: new(name),
 		Ref:    new(base),
 	}, gitlab.WithContext(ctx))
@@ -52,7 +52,7 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 	)
 
 	raw, _, err := g.client.RepositoryFiles.GetRawFile(
-		g.pid,
+		g.projectID,
 		path,
 		&gitlab.GetRawFileOptions{Ref: &ref},
 		gitlab.WithContext(ctx),
@@ -115,7 +115,7 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 		slog.Int("files", len(actions)),
 	)
 
-	_, _, err := g.client.Commits.CreateCommit(g.pid, &gitlab.CreateCommitOptions{
+	_, _, err := g.client.Commits.CreateCommit(g.projectID, &gitlab.CreateCommitOptions{
 		Branch:        new(branch),
 		CommitMessage: new(message),
 		StartBranch:   new(base),

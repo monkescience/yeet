@@ -291,7 +291,6 @@ func (a *AzureDevOps) listPullRequests(
 	return nil, fmt.Errorf("%w: exceeded %d pages listing pull requests", ErrPaginationLimitExceeded, maxPaginationPages)
 }
 
-//nolint:funlen // Pre-merge readiness checks plus debug logging put this just over the limit.
 func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
@@ -300,23 +299,13 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		return err
 	}
 
-	status := derefString((*string)(pr.Status))
+	alreadyCompleted, err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks)
+	if err != nil {
+		return err
+	}
 
-	if status == string(git.PullRequestStatusValues.Completed) {
+	if alreadyCompleted {
 		return nil
-	}
-
-	if status != string(git.PullRequestStatusValues.Active) {
-		return fmt.Errorf("%w: pull request !%d is %s", ErrMergeBlocked, number, status)
-	}
-
-	if pr.IsDraft != nil && *pr.IsDraft {
-		return fmt.Errorf("%w: pull request !%d is draft", ErrMergeBlocked, number)
-	}
-
-	mergeStatus := derefString((*string)(pr.MergeStatus))
-	if !opts.Force && azureDevOpsMergeStatusBlocked(mergeStatus) {
-		return fmt.Errorf("%w: pull request !%d merge_status=%s", ErrMergeBlocked, number, mergeStatus)
 	}
 
 	strategy, err := azureDevOpsMergeStrategy(opts.Method)
@@ -358,6 +347,32 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	)
 
 	return nil
+}
+
+func validateAzureDevOpsPullRequestForMerge(
+	number int,
+	pullRequest *git.GitPullRequest,
+	bypassMergeChecks bool,
+) (bool, error) {
+	status := derefString((*string)(pullRequest.Status))
+	if status == string(git.PullRequestStatusValues.Completed) {
+		return true, nil
+	}
+
+	if status != string(git.PullRequestStatusValues.Active) {
+		return false, fmt.Errorf("%w: pull request !%d is %s", ErrMergeBlocked, number, status)
+	}
+
+	if pullRequest.IsDraft != nil && *pullRequest.IsDraft {
+		return false, fmt.Errorf("%w: pull request !%d is draft", ErrMergeBlocked, number)
+	}
+
+	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
+	if !bypassMergeChecks && azureDevOpsMergeStatusBlocked(mergeStatus) {
+		return false, fmt.Errorf("%w: pull request !%d merge_status=%s", ErrMergeBlocked, number, mergeStatus)
+	}
+
+	return false, nil
 }
 
 func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int) error {

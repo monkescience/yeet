@@ -2025,8 +2025,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodAuto,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodAuto,
 		})
 
 		// then: no error
@@ -2066,8 +2066,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with squash method (which is disabled)
 		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodSquash,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodSquash,
 		})
 
 		// then: merge is blocked because squash is disabled
@@ -2110,8 +2110,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodAuto,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodAuto,
 		})
 
 		// then: no error - auto selects rebase
@@ -2151,8 +2151,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodAuto,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodAuto,
 		})
 
 		// then: merge is blocked
@@ -2660,8 +2660,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with auto method
 		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodAuto,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodAuto,
 		})
 
 		// then: no error
@@ -2706,8 +2706,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with squash method
 		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Force:  false,
-			Method: provider.MergeMethodSquash,
+			BypassMergeChecks: false,
+			Method:            provider.MergeMethodSquash,
 		})
 
 		// then: merge is blocked

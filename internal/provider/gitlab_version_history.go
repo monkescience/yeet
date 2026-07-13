@@ -38,7 +38,7 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 		func(page int) ([]*gitlab.Tag, int, error) {
 			options.Page = int64(page)
 
-			pageTags, resp, err := g.client.Tags.ListTags(g.pid, options, gitlab.WithContext(ctx))
+			pageTags, resp, err := g.client.Tags.ListTags(g.projectID, options, gitlab.WithContext(ctx))
 			if err != nil {
 				return nil, 0, fmt.Errorf("list tags: %w", err)
 			}
@@ -130,7 +130,7 @@ func (g *GitLab) commitsSinceRef(
 // compare_timeout flag only warns that the diffs, which we do not read, may be
 // truncated).
 func (g *GitLab) compareCommits(ctx context.Context, from, to string) ([]CommitEntry, error) {
-	boundary, resp, err := g.client.Commits.GetCommit(g.pid, from, nil, gitlab.WithContext(ctx))
+	boundary, resp, err := g.client.Commits.GetCommit(g.projectID, from, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
@@ -141,7 +141,7 @@ func (g *GitLab) compareCommits(ctx context.Context, from, to string) ([]CommitE
 
 	refs := []string{from, to}
 
-	mergeBase, resp, err := g.client.Repositories.MergeBase(g.pid, &gitlab.MergeBaseOptions{
+	mergeBase, resp, err := g.client.Repositories.MergeBase(g.projectID, &gitlab.MergeBaseOptions{
 		Ref: &refs,
 	}, gitlab.WithContext(ctx))
 	if err != nil {
@@ -156,7 +156,7 @@ func (g *GitLab) compareCommits(ctx context.Context, from, to string) ([]CommitE
 		return nil, fmt.Errorf("%w: ref %q", ErrRefNotFound, from)
 	}
 
-	comparison, resp, err := g.client.Repositories.Compare(g.pid, &gitlab.CompareOptions{
+	comparison, resp, err := g.client.Repositories.Compare(g.projectID, &gitlab.CompareOptions{
 		From: &from,
 		To:   &to,
 	}, gitlab.WithContext(ctx))
@@ -209,7 +209,7 @@ func (g *GitLab) listBranchCommits(ctx context.Context, branch string) ([]Commit
 		func(page int) ([]*gitlab.Commit, int, error) {
 			opts.Page = int64(page)
 
-			commits, resp, err := g.client.Commits.ListCommits(g.pid, opts, gitlab.WithContext(ctx))
+			commits, resp, err := g.client.Commits.ListCommits(g.projectID, opts, gitlab.WithContext(ctx))
 			if err != nil {
 				return nil, 0, fmt.Errorf("list commits: %w", err)
 			}
@@ -230,7 +230,7 @@ func (g *GitLab) listBranchCommits(ctx context.Context, branch string) ([]Commit
 }
 
 func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
-	releases, _, err := g.client.Releases.ListReleases(g.pid, &gitlab.ListReleasesOptions{
+	releases, _, err := g.client.Releases.ListReleases(g.projectID, &gitlab.ListReleasesOptions{
 		ListOptions: gitlab.ListOptions{PerPage: 1},
 	}, gitlab.WithContext(ctx))
 	if err != nil {
@@ -254,7 +254,7 @@ func (g *GitLab) commitPaths(ctx context.Context, sha string) ([]string, error) 
 		func(page int) ([]*gitlab.Diff, int, error) {
 			options.Page = int64(page)
 
-			diffs, resp, err := g.client.Commits.GetCommitDiff(g.pid, sha, options, gitlab.WithContext(ctx))
+			diffs, resp, err := g.client.Commits.GetCommitDiff(g.projectID, sha, options, gitlab.WithContext(ctx))
 			if err != nil {
 				return nil, 0, fmt.Errorf("get changed files for commit %q: %w", sha, err)
 			}

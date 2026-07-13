@@ -13,7 +13,7 @@ import (
 func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
 	slog.DebugContext(ctx, "gitlab: looking up release by tag", slog.String("tag", tag))
 
-	release, _, err := g.client.Releases.GetRelease(g.pid, tag, gitlab.WithContext(ctx))
+	release, _, err := g.client.Releases.GetRelease(g.projectID, tag, gitlab.WithContext(ctx))
 	if err != nil {
 		if errors.Is(err, gitlab.ErrNotFound) {
 			slog.DebugContext(ctx, "gitlab: release not found", slog.String("tag", tag))
@@ -33,7 +33,7 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 }
 
 func (g *GitLab) TagExists(ctx context.Context, tag string) (bool, error) {
-	_, _, err := g.client.Tags.GetTag(g.pid, tag, gitlab.WithContext(ctx))
+	_, _, err := g.client.Tags.GetTag(g.projectID, tag, gitlab.WithContext(ctx))
 	if err != nil {
 		if errors.Is(err, gitlab.ErrNotFound) {
 			return false, nil
@@ -64,7 +64,7 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		releaseOptions.Ref = new(ref)
 	}
 
-	release, _, err := g.client.Releases.CreateRelease(g.pid, releaseOptions, gitlab.WithContext(ctx))
+	release, _, err := g.client.Releases.CreateRelease(g.projectID, releaseOptions, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("create release: %w", err)
 	}
