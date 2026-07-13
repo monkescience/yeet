@@ -22,13 +22,18 @@ type Footer struct {
 	Value string
 }
 
-type BumpType = string
+type BumpType string
 
 const (
 	BumpNone  BumpType = "none"
 	BumpPatch BumpType = "patch"
 	BumpMinor BumpType = "minor"
 	BumpMajor BumpType = "major"
+
+	bumpRankNone  = 0
+	bumpRankPatch = 1
+	bumpRankMinor = 2
+	bumpRankMajor = 3
 )
 
 // BumpMapping defines per-type bump levels.
@@ -73,16 +78,17 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c.Description = matches[conventionalCommitPattern.SubexpIndex("description")]
 	c.Breaking = matches[conventionalCommitPattern.SubexpIndex("breaking")] == "!"
 
-	parseBody(&c, lines[1:])
+	parseBodyAndFooters(&c, lines[1:])
 
 	return c
 }
 
-func parseBody(c *Commit, lines []string) {
+func parseBodyAndFooters(c *Commit, lines []string) {
 	footerStart := -1
 
 	for i, line := range lines {
-		if i > 0 && strings.TrimSpace(lines[i-1]) == "" && isFooter(strings.TrimSpace(line)) {
+		_, isFooter := parseFooter(strings.TrimSpace(line))
+		if i > 0 && strings.TrimSpace(lines[i-1]) == "" && isFooter {
 			footerStart = i
 		}
 	}
@@ -98,8 +104,7 @@ func parseBody(c *Commit, lines []string) {
 	for _, line := range lines[footerStart:] {
 		trimmed := strings.TrimSpace(line)
 
-		if isFooter(trimmed) {
-			footer := parseFooter(trimmed)
+		if footer, ok := parseFooter(trimmed); ok {
 			c.Footers = append(c.Footers, footer)
 
 			if footer.Key == "BREAKING CHANGE" || footer.Key == "BREAKING-CHANGE" {
@@ -116,21 +121,6 @@ func parseBody(c *Commit, lines []string) {
 		last := &c.Footers[len(c.Footers)-1]
 		last.Value += "\n" + line
 	}
-}
-
-func isFooter(line string) bool {
-	if strings.HasPrefix(line, "BREAKING CHANGE:") || strings.HasPrefix(line, "BREAKING-CHANGE:") {
-		return true
-	}
-
-	parts := strings.SplitN(line, ": ", 2) //nolint:mnd // footer format is "key: value"
-	if len(parts) == 2 && isToken(parts[0]) {
-		return true
-	}
-
-	parts = strings.SplitN(line, " #", 2) //nolint:mnd // footer format is "token #value"
-
-	return len(parts) == 2 && isToken(parts[0])
 }
 
 func isToken(s string) bool {
@@ -153,24 +143,24 @@ func isWordChar(ch rune) bool {
 		(ch >= '0' && ch <= '9')
 }
 
-func parseFooter(line string) Footer {
+func parseFooter(line string) (Footer, bool) {
 	if after, found := strings.CutPrefix(line, "BREAKING CHANGE:"); found {
-		return Footer{Key: "BREAKING CHANGE", Value: strings.TrimPrefix(after, " ")}
+		return Footer{Key: "BREAKING CHANGE", Value: strings.TrimPrefix(after, " ")}, true
 	}
 
 	if after, found := strings.CutPrefix(line, "BREAKING-CHANGE:"); found {
-		return Footer{Key: "BREAKING-CHANGE", Value: strings.TrimPrefix(after, " ")}
+		return Footer{Key: "BREAKING-CHANGE", Value: strings.TrimPrefix(after, " ")}, true
 	}
 
 	if parts := strings.SplitN(line, ": ", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format
-		return Footer{Key: parts[0], Value: parts[1]}
+		return Footer{Key: parts[0], Value: parts[1]}, true
 	}
 
 	if parts := strings.SplitN(line, " #", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format
-		return Footer{Key: parts[0], Value: "#" + parts[1]}
+		return Footer{Key: parts[0], Value: "#" + parts[1]}, true
 	}
 
-	return Footer{Key: line}
+	return Footer{}, false
 }
 
 func DetermineBump(commits []Commit, mapping BumpMapping) BumpType {
@@ -210,13 +200,15 @@ func compareBump(a, b BumpType) int {
 func bumpOrder(b BumpType) int {
 	switch b {
 	case BumpMajor:
-		return 3 //nolint:mnd // ordering
+		return bumpRankMajor
 	case BumpMinor:
-		return 2 //nolint:mnd // ordering
+		return bumpRankMinor
 	case BumpPatch:
-		return 1
+		return bumpRankPatch
+	case BumpNone:
+		return bumpRankNone
 	default:
-		return 0
+		return bumpRankNone
 	}
 }
 

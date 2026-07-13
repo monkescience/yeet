@@ -205,6 +205,8 @@ func releaseBumpOrder(bumpType commit.BumpType) int {
 		return releaseBumpMinorOrder
 	case commit.BumpPatch:
 		return releaseBumpPatchOrder
+	case commit.BumpNone:
+		return 0
 	default:
 		return 0
 	}

@@ -595,7 +595,7 @@ func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
 	_, _ = fmt.Fprintf(w, "  %s  %s %s\n",
 		ui.Label.Render("Version"),
 		versionLine,
-		ui.Faint.Render("("+plan.BumpType+")"),
+		ui.Faint.Render("("+string(plan.BumpType)+")"),
 	)
 
 	_, _ = fmt.Fprintf(w, "  %s  %s\n",

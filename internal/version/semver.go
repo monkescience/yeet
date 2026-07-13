@@ -53,6 +53,7 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 			if s.PreMajorFeaturesBumpPatch {
 				bump = commit.BumpPatch
 			}
+		case commit.BumpPatch, commit.BumpNone:
 		}
 	}
 
