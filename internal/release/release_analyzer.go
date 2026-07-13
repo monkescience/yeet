@@ -44,23 +44,23 @@ func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []strin
 		return nil, err
 	}
 
-	a.analyzedTargets = selection.analyzedPathTargets
+	a.analyzedTargets = selection.pathTargetsToAnalyze
 
 	if err := a.buildSharedHistoryIndex(ctx, selection); err != nil {
 		return nil, err
 	}
 
-	pathPlans, err := a.planPathTargets(ctx, selection.analyzedPathTargets)
+	pathPlans, err := a.planPathTargets(ctx, selection.pathTargetsToAnalyze)
 	if err != nil {
 		return nil, err
 	}
 
-	derivedPlans, err := a.planDerivedTargets(ctx, selection.explicitTargets, pathPlans)
+	derivedPlans, err := a.planDerivedTargets(ctx, selection.selectedTargets, pathPlans)
 	if err != nil {
 		return nil, err
 	}
 
-	result.Plans = append(result.Plans, orderedPlans(filterPlansByID(pathPlans, selection.emitPathTargetIDs))...)
+	result.Plans = append(result.Plans, orderedPlans(filterPlansByID(pathPlans, selection.pathTargetIDsToEmit))...)
 	result.Plans = append(result.Plans, orderedPlans(derivedPlans)...)
 
 	return result, nil

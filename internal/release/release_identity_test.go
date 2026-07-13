@@ -17,12 +17,12 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 		BaseBranch: "main",
 		Plans: []TargetPlan{
 			{
-				ID:      "api",
-				Type:    "path",
-				NextTag: "api-v1.2.3",
-				Files:   map[string]string{"changelog_file": "services/api/CHANGELOG.md"},
+				ID:            "api",
+				Type:          "path",
+				NextTag:       "api-v1.2.3",
+				ChangelogFile: "services/api/CHANGELOG.md",
 			},
-			{ID: "root", Type: "derived", NextTag: "v3.0.0", Files: map[string]string{"changelog_file": "CHANGELOG.md"}},
+			{ID: "root", Type: "derived", NextTag: "v3.0.0", ChangelogFile: "CHANGELOG.md"},
 		},
 	}
 

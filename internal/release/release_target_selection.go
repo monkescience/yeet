@@ -9,24 +9,24 @@ import (
 )
 
 type releaseSelection struct {
-	explicitTargets     map[string]config.ResolvedTarget
-	analyzedPathTargets map[string]config.ResolvedTarget
-	emitPathTargetIDs   map[string]struct{}
+	selectedTargets      map[string]config.ResolvedTarget
+	pathTargetsToAnalyze map[string]config.ResolvedTarget
+	pathTargetIDsToEmit  map[string]struct{}
 }
 
 func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSelection, error) {
 	r := a.core
 	if len(selectedTargetIDs) == 0 {
 		return releaseSelection{
-			explicitTargets:     r.targets,
-			analyzedPathTargets: filterTargetsByType(r.targets, config.TargetTypePath),
-			emitPathTargetIDs:   targetIDSet(filterTargetsByType(r.targets, config.TargetTypePath)),
+			selectedTargets:      r.targets,
+			pathTargetsToAnalyze: filterTargetsByType(r.targets, config.TargetTypePath),
+			pathTargetIDsToEmit:  targetIDSet(filterTargetsByType(r.targets, config.TargetTypePath)),
 		}, nil
 	}
 
 	selectedTargets := make(map[string]config.ResolvedTarget, len(selectedTargetIDs))
-	analyzedPathTargets := make(map[string]config.ResolvedTarget)
-	emitPathTargetIDs := make(map[string]struct{})
+	pathTargetsToAnalyze := make(map[string]config.ResolvedTarget)
+	pathTargetIDsToEmit := make(map[string]struct{})
 
 	for _, selectedTargetID := range selectedTargetIDs {
 		normalizedTargetID := strings.TrimSpace(selectedTargetID)
@@ -39,8 +39,8 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 		selectedTargets[normalizedTargetID] = target
 
 		if target.Type == config.TargetTypePath {
-			analyzedPathTargets[normalizedTargetID] = target
-			emitPathTargetIDs[normalizedTargetID] = struct{}{}
+			pathTargetsToAnalyze[normalizedTargetID] = target
+			pathTargetIDsToEmit[normalizedTargetID] = struct{}{}
 
 			continue
 		}
@@ -51,14 +51,14 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", ErrUnknownTarget, includeID, normalizedTargetID)
 			}
 
-			analyzedPathTargets[includeID] = includedTarget
+			pathTargetsToAnalyze[includeID] = includedTarget
 		}
 	}
 
 	return releaseSelection{
-		explicitTargets:     selectedTargets,
-		analyzedPathTargets: analyzedPathTargets,
-		emitPathTargetIDs:   emitPathTargetIDs,
+		selectedTargets:      selectedTargets,
+		pathTargetsToAnalyze: pathTargetsToAnalyze,
+		pathTargetIDsToEmit:  pathTargetIDsToEmit,
 	}, nil
 }
 

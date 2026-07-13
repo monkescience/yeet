@@ -3,11 +3,13 @@ package release
 import (
 	"fmt"
 	"strings"
+
+	"github.com/monkescience/yeet/internal/config"
 )
 
 type prSection struct {
 	id   string
-	plan *TargetPlan
+	plan TargetPlan
 	body string
 }
 
@@ -15,32 +17,30 @@ func buildPRSections(plans []TargetPlan) []prSection {
 	sections := make([]prSection, 0, len(plans))
 
 	for _, plan := range plans {
-		if plan.Type != targetTypeDerived {
+		if plan.Type != config.TargetTypeDerived {
 			continue
 		}
 
-		p := plan
 		parsedChangelog := parseRenderedChangelog(preferredPRChangelog(plan))
 		directBody, _ := splitDerivedChangelogBody(parsedChangelog.Body, plan.IncludedTargets)
 
 		sections = append(sections, prSection{
 			id:   plan.ID,
-			plan: &p,
+			plan: plan,
 			body: directBody,
 		})
 	}
 
 	for _, plan := range plans {
-		if plan.Type == targetTypeDerived {
+		if plan.Type == config.TargetTypeDerived {
 			continue
 		}
 
-		p := plan
 		parsedChangelog := parseRenderedChangelog(preferredPRChangelog(plan))
 
 		sections = append(sections, prSection{
 			id:   plan.ID,
-			plan: &p,
+			plan: plan,
 			body: parsedChangelog.Body,
 		})
 	}
@@ -52,8 +52,8 @@ func renderFlatPRSection(section prSection) string {
 	var body strings.Builder
 	fmt.Fprintf(&body, "## %s\n\n", section.id)
 
-	parsedChangelog := parseRenderedChangelog(preferredPRChangelog(*section.plan))
-	body.WriteString(renderPlanMetadata(*section.plan, parsedChangelog))
+	parsedChangelog := parseRenderedChangelog(preferredPRChangelog(section.plan))
+	body.WriteString(renderPlanMetadata(section.plan, parsedChangelog))
 	appendMarkdownBlock(&body, section.body)
 
 	return body.String()

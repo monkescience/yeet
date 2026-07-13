@@ -30,12 +30,6 @@ type releaseManifestEntry struct {
 	ChangelogFile string `json:"changelog_file"`
 }
 
-const changelogFileKey = "changelog_file"
-
-// targetTypeDerived mirrors config.TargetTypeDerived as an untyped string for
-// comparisons against the stringly-typed TargetPlan.Type field.
-const targetTypeDerived = "derived"
-
 var ErrInvalidReleaseManifest = errors.New("invalid release manifest")
 
 var releaseManifestMarkerOpenRE = regexp.MustCompile(`<!--\s*yeet-release-manifest\b\s*`)
@@ -62,9 +56,9 @@ func releaseManifestForPlans(baseBranch string, plans []TargetPlan) releaseManif
 	for _, plan := range plans {
 		manifest.Targets = append(manifest.Targets, releaseManifestEntry{
 			ID:            plan.ID,
-			Type:          plan.Type,
+			Type:          string(plan.Type),
 			Tag:           plan.NextTag,
-			ChangelogFile: plan.Files[changelogFileKey],
+			ChangelogFile: plan.ChangelogFile,
 		})
 	}
 
@@ -104,6 +98,7 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 	}
 
 	if len(markers) > 1 {
+		// Changelog content is untrusted, so duplicate markers must fail closed.
 		return releaseManifest{}, true, fmt.Errorf("%w: multiple manifest markers in body", ErrInvalidReleaseManifest)
 	}
 

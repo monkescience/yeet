@@ -38,7 +38,7 @@ type Result struct {
 
 type TargetPlan struct {
 	ID              string
-	Type            string
+	Type            config.TargetType
 	CurrentVersion  string
 	NextVersion     string
 	NextTag         string
@@ -47,7 +47,7 @@ type TargetPlan struct {
 	Changelog       string
 	PRChangelog     string
 	PRCompareRef    string
-	Files           map[string]string
+	ChangelogFile   string
 	IncludedTargets []string
 	commitHashes    []string
 }

@@ -144,10 +144,10 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 }
 
 func (a *releaseAnalyzer) sharedHistoryTargets(selection releaseSelection) map[string]config.ResolvedTarget {
-	targets := make(map[string]config.ResolvedTarget, len(selection.analyzedPathTargets))
-	maps.Copy(targets, selection.analyzedPathTargets)
+	targets := make(map[string]config.ResolvedTarget, len(selection.pathTargetsToAnalyze))
+	maps.Copy(targets, selection.pathTargetsToAnalyze)
 
-	selectedTargetIDs := targetIDSet(selection.explicitTargets)
+	selectedTargetIDs := targetIDSet(selection.selectedTargets)
 
 	for _, targetID := range sortedTargetIDs(a.core.targets, config.TargetTypeDerived) {
 		target := a.core.targets[targetID]

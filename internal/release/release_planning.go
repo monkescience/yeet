@@ -435,13 +435,11 @@ func (a *releaseAnalyzer) newTargetPlan(
 	strategy := versionStrategyForResolvedTarget(target)
 	plan := TargetPlan{
 		ID:             target.ID,
-		Type:           string(target.Type),
+		Type:           target.Type,
 		CurrentVersion: currentVersion,
 		BumpType:       bumpType,
-		Files: map[string]string{
-			changelogFileKey: target.Changelog.File,
-		},
-		commitHashes: uniqueEntryHashes(entries),
+		ChangelogFile:  target.Changelog.File,
+		commitHashes:   uniqueEntryHashes(entries),
 	}
 
 	plan.CommitCount = len(plan.commitHashes)
