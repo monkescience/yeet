@@ -235,8 +235,35 @@ func createAzureDevOpsProvider(
 	), nil
 }
 
-//nolint:funlen // Repository resolution centralizes per-provider defaulting and validation.
 func resolveRepository(
+	ctx context.Context,
+	cfg *config.Config,
+	getRemoteURL gitRemoteURLGetter,
+) (*provider.RepositoryDescriptor, error) {
+	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := resolveRepositoryProvider(repository); err != nil {
+		return nil, err
+	}
+
+	applyRepositoryProviderDefaults(repository)
+	normalizeRepositoryDescriptor(repository)
+
+	if err := validateRepositoryDescriptor(repository); err != nil {
+		return nil, err
+	}
+
+	if err := validateProviderHostTrust(ctx, repository, getRemoteURL); err != nil {
+		return nil, err
+	}
+
+	return repository, nil
+}
+
+func repositoryDescriptorFromSources(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
@@ -263,15 +290,23 @@ func resolveRepository(
 
 	normalizeRepositoryDescriptor(repository)
 
+	return repository, nil
+}
+
+func resolveRepositoryProvider(repository *provider.RepositoryDescriptor) error {
 	if repository.Provider == "" {
 		providerType, err := provider.DetectType(repository.Host)
 		if err != nil {
-			return nil, unsupportedAutoProviderError(repository.Host, err)
+			return unsupportedAutoProviderError(repository.Host, err)
 		}
 
 		repository.Provider = providerType
 	}
 
+	return nil
+}
+
+func applyRepositoryProviderDefaults(repository *provider.RepositoryDescriptor) {
 	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		if repository.Host == "" {
@@ -290,20 +325,8 @@ func resolveRepository(
 			repository.Collection = repository.Organization
 		}
 	case config.ProviderAuto:
-		// auto is resolved via remote detection. no default host needed.
+		// Auto must be resolved before provider defaults can be applied.
 	}
-
-	normalizeRepositoryDescriptor(repository)
-
-	if err := validateRepositoryDescriptor(repository); err != nil {
-		return nil, err
-	}
-
-	if err := validateProviderHostTrust(ctx, repository, getRemoteURL); err != nil {
-		return nil, err
-	}
-
-	return repository, nil
 }
 
 func validateProviderHostTrust(
