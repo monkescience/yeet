@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.10.18](https://github.com/monkescience/yeet/compare/v0.10.17...v0.10.18) (2026-07-13)
+
+### Performance Improvements
+
+- **provider:** cache commit path lookups across overlapping refs ([638c21f](https://github.com/monkescience/yeet/commit/638c21f740dfac56108fda0285e9199c49fd69e0))
+
 ## [v0.10.17](https://github.com/monkescience/yeet/compare/v0.10.16...v0.10.17) (2026-07-11)
 
 ### Bug Fixes
