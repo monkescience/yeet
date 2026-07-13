@@ -79,7 +79,6 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		VersionFiles:               resolveVersionFiles(target.VersionFiles, c.VersionFiles),
 		Changelog:                  mergeChangelogConfig(c.Changelog, target.Changelog),
 		CalVer:                     mergeCalVerConfig(c.CalVer, target.CalVer),
-		ExcludePaths:               make([]string, 0, len(target.ExcludePaths)),
 		Includes:                   normalizeTargetIDs(target.Includes),
 	}
 
