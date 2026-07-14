@@ -283,19 +283,19 @@ func (a *AzureDevOps) commitPaths(ctx context.Context, sha string) ([]string, er
 			return *changes.Changes, nil
 		},
 		func(raw any) (bool, error) {
-			path := extractAzureDevOpsChangePath(raw)
+			for _, path := range extractAzureDevOpsChangePaths(raw) {
+				normalized := strings.TrimPrefix(strings.TrimSpace(path), "/")
+				if normalized == "" {
+					continue
+				}
 
-			normalized := strings.TrimPrefix(strings.TrimSpace(path), "/")
-			if normalized == "" {
-				return false, nil
+				if _, exists := seen[normalized]; exists {
+					continue
+				}
+
+				seen[normalized] = struct{}{}
+				paths = append(paths, normalized)
 			}
-
-			if _, exists := seen[normalized]; exists {
-				return false, nil
-			}
-
-			seen[normalized] = struct{}{}
-			paths = append(paths, normalized)
 
 			return false, nil
 		},
@@ -308,25 +308,27 @@ func (a *AzureDevOps) commitPaths(ctx context.Context, sha string) ([]string, er
 }
 
 // The SDK types the change slice as []interface{} so we round-trip the entry
-// through JSON to access the typed item path.
-func extractAzureDevOpsChangePath(raw any) string {
+// through JSON to access its current and previous paths.
+func extractAzureDevOpsChangePaths(raw any) []string {
 	encoded, err := json.Marshal(raw)
 	if err != nil {
-		return ""
+		return nil
 	}
 
 	var parsed struct {
 		Item struct {
 			Path string `json:"path"`
 		} `json:"item"`
+		OriginalPath     string `json:"originalPath"`
+		SourceServerItem string `json:"sourceServerItem"`
 	}
 
 	err = json.Unmarshal(encoded, &parsed)
 	if err != nil {
-		return ""
+		return nil
 	}
 
-	return parsed.Item.Path
+	return []string{parsed.Item.Path, parsed.OriginalPath, parsed.SourceServerItem}
 }
 
 func derefString(p *string) string {

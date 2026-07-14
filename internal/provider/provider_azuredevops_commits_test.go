@@ -132,6 +132,59 @@ func TestAzureDevOpsGetCommitsSinceRefsPaginatesChanges(t *testing.T) {
 	testastic.SliceEqual(t, wantPaths, entries[0].Paths)
 }
 
+func TestAzureDevOpsGetCommitsSinceRefsIncludesRenamePaths(t *testing.T) {
+	t.Parallel()
+
+	const branch = "main"
+
+	// given: a commit with rename payloads using Azure's two old-path fields
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsCommitsListRequest(r):
+			writeAzureCommits(t, w, []azureTestCommit{{SHA: "head-sha", Comment: "refactor: move API files"}})
+		case isAzureDevOpsCommitChangesRequest(r, "head-sha"):
+			writeJSON(t, w, map[string]any{"changes": []map[string]any{
+				{
+					"item":         map[string]any{"path": "/pkg/handler.go"},
+					"originalPath": "/api/handler.go",
+					"changeType":   "rename",
+				},
+				{
+					"item":             map[string]any{"path": "/config/current.go"},
+					"sourceServerItem": "/config/legacy.go",
+					"changeType":       "rename",
+				},
+			}})
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: changed paths are requested for the commit
+	history, err := p.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+
+	// then: both current and old paths are available for target attribution
+	testastic.NoError(t, err)
+
+	entries := history.EntriesByRef[""]
+	testastic.Equal(t, 1, len(entries))
+	testastic.SliceEqual(t, []string{
+		"pkg/handler.go",
+		"api/handler.go",
+		"config/current.go",
+		"config/legacy.go",
+	}, entries[0].Paths)
+}
+
 type azureTestCommit struct {
 	SHA     string
 	Comment string
