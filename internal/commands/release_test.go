@@ -859,7 +859,7 @@ func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 func clearBranchEnv(t *testing.T) {
 	t.Helper()
 
-	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
+	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME", "BUILD_SOURCEBRANCH"} {
 		t.Setenv(envName, "")
 	}
 }

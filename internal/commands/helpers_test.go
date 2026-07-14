@@ -715,6 +715,22 @@ func TestGetGitRemoteURL(t *testing.T) {
 	})
 }
 
+func TestCurrentGitBranch(t *testing.T) {
+	t.Run("uses Azure Pipelines full source branch", func(t *testing.T) {
+		// given: an Azure Pipelines checkout where Git HEAD cannot provide the branch
+		t.Chdir(t.TempDir())
+		clearBranchEnv(t)
+		t.Setenv("BUILD_SOURCEBRANCH", " refs/heads/release/2026 ")
+
+		// when: resolving the current branch
+		branch, err := currentGitBranch(context.Background())
+
+		// then: the heads prefix is removed without losing nested branch segments
+		testastic.NoError(t, err)
+		testastic.Equal(t, "release/2026", branch)
+	})
+}
+
 func initializeRepositoryWithRemote(t *testing.T, path, remoteName, remoteURL string) *git.Repository {
 	t.Helper()
 

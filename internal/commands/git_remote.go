@@ -61,6 +61,11 @@ func currentGitBranch(ctx context.Context) (string, error) {
 		}
 	}
 
+	azureBranch := strings.TrimPrefix(strings.TrimSpace(os.Getenv("BUILD_SOURCEBRANCH")), "refs/heads/")
+	if azureBranch != "" {
+		return azureBranch, nil
+	}
+
 	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
 		DetectDotGit: true,
 	})
