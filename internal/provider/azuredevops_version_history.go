@@ -259,37 +259,49 @@ func (a *AzureDevOps) commitPaths(ctx context.Context, sha string) ([]string, er
 		return nil, err
 	}
 
-	changes, err := gitClient.GetChanges(ctx, git.GetChangesArgs{
-		CommitId:     &commitID,
-		RepositoryId: &a.repo,
-		Project:      &a.project,
-		Top:          new(azureDevOpsRefPageSize),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("get changes for commit %q: %w", commitID, err)
-	}
-
-	if changes == nil || changes.Changes == nil {
-		return []string{}, nil
-	}
-
-	paths := make([]string, 0, len(*changes.Changes))
+	paths := make([]string, 0)
 	seen := make(map[string]struct{})
+	pageSize := azureDevOpsRefPageSize
 
-	for _, raw := range *changes.Changes {
-		path := extractAzureDevOpsChangePath(raw)
+	err = paginateAzureDevOpsBySkip(ctx, fmt.Sprintf("listing changes for commit %q", commitID), pageSize,
+		func(skip int) ([]any, error) {
+			changes, err := gitClient.GetChanges(ctx, git.GetChangesArgs{
+				CommitId:     &commitID,
+				RepositoryId: &a.repo,
+				Project:      &a.project,
+				Top:          &pageSize,
+				Skip:         &skip,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("get changes for commit %q: %w", commitID, err)
+			}
 
-		normalized := strings.TrimPrefix(strings.TrimSpace(path), "/")
-		if normalized == "" {
-			continue
-		}
+			if changes == nil || changes.Changes == nil {
+				return nil, nil
+			}
 
-		if _, exists := seen[normalized]; exists {
-			continue
-		}
+			return *changes.Changes, nil
+		},
+		func(raw any) (bool, error) {
+			path := extractAzureDevOpsChangePath(raw)
 
-		seen[normalized] = struct{}{}
-		paths = append(paths, normalized)
+			normalized := strings.TrimPrefix(strings.TrimSpace(path), "/")
+			if normalized == "" {
+				return false, nil
+			}
+
+			if _, exists := seen[normalized]; exists {
+				return false, nil
+			}
+
+			seen[normalized] = struct{}{}
+			paths = append(paths, normalized)
+
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return paths, nil

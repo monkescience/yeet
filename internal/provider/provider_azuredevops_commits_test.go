@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -70,6 +71,65 @@ func TestAzureDevOpsGetCommitsSinceRefsNonLinear(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, 0, len(history.MissingRefs))
 	testastic.SliceEqual(t, []string{"head-sha"}, commitEntryHashes(history.EntriesByRef[boundaryTag]))
+}
+
+func TestAzureDevOpsGetCommitsSinceRefsPaginatesChanges(t *testing.T) {
+	t.Parallel()
+
+	const branch = "main"
+
+	firstPage := make([]map[string]any, 100)
+	wantPaths := make([]string, 0, 101)
+
+	for i := range firstPage {
+		path := fmt.Sprintf("services/api/file-%03d.go", i)
+		firstPage[i] = map[string]any{"item": map[string]any{"path": "/" + path}}
+		wantPaths = append(wantPaths, path)
+	}
+
+	wantPaths = append(wantPaths, "services/api/tail.go")
+
+	// given: a commit whose changed paths fill one page and continue onto a second
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsCommitsListRequest(r):
+			writeAzureCommits(t, w, []azureTestCommit{{SHA: "head-sha", Comment: "feat: update API"}})
+		case isAzureDevOpsCommitChangesRequest(r, "head-sha"):
+			testastic.Equal(t, "100", r.URL.Query().Get("top"))
+
+			switch r.URL.Query().Get("skip") {
+			case "", "0":
+				writeJSON(t, w, map[string]any{"changes": firstPage})
+			case "100":
+				writeJSON(t, w, map[string]any{"changes": []map[string]any{{
+					"item": map[string]any{"path": "/services/api/tail.go"},
+				}}})
+			default:
+				fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+			}
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: changed paths are requested for the commit
+	history, err := p.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+
+	// then: paths from both change pages are returned in order
+	testastic.NoError(t, err)
+
+	entries := history.EntriesByRef[""]
+	testastic.Equal(t, 1, len(entries))
+	testastic.SliceEqual(t, wantPaths, entries[0].Paths)
 }
 
 type azureTestCommit struct {
