@@ -3,9 +3,10 @@
 yeet needs the full commit history, so configure checkouts with fetch depth 0, and a provider
 token (see [Authentication](authentication.md)).
 
-yeet determines the current branch from `GITHUB_REF_NAME`, `CI_COMMIT_BRANCH`, or `BRANCH_NAME`
-(checked in that order) before falling back to git, so detached-HEAD checkouts in CI resolve to
-the right branch.
+For branch-triggered jobs, yeet determines the current branch from `GITHUB_REF`,
+`GITHUB_REF_NAME`, `CI_COMMIT_BRANCH`, `BRANCH_NAME`, or `BUILD_SOURCEBRANCH` (checked in that
+order) before falling back to git. Full GitHub and Azure refs must start with `refs/heads/`. Pull
+request and tag refs are rejected rather than treated as release branches.
 
 ## GitHub Actions with a GitHub App
 
@@ -100,6 +101,7 @@ steps:
         -v "$(Build.SourcesDirectory):/workspace" \
         -w /workspace \
         -e AZURE_DEVOPS_SYSTEM_ACCESSTOKEN \
+        -e BUILD_SOURCEBRANCH \
         ghcr.io/monkescience/yeet:v0.10.18 release # x-yeet-version
     displayName: Run yeet
     env:
