@@ -118,6 +118,22 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
 	})
 
+	t.Run("rejects Azure Pipelines non-branch ref without channels", func(t *testing.T) {
+		// given: a tag-triggered Azure Pipeline and a stable-only release config
+		t.Chdir(t.TempDir())
+		clearBranchEnv(t)
+		t.Setenv("BUILD_SOURCEBRANCH", "refs/tags/v1.2.3")
+		writeTestConfig(t, func(cfg *config.Config) {})
+
+		// when: running a mutating release
+		_, _, err := executeRootCommand(t, "release")
+
+		// then: the non-branch ref is rejected before stable release fallback
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "resolve current branch")
+		testastic.ErrorContains(t, err, "not a branch")
+	})
+
 	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
 		// given: a valid config file and provider-incompatible CLI flags
 		tempDir := t.TempDir()

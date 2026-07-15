@@ -222,7 +222,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 
 	currentBranch, branchErr := currentGitBranch(ctx)
 	if branchErr != nil {
-		if !options.dryRun && len(cfg.Release.Channels) > 0 {
+		if errors.Is(branchErr, ErrCINonBranchRef) || (!options.dryRun && len(cfg.Release.Channels) > 0) {
 			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
 		}
 

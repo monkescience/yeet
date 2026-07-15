@@ -16,6 +16,7 @@ var (
 	ErrGitRemoteHasNoURL = errors.New("git remote has no url")
 	ErrGitRemoteURLBlank = errors.New("git remote url is blank")
 	ErrDetachedHead      = errors.New("git head is detached")
+	ErrCINonBranchRef    = errors.New("ci ref is not a branch")
 )
 
 func getGitRemoteURL(_ context.Context, remote string) (string, error) {
@@ -61,8 +62,13 @@ func currentGitBranch(ctx context.Context) (string, error) {
 		}
 	}
 
-	azureBranch := strings.TrimPrefix(strings.TrimSpace(os.Getenv("BUILD_SOURCEBRANCH")), "refs/heads/")
-	if azureBranch != "" {
+	azureRef := strings.TrimSpace(os.Getenv("BUILD_SOURCEBRANCH"))
+	if azureRef != "" {
+		azureBranch, isBranch := strings.CutPrefix(azureRef, "refs/heads/")
+		if !isBranch || azureBranch == "" {
+			return "", fmt.Errorf("%w: %q", ErrCINonBranchRef, azureRef)
+		}
+
 		return azureBranch, nil
 	}
 

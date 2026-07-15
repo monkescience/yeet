@@ -729,6 +729,26 @@ func TestCurrentGitBranch(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "release/2026", branch)
 	})
+
+	for name, ref := range map[string]string{
+		"rejects Azure Pipelines pull request ref": "refs/pull/123/merge",
+		"rejects Azure Pipelines tag ref":          "refs/tags/v1.2.3",
+	} {
+		t.Run(name, func(t *testing.T) {
+			// given: an Azure Pipelines source ref that is not a branch
+			t.Chdir(t.TempDir())
+			clearBranchEnv(t)
+			t.Setenv("BUILD_SOURCEBRANCH", ref)
+
+			// when: resolving the current branch
+			branch, err := currentGitBranch(context.Background())
+
+			// then: the ref is rejected instead of being returned as a branch
+			testastic.Equal(t, "", branch)
+			testastic.Error(t, err)
+			testastic.ErrorContains(t, err, "not a branch")
+		})
+	}
 }
 
 func initializeRepositoryWithRemote(t *testing.T, path, remoteName, remoteURL string) *git.Repository {
