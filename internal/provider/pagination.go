@@ -101,7 +101,8 @@ func paginateAzureDevOps[T any](
 // token). fetch is called with the current skip offset (0 on the first call)
 // and returns the page items. Pagination stops when a page returns fewer than
 // pageSize items. ctx is checked between pages, and items are handed to handle,
-// which may signal early termination by returning stop=true.
+// which may signal early termination by returning stop=true. After the page
+// limit, one empty-only probe distinguishes exact capacity from overflow.
 func paginateAzureDevOpsBySkip[T any](
 	ctx context.Context,
 	resource string,
@@ -138,6 +139,20 @@ func paginateAzureDevOpsBySkip[T any](
 		}
 
 		skip += len(items)
+	}
+
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("paginate %s: %w", resource, err)
+	}
+
+	items, err := fetch(skip)
+	if err != nil {
+		return err
+	}
+
+	if len(items) == 0 {
+		return nil
 	}
 
 	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
