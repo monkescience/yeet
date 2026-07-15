@@ -5,8 +5,9 @@ token (see [Authentication](authentication.md)).
 
 For branch-triggered jobs, yeet determines the current branch from `GITHUB_REF`,
 `GITHUB_REF_NAME`, `CI_COMMIT_BRANCH`, `BRANCH_NAME`, or `BUILD_SOURCEBRANCH` (checked in that
-order) before falling back to git. Full GitHub and Azure refs must start with `refs/heads/`. Pull
-request and tag refs are rejected rather than treated as release branches.
+order) before falling back to git. Full GitHub and Azure refs must start with `refs/heads/`.
+GitHub Actions and Azure Pipelines pull request and tag refs are rejected rather than treated as
+release branches.
 
 ## GitHub Actions with a GitHub App
 
