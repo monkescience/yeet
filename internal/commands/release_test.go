@@ -151,6 +151,39 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.ErrorContains(t, err, "not a branch")
 	})
 
+	for name, environment := range map[string]map[string]string{
+		"allows GitHub pull request ref for dry run": {
+			"GITHUB_REF":     "refs/pull/123/merge",
+			githubRefNameEnv: "123/merge",
+		},
+		"allows Azure pull request ref for dry run": {
+			"BUILD_SOURCEBRANCH": "refs/pull/123/merge",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// given: a pull request CI ref and a stable-only release config
+			t.Chdir(t.TempDir())
+			clearBranchEnv(t)
+
+			for envName, value := range environment {
+				t.Setenv(envName, value)
+			}
+
+			writeTestConfig(t, func(cfg *config.Config) {})
+
+			// when: resolving release configuration for a dry run
+			cfg, err := releaseConfigForRun(context.Background(), config.DefaultFile, releaseRunOptions{dryRun: true})
+
+			// then: stable preview mode is selected despite the synthetic PR ref
+			testastic.NoError(t, err)
+			testastic.NotNil(t, cfg)
+
+			if cfg != nil {
+				testastic.Equal(t, "", cfg.ActiveChannel)
+			}
+		})
+	}
+
 	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
 		// given: a valid config file and provider-incompatible CLI flags
 		tempDir := t.TempDir()
@@ -894,7 +927,7 @@ func clearBranchEnv(t *testing.T) {
 
 	for _, envName := range []string{
 		"GITHUB_REF",
-		"GITHUB_REF_NAME",
+		githubRefNameEnv,
 		"CI_COMMIT_BRANCH",
 		"BRANCH_NAME",
 		"BUILD_SOURCEBRANCH",

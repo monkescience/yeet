@@ -11,6 +11,8 @@ import (
 	gitconfig "github.com/go-git/go-git/v6/config"
 )
 
+const githubRefNameEnv = "GITHUB_REF_NAME"
+
 var (
 	ErrGitRemoteNotFound = errors.New("git remote not found")
 	ErrGitRemoteHasNoURL = errors.New("git remote has no url")
@@ -65,7 +67,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 		return githubBranch, nil
 	}
 
-	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
+	for _, envName := range []string{githubRefNameEnv, "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
 		branch := strings.TrimSpace(os.Getenv(envName))
 		if branch != "" {
 			return branch, nil
