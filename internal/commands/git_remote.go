@@ -55,6 +55,16 @@ func currentGitBranch(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("current git branch cancelled: %w", ctxErr)
 	}
 
+	githubRef := strings.TrimSpace(os.Getenv("GITHUB_REF"))
+	if githubRef != "" {
+		githubBranch, isBranch := strings.CutPrefix(githubRef, "refs/heads/")
+		if !isBranch || githubBranch == "" {
+			return "", fmt.Errorf("%w: %q", ErrCINonBranchRef, githubRef)
+		}
+
+		return githubBranch, nil
+	}
+
 	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME"} {
 		branch := strings.TrimSpace(os.Getenv(envName))
 		if branch != "" {

@@ -749,6 +749,30 @@ func TestCurrentGitBranch(t *testing.T) {
 			testastic.ErrorContains(t, err, "not a branch")
 		})
 	}
+
+	for name, refs := range map[string]struct {
+		full string
+		name string
+	}{
+		"rejects GitHub Actions pull request ref": {full: "refs/pull/123/merge", name: "123/merge"},
+		"rejects GitHub Actions tag ref":          {full: "refs/tags/v1.2.3", name: "v1.2.3"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// given: a GitHub Actions ref that is not a branch
+			t.Chdir(t.TempDir())
+			clearBranchEnv(t)
+			t.Setenv("GITHUB_REF", refs.full)
+			t.Setenv("GITHUB_REF_NAME", refs.name)
+
+			// when: resolving the current branch
+			branch, err := currentGitBranch(context.Background())
+
+			// then: the ref is rejected instead of its short name being returned as a branch
+			testastic.Equal(t, "", branch)
+			testastic.Error(t, err)
+			testastic.ErrorContains(t, err, "not a branch")
+		})
+	}
 }
 
 func initializeRepositoryWithRemote(t *testing.T, path, remoteName, remoteURL string) *git.Repository {

@@ -134,6 +134,23 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.ErrorContains(t, err, "not a branch")
 	})
 
+	t.Run("rejects GitHub Actions non-branch ref without channels", func(t *testing.T) {
+		// given: a tag-triggered GitHub workflow and a stable-only release config
+		t.Chdir(t.TempDir())
+		clearBranchEnv(t)
+		t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
+		t.Setenv("GITHUB_REF_NAME", "v1.2.3")
+		writeTestConfig(t, func(cfg *config.Config) {})
+
+		// when: running a mutating release
+		_, _, err := executeRootCommand(t, "release")
+
+		// then: the non-branch ref is rejected before stable release fallback
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "resolve current branch")
+		testastic.ErrorContains(t, err, "not a branch")
+	})
+
 	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
 		// given: a valid config file and provider-incompatible CLI flags
 		tempDir := t.TempDir()
@@ -875,7 +892,13 @@ func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 func clearBranchEnv(t *testing.T) {
 	t.Helper()
 
-	for _, envName := range []string{"GITHUB_REF_NAME", "CI_COMMIT_BRANCH", "BRANCH_NAME", "BUILD_SOURCEBRANCH"} {
+	for _, envName := range []string{
+		"GITHUB_REF",
+		"GITHUB_REF_NAME",
+		"CI_COMMIT_BRANCH",
+		"BRANCH_NAME",
+		"BUILD_SOURCEBRANCH",
+	} {
 		t.Setenv(envName, "")
 	}
 }
