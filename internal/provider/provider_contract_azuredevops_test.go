@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -68,6 +69,55 @@ func newAzureDevOpsContractProvider(t *testing.T, server *httptest.Server) provi
 		azureDevOpsContractProject,
 		azureDevOpsContractRepo,
 	)
+}
+
+func TestAzureDevOpsFindOpenPendingReleasePRsAcceptsExactPaginationCapacity(t *testing.T) {
+	t.Parallel()
+
+	page := make([]map[string]any, 100)
+	for idx := range page {
+		page[idx] = map[string]any{"pullRequestId": idx + 1}
+	}
+
+	var calls atomic.Int32
+
+	// given: one hundred full pull request pages followed by an empty page
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if !isAzureDevOpsPullRequestsListRequest(r) {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		calls.Add(1)
+		testastic.Equal(t, "100", r.URL.Query().Get("$top"))
+		testastic.Equal(t, "active", r.URL.Query().Get("searchCriteria.status"))
+
+		if r.URL.Query().Get("$skip") == "10000" {
+			writeJSON(t, w, map[string]any{"count": 0, "value": []any{}})
+
+			return
+		}
+
+		writeJSON(t, w, map[string]any{"count": len(page), "value": page})
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: all pull requests at the page capacity are listed
+	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch)
+
+	// then: the empty exhaustion probe proves the complete result fits
+	testastic.NoError(t, err)
+	testastic.Equal(t, 0, len(prs))
+	testastic.Equal(t, int32(101), calls.Load())
 }
 
 // newAzureDevOpsContractHandler wraps every scenario with the bootstrap

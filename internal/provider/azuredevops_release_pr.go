@@ -247,48 +247,45 @@ func (a *AzureDevOps) listPullRequests(
 	}
 
 	all := make([]git.GitPullRequest, 0)
-	skip := 0
 	top := azureDevOpsPRPageSize
 	targetRef := "refs/heads/" + baseBranch
 
-	for range maxPaginationPages {
-		err := ctx.Err()
-		if err != nil {
-			return nil, fmt.Errorf("paginate pull requests: %w", err)
-		}
+	err = paginateAzureDevOpsBySkip(ctx, "listing pull requests", top,
+		func(skip int) ([]git.GitPullRequest, error) {
+			pageStatus := status
+			criteria := &git.GitPullRequestSearchCriteria{
+				Status:        &pageStatus,
+				TargetRefName: &targetRef,
+			}
 
-		pageStatus := status
+			page, err := gitClient.GetPullRequests(ctx, git.GetPullRequestsArgs{
+				RepositoryId:   &a.repo,
+				Project:        &a.project,
+				SearchCriteria: criteria,
+				Skip:           &skip,
+				Top:            &top,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("list pull requests: %w", err)
+			}
 
-		criteria := &git.GitPullRequestSearchCriteria{
-			Status:        &pageStatus,
-			TargetRefName: &targetRef,
-		}
+			if page == nil {
+				return nil, nil
+			}
 
-		page, err := gitClient.GetPullRequests(ctx, git.GetPullRequestsArgs{
-			RepositoryId:   &a.repo,
-			Project:        &a.project,
-			SearchCriteria: criteria,
-			Skip:           &skip,
-			Top:            &top,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list pull requests: %w", err)
-		}
+			return *page, nil
+		},
+		func(pr git.GitPullRequest) (bool, error) {
+			all = append(all, pr)
 
-		if page == nil {
-			return all, nil
-		}
-
-		all = append(all, *page...)
-
-		if len(*page) < azureDevOpsPRPageSize {
-			return all, nil
-		}
-
-		skip += len(*page)
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("%w: exceeded %d pages listing pull requests", ErrPaginationLimitExceeded, maxPaginationPages)
+	return all, nil
 }
 
 func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
