@@ -185,6 +185,58 @@ func TestAzureDevOpsGetCommitsSinceRefsIncludesRenamePaths(t *testing.T) {
 	}, entries[0].Paths)
 }
 
+func TestAzureDevOpsGetCommitsSinceRefsIgnoresFolderChanges(t *testing.T) {
+	t.Parallel()
+
+	const branch = "main"
+
+	// given: a commit containing Azure tree entries alongside a changed file
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsCommitsListRequest(r):
+			writeAzureCommits(t, w, []azureTestCommit{{SHA: "head-sha", Comment: "docs: add API guide"}})
+		case isAzureDevOpsCommitChangesRequest(r, "head-sha"):
+			writeJSON(t, w, map[string]any{"changes": []map[string]any{
+				{
+					"item":             map[string]any{"path": "/services", "isFolder": true},
+					"originalPath":     "/legacy-services",
+					"sourceServerItem": "/old-services",
+					"changeType":       "rename",
+				},
+				{
+					"item":       map[string]any{"path": "/services/docs", "gitObjectType": "tree"},
+					"changeType": "add",
+				},
+				{
+					"item":       map[string]any{"path": "/services/docs/guide.md", "gitObjectType": "blob"},
+					"changeType": "add",
+				},
+			}})
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: changed paths are requested for the commit
+	history, err := p.GetCommitsSinceRefs(context.Background(), []string{""}, branch, true)
+
+	// then: only file paths are available for target attribution
+	testastic.NoError(t, err)
+
+	entries := history.EntriesByRef[""]
+	testastic.Equal(t, 1, len(entries))
+	testastic.SliceEqual(t, []string{"services/docs/guide.md"}, entries[0].Paths)
+}
+
 type azureTestCommit struct {
 	SHA     string
 	Comment string

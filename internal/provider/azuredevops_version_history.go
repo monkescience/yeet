@@ -317,7 +317,9 @@ func extractAzureDevOpsChangePaths(raw any) []string {
 
 	var parsed struct {
 		Item struct {
-			Path string `json:"path"`
+			Path          string `json:"path"`
+			IsFolder      bool   `json:"isFolder"`
+			GitObjectType string `json:"gitObjectType"`
 		} `json:"item"`
 		OriginalPath     string `json:"originalPath"`
 		SourceServerItem string `json:"sourceServerItem"`
@@ -325,6 +327,10 @@ func extractAzureDevOpsChangePaths(raw any) []string {
 
 	err = json.Unmarshal(encoded, &parsed)
 	if err != nil {
+		return nil
+	}
+
+	if parsed.Item.IsFolder || strings.EqualFold(parsed.Item.GitObjectType, "tree") {
 		return nil
 	}
 
