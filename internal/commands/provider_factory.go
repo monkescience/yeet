@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
