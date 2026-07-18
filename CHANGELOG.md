@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.10.20](https://github.com/monkescience/yeet/compare/v0.10.19...v0.10.20) (2026-07-18)
+
+### Bug Fixes
+
+- **deps:** update module github.com/google/go-github/v88 to v89 (#179) ([badfdde](https://github.com/monkescience/yeet/commit/badfdde58537314c6b7fe74d88599c6e7a0995a1))
+
 ## [v0.10.19](https://github.com/monkescience/yeet/compare/v0.10.18...v0.10.19) (2026-07-18)
 
 ### Bug Fixes
