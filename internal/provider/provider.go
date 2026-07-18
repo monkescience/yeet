@@ -145,6 +145,7 @@ var (
 	ErrEmptyCommitID           = errors.New("empty commit ID")
 	ErrRefNotFound             = errors.New("ref not found")
 	ErrMergeBlocked            = errors.New("release PR merge blocked")
+	ErrUntrustedReleasePR      = errors.New("untrusted release PR")
 	ErrMergeMethodUnsupported  = errors.New("merge method unsupported")
 	ErrReviewerNotFound        = errors.New("reviewer not found")
 	ErrReviewerAmbiguous       = errors.New("reviewer is ambiguous")

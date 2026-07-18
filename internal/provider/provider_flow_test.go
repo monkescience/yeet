@@ -112,6 +112,11 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 					"state":           "open",
 					"mergeable_state": "blocked",
 					"draft":           false,
+					"head": map[string]any{
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
@@ -149,7 +154,12 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 					"state":           "open",
 					"mergeable_state": "blocked",
 					"draft":           false,
-					"head":            map[string]any{"sha": "head-sha"},
+					"head": map[string]any{
+						"sha":  "head-sha",
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 				writeJSON(t, w, map[string]any{
@@ -180,6 +190,40 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
+	})
+
+	t.Run("rejects fork release pull request even with force enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fork pull request using the expected release branch and a force merge request
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls/42" {
+				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}
+
+			writeJSON(t, w, map[string]any{
+				"number":          42,
+				"state":           "open",
+				"mergeable_state": "clean",
+				"head": map[string]any{
+					"sha":  "attacker-sha",
+					"ref":  "yeet/release-main",
+					"repo": map[string]any{"full_name": "attacker/r"},
+				},
+				"base": map[string]any{"ref": "main"},
+			})
+		}))
+		defer server.Close()
+
+		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+		// when: forcing the fork pull request merge
+		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+			BypassMergeChecks: true,
+		})
+
+		// then: source repository verification blocks the merge
+		testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
 	})
 }
 
@@ -358,6 +402,10 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 						"draft":                 false,
 						"has_conflicts":         false,
 						"detailed_merge_status": status,
+						"source_branch":         "yeet/release-main",
+						"target_branch":         "main",
+						"source_project_id":     10,
+						"target_project_id":     10,
 					})
 				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
 					writeJSON(t, w, map[string]any{
@@ -398,6 +446,10 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 					"draft":                 false,
 					"has_conflicts":         false,
 					"detailed_merge_status": "not_approved",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
 				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
@@ -435,6 +487,10 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 					"has_conflicts":         false,
 					"detailed_merge_status": "not_approved",
 					"sha":                   "head-sha",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
 				})
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
 				writeJSON(t, w, map[string]any{
@@ -464,6 +520,37 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
 		testastic.True(t, mergeRequest.Squash)
+	})
+
+	t.Run("rejects cross-project release merge request even with force enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a cross-project merge request using the expected release branch
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests/8" {
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+
+			writeJSON(t, w, map[string]any{
+				"iid":               8,
+				"state":             "opened",
+				"source_branch":     "yeet/release-main",
+				"target_branch":     "main",
+				"source_project_id": 11,
+				"target_project_id": 10,
+			})
+		}))
+		defer server.Close()
+
+		gl := newGitLabProvider(t, server)
+
+		// when: forcing the cross-project merge request
+		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
+			BypassMergeChecks: true,
+		})
+
+		// then: source project verification blocks the merge
+		testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
 	})
 }
 

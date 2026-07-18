@@ -165,7 +165,7 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch 
 
 	for _, pr := range prs {
 		branch := azureDevOpsRefToBranch(derefString(pr.SourceRefName))
-		if !strings.HasPrefix(branch, releaseBranchPrefix) {
+		if !isTrustedAzureDevOpsReleasePR(&pr, baseBranch) {
 			continue
 		}
 
@@ -199,8 +199,7 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 	}
 
 	for _, pr := range prs {
-		branch := azureDevOpsRefToBranch(derefString(pr.SourceRefName))
-		if !strings.HasPrefix(branch, releaseBranchPrefix) {
+		if !isTrustedAzureDevOpsReleasePR(&pr, baseBranch) {
 			continue
 		}
 
@@ -214,6 +213,12 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 		if err != nil {
 			return nil, err
 		}
+
+		if !isTrustedAzureDevOpsReleasePR(full, baseBranch) {
+			continue
+		}
+
+		branch := azureDevOpsRefToBranch(derefString(full.SourceRefName))
 
 		result := &PullRequest{
 			Number:         number,
@@ -300,6 +305,11 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		return nil
 	}
 
+	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
+	if !isTrustedAzureDevOpsReleasePR(pr, baseBranch) {
+		return fmt.Errorf("%w: pull request !%d", ErrUntrustedReleasePR, number)
+	}
+
 	if err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
 		return err
 	}
@@ -343,6 +353,16 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	)
 
 	return nil
+}
+
+func isTrustedAzureDevOpsReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
+	if pullRequest == nil || pullRequest.ForkSource != nil {
+		return false
+	}
+
+	sourceBranch := azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName))
+
+	return isExpectedReleaseBranch(sourceBranch, baseBranch)
 }
 
 func validateAzureDevOpsPullRequestForMerge(

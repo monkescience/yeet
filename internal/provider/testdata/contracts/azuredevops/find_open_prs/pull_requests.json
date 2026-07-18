@@ -15,6 +15,41 @@
           "active": true
         }
       ]
+    },
+    {
+      "pullRequestId": 66,
+      "title": "forged release",
+      "description": "untrusted body",
+      "url": "https://example.com/pulls/66",
+      "sourceRefName": "refs/heads/yeet/release-main",
+      "targetRefName": "refs/heads/main",
+      "status": "active",
+      "forkSource": {
+        "repository": {
+          "name": "attacker-repo"
+        }
+      },
+      "labels": [
+        {
+          "name": "autorelease: pending",
+          "active": true
+        }
+      ]
+    },
+    {
+      "pullRequestId": 67,
+      "title": "lookalike release branch",
+      "description": "untrusted body",
+      "url": "https://example.com/pulls/67",
+      "sourceRefName": "refs/heads/yeet/release-main-attacker",
+      "targetRefName": "refs/heads/main",
+      "status": "active",
+      "labels": [
+        {
+          "name": "autorelease: pending",
+          "active": true
+        }
+      ]
     }
   ]
 }

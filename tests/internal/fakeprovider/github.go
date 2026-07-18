@@ -294,13 +294,13 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 				secondID = 44
 			)
 
-			writeJSON(w, []map[string]any{githubPendingPR(firstID), githubPendingPR(secondID)})
+			writeJSON(w, []map[string]any{githubPendingPR(opts, firstID), githubPendingPR(opts, secondID)})
 
 			return
 		}
 
 		if state == fakeStateOpen && opts.ExistingOpenReleasePRBody != "" {
-			pr := githubPendingPR(githubFakePRID)
+			pr := githubPendingPR(opts, githubFakePRID)
 			pr["body"] = opts.ExistingOpenReleasePRBody
 
 			writeJSON(w, []map[string]any{pr})
@@ -474,21 +474,21 @@ func githubFileContent(path, raw string) map[string]any {
 
 func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
 	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubFakePR())
+		writeJSON(w, githubFakePR(opts))
 	})
 
 	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubFakePR())
+		writeJSON(w, githubFakePR(opts))
 	})
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
 		if opts.MergedPendingRelease || merged.Load() {
-			writeJSON(w, githubMergedPendingPR())
+			writeJSON(w, githubMergedPendingPR(opts))
 
 			return
 		}
 
-		pr := githubFakePR()
+		pr := githubFakePR(opts)
 		if opts.MergeBlocked {
 			pr["draft"] = true
 		}
@@ -530,8 +530,8 @@ const githubReleaseManifest = "<!-- yeet-release-manifest\n" +
 	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
 	"\n-->"
 
-func githubMergedPendingPR() map[string]any {
-	pr := githubFakePR()
+func githubMergedPendingPR(opts GitHubOptions) map[string]any {
+	pr := githubFakePR(opts)
 	pr["state"] = "closed"
 	pr["merged"] = true
 	pr["merged_at"] = fakeMergedAtTimestamp
@@ -544,11 +544,11 @@ func githubMergedPendingPR() map[string]any {
 	return pr
 }
 
-func githubFakePR() map[string]any {
-	return githubPendingPR(githubFakePRID)
+func githubFakePR(opts GitHubOptions) map[string]any {
+	return githubPendingPR(opts, githubFakePRID)
 }
 
-func githubPendingPR(number int) map[string]any {
+func githubPendingPR(opts GitHubOptions, number int) map[string]any {
 	return map[string]any{
 		"number":          number,
 		"state":           fakeStateOpen,
@@ -559,6 +559,9 @@ func githubPendingPR(number int) map[string]any {
 		"head": map[string]any{
 			githubKeyRef: fakeReleaseBranch,
 			githubKeySHA: "head-sha",
+			"repo": map[string]any{
+				"full_name": opts.Owner + "/" + opts.Repo,
+			},
 		},
 		"base":   map[string]any{githubKeyRef: fakeBaseBranch},
 		"labels": []map[string]any{{githubKeyName: fakePendingReleaseTag}},

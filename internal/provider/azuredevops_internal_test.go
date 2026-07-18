@@ -44,6 +44,52 @@ func TestNewAzureDevOpsUsesPATBasicAuth(t *testing.T) {
 	testastic.Equal(t, ":pat-token", string(decoded))
 }
 
+func TestTrustedAzureDevOpsReleasePR(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		pullRequest *git.GitPullRequest
+		trusted     bool
+	}{
+		{
+			name: "accepts exact same-repository release branch",
+			pullRequest: &git.GitPullRequest{
+				SourceRefName: new("refs/heads/yeet/release-main"),
+			},
+			trusted: true,
+		},
+		{
+			name: "rejects lookalike release branch",
+			pullRequest: &git.GitPullRequest{
+				SourceRefName: new("refs/heads/yeet/release-main-attacker"),
+			},
+		},
+		{
+			name: "rejects fork release branch",
+			pullRequest: &git.GitPullRequest{
+				SourceRefName: new("refs/heads/yeet/release-main"),
+				ForkSource:    &git.GitForkRef{},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: an Azure DevOps pull request candidate
+			pullRequest := test.pullRequest
+
+			// when: checking the candidate against the configured base branch
+			trusted := isTrustedAzureDevOpsReleasePR(pullRequest, "main")
+
+			// then: only the exact same-repository release branch is trusted
+			testastic.Equal(t, test.trusted, trusted)
+		})
+	}
+}
+
 func TestBuildAzureDevOpsCommitCriteria(t *testing.T) {
 	t.Parallel()
 

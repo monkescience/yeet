@@ -5,6 +5,8 @@
     "description": "release body",
     "web_url": "https://example.com/pulls/42",
     "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
     "state": "merged",
     "merge_commit_sha": "merge-sha"
   }

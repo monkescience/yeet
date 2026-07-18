@@ -135,10 +135,11 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 			return prs, gitHubNextPage(resp), nil
 		},
 		func(pr *github.PullRequest) (bool, error) {
-			branch := pr.GetHead().GetRef()
-			if !strings.HasPrefix(branch, releaseBranchPrefix) {
+			if !g.isTrustedReleasePR(pr, baseBranch) {
 				return false, nil
 			}
+
+			branch := pr.GetHead().GetRef()
 
 			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
 				return false, nil
@@ -200,10 +201,11 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 				return false, fmt.Errorf("get pull request #%d: %w", issue.GetNumber(), err)
 			}
 
-			branch := fullPR.GetHead().GetRef()
-			if !strings.HasPrefix(branch, releaseBranchPrefix) {
+			if !g.isTrustedReleasePR(fullPR, baseBranch) {
 				return false, nil
 			}
+
+			branch := fullPR.GetHead().GetRef()
 
 			found = &PullRequest{
 				Number:         fullPR.GetNumber(),
@@ -326,6 +328,10 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return nil
 	}
 
+	if !g.isTrustedReleasePR(pr, pr.GetBase().GetRef()) {
+		return fmt.Errorf("%w: pull request #%d", ErrUntrustedReleasePR, number)
+	}
+
 	if err := validateGitHubPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
 		return err
 	}
@@ -363,6 +369,18 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	)
 
 	return nil
+}
+
+func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch string) bool {
+	if pullRequest == nil || pullRequest.GetHead() == nil {
+		return false
+	}
+
+	head := pullRequest.GetHead()
+	expectedRepository := g.repo.Owner + "/" + g.repo.Name
+
+	return isExpectedReleaseBranch(head.GetRef(), baseBranch) &&
+		strings.EqualFold(strings.TrimSpace(head.GetRepo().GetFullName()), expectedRepository)
 }
 
 func validateGitHubPullRequestForMerge(

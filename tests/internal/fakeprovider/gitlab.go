@@ -352,18 +352,20 @@ func gitlabFakeMR() map[string]any {
 
 func gitlabPendingMR(iid int) map[string]any {
 	return map[string]any{
-		"iid":              iid,
-		gitlabKeyID:        iid,
-		"state":            gitlabStateOpened,
-		"merge_status":     "can_be_merged",
-		"web_url":          "https://example.test/mr/42",
-		"source_branch":    fakeReleaseBranch,
-		"target_branch":    fakeBaseBranch,
-		"draft":            false,
-		"work_in_progress": false,
-		"sha":              "head-sha",
-		"merge_commit_sha": fakeMergeSHA,
-		"labels":           []string{fakePendingReleaseTag},
+		"iid":               iid,
+		gitlabKeyID:         iid,
+		"state":             gitlabStateOpened,
+		"merge_status":      "can_be_merged",
+		"web_url":           "https://example.test/mr/42",
+		"source_branch":     fakeReleaseBranch,
+		"target_branch":     fakeBaseBranch,
+		"source_project_id": gitlabFakeMRID,
+		"target_project_id": gitlabFakeMRID,
+		"draft":             false,
+		"work_in_progress":  false,
+		"sha":               "head-sha",
+		"merge_commit_sha":  fakeMergeSHA,
+		"labels":            []string{fakePendingReleaseTag},
 	}
 }
 

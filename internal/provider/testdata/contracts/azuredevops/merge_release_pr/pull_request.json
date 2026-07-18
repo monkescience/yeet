@@ -3,6 +3,8 @@
   "status": "active",
   "mergeStatus": "succeeded",
   "isDraft": false,
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main",
   "lastMergeSourceCommit": {
     "commitId": "head-sha"
   }

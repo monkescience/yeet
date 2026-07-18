@@ -1567,10 +1567,10 @@ repository:
 		testastic.NotContains(t, releases[0].Body, "Upgrade notes")
 	})
 
-	t.Run("creates release from manifest marker on versioned branch", func(t *testing.T) {
+	t.Run("rejects manifest from unexpected release branch", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a merged pending release PR with manifest marker on a versioned branch
+		// given: a merged pending release PR from a branch other than the configured release branch
 		cfg := config.Default()
 
 		stub := newProviderStub()
@@ -1591,16 +1591,13 @@ repository:
 
 		r := newTestReleaser(t, cfg, stub)
 
-		// when: finalizing merged release PR
-		releases, err := r.finalizeMergedReleasePRs(context.Background())
+		// when: finalizing the untrusted merged release PR
+		_, err := r.finalizeMergedReleasePRs(context.Background())
 
-		// then: manifest marker tag is used
-		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
-		testastic.Equal(t, 1, stub.createReleaseCalls)
-		testastic.Equal(t, 1, len(stub.markTaggedCalls))
-		testastic.Equal(t, 33, stub.markTaggedCalls[0])
+		// then: finalization fails before creating or marking a release
+		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
 	})
 
 	t.Run("skips creation when latest release already exists", func(t *testing.T) {

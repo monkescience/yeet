@@ -127,3 +127,96 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 
 	return manifest, true, nil
 }
+
+func (c *releaseCore) validateReleaseManifest(
+	pullRequest *provider.PullRequest,
+	manifest releaseManifest,
+) error {
+	if pullRequest == nil {
+		return fmt.Errorf("%w: missing pull request", ErrInvalidReleaseManifest)
+	}
+
+	expectedBranch := stableReleaseBranch(c.cfg.Branch)
+	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
+		return fmt.Errorf(
+			"%w: pull request branch %q does not match %q",
+			ErrInvalidReleaseManifest,
+			pullRequest.Branch,
+			expectedBranch,
+		)
+	}
+
+	if strings.TrimSpace(manifest.BaseBranch) != strings.TrimSpace(c.cfg.Branch) {
+		return fmt.Errorf(
+			"%w: base branch %q does not match %q",
+			ErrInvalidReleaseManifest,
+			manifest.BaseBranch,
+			c.cfg.Branch,
+		)
+	}
+
+	if strings.TrimSpace(manifest.Channel) != strings.TrimSpace(c.cfg.ActiveChannel) {
+		return fmt.Errorf(
+			"%w: channel %q does not match %q",
+			ErrInvalidReleaseManifest,
+			manifest.Channel,
+			c.cfg.ActiveChannel,
+		)
+	}
+
+	if manifest.Prerelease != c.isPrerelease() {
+		return fmt.Errorf(
+			"%w: prerelease value does not match active release mode",
+			ErrInvalidReleaseManifest,
+		)
+	}
+
+	seenTargets := make(map[string]struct{}, len(manifest.Targets))
+	for _, entry := range manifest.Targets {
+		if err := c.validateReleaseManifestEntry(entry, seenTargets); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *releaseCore) validateReleaseManifestEntry(
+	entry releaseManifestEntry,
+	seenTargets map[string]struct{},
+) error {
+	targetID := strings.TrimSpace(entry.ID)
+	if _, exists := seenTargets[targetID]; exists {
+		return fmt.Errorf("%w: duplicate target %q", ErrInvalidReleaseManifest, targetID)
+	}
+
+	target, exists := c.targets[targetID]
+	if !exists {
+		return fmt.Errorf("%w: unknown target %q", ErrInvalidReleaseManifest, targetID)
+	}
+
+	seenTargets[targetID] = struct{}{}
+
+	if strings.TrimSpace(entry.Type) != string(target.Type) {
+		return fmt.Errorf("%w: target %q type does not match configuration", ErrInvalidReleaseManifest, targetID)
+	}
+
+	if strings.TrimSpace(entry.ChangelogFile) != strings.TrimSpace(target.Changelog.File) {
+		return fmt.Errorf(
+			"%w: target %q changelog file does not match configuration",
+			ErrInvalidReleaseManifest,
+			targetID,
+		)
+	}
+
+	if !strings.HasPrefix(entry.Tag, target.TagPrefix) {
+		return fmt.Errorf("%w: target %q tag has an invalid prefix", ErrInvalidReleaseManifest, targetID)
+	}
+
+	strategy := versionStrategyForResolvedTarget(target)
+	if _, err := strategy.strategy.Current(entry.Tag); err != nil {
+		return fmt.Errorf("%w: target %q tag is invalid: %v", ErrInvalidReleaseManifest, targetID, err)
+	}
+
+	return nil
+}

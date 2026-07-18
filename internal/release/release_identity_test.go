@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -124,4 +125,97 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		// then: parsing fails closed instead of trusting the forged marker
 		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
 	})
+}
+
+func TestValidateReleaseManifest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*provider.PullRequest, *releaseManifest)
+	}{
+		{
+			name: "rejects mismatched base branch",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.BaseBranch = "develop"
+			},
+		},
+		{
+			name: "rejects mismatched channel",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Channel = "beta"
+			},
+		},
+		{
+			name: "rejects mismatched prerelease mode",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Prerelease = true
+			},
+		},
+		{
+			name: "rejects unknown target",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets[0].ID = "unknown"
+			},
+		},
+		{
+			name: "rejects duplicate target",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets = append(manifest.Targets, manifest.Targets[0])
+			},
+		},
+		{
+			name: "rejects mismatched target type",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets[0].Type = string(config.TargetTypeDerived)
+			},
+		},
+		{
+			name: "rejects mismatched changelog file",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets[0].ChangelogFile = "ATTACKER.md"
+			},
+		},
+		{
+			name: "rejects mismatched tag prefix",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets[0].Tag = "attacker-v1.2.3"
+			},
+		},
+		{
+			name: "rejects invalid tag version",
+			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+				manifest.Targets[0].Tag = "vnot-a-version"
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a valid release manifest altered at one trust boundary
+			cfg := config.Default()
+			r := newTestReleaser(t, cfg, newProviderStub())
+			pullRequest := &provider.PullRequest{Branch: stableReleaseBranch(cfg.Branch)}
+			manifest := releaseManifest{
+				BaseBranch: cfg.Branch,
+				Targets: []releaseManifestEntry{
+					{
+						ID:            "default",
+						Type:          string(config.TargetTypePath),
+						Tag:           "v1.2.3",
+						ChangelogFile: cfg.Changelog.File,
+					},
+				},
+			}
+			test.mutate(pullRequest, &manifest)
+
+			// when: validating the altered manifest against the active release configuration
+			err := r.core.validateReleaseManifest(pullRequest, manifest)
+
+			// then: the manifest fails closed
+			testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+		})
+	}
 }

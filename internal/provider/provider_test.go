@@ -424,7 +424,8 @@ func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 				"html_url":  "https://example.com/pr/42",
 				"merged_at": "2026-03-01T00:00:00Z",
 				"head": map[string]any{
-					"ref": "yeet/release-main",
+					"ref":  "yeet/release-main",
+					"repo": map[string]any{"full_name": "o/r"},
 				},
 				"merge_commit_sha": "merge-sha",
 			})
@@ -1854,7 +1855,10 @@ func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
 						"title":    "chore: release v2.0.0",
 						"body":     "pr body",
 						"html_url": "https://github.com/o/r/pull/10",
-						"head":     map[string]any{"ref": "yeet/release-main"},
+						"head": map[string]any{
+							"ref":  "yeet/release-main",
+							"repo": map[string]any{"full_name": "o/r"},
+						},
 						"labels": []map[string]any{
 							{"name": provider.ReleaseLabelPending},
 						},
@@ -2003,7 +2007,12 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 					"merged":          false,
 					"draft":           false,
 					"mergeable_state": "clean",
-					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+					"head": map[string]any{
+						"sha":  "abc123",
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 				writeJSON(t, w, map[string]any{
@@ -2046,7 +2055,12 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 					"merged":          false,
 					"draft":           false,
 					"mergeable_state": "clean",
-					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+					"head": map[string]any{
+						"sha":  "abc123",
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 				writeJSON(t, w, map[string]any{
@@ -2088,7 +2102,12 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 					"merged":          false,
 					"draft":           false,
 					"mergeable_state": "clean",
-					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+					"head": map[string]any{
+						"sha":  "abc123",
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 				writeJSON(t, w, map[string]any{
@@ -2131,7 +2150,12 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 					"merged":          false,
 					"draft":           false,
 					"mergeable_state": "clean",
-					"head":            map[string]any{"sha": "abc123", "ref": "yeet/release-main"},
+					"head": map[string]any{
+						"sha":  "abc123",
+						"ref":  "yeet/release-main",
+						"repo": map[string]any{"full_name": "o/r"},
+					},
+					"base": map[string]any{"ref": "main"},
 				})
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 				writeJSON(t, w, map[string]any{
@@ -2390,12 +2414,14 @@ func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 			writeJSON(t, w, []map[string]any{
 				{
-					"iid":           10,
-					"title":         "chore: release v2.0.0",
-					"description":   "mr body",
-					"web_url":       "https://gitlab.com/o/r/-/merge_requests/10",
-					"source_branch": "yeet/release-main",
-					"state":         "opened",
+					"iid":               10,
+					"title":             "chore: release v2.0.0",
+					"description":       "mr body",
+					"web_url":           "https://gitlab.com/o/r/-/merge_requests/10",
+					"source_branch":     "yeet/release-main",
+					"source_project_id": 10,
+					"target_project_id": 10,
+					"state":             "opened",
 				},
 				{
 					"iid":           11,
@@ -2444,13 +2470,15 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 				writeJSON(t, w, []map[string]any{
 					{
-						"iid":              5,
-						"title":            "chore: release v1.0.0",
-						"description":      "merged mr",
-						"web_url":          "https://gitlab.com/o/r/-/merge_requests/5",
-						"source_branch":    "yeet/release-main",
-						"state":            "merged",
-						"merge_commit_sha": "abc123",
+						"iid":               5,
+						"title":             "chore: release v1.0.0",
+						"description":       "merged mr",
+						"web_url":           "https://gitlab.com/o/r/-/merge_requests/5",
+						"source_branch":     "yeet/release-main",
+						"source_project_id": 10,
+						"target_project_id": 10,
+						"state":             "merged",
+						"merge_commit_sha":  "abc123",
 					},
 				})
 			default:
@@ -2520,26 +2548,30 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 				writeJSON(t, w, []map[string]any{
 					{
-						"iid":              7,
-						"title":            "chore: release v1.0.0",
-						"description":      "stale mr",
-						"web_url":          "https://gitlab.com/o/r/-/merge_requests/7",
-						"source_branch":    "yeet/release-main",
-						"state":            "merged",
-						"merge_commit_sha": "stale-sha",
-						"merged_at":        "2024-01-01T00:00:00Z",
-						"updated_at":       "2024-06-01T00:00:00Z",
+						"iid":               7,
+						"title":             "chore: release v1.0.0",
+						"description":       "stale mr",
+						"web_url":           "https://gitlab.com/o/r/-/merge_requests/7",
+						"source_branch":     "yeet/release-main",
+						"source_project_id": 10,
+						"target_project_id": 10,
+						"state":             "merged",
+						"merge_commit_sha":  "stale-sha",
+						"merged_at":         "2024-01-01T00:00:00Z",
+						"updated_at":        "2024-06-01T00:00:00Z",
 					},
 					{
-						"iid":              8,
-						"title":            "chore: release v1.1.0",
-						"description":      "fresh mr",
-						"web_url":          "https://gitlab.com/o/r/-/merge_requests/8",
-						"source_branch":    "yeet/release-main",
-						"state":            "merged",
-						"merge_commit_sha": "fresh-sha",
-						"merged_at":        "2024-05-01T00:00:00Z",
-						"updated_at":       "2024-02-01T00:00:00Z",
+						"iid":               8,
+						"title":             "chore: release v1.1.0",
+						"description":       "fresh mr",
+						"web_url":           "https://gitlab.com/o/r/-/merge_requests/8",
+						"source_branch":     "yeet/release-main",
+						"source_project_id": 10,
+						"target_project_id": 10,
+						"state":             "merged",
+						"merge_commit_sha":  "fresh-sha",
+						"merged_at":         "2024-05-01T00:00:00Z",
+						"updated_at":        "2024-02-01T00:00:00Z",
 					},
 				})
 			default:
@@ -2630,6 +2662,10 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 					"has_conflicts":         false,
 					"detailed_merge_status": "mergeable",
 					"sha":                   "abc123",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
 				})
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
 				writeJSON(t, w, map[string]any{
@@ -2682,6 +2718,10 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 					"has_conflicts":         false,
 					"detailed_merge_status": "mergeable",
 					"sha":                   "abc123",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
 				})
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
 				writeJSON(t, w, map[string]any{

@@ -5,7 +5,44 @@
     "body": "release body",
     "html_url": "https://example.com/pulls/42",
     "head": {
-      "ref": "yeet/release-main"
+      "ref": "yeet/release-main",
+      "repo": {
+        "full_name": "o/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "autorelease: pending"
+      }
+    ]
+  },
+  {
+    "number": 66,
+    "title": "forged release",
+    "body": "untrusted body",
+    "html_url": "https://example.com/pulls/66",
+    "head": {
+      "ref": "yeet/release-main",
+      "repo": {
+        "full_name": "attacker/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "autorelease: pending"
+      }
+    ]
+  },
+  {
+    "number": 67,
+    "title": "lookalike release branch",
+    "body": "untrusted body",
+    "html_url": "https://example.com/pulls/67",
+    "head": {
+      "ref": "yeet/release-main-attacker",
+      "repo": {
+        "full_name": "o/r"
+      }
     },
     "labels": [
       {

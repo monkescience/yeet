@@ -192,7 +192,12 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 			return mrs, gitLabNextPage(resp), nil
 		},
 		func(mr *gitlab.BasicMergeRequest) (bool, error) {
-			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
+			if !isTrustedGitLabReleasePR(
+				mr.SourceBranch,
+				baseBranch,
+				mr.SourceProjectID,
+				mr.TargetProjectID,
+			) {
 				return false, nil
 			}
 
@@ -254,7 +259,12 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 			return mrs, gitLabNextPage(resp), nil
 		},
 		func(mr *gitlab.BasicMergeRequest) (bool, error) {
-			if !strings.HasPrefix(mr.SourceBranch, releaseBranchPrefix) {
+			if !isTrustedGitLabReleasePR(
+				mr.SourceBranch,
+				baseBranch,
+				mr.SourceProjectID,
+				mr.TargetProjectID,
+			) {
 				return false, nil
 			}
 
@@ -419,6 +429,10 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return nil
 	}
 
+	if !isTrustedGitLabReleasePR(mr.SourceBranch, mr.TargetBranch, mr.SourceProjectID, mr.TargetProjectID) {
+		return fmt.Errorf("%w: merge request !%d", ErrUntrustedReleasePR, number)
+	}
+
 	if err := validateGitLabMergeRequestForMerge(number, mr, opts.BypassMergeChecks); err != nil {
 		return err
 	}
@@ -454,6 +468,12 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	)
 
 	return nil
+}
+
+func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {
+	return isExpectedReleaseBranch(sourceBranch, baseBranch) &&
+		sourceProjectID != 0 &&
+		sourceProjectID == targetProjectID
 }
 
 func validateGitLabMergeRequestForMerge(

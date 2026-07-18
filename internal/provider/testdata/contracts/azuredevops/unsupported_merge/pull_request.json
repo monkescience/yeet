@@ -2,5 +2,7 @@
   "pullRequestId": 42,
   "status": "active",
   "mergeStatus": "succeeded",
-  "isDraft": false
+  "isDraft": false,
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main"
 }

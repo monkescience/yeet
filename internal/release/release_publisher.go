@@ -32,7 +32,11 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		return nil, err
 	}
 
-	prerelease := manifest.Prerelease || r.isPrerelease()
+	if err := r.validateReleaseManifest(mergedPR, manifest); err != nil {
+		return nil, err
+	}
+
+	prerelease := manifest.Prerelease
 
 	releases := make([]*provider.Release, 0, len(manifest.Targets))
 	for _, targetManifest := range manifest.Targets {
