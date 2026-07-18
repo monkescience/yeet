@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v89/github"
 )
 
 func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
@@ -64,8 +64,8 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		return nil, err
 	}
 
-	releaseRequest := &github.RepositoryRelease{
-		TagName:    new(opts.TagName),
+	releaseRequest := github.CreateReleaseRequest{
+		TagName:    opts.TagName,
 		Name:       new(opts.Name),
 		Body:       new(opts.Body),
 		Prerelease: new(opts.Prerelease),

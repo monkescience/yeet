@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	githubapi "github.com/google/go-github/v88/github"
+	githubapi "github.com/google/go-github/v89/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/provider"
