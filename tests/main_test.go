@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
@@ -17,6 +18,12 @@ func TestMain(m *testing.M) {
 	testing.Init()
 	flag.Parse()
 
+	if err := clearInheritedBranchEnv(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+
+		os.Exit(1)
+	}
+
 	if testing.Short() {
 		os.Exit(0)
 	}
@@ -28,4 +35,20 @@ func TestMain(m *testing.M) {
 	binary.Cleanup()
 
 	os.Exit(code)
+}
+
+func clearInheritedBranchEnv() error {
+	for _, envName := range []string{
+		"GITHUB_REF",
+		"GITHUB_REF_NAME",
+		"CI_COMMIT_BRANCH",
+		"BRANCH_NAME",
+		"BUILD_SOURCEBRANCH",
+	} {
+		if err := os.Unsetenv(envName); err != nil {
+			return fmt.Errorf("unset inherited branch environment %s: %w", envName, err)
+		}
+	}
+
+	return nil
 }

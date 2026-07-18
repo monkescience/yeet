@@ -8,6 +8,7 @@ func GitHubEnv(server *httptest.Server, branch string) []string {
 	return []string{
 		"GITHUB_TOKEN=test-token",
 		"GITHUB_URL=" + server.URL + "/api/v3/",
+		"GITHUB_REF=refs/heads/" + branch,
 		"GITHUB_REF_NAME=" + branch,
 	}
 }
