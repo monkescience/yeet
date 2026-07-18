@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.10.19](https://github.com/monkescience/yeet/compare/v0.10.18...v0.10.19) (2026-07-18)
+
+### Bug Fixes
+
+- **tests:** isolate branch environment ([81c28ac](https://github.com/monkescience/yeet/commit/81c28ac3cbabdb912f3481d3fcfe2009daef6682))
+- **release:** reject forged release pull requests ([d25d25d](https://github.com/monkescience/yeet/commit/d25d25d479c72808d3c187b728f6fbbbfec1ef11))
+- **azuredevops:** paginate pull requests consistently ([d2effa3](https://github.com/monkescience/yeet/commit/d2effa32865682a0fa160345656f249eedd736b3))
+- **commands:** allow CI pull request dry runs ([e690057](https://github.com/monkescience/yeet/commit/e6900577885003a329533374cd7b145f19522715))
+- **provider:** accept exact pagination capacity ([7f58192](https://github.com/monkescience/yeet/commit/7f581922e0a38d7ccf3a3acfb88cbd3723a97c52))
+- **commands:** reject GitHub non-branch refs ([df55a52](https://github.com/monkescience/yeet/commit/df55a52c9029db4fbafc77ea253985857b7eb732))
+- **commands:** reject Azure non-branch refs ([fbd5af7](https://github.com/monkescience/yeet/commit/fbd5af71d1334f7164423eea1e82a5f11a5cd5f9))
+- **azuredevops:** ignore folder change paths ([aaf3b98](https://github.com/monkescience/yeet/commit/aaf3b985500fa2afffbb7aac3d5ccdc8aa31882b))
+- **commands:** detect Azure Pipelines branch ([9d4de52](https://github.com/monkescience/yeet/commit/9d4de520520cd8d2b4016e7c14486c162e5da0cd))
+- **azuredevops:** preserve renamed commit paths ([0593ddc](https://github.com/monkescience/yeet/commit/0593ddc97eef7f51e5bc77a04517a657ab9bccf4))
+- **azuredevops:** paginate commit changes ([323f312](https://github.com/monkescience/yeet/commit/323f31297d0a1a4c123243a56b800fde5a37700b))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.46.0 (#178) ([1a28a6a](https://github.com/monkescience/yeet/commit/1a28a6aa41d6a02a04a21705621457692b32657d))
+
 ## [v0.10.18](https://github.com/monkescience/yeet/compare/v0.10.17...v0.10.18) (2026-07-13)
 
 ### Performance Improvements
