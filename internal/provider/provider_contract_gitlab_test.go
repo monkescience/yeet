@@ -46,6 +46,10 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitLabListTagsContract(t, w, r)
+		case providerContractBranchHead:
+			handleGitLabBranchHeadContract(t, w, r)
+		case providerContractBranchHeadMissing:
+			handleGitLabBranchHeadMissingContract(t, w, r)
 		case providerContractGetCommitsSinceRefs:
 			handleGitLabGetCommitsSinceContract(t, w, r)
 		case providerContractGetCommitsSinceRefsMissing:
@@ -125,6 +129,33 @@ func handleGitLabLatestFallbackTagsContract(t *testing.T, w http.ResponseWriter,
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
+}
+
+func handleGitLabBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches/"+providerContractBaseBranch {
+		writeJSONFixture(t, w, "contracts/gitlab/branch_head/branch.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func handleGitLabBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches/missing-branch" {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
 func handleGitLabListTagsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

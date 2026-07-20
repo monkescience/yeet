@@ -169,6 +169,10 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsLatestFallbackTagsHandler(t)
 	case providerContractListTags:
 		return azureDevOpsListTagsHandler(t)
+	case providerContractBranchHead:
+		return azureDevOpsBranchHeadHandler(t)
+	case providerContractBranchHeadMissing:
+		return azureDevOpsBranchHeadMissingHandler(t)
 	case providerContractGetCommitsSinceRefs:
 		return azureDevOpsGetCommitsSinceHandler(t)
 	case providerContractGetCommitsSinceRefsMissing:
@@ -264,6 +268,34 @@ func azureDevOpsLatestFallbackTagsHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "tags/") {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("latest_fallback_tags", "tags.json"))
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func azureDevOpsBranchHeadHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch) {
+			writeJSONFixture(t, w, azureDevOpsContractFixture("branch_head", "refs.json"))
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func azureDevOpsBranchHeadMissingHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if isAzureDevOpsRefsRequest(r, "heads/missing-branch") {
+			writeJSONFixture(t, w, azureDevOpsContractFixture("branch_head", "empty_refs.json"))
 
 			return
 		}

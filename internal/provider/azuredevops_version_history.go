@@ -89,6 +89,66 @@ func (a *AzureDevOps) paginateTagRefs(
 	)
 }
 
+// GetBranchHead returns the commit SHA branch currently points at. GetRefs
+// filters by prefix, so the exact ref name is matched explicitly to keep a
+// sibling branch such as "main2" from answering for "main".
+func (a *AzureDevOps) GetBranchHead(ctx context.Context, branch string) (string, error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", fmt.Errorf("%w: empty branch", ErrRefNotFound)
+	}
+
+	gitClient, err := a.client(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	filter := "heads/" + branch
+	wantName := "refs/heads/" + branch
+	pageSize := azureDevOpsRefPageSize
+	head := ""
+
+	err = paginateAzureDevOps(ctx, "resolving branch head",
+		func(token string) ([]git.GitRef, string, error) {
+			args := git.GetRefsArgs{
+				RepositoryId: &a.repo,
+				Project:      &a.project,
+				Filter:       &filter,
+				Top:          &pageSize,
+			}
+
+			if token != "" {
+				args.ContinuationToken = &token
+			}
+
+			response, err := gitClient.GetRefs(ctx, args)
+			if err != nil {
+				return nil, "", fmt.Errorf("list branch refs: %w", err)
+			}
+
+			return response.Value, response.ContinuationToken, nil
+		},
+		func(ref git.GitRef) (bool, error) {
+			if derefString(ref.Name) != wantName {
+				return false, nil
+			}
+
+			head = strings.TrimSpace(derefString(ref.ObjectId))
+
+			return true, nil
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if head == "" {
+		return "", fmt.Errorf("%w: branch %q", ErrRefNotFound, branch)
+	}
+
+	return head, nil
+}
+
 func (a *AzureDevOps) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,

@@ -43,6 +43,10 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitHubListTagsContract(t, w, r)
+		case providerContractBranchHead:
+			handleGitHubBranchHeadContract(t, w, r)
+		case providerContractBranchHeadMissing:
+			handleGitHubBranchHeadMissingContract(t, w, r)
 		case providerContractGetCommitsSinceRefs:
 			handleGitHubGetCommitsSinceContract(t, w, r)
 		case providerContractGetCommitsSinceRefsMissing:
@@ -129,6 +133,31 @@ func handleGitHubListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/tags" {
 		writeJSONFixture(t, w, "contracts/github/list_tags/tags.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/"+providerContractBaseBranch {
+		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/missing-branch" {
+		w.WriteHeader(http.StatusNotFound)
+		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
 
 		return
 	}

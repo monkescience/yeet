@@ -60,6 +60,18 @@ type versionStrategy struct {
 }
 
 func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
+	return NewWithHistory(ctx, cfg, deps, deps)
+}
+
+// NewWithHistory is New with version history served by history instead of
+// deps. The release command injects the local-git accelerated history source
+// here. A nil history keeps the provider-backed default.
+func NewWithHistory(
+	ctx context.Context,
+	cfg *config.Config,
+	deps releaserDependencies,
+	history versionHistoryProvider,
+) (*Releaser, error) {
 	targets, err := cfg.ResolvedTargets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
@@ -70,9 +82,13 @@ func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*R
 		return nil, err
 	}
 
+	if history == nil {
+		history = deps
+	}
+
 	return &Releaser{
 		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps},
-		history:   deps,
+		history:   history,
 		prs:       deps,
 		files:     deps,
 		publisher: deps,

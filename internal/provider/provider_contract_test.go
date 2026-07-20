@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +31,8 @@ const (
 	providerContractLatestRelease                    providerContractScenario = "latest release"
 	providerContractLatestFallbackTags               providerContractScenario = "latest fallback tags"
 	providerContractListTags                         providerContractScenario = "list tags"
+	providerContractBranchHead                       providerContractScenario = "branch head"
+	providerContractBranchHeadMissing                providerContractScenario = "branch head missing"
 	providerContractGetCommitsSinceRefs              providerContractScenario = "get commits since refs"
 	providerContractGetCommitsSinceRefsMissing       providerContractScenario = "get commits since refs missing"
 	providerContractGetCommitsSinceRefsUnresolved    providerContractScenario = "get commits since refs unresolved"
@@ -147,6 +150,40 @@ func TestProviderContract(t *testing.T) {
 				// then: the tags are returned in the expected order
 				testastic.NoError(t, err)
 				testastic.SliceEqual(t, []string{providerContractTag, "v1.2.2"}, tags)
+			})
+
+			t.Run("resolves branch head commit", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server exposing the base branch head
+				server := httptest.NewServer(harness.handler(t, providerContractBranchHead))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: GetBranchHead is invoked for the base branch
+				head, err := p.GetBranchHead(context.Background(), providerContractBaseBranch)
+
+				// then: the branch head commit SHA is returned
+				testastic.NoError(t, err)
+				testastic.Equal(t, providerContractHeadSHA, head)
+			})
+
+			t.Run("reports missing branch as ref not found", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server without the requested branch
+				server := httptest.NewServer(harness.handler(t, providerContractBranchHeadMissing))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: GetBranchHead is invoked for a branch that does not exist
+				_, err := p.GetBranchHead(context.Background(), "missing-branch")
+
+				// then: the sentinel ref-not-found error is surfaced
+				testastic.Error(t, err)
+				testastic.True(t, errors.Is(err, provider.ErrRefNotFound))
 			})
 
 			t.Run("gets commits since refs", func(t *testing.T) {

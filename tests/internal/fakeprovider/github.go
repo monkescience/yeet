@@ -187,8 +187,19 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 
 	mux.HandleFunc("GET "+prefix+"/compare/{spec...}", githubCompareHandler(opts))
 
-	mux.HandleFunc("GET "+prefix+"/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, githubCommitDetail(r.PathValue("ref"), opts))
+	// The wildcard also serves GetBranchHead's two-segment "heads/{branch}"
+	// ref, which resolves to the newest fake commit. The more specific
+	// "/commits/{sha}/pulls" route still wins for PR-body lookups.
+	mux.HandleFunc("GET "+prefix+"/commits/{ref...}", func(w http.ResponseWriter, r *http.Request) {
+		ref := r.PathValue("ref")
+
+		if strings.HasPrefix(ref, "heads/") {
+			writeJSON(w, map[string]any{githubKeySHA: githubHeadSHA(opts)})
+
+			return
+		}
+
+		writeJSON(w, githubCommitDetail(ref, opts))
 	})
 }
 
@@ -338,6 +349,16 @@ func githubTagsPayload(tag string, extra []string) any {
 	}
 
 	return tags
+}
+
+// githubHeadSHA is the branch head of the fake history: the newest commit
+// when one exists, otherwise the shared base SHA.
+func githubHeadSHA(opts GitHubOptions) string {
+	if len(opts.Commits) > 0 {
+		return opts.Commits[0].SHA
+	}
+
+	return fakeBaseSHA
 }
 
 func githubCommitDetail(ref string, opts GitHubOptions) map[string]any {
