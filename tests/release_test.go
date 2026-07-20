@@ -1283,11 +1283,14 @@ func TestReleaseMultiTagHistory(t *testing.T) {
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:         "testorg",
-			Repo:          "testrepo",
-			LatestTag:     "v1.2.0",
-			ExtraTags:     []string{"v1.0.0", "v1.1.0", "v0.9.0"},
-			BoundarySHA:   shas[3],
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.2.0",
+			ExtraTags:   []string{"v1.0.0", "v1.1.0", "v0.9.0"},
+			BoundarySHA: shas[3],
+			TagSHAs: map[string]string{
+				"v0.9.0": shas[0], "v1.0.0": shas[1], "v1.1.0": shas[2], "v1.2.0": shas[3],
+			},
 			BranchHeadSHA: shas[4],
 		})
 
@@ -1329,11 +1332,14 @@ func TestReleaseMultiTagHistory(t *testing.T) {
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:         "testorg",
-			Repo:          "testrepo",
-			LatestTag:     "v2026.05.0",
-			ExtraTags:     []string{"v2025.12.0", "v2026.01.0", "v2026.03.0"},
-			BoundarySHA:   shas[3],
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v2026.05.0",
+			ExtraTags:   []string{"v2025.12.0", "v2026.01.0", "v2026.03.0"},
+			BoundarySHA: shas[3],
+			TagSHAs: map[string]string{
+				"v2025.12.0": shas[0], "v2026.01.0": shas[1], "v2026.03.0": shas[2], "v2026.05.0": shas[3],
+			},
 			BranchHeadSHA: shas[4],
 		})
 

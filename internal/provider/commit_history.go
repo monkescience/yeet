@@ -5,6 +5,15 @@ import (
 	"errors"
 )
 
+func tagRefNames(refs []TagRef) []string {
+	names := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		names = append(names, ref.Name)
+	}
+
+	return names
+}
+
 // latestVersionRefWithReleaseFallback returns the tag of the latest release,
 // falling back to the most recent tag when the provider reports ErrNoRelease.
 // It is shared by providers that expose a release concept (GitHub, GitLab).

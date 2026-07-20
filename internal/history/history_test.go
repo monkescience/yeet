@@ -23,17 +23,20 @@ type remoteStub struct {
 	branchHead    string
 	branchHeadErr error
 	latestRef     string
-	tags          []string
+	tagRefs       []provider.TagRef
 
 	branchHeadCalls int
+	tagRefCalls     int
 }
 
 func (r *remoteStub) GetLatestVersionRef(_ context.Context) (string, error) {
 	return r.latestRef, nil
 }
 
-func (r *remoteStub) ListTags(_ context.Context) ([]string, error) {
-	return r.tags, nil
+func (r *remoteStub) ListTagRefs(_ context.Context) ([]provider.TagRef, error) {
+	r.tagRefCalls++
+
+	return slices.Clone(r.tagRefs), nil
 }
 
 func (r *remoteStub) GetBranchHead(_ context.Context, _ string) (string, error) {
@@ -199,6 +202,23 @@ func (f *repoFixture) source() (*history.Source, *remoteStub) {
 	f.t.Helper()
 
 	remote := &remoteStub{branchHead: f.head().String()}
+	tags, err := f.repo.Tags()
+	testastic.NoError(f.t, err)
+
+	err = tags.ForEach(func(ref *plumbing.Reference) error {
+		hash, resolveErr := f.repo.ResolveRevision(plumbing.Revision(ref.Name()))
+		if resolveErr != nil {
+			return resolveErr
+		}
+
+		remote.tagRefs = append(remote.tagRefs, provider.TagRef{
+			Name:      ref.Name().Short(),
+			CommitSHA: hash.String(),
+		})
+
+		return nil
+	})
+	testastic.NoError(f.t, err)
 
 	return history.New(remote, fixtureBranch, f.dir), remote
 }
@@ -401,7 +421,10 @@ func TestSourceLocalRanges(t *testing.T) {
 		c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
 		fx.checkoutDetached(c2)
 
-		remote := &remoteStub{branchHead: c2.String()}
+		remote := &remoteStub{
+			branchHead: c2.String(),
+			tagRefs:    []provider.TagRef{{Name: "v1.0.0", CommitSHA: c1.String()}},
+		}
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
@@ -429,9 +452,10 @@ func TestSourceLocalRanges(t *testing.T) {
 		testastic.NoError(t, err)
 		_, err = source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
 
-		// then: the remote head is validated exactly once
+		// then: remote head and tag state are each loaded exactly once
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, remote.branchHeadCalls)
+		testastic.Equal(t, 1, remote.tagRefCalls)
 	})
 }
 
@@ -623,7 +647,11 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		source, _ := fx.source()
+		source, remote := fx.source()
+		remote.tagRefs = append(remote.tagRefs, provider.TagRef{
+			Name:      "v9.9.9",
+			CommitSHA: fx.head().String(),
+		})
 
 		// when: an unknown tag is requested
 		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
@@ -632,6 +660,27 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorContains(t, err, "v9.9.9")
 		testastic.ErrorContains(t, err, "fetch --tags")
+	})
+
+	t.Run("local tag target differing from remote fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an eligible checkout whose local tag was moved away from the remote target
+		fx := newRepoFixture(t)
+		c1 := fx.commit("chore: release", map[string]string{"a.txt": "one"})
+		fx.tag("v1.0.0", c1)
+		c2 := fx.commit("feat: two", map[string]string{"a.txt": "two"})
+
+		source, remote := fx.source()
+		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: c2.String()}}
+
+		// when: the local tag is used as a release boundary
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+
+		// then: validation rejects the mismatched release boundary
+		testastic.ErrorIs(t, err, history.ErrCheckoutUnusable)
+		testastic.ErrorContains(t, err, "local tag")
+		testastic.ErrorContains(t, err, "remote tag")
 	})
 
 	t.Run("missing commit object fails", func(t *testing.T) {
@@ -707,7 +756,10 @@ func TestSourceDelegation(t *testing.T) {
 
 		source, remote := fx.source()
 		remote.latestRef = "v3.0.0"
-		remote.tags = []string{"v3.0.0", "v2.0.0"}
+		remote.tagRefs = []provider.TagRef{
+			{Name: "v3.0.0", CommitSHA: "3333333333333333333333333333333333333333"},
+			{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
+		}
 
 		// when: tags and the latest ref are requested
 		latest, err := source.GetLatestVersionRef(t.Context())

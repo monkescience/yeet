@@ -58,6 +58,7 @@ const (
 	providerContractPendingBranch                                     = "yeet/release-main"
 	providerContractBaseBranch                                        = "main"
 	providerContractTag                                               = "v1.2.3"
+	providerContractTagCommitSHA                                      = "tag-commit-123"
 	providerContractHeadSHA                                           = "head-sha"
 	providerContractMergeSHA                                          = "merge-sha"
 	providerContractReviewerAlice                                     = "alice"
@@ -140,6 +141,24 @@ func TestProviderContract(t *testing.T) {
 				// then: the tags are returned in the expected order
 				testastic.NoError(t, err)
 				testastic.SliceEqual(t, []string{providerContractTag, "v1.2.2"}, tags)
+			})
+
+			t.Run("lists tag commit targets", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning tags with their peeled commit targets
+				server := httptest.NewServer(harness.handler(t, providerContractListTags))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: tag refs are requested
+				refs, err := p.ListTagRefs(context.Background())
+
+				// then: names and commit targets are preserved in provider order
+				testastic.NoError(t, err)
+				testastic.Equal(t, providerContractTag, refs[0].Name)
+				testastic.Equal(t, providerContractTagCommitSHA, refs[0].CommitSHA)
 			})
 
 			t.Run("resolves branch head commit", func(t *testing.T) {

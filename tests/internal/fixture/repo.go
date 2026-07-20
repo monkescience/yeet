@@ -158,9 +158,9 @@ func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []Repo
 
 // WriteRepoWithTaggedHistory initializes a repository on branch with one
 // commit tagged tag and one "feat: add local feature" commit on top. It
-// returns the repository root and the head commit SHA so tests can align a
-// fake provider's branch head with the local checkout.
-func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (string, string) {
+// returns the repository root, tag commit SHA, and head commit SHA so tests can
+// align a fake provider with the local checkout.
+func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (string, string, string) {
 	t.Helper()
 
 	dir, shas := WriteRepoWithHistory(t, remoteURL, branch, []RepoCommit{
@@ -168,7 +168,7 @@ func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (st
 		{Message: "feat: add local feature", Files: map[string]string{"feature.txt": "local feature\n"}},
 	})
 
-	return dir, shas[len(shas)-1]
+	return dir, shas[0], shas[len(shas)-1]
 }
 
 func commitFiles(

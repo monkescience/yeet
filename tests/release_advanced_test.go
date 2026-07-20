@@ -85,6 +85,7 @@ func TestReleasePerTargetOverrides(t *testing.T) {
 			LatestTag:     "api-v1.0.0",
 			ExtraTags:     []string{"web-v2025.05.0"},
 			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"api-v1.0.0": shas[0], "web-v2025.05.0": shas[1]},
 			BranchHeadSHA: shas[3],
 		})
 

@@ -3,11 +3,13 @@
   "value": [
     {
       "name": "refs/tags/v1.2.3",
-      "objectId": "tag-object-123"
+      "objectId": "tag-object-123",
+      "peeledObjectId": "tag-commit-123"
     },
     {
       "name": "refs/tags/v1.2.2",
-      "objectId": "tag-object-122"
+      "objectId": "tag-object-122",
+      "peeledObjectId": "tag-commit-122"
     }
   ]
 }

@@ -27,6 +27,9 @@ type AzureOptions struct {
 	ExtraTags []string
 	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
 	BoundarySHA string
+	// TagSHAs overrides commit targets by tag name when multiple tags point to
+	// different commits.
+	TagSHAs map[string]string
 	// Commits are returned (newest first) from the commits listing.
 	Commits []AzureCommit
 	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
@@ -221,14 +224,14 @@ func azureTagRefsListPayload(opts AzureOptions) map[string]any {
 	if opts.LatestTag != "" {
 		tags = append(tags, map[string]any{
 			gitlabKeyName:    "refs/tags/" + opts.LatestTag,
-			azureKeyObjectID: opts.BoundarySHA,
+			azureKeyObjectID: azureTagSHA(opts, opts.LatestTag),
 		})
 	}
 
 	for _, t := range opts.ExtraTags {
 		tags = append(tags, map[string]any{
 			gitlabKeyName:    "refs/tags/" + t,
-			azureKeyObjectID: opts.BoundarySHA,
+			azureKeyObjectID: azureTagSHA(opts, t),
 		})
 	}
 
@@ -236,6 +239,14 @@ func azureTagRefsListPayload(opts AzureOptions) map[string]any {
 		azureKeyCount: len(tags),
 		azureKeyValue: tags,
 	}
+}
+
+func azureTagSHA(opts AzureOptions, tag string) string {
+	if commitHash := opts.TagSHAs[tag]; commitHash != "" {
+		return commitHash
+	}
+
+	return opts.BoundarySHA
 }
 
 func azureTagRefsPayload(opts AzureOptions) map[string]any {

@@ -28,7 +28,8 @@ func TestReleaseUnreachableAncestor(t *testing.T) {
 			Repo:          "testrepo",
 			LatestTag:     "v2.0.0",
 			ExtraTags:     []string{"v1.0.0"},
-			BoundarySHA:   shas[0],
+			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v2.0.0": shas[1], "v1.0.0": shas[0]},
 			BranchHeadSHA: shas[2],
 		})
 

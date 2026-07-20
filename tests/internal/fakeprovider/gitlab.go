@@ -63,6 +63,7 @@ type GitLabCommit struct {
 
 const (
 	gitlabKeyID       = "id"
+	gitlabKeyCommit   = "commit"
 	gitlabKeyMessage  = "message"
 	gitlabKeyName     = "name"
 	gitlabKeyTagName  = "tag_name"
@@ -103,7 +104,7 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 
 func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions) {
 	mux.HandleFunc("GET "+prefix+"/repository/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabTagsPayload(opts.LatestTag))
+		writeJSON(w, gitlabTagsPayload(opts.LatestTag, opts.BoundarySHA))
 	})
 
 	mux.HandleFunc("GET "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
@@ -178,8 +179,8 @@ func gitlabBranchHeadHandler(opts GitLabOptions) http.HandlerFunc {
 		}
 
 		writeJSON(w, map[string]any{
-			gitlabKeyName: r.PathValue("branch"),
-			"commit":      map[string]any{gitlabKeyID: headSHA},
+			gitlabKeyName:   r.PathValue("branch"),
+			gitlabKeyCommit: map[string]any{gitlabKeyID: headSHA},
 		})
 	}
 }
@@ -242,12 +243,19 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions, 
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyName: fakeReleaseBranch, "commit": map[string]any{gitlabKeyID: fakeBaseSHA}})
+		writeJSON(w, gitlabCreatedBranch())
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{gitlabKeyID: "new-commit-sha"})
 	})
+}
+
+func gitlabCreatedBranch() map[string]any {
+	return map[string]any{
+		gitlabKeyName:   fakeReleaseBranch,
+		gitlabKeyCommit: map[string]any{gitlabKeyID: fakeBaseSHA},
+	}
 }
 
 // handleGitLabCreateMR echoes requested reviewer IDs back as applied
@@ -395,13 +403,16 @@ func gitlabPendingMR(iid int) map[string]any {
 	}
 }
 
-func gitlabTagsPayload(tag string) any {
+func gitlabTagsPayload(tag, commitHash string) any {
 	if tag == "" {
 		return []any{}
 	}
 
 	return []map[string]any{
-		{gitlabKeyName: tag},
+		{
+			gitlabKeyName:   tag,
+			gitlabKeyCommit: map[string]any{gitlabKeyID: commitHash},
+		},
 	}
 }
 

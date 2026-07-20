@@ -29,6 +29,9 @@ type GitHubOptions struct {
 	ExtraTags []string
 	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
 	BoundarySHA string
+	// TagSHAs overrides commit targets by tag name when multiple tags point to
+	// different commits.
+	TagSHAs map[string]string
 	// Commits are returned (newest first) from the commits listing for the
 	// release branch. The last entry should point at BoundarySHA so yeet can
 	// terminate the walk.
@@ -170,7 +173,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOption
 
 func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubTagsPayload(opts.LatestTag, opts.ExtraTags))
+		writeJSON(w, githubTagsPayload(opts))
 	})
 
 	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, r *http.Request) {
@@ -338,15 +341,21 @@ func registerGitHubUser(mux *http.ServeMux) {
 	})
 }
 
-func githubTagsPayload(tag string, extra []string) any {
-	tags := make([]map[string]any, 0, 1+len(extra))
+func githubTagsPayload(opts GitHubOptions) any {
+	tags := make([]map[string]any, 0, 1+len(opts.ExtraTags))
 
-	if tag != "" {
-		tags = append(tags, map[string]any{githubKeyName: tag})
+	if opts.LatestTag != "" {
+		tags = append(tags, map[string]any{
+			githubKeyName:   opts.LatestTag,
+			githubKeyCommit: map[string]any{githubKeySHA: githubTagSHA(opts, opts.LatestTag)},
+		})
 	}
 
-	for _, t := range extra {
-		tags = append(tags, map[string]any{githubKeyName: t})
+	for _, tag := range opts.ExtraTags {
+		tags = append(tags, map[string]any{
+			githubKeyName:   tag,
+			githubKeyCommit: map[string]any{githubKeySHA: githubTagSHA(opts, tag)},
+		})
 	}
 
 	if len(tags) == 0 {
@@ -354,6 +363,14 @@ func githubTagsPayload(tag string, extra []string) any {
 	}
 
 	return tags
+}
+
+func githubTagSHA(opts GitHubOptions, tag string) string {
+	if commitHash := opts.TagSHAs[tag]; commitHash != "" {
+		return commitHash
+	}
+
+	return opts.BoundarySHA
 }
 
 // githubHeadSHA is the branch head of the fake history: the explicit

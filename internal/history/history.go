@@ -12,9 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -23,12 +25,14 @@ import (
 // remote release branch.
 var ErrCheckoutUnusable = errors.New("local checkout cannot serve release history")
 
+var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
+
 // Remote is the provider-backed slice of history capabilities the local
-// source needs: authoritative version refs and the branch head used to
-// validate the checkout.
+// source needs: authoritative version refs with commit targets and the branch
+// head used to validate the checkout.
 type Remote interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
-	ListTags(ctx context.Context) ([]string, error)
+	ListTagRefs(ctx context.Context) ([]provider.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
 
@@ -44,6 +48,9 @@ type Source struct {
 	dir    string
 
 	local *localHistory
+
+	remoteTags       []string
+	remoteTagCommits map[string]string
 }
 
 // New returns a history source for the configured release branch that looks
@@ -64,10 +71,10 @@ func (s *Source) GetLatestVersionRef(ctx context.Context) (string, error) {
 	return ref, nil
 }
 
-// ListTags always asks the remote provider. Remote tags are the source of
-// truth.
+// ListTags loads names and commit targets from the remote provider. The same
+// snapshot validates local release boundaries later in the run.
 func (s *Source) ListTags(ctx context.Context) ([]string, error) {
-	tags, err := s.remote.ListTags(ctx)
+	tags, _, err := s.loadRemoteTags(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("remote tags: %w", err)
 	}
@@ -89,7 +96,12 @@ func (s *Source) GetCommitsSinceRefs(
 		return provider.CommitHistory{}, err
 	}
 
-	history, err := local.commitsSinceRefs(ctx, refs, includePaths)
+	boundaries, err := s.verifiedBoundaries(ctx, local, refs)
+	if err != nil {
+		return provider.CommitHistory{}, err
+	}
+
+	history, err := local.commitsSinceRefs(ctx, refs, boundaries, includePaths)
 	if err != nil {
 		return provider.CommitHistory{}, err
 	}
@@ -100,6 +112,95 @@ func (s *Source) GetCommitsSinceRefs(
 	)
 
 	return history, nil
+}
+
+func (s *Source) loadRemoteTags(ctx context.Context) ([]string, map[string]string, error) {
+	if s.remoteTagCommits != nil {
+		return slices.Clone(s.remoteTags), s.remoteTagCommits, nil
+	}
+
+	refs, err := s.remote.ListTagRefs(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list remote tag refs: %w", err)
+	}
+
+	tags := make([]string, 0, len(refs))
+	commits := make(map[string]string, len(refs))
+
+	for _, ref := range refs {
+		name := strings.TrimSpace(ref.Name)
+		if name == "" {
+			continue
+		}
+
+		commitHash := strings.TrimSpace(ref.CommitSHA)
+		if commitHash == "" {
+			return nil, nil, fmt.Errorf("%w: tag %q has no commit hash", errRemoteTagMetadata, name)
+		}
+
+		if existing, exists := commits[name]; exists && !strings.EqualFold(existing, commitHash) {
+			return nil, nil, fmt.Errorf("%w: tag %q has conflicting commit hashes", errRemoteTagMetadata, name)
+		}
+
+		if _, exists := commits[name]; !exists {
+			tags = append(tags, name)
+		}
+
+		commits[name] = commitHash
+	}
+
+	s.remoteTags = tags
+	s.remoteTagCommits = commits
+
+	return slices.Clone(tags), commits, nil
+}
+
+func (s *Source) verifiedBoundaries(
+	ctx context.Context,
+	local *localHistory,
+	refs []string,
+) (map[string]plumbing.Hash, error) {
+	_, remoteCommits, err := s.loadRemoteTags(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load remote tags for checkout validation: %w", err)
+	}
+
+	boundaries := make(map[string]plumbing.Hash, len(refs))
+
+	for _, rawRef := range refs {
+		ref := strings.TrimSpace(rawRef)
+		if ref == "" {
+			continue
+		}
+
+		if _, exists := boundaries[ref]; exists {
+			continue
+		}
+
+		remoteCommit, exists := remoteCommits[ref]
+		if !exists {
+			return nil, fmt.Errorf("%w: tag %q is not present in the remote tag list", ErrCheckoutUnusable, ref)
+		}
+
+		localCommit, err := local.tagCommit(ref)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.EqualFold(localCommit.String(), remoteCommit) {
+			return nil, fmt.Errorf(
+				"%w: local tag %q points to %s but the remote tag points to %s, fetch tags before releasing",
+				ErrCheckoutUnusable,
+				ref,
+				localCommit,
+				remoteCommit,
+			)
+		}
+
+		boundaries[ref] = localCommit
+	}
+
+	return boundaries, nil
 }
 
 // eligibleLocal validates the checkout once per Source and memoizes success.

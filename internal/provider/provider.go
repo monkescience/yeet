@@ -81,11 +81,20 @@ type CommitHistory struct {
 	MissingRefs []string
 }
 
+// TagRef identifies a remote tag and the commit it resolves to. CommitSHA is
+// the peeled commit hash for annotated tags.
+type TagRef struct {
+	Name      string
+	CommitSHA string
+}
+
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
 	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
+	// ListTagRefs returns tags with their peeled commit hashes in newest-first order.
+	ListTagRefs(ctx context.Context) ([]TagRef, error)
 	// GetBranchHead returns the commit SHA the branch currently points at,
 	// wrapping ErrRefNotFound when the branch does not exist. Release commit
 	// ranges are computed from the local checkout (internal/history), which
