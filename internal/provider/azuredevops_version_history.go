@@ -27,9 +27,18 @@ func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
 }
 
 func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
+	refs, err := a.ListTagRefs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return tagRefNames(refs), nil
+}
+
+func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "azure devops: listing tags")
 
-	tags := make([]string, 0)
+	refs := make([]TagRef, 0)
 
 	err := a.paginateTagRefs(ctx, func(ref git.GitRef) (bool, error) {
 		if ref.Name == nil {
@@ -37,9 +46,20 @@ func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
 		}
 
 		name := strings.TrimSpace(strings.TrimPrefix(*ref.Name, azureDevOpsTagRefPrefix))
-		if name != "" {
-			tags = append(tags, name)
+		if name == "" {
+			return false, nil
 		}
+
+		commitHash := strings.TrimSpace(derefString(ref.PeeledObjectId))
+		if commitHash == "" {
+			commitHash = strings.TrimSpace(derefString(ref.ObjectId))
+		}
+
+		if commitHash == "" {
+			return false, fmt.Errorf("%w: tag %q", ErrEmptyCommitSHA, name)
+		}
+
+		refs = append(refs, TagRef{Name: name, CommitSHA: commitHash})
 
 		return false, nil
 	})
@@ -47,9 +67,9 @@ func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "azure devops: listed tags", slog.Int("count", len(tags)))
+	slog.DebugContext(ctx, "azure devops: listed tags", slog.Int("count", len(refs)))
 
-	return tags, nil
+	return refs, nil
 }
 
 func (a *AzureDevOps) paginateTagRefs(
@@ -63,6 +83,7 @@ func (a *AzureDevOps) paginateTagRefs(
 
 	filter := "tags/"
 	pageSize := azureDevOpsRefPageSize
+	peelTags := true
 
 	return paginateAzureDevOps(ctx, "listing tag refs",
 		func(token string) ([]git.GitRef, string, error) {
@@ -70,6 +91,7 @@ func (a *AzureDevOps) paginateTagRefs(
 				RepositoryId: &a.repo,
 				Project:      &a.project,
 				Filter:       &filter,
+				PeelTags:     &peelTags,
 				Top:          &pageSize,
 			}
 

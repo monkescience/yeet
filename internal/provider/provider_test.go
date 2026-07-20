@@ -499,6 +499,7 @@ func TestGitLabVersionLookup(t *testing.T) {
 				writeJSON(t, w, []map[string]any{{
 					"name":   "v1.2.3",
 					"target": "abc123",
+					"commit": map[string]any{"id": "abc123"},
 				}})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())

@@ -25,10 +25,19 @@ func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
 }
 
 func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
+	refs, err := g.ListTagRefs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return tagRefNames(refs), nil
+}
+
+func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "github: listing tags")
 
 	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
-	tags := make([]string, 0)
+	refs := make([]TagRef, 0)
 
 	err := paginate(ctx, "listing tags",
 		func(page int) ([]*github.RepositoryTag, int, error) {
@@ -43,9 +52,16 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 		},
 		func(tag *github.RepositoryTag) (bool, error) {
 			name := strings.TrimSpace(tag.GetName())
-			if name != "" {
-				tags = append(tags, name)
+			if name == "" {
+				return false, nil
 			}
+
+			commitHash := strings.TrimSpace(tag.GetCommit().GetSHA())
+			if commitHash == "" {
+				return false, fmt.Errorf("%w: tag %q", ErrEmptyCommitSHA, name)
+			}
+
+			refs = append(refs, TagRef{Name: name, CommitSHA: commitHash})
 
 			return false, nil
 		},
@@ -54,9 +70,9 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "github: listed tags", slog.Int("count", len(tags)))
+	slog.DebugContext(ctx, "github: listed tags", slog.Int("count", len(refs)))
 
-	return tags, nil
+	return refs, nil
 }
 
 // GetBranchHead returns the commit SHA branch currently points at. The

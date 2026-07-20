@@ -161,12 +161,15 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 			})
 
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization:  "contoso",
-			Project:       "platform",
-			Repo:          "yeet",
-			LatestTag:     "v1.2.0",
-			ExtraTags:     []string{"v1.0.0", "v1.1.0", "v0.9.0"},
-			BoundarySHA:   shas[3],
+			Organization: "contoso",
+			Project:      "platform",
+			Repo:         "yeet",
+			LatestTag:    "v1.2.0",
+			ExtraTags:    []string{"v1.0.0", "v1.1.0", "v0.9.0"},
+			BoundarySHA:  shas[3],
+			TagSHAs: map[string]string{
+				"v0.9.0": shas[0], "v1.0.0": shas[1], "v1.1.0": shas[2], "v1.2.0": shas[3],
+			},
 			BranchHeadSHA: shas[4],
 		})
 
@@ -270,6 +273,7 @@ func TestReleaseAzureAutoMergeTagsMultipleTargets(t *testing.T) {
 			LatestTag:     "api/v1.0.0",
 			ExtraTags:     []string{"web/v1.0.0"},
 			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"api/v1.0.0": shas[0], "web/v1.0.0": shas[1]},
 			BranchHeadSHA: shas[3],
 		})
 

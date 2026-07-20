@@ -51,21 +51,16 @@ func newLocalHistory(repo *git.Repository, head plumbing.Hash) *localHistory {
 
 // commitsSinceRefs mirrors the provider contract: one exact range per unique
 // ref, newest-first, with refs that are absent from the branch graph reported
-// in MissingRefs. A tag that does not exist locally at all is an error so the
-// caller falls back to the provider, which may know tags the checkout lacks.
+// in MissingRefs. Remote tag targets are validated before this method runs.
 func (l *localHistory) commitsSinceRefs(
 	ctx context.Context,
 	refs []string,
+	boundaries map[string]plumbing.Hash,
 	includePaths bool,
 ) (provider.CommitHistory, error) {
 	normalizedRefs := normalizeRefs(refs)
 
 	graph, err := l.branchGraph(ctx)
-	if err != nil {
-		return provider.CommitHistory{}, err
-	}
-
-	boundaries, err := l.resolveBoundaries(normalizedRefs)
 	if err != nil {
 		return provider.CommitHistory{}, err
 	}
@@ -97,25 +92,6 @@ func (l *localHistory) commitsSinceRefs(
 	}
 
 	return history, nil
-}
-
-func (l *localHistory) resolveBoundaries(refs []string) (map[string]plumbing.Hash, error) {
-	boundaries := make(map[string]plumbing.Hash, len(refs))
-
-	for _, ref := range refs {
-		if ref == "" {
-			continue
-		}
-
-		hash, err := l.tagCommit(ref)
-		if err != nil {
-			return nil, err
-		}
-
-		boundaries[ref] = hash
-	}
-
-	return boundaries, nil
 }
 
 // refRange returns the hashes reachable from head but not from ref's

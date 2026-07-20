@@ -28,6 +28,7 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 			LatestTag:     "v1.1.0-beta.1",
 			ExtraTags:     []string{"v1.0.0"},
 			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v1.1.0-beta.1": shas[1], "v1.0.0": shas[0]},
 			BranchHeadSHA: shas[2],
 		})
 

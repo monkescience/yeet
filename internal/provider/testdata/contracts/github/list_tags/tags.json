@@ -1,8 +1,14 @@
 [
   {
-    "name": "v1.2.3"
+    "name": "v1.2.3",
+    "commit": {
+      "sha": "tag-commit-123"
+    }
   },
   {
-    "name": "v1.2.2"
+    "name": "v1.2.2",
+    "commit": {
+      "sha": "tag-commit-122"
+    }
   }
 ]

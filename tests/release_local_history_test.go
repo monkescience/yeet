@@ -17,7 +17,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 
 		// given: a local checkout whose head matches the provider branch head,
 		// while the provider's compare fixture would tell a different story
-		repoDir, headSHA := fixture.WriteRepoWithTaggedHistory(
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
 			"main",
@@ -28,7 +28,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Owner:       "acme",
 			Repo:        "repo",
 			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
+			BoundarySHA: boundarySHA,
 			Commits: []fakeprovider.GitHubCommit{
 				{SHA: headSHA, Message: "fix: remote patch"},
 			},
@@ -60,7 +60,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		t.Parallel()
 
 		// given: a local checkout whose head differs from the provider branch head
-		repoDir, _ := fixture.WriteRepoWithTaggedHistory(
+		repoDir, boundarySHA, _ := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
 			"main",
@@ -71,6 +71,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Owner:         "acme",
 			Repo:          "repo",
 			LatestTag:     "v1.0.0",
+			BoundarySHA:   boundarySHA,
 			BranchHeadSHA: "1111111111111111111111111111111111111111",
 		})
 
@@ -94,14 +95,55 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.True(t, strings.Contains(result.Stderr, "does not match the remote head"))
 	})
 
+	t.Run("mismatched local tag target fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: HEAD matches the provider while the local release tag points to a different commit
+		repoDir, _, headSHA := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   headSHA,
+			BranchHeadSHA: headSHA,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: invoking release analysis with the mismatched tag
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the local tag cannot silently redefine the remote release boundary
+		testastic.NotEqual(t, 0, result.ExitCode)
+		testastic.True(t, strings.Contains(result.Stderr, "local tag"))
+		testastic.True(t, strings.Contains(result.Stderr, "remote tag"))
+	})
+
 	t.Run("missing repository fails with an actionable error", func(t *testing.T) {
 		t.Parallel()
 
 		// given: no git repository in the working directory
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:     "acme",
-			Repo:      "repo",
-			LatestTag: "v1.0.0",
+			Owner:       "acme",
+			Repo:        "repo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "2222222222222222222222222222222222222222",
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
