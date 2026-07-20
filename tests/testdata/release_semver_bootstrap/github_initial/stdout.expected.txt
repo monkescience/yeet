@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- initial feature ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- initial feature ([0d43171](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/0d431713ca32965b72fc8585d109fde0492be0df))
 

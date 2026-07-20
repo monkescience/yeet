@@ -1,9 +1,0 @@
-{
-  "count": 1,
-  "value": [
-    {
-      "commitId": "head-sha",
-      "comment": "feat: ship api"
-    }
-  ]
-}

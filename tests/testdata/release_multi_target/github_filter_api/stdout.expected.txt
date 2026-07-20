@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- add api endpoint ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- add api endpoint ([8e931a1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/8e931a18799355720bfb280a8dbcacc9a2c46194))
 

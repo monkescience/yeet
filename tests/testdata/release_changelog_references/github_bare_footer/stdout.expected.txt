@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- ship update ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha)) (alice)
+- ship update ([c22579b](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/c22579b09f27d8be2f9bec169407d1a6425b1989)) (alice)
 

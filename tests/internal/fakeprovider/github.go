@@ -16,6 +16,11 @@ import (
 type GitHubOptions struct {
 	Owner string
 	Repo  string
+	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
+	// the head of the local fixture repository so yeet's checkout validation
+	// passes (or to another value to force the stale-checkout error). When
+	// empty, the newest entry in Commits (or the shared base SHA) is used.
+	BranchHeadSHA string
 	// LatestTag is the most recent tag returned by the tags-fallback. When
 	// empty, the server reports no tags and no latest release.
 	LatestTag string
@@ -351,9 +356,13 @@ func githubTagsPayload(tag string, extra []string) any {
 	return tags
 }
 
-// githubHeadSHA is the branch head of the fake history: the newest commit
-// when one exists, otherwise the shared base SHA.
+// githubHeadSHA is the branch head of the fake history: the explicit
+// BranchHeadSHA, else the newest commit, else the shared base SHA.
 func githubHeadSHA(opts GitHubOptions) string {
+	if opts.BranchHeadSHA != "" {
+		return opts.BranchHeadSHA
+	}
+
 	if len(opts.Commits) > 0 {
 		return opts.Commits[0].SHA
 	}

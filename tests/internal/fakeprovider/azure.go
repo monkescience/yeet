@@ -16,6 +16,10 @@ type AzureOptions struct {
 	Organization string
 	Project      string
 	Repo         string
+	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
+	// the head of the local fixture repository so yeet's checkout validation
+	// passes. When empty, the shared base SHA is used.
+	BranchHeadSHA string
 	// LatestTag is the most recent tag returned by the tags-fallback.
 	LatestTag string
 	// ExtraTags are additional historical tags returned alongside LatestTag
@@ -173,11 +177,16 @@ func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
 		filter := r.URL.Query().Get("filter")
 
 		if strings.HasPrefix(filter, "heads/") {
+			headSHA := opts.BranchHeadSHA
+			if headSHA == "" {
+				headSHA = fakeBaseSHA
+			}
+
 			writeJSON(w, map[string]any{
 				azureKeyCount: 1,
 				azureKeyValue: []map[string]any{{
 					gitlabKeyName:    "refs/" + filter,
-					azureKeyObjectID: fakeBaseSHA,
+					azureKeyObjectID: headSHA,
 				}},
 			})
 

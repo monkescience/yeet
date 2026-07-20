@@ -258,11 +258,13 @@ func (l *localHistory) ancestorSet(boundary plumbing.Hash) map[plumbing.Hash]str
 }
 
 // tagCommit resolves the exact refs/tags name and peels annotated tags to
-// their commit.
+// their commit. A tag the checkout lacks is fatal, so the error names the fix.
 func (l *localHistory) tagCommit(ref string) (plumbing.Hash, error) {
 	hash, err := l.repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(ref)))
 	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf("resolve local tag %q: %w", ref, err)
+		return plumbing.ZeroHash, fmt.Errorf(
+			"resolve local tag %q (fetch tags, e.g. git fetch --tags): %w", ref, err,
+		)
 	}
 
 	return *hash, nil

@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -15,15 +16,18 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab fake with both merged-pending-release and version files
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
 			Project:              "group/service",
 			LatestTag:            "v1.0.0",
-			BoundarySHA:          "boundary-sha",
+			BoundarySHA:          shas[0],
+			BranchHeadSHA:        shas[1],
 			MergedPendingRelease: true,
-			Commits: []fakeprovider.GitLabCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
 			Files: map[string]string{
 				"VERSION.txt": "1.0.0 # x-yeet-version\n",
 			},
@@ -40,6 +44,7 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
@@ -51,15 +56,18 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project with version_files and a feat commit
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release", Tag: "v2025.05.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v2025.05.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2025.05.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "2025.05.0 # x-yeet-version\n",
 			},
@@ -79,6 +87,7 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--auto-merge", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -87,23 +96,33 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 	})
 }
 
+// TestReleaseProviderPagination used to prove yeet followed the provider's
+// paginated compare API. That path no longer exists: history comes from the
+// local checkout. The test is repurposed to prove the local-history equivalent:
+// a repository with more than 100 commits since the tag (past any provider page
+// size) still yields a complete changelog.
 func TestReleaseProviderPagination(t *testing.T) {
 	t.Parallel()
 
-	t.Run("github follows paginated commits before the release boundary", func(t *testing.T) {
+	t.Run("github local history serves more than 100 commits since the tag", func(t *testing.T) {
 		t.Parallel()
 
-		// given: GitHub returns the releasable commit on page 1 and the boundary on page 2
+		// given: a local checkout with 105 releasable commits since v1.0.0
+		const commitCount = 105
+
+		commits := []fixture.RepoCommit{{Message: "chore: release v1.0.0", Tag: "v1.0.0"}}
+		for i := 1; i <= commitCount; i++ {
+			commits = append(commits, fixture.RepoCommit{Message: fmt.Sprintf("feat: change %03d", i)})
+		}
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main", commits)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:           "testorg",
-			Repo:            "testrepo",
-			LatestTag:       "v1.0.0",
-			BoundarySHA:     "boundary-sha",
-			PaginateCommits: true,
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[len(shas)-1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -117,12 +136,14 @@ func TestReleaseProviderPagination(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: yeet follows the next-page link and stops at the boundary commit
+		// then: the changelog covers the whole range, including the oldest commit
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.AssertFile(t, "testdata/release_dry_run/github/stdout.expected.txt", result.Stdout)
+		testastic.Contains(t, result.Stdout, "change 001")
+		testastic.Contains(t, result.Stdout, "change 105")
 	})
 }
 
@@ -143,16 +164,19 @@ func TestReleaseExistingOpenPRUpdate(t *testing.T) {
 			"### Bug Fixes\n\n* fix: stale entry\n\n" +
 			manifest + "\n"
 
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:                     "testorg",
 			Repo:                      "testrepo",
 			LatestTag:                 "v1.0.0",
-			BoundarySHA:               "boundary-sha",
+			BoundarySHA:               shas[0],
+			BranchHeadSHA:             shas[1],
 			ExistingOpenReleasePRBody: existingBody,
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -166,6 +190,7 @@ func TestReleaseExistingOpenPRUpdate(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -181,15 +206,18 @@ func TestReleaseFlagsRepositoryOverrides(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server expecting overridden owner + config's repo
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/flagorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "flagorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "flagorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -206,6 +234,7 @@ func TestReleaseFlagsRepositoryOverrides(t *testing.T) {
 				"release", "--dry-run", "--config", configPath,
 				"--owner", "flagorg",
 			},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -217,15 +246,18 @@ func TestReleaseFlagsRepositoryOverrides(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server and CLI flag overrides
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -242,6 +274,7 @@ func TestReleaseFlagsRepositoryOverrides(t *testing.T) {
 				"release", "--dry-run", "--config", configPath,
 				"--remote", "origin",
 			},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -260,16 +293,12 @@ func TestReleaseTargetFilterErrors(t *testing.T) {
 	t.Run("github rejects --target naming an unknown target", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a single-target config and a --target flag naming a non-existent target
+		// given: a single-target config and a --target flag naming a non-existent
+		// target; the run fails before any history or provider access
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:     "testorg",
+			Repo:      "testrepo",
+			LatestTag: "v1.0.0",
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -307,15 +336,18 @@ func TestReleaseGitLabExistingPRUpdate(t *testing.T) {
 			"### Features\n\n* feat: outdated\n\n" +
 			manifest + "\n"
 
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
 			Project:                   "group/service",
 			LatestTag:                 "v1.0.0",
-			BoundarySHA:               "boundary-sha",
+			BoundarySHA:               shas[0],
+			BranchHeadSHA:             shas[1],
 			ExistingOpenReleasePRBody: existingBody,
-			Commits: []fakeprovider.GitLabCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -328,6 +360,7 @@ func TestReleaseGitLabExistingPRUpdate(t *testing.T) {
 		// when: invoking `yeet release` against the open MR
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
@@ -342,16 +375,19 @@ func TestReleaseAuthSelection(t *testing.T) {
 	t.Run("github prefers GH_TOKEN when GITHUB_TOKEN is empty", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a fake GitHub server and GH_TOKEN as the only credential
+		// given: a local checkout, a fake GitHub server, and GH_TOKEN as the only credential
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -365,6 +401,7 @@ func TestReleaseAuthSelection(t *testing.T) {
 		// when: invoking with GH_TOKEN set and GITHUB_TOKEN empty
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(
 				"GITHUB_TOKEN=",
 				"GH_TOKEN=gh-token",

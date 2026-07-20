@@ -12,8 +12,8 @@ Dry Run
 
 ### Features
 
-- overridden first commit ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- overridden first commit ([2fbc76d](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/2fbc76dbae93a45bb7c3a5741908c58c8535d612))
 ### Bug Fixes
 
-- overridden second commit ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- overridden second commit ([2fbc76d](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/2fbc76dbae93a45bb7c3a5741908c58c8535d612))
 

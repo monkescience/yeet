@@ -8,6 +8,18 @@ import (
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 
+// versionFileHistory writes the shared checkout used by version-file tests:
+// one tagged v1.0.0 boundary and one releasable feat commit.
+func versionFileHistory(t *testing.T) (string, []string) {
+	t.Helper()
+
+	return fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+			{Message: "feat: add a thing"},
+		})
+}
+
 func TestReleaseVersionFileBlocks(t *testing.T) {
 	t.Parallel()
 
@@ -19,16 +31,15 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			"This release is 1.0.0 and supersedes the previous one.\n" +
 			"# x-yeet-end\n"
 
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
-			Files: map[string]string{"VERSION.txt": fileContent},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": fileContent},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -43,6 +54,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -54,15 +66,14 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt whose x-yeet-start block has no matching x-yeet-end
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "# x-yeet-start-version\nThis is 1.0.0 and the block is never closed.\n",
 			},
@@ -80,6 +91,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -97,16 +109,15 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			"# x-yeet-start-major\n" +
 			"# x-yeet-end\n"
 
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
-			Files: map[string]string{"VERSION.txt": fileContent},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": fileContent},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -121,6 +132,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -133,16 +145,15 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt with no markers at all
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
-			Files: map[string]string{"VERSION.txt": "1.0.0\n"},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": "1.0.0\n"},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -157,6 +168,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -177,16 +189,15 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 			"minor: 0  # x-yeet-minor\n" +
 			"patch: 0  # x-yeet-patch\n"
 
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
-			Files: map[string]string{"VERSION.txt": fileContent},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": fileContent},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -201,6 +212,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -212,15 +224,14 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that uses `x-yeet-year` under a semver scheme
+		repoDir, shas := versionFileHistory(t)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "year: 2026  # x-yeet-year\n",
 			},
@@ -238,6 +249,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -254,15 +266,18 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver config with a week-based format and an x-yeet-minor marker
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release", Tag: "v2026.05.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v2026.05.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2026.05.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "minor: 5  # x-yeet-minor\n",
 			},
@@ -282,6 +297,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -299,15 +315,17 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 			"day: 14    # x-yeet-day\n" +
 			"micro: 0   # x-yeet-micro\n"
 
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: bootstrap"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: bootstrap"},
-			},
-			Files: map[string]string{"VERSION.txt": fileContent},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": fileContent},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -324,6 +342,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 

@@ -13,7 +13,15 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies) *Releaser {
+// testReleaserDeps is the stub-side capability set: provider dependencies
+// plus the version history that production wiring sources from the local
+// checkout.
+type testReleaserDeps interface {
+	releaserDependencies
+	versionHistoryProvider
+}
+
+func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *Releaser {
 	t.Helper()
 
 	if len(cfg.Targets) == 0 {
@@ -26,7 +34,7 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps releaserDependencies
 		}
 	}
 
-	r, err := New(t.Context(), cfg, deps)
+	r, err := New(t.Context(), cfg, deps, deps)
 	if err != nil {
 		t.Fatalf("New() returned unexpected error: %v", err)
 	}

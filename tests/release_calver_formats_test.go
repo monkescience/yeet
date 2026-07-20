@@ -27,15 +27,18 @@ func TestReleaseCalVerFormats(t *testing.T) {
 			t.Parallel()
 
 			// given: a calver project with the given format
+			repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+				[]fixture.RepoCommit{
+					{Message: "chore: release", Tag: tc.tag},
+					{Message: "feat: add a thing"},
+				})
+
 			server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-				Owner:       "testorg",
-				Repo:        "testrepo",
-				LatestTag:   tc.tag,
-				BoundarySHA: "boundary-sha",
-				Commits: []fakeprovider.GitHubCommit{
-					{SHA: "head-sha", Message: "feat: add a thing"},
-					{SHA: "boundary-sha", Message: "chore: release"},
-				},
+				Owner:         "testorg",
+				Repo:          "testrepo",
+				LatestTag:     tc.tag,
+				BoundarySHA:   shas[0],
+				BranchHeadSHA: shas[1],
 			})
 
 			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -51,6 +54,7 @@ func TestReleaseCalVerFormats(t *testing.T) {
 			// when: invoking `yeet release --dry-run`
 			result := binary.RunWithOptions(t,
 				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunWorkDir(repoDir),
 				testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 			)
 
@@ -111,15 +115,18 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		t.Parallel()
 
 		// given: a feat commit pinning Release-As to a prerelease version
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: ship\n\nRelease-As: 2.0.0-rc.1"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: ship\n\nRelease-As: 2.0.0-rc.1"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -133,6 +140,7 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -145,15 +153,18 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		t.Parallel()
 
 		// given: a feat commit pinning Release-As below the current version
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2.0.0", Tag: "v2.0.0"},
+				{Message: "feat: ship\n\nRelease-As: 1.0.0"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v2.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: ship\n\nRelease-As: 1.0.0"},
-				{SHA: "boundary-sha", Message: "chore: release v2.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -167,6 +178,7 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 

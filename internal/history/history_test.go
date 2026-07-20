@@ -22,13 +22,10 @@ const fixtureBranch = "main"
 type remoteStub struct {
 	branchHead    string
 	branchHeadErr error
-	history       provider.CommitHistory
-	historyErr    error
 	latestRef     string
 	tags          []string
 
 	branchHeadCalls int
-	commitsCalls    [][]string
 }
 
 func (r *remoteStub) GetLatestVersionRef(_ context.Context) (string, error) {
@@ -43,17 +40,6 @@ func (r *remoteStub) GetBranchHead(_ context.Context, _ string) (string, error) 
 	r.branchHeadCalls++
 
 	return r.branchHead, r.branchHeadErr
-}
-
-func (r *remoteStub) GetCommitsSinceRefs(
-	_ context.Context,
-	refs []string,
-	_ string,
-	_ bool,
-) (provider.CommitHistory, error) {
-	r.commitsCalls = append(r.commitsCalls, slices.Clone(refs))
-
-	return r.history, r.historyErr
 }
 
 type repoFixture struct {
@@ -260,17 +246,16 @@ func TestSourceLocalRanges(t *testing.T) {
 		c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
 		c3 := fx.commit("feat: three", map[string]string{"b.txt": "three"})
 
-		source, remote := fx.source()
+		source, _ := fx.source()
 
 		// when: the range since the tag is requested
 		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: exactly the commits after the tag are returned newest-first, locally
+		// then: exactly the commits after the tag are returned newest-first
 		testastic.NoError(t, err)
 		testastic.SliceEqual(t, []string{c3.String(), c2.String()}, entryHashes(result.EntriesByRef["v1.0.0"]))
 		testastic.Equal(t, "feat: three", result.EntriesByRef["v1.0.0"][0].Message)
 		testastic.Empty(t, result.MissingRefs)
-		testastic.Len(t, remote.commitsCalls, 0)
 	})
 
 	t.Run("empty ref returns complete history", func(t *testing.T) {
@@ -406,7 +391,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		testastic.SliceEqual(t, []string{c2.String()}, entryHashes(result.EntriesByRef["v1.0.0"]))
 	})
 
-	t.Run("detached head at branch tip uses local history", func(t *testing.T) {
+	t.Run("detached head at branch tip is eligible", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a CI-style detached checkout at the branch tip
@@ -422,14 +407,13 @@ func TestSourceLocalRanges(t *testing.T) {
 		// when: a range is requested
 		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: local history serves it without provider comparisons
+		// then: local history serves it
 		testastic.NoError(t, err)
 		testastic.SliceEqual(t, []string{c2.String()}, entryHashes(result.EntriesByRef["v1.0.0"]))
-		testastic.Len(t, remote.commitsCalls, 0)
 		testastic.Equal(t, 1, remote.branchHeadCalls)
 	})
 
-	t.Run("eligibility is evaluated once per run", func(t *testing.T) {
+	t.Run("eligibility is validated once per run", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an eligible checkout
@@ -534,33 +518,25 @@ func TestSourcePaths(t *testing.T) {
 	})
 }
 
-func TestSourceFallback(t *testing.T) {
+func TestSourceUnusableCheckout(t *testing.T) {
 	t.Parallel()
 
-	fallbackHistory := provider.CommitHistory{
-		EntriesByRef: map[string][]provider.CommitEntry{
-			"v1.0.0": {{Hash: "remote", Message: "feat: remote"}},
-		},
-	}
-
-	t.Run("no repository delegates to the provider", func(t *testing.T) {
+	t.Run("missing repository fails with checkout error", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a directory without a git repository
-		remote := &remoteStub{history: fallbackHistory}
+		remote := &remoteStub{}
 		source := history.New(remote, fixtureBranch, t.TempDir())
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: the provider serves the identical request
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
-		testastic.Len(t, remote.commitsCalls, 1)
-		testastic.SliceEqual(t, []string{"v1.0.0"}, remote.commitsCalls[0])
+		// then: the run fails with the checkout sentinel
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 	})
 
-	t.Run("shallow checkout delegates to the provider", func(t *testing.T) {
+	t.Run("shallow checkout fails naming the fetch-depth fix", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository marked shallow
@@ -571,41 +547,37 @@ func TestSourceFallback(t *testing.T) {
 		testastic.NoError(t, err)
 
 		source, remote := fx.source()
-		remote.history = fallbackHistory
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err = source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: the provider serves it without a head validation call
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
+		// then: the run fails before any remote validation
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
+		testastic.ErrorContains(t, err, "shallow")
 		testastic.Equal(t, 0, remote.branchHeadCalls)
-		testastic.Len(t, remote.commitsCalls, 1)
 	})
 
-	t.Run("stale local head delegates to the provider", func(t *testing.T) {
+	t.Run("stale local head fails with pull hint", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a remote branch head ahead of the local checkout
+		// given: a remote branch head that differs from the local checkout
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		remote := &remoteStub{
-			branchHead: "1111111111111111111111111111111111111111",
-			history:    fallbackHistory,
-		}
+		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111"}
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: the provider serves it
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
-		testastic.Len(t, remote.commitsCalls, 1)
+		// then: the run fails asking for a current checkout
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
+		testastic.ErrorContains(t, err, "does not match the remote head")
 	})
 
-	t.Run("checkout of another branch delegates even at the same commit", func(t *testing.T) {
+	t.Run("checkout of another branch fails even at the same commit", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a feature branch checked out at the release branch tip
@@ -613,57 +585,56 @@ func TestSourceFallback(t *testing.T) {
 		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
 		fx.checkoutNewBranch("feature", c1)
 
-		remote := &remoteStub{branchHead: c1.String(), history: fallbackHistory}
+		remote := &remoteStub{branchHead: c1.String()}
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: the provider serves it
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
-		testastic.Len(t, remote.commitsCalls, 1)
+		// then: the run fails naming both branches
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
+		testastic.ErrorContains(t, err, "feature")
 	})
 
-	t.Run("remote head lookup failure delegates to the provider", func(t *testing.T) {
+	t.Run("remote head lookup failure propagates", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a provider that cannot resolve the branch head
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		remote := &remoteStub{branchHeadErr: errors.New("boom"), history: fallbackHistory}
+		remote := &remoteStub{branchHeadErr: errors.New("boom")}
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: the provider fallback still serves the run
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
+		// then: the remote error surfaces with validation context
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "validate local head")
+		testastic.ErrorContains(t, err, "boom")
 	})
 
-	t.Run("tag absent from the checkout delegates to the provider", func(t *testing.T) {
+	t.Run("tag absent from the checkout fails with fetch hint", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an eligible checkout that lacks the requested tag
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		source, remote := fx.source()
-		remote.history = fallbackHistory
+		source, _ := fx.source()
 
 		// when: an unknown tag is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
 
-		// then: the provider decides whether the tag exists
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
-		testastic.Len(t, remote.commitsCalls, 1)
-		testastic.SliceEqual(t, []string{"v9.9.9"}, remote.commitsCalls[0])
+		// then: the run fails naming the tag and the fix
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "v9.9.9")
+		testastic.ErrorContains(t, err, "fetch --tags")
 	})
 
-	t.Run("missing commit object delegates to the provider", func(t *testing.T) {
+	t.Run("missing commit object fails", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an eligible checkout with a pruned parent commit object
@@ -675,19 +646,17 @@ func TestSourceFallback(t *testing.T) {
 		err := os.Remove(objectPath)
 		testastic.NoError(t, err)
 
-		source, remote := fx.source()
-		remote.history = fallbackHistory
+		source, _ := fx.source()
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
+		_, err = source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
 
-		// then: the provider serves it
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
-		testastic.Len(t, remote.commitsCalls, 1)
+		// then: the run fails reading the pruned commit
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "read local commit")
 	})
 
-	t.Run("branch other than the configured one delegates", func(t *testing.T) {
+	t.Run("branch other than the configured one fails", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an eligible checkout configured for main
@@ -695,25 +664,24 @@ func TestSourceFallback(t *testing.T) {
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
 		source, remote := fx.source()
-		remote.history = fallbackHistory
 
 		// when: history for a different branch is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, "other", false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, "other", false)
 
-		// then: the provider serves it without local validation
-		testastic.NoError(t, err)
-		testastic.DeepEqual(t, fallbackHistory, result)
+		// then: the run fails without touching the remote
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 		testastic.Equal(t, 0, remote.branchHeadCalls)
 	})
 
-	t.Run("context cancellation is returned, not hidden by fallback", func(t *testing.T) {
+	t.Run("context cancellation surfaces", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an eligible checkout and an already-cancelled context
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		source, remote := fx.source()
+		source, _ := fx.source()
 
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
@@ -721,10 +689,9 @@ func TestSourceFallback(t *testing.T) {
 		// when: a range is requested with the cancelled context
 		_, err := source.GetCommitsSinceRefs(ctx, []string{""}, fixtureBranch, false)
 
-		// then: the cancellation surfaces and no provider fallback runs
+		// then: the cancellation surfaces
 		testastic.Error(t, err)
 		testastic.True(t, errors.Is(err, context.Canceled))
-		testastic.Len(t, remote.commitsCalls, 0)
 	})
 }
 
@@ -734,7 +701,7 @@ func TestSourceDelegation(t *testing.T) {
 	t.Run("tags and latest ref always come from the provider", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an eligible checkout and provider-side tag state
+		// given: provider-side tag state
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 

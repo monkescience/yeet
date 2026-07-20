@@ -529,18 +529,20 @@ func TestReleaseExplicitConfigDiscovery(t *testing.T) {
 		t.Parallel()
 
 		// given: a config at the repo root and a yeet invocation from a nested dir
+		root, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		root := t.TempDir()
 		configPath := filepath.Join(root, ".yeet.yaml")
 
 		const filePerm = 0o600

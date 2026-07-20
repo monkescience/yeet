@@ -48,8 +48,10 @@ type releasePublishingProvider interface {
 	GetFile(ctx context.Context, branch, path string) (string, error)
 }
 
+// releaserDependencies is the provider-side capability set. Version history
+// is intentionally not part of it: commit ranges come from the local checkout
+// through a separate versionHistoryProvider passed to New.
 type releaserDependencies interface {
-	versionHistoryProvider
 	repoMetadataProvider
 	releasePRProvider
 	releaseFileProvider

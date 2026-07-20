@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- tweak api ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- tweak api ([f22965c](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/f22965c394aa7b7eebcfea5531bae0c6c4ba864d))
 

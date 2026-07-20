@@ -109,19 +109,16 @@ steps:
       AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 ```
 
-## Performance
+## Local checkout requirement
 
-For monorepos with many targets, yeet fetches commit history and per-commit changed paths from the
-provider API in parallel. The number of concurrent requests per batch defaults to 8.
+yeet reads commit history and per-commit changed paths from the local git checkout instead of the
+provider API. This makes release analysis fast even for monorepos with many targets, but the
+checkout must faithfully represent the release branch:
 
-Set `YEET_MAX_CONCURRENT_REQUESTS` to a higher positive integer to speed up large runs, for example
-on self-hosted instances with higher rate limits:
+- Full history: no shallow clone (`fetch-depth: 0`, `GIT_DEPTH "0"`, or `fetchDepth: 0` as shown in
+  the checkout examples above).
+- Tags fetched (`fetchTags: true` on Azure Pipelines; included in full fetches elsewhere).
+- HEAD at the current remote head of the configured release branch.
 
-```sh
-export YEET_MAX_CONCURRENT_REQUESTS=20
-yeet release
-```
-
-Raising it too far can trip provider rate limits. yeet retries rate-limited requests with backoff, so
-start conservatively and increase only if runs are still slow. A value that is not a positive integer
-fails the run.
+yeet validates the checkout against the provider before analyzing and fails with an actionable
+error when it is shallow, stale, or on the wrong branch.

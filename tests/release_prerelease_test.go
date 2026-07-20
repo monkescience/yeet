@@ -15,16 +15,20 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		t.Parallel()
 
 		// given: a beta channel whose latest tag is already a prerelease
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "beta",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0-beta.1", Tag: "v1.1.0-beta.1"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.1.0-beta.1",
-			ExtraTags:   []string{"v1.0.0"},
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.1.0-beta.1"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.1.0-beta.1",
+			ExtraTags:     []string{"v1.0.0"},
+			BoundarySHA:   shas[1],
+			BranchHeadSHA: shas[2],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -41,6 +45,7 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		// when: invoking `yeet release --dry-run --channel beta`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "beta")...),
 		)
 
@@ -57,15 +62,18 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		t.Parallel()
 
 		// given: a beta channel and a Release-As footer requesting a major bump
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "beta",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: rework api\n\nRelease-As: 2.0.0"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: rework api\n\nRelease-As: 2.0.0"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -82,6 +90,7 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		// when: invoking `yeet release --dry-run --channel beta`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "beta")...),
 		)
 
@@ -102,16 +111,19 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: two feat commits whose Release-As footers disagree
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: second change\n\nRelease-As: 3.0.0"},
+				{Message: "feat: first change\n\nRelease-As: 2.0.0"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: first change\n\nRelease-As: 2.0.0"},
-				{SHA: "second-sha", Message: "feat: second change\n\nRelease-As: 3.0.0"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[2],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -125,6 +137,7 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -141,15 +154,18 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: a commit whose Release-As footer is not a valid semver
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: bad pin\n\nRelease-As: not-a-version"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: bad pin\n\nRelease-As: not-a-version"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -163,6 +179,7 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 

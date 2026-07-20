@@ -12,5 +12,5 @@ Dry Run
 
 ### Bug Fixes
 
-- minor bump ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- minor bump ([644fc1b](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/644fc1bf7870972724033adf94eb2fb5d8964e31))
 

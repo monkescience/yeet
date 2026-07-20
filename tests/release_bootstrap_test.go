@@ -15,14 +15,16 @@ func TestReleaseSemverBootstrap(t *testing.T) {
 		t.Parallel()
 
 		// given: a semver project that has never tagged a release
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: bootstrap"},
+				{Message: "feat: initial feature"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: initial feature"},
-				{SHA: "boundary-sha", Message: "chore: bootstrap"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -36,6 +38,7 @@ func TestReleaseSemverBootstrap(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -56,18 +59,21 @@ func TestReleaseCommitMix(t *testing.T) {
 		t.Parallel()
 
 		// given: commits across every default changelog section
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "revert: roll back the prior feat"},
+				{Message: "perf: speed up a thing"},
+				{Message: "fix: fix a thing"},
+				{Message: "feat: ship a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "testorg",
-			Repo:        "testrepo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "feat-sha", Message: "feat: ship a thing"},
-				{SHA: "fix-sha", Message: "fix: fix a thing"},
-				{SHA: "perf-sha", Message: "perf: speed up a thing"},
-				{SHA: "revert-sha", Message: "revert: roll back the prior feat"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[4],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -81,6 +87,7 @@ func TestReleaseCommitMix(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
@@ -101,16 +108,19 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server that flags the PR as draft (merge-blocked)
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:        "testorg",
-			Repo:         "testrepo",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			MergeBlocked: true,
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			MergeBlocked:  true,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -127,6 +137,7 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 				"release", "--auto-merge", "--auto-merge-force",
 				"--config", configPath,
 			},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 

@@ -8,6 +8,13 @@ import (
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 
+// autodetectHistory is the shared commit script for auto-detect fixtures: one
+// tagged release boundary plus one releasable feat commit.
+var autodetectHistory = []fixture.RepoCommit{
+	{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+	{Message: "feat: add a thing"},
+}
+
 func TestReleaseAutoDetect(t *testing.T) {
 	t.Parallel()
 
@@ -15,18 +22,16 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin is an https GitHub URL, plus a fake GitHub server
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/acme/repo.git", "main", autodetectHistory)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "acme",
-			Repo:        "repo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "https://github.com/acme/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo
@@ -49,18 +54,16 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin is an scp-style git@ URL
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "git@github.com:acme/repo.git", "main", autodetectHistory)
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "acme",
-			Repo:        "repo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "git@github.com:acme/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo
@@ -83,19 +86,17 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo using a shorthand origin URL rewritten by url.insteadOf
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "gh:acme/repo.git", "main", autodetectHistory)
+		fixture.AddInsteadOfRewrite(t, repoDir, "https://github.com/", "gh:")
+
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:       "acme",
-			Repo:        "repo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepoWithBranch(t, "gh:acme/repo.git", "main")
-		fixture.AddInsteadOfRewrite(t, repoDir, "https://github.com/", "gh:")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running without CI branch env vars so yeet reads branch and remote config locally
@@ -124,17 +125,15 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin points at a nested GitLab group
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/sub/repo.git", "main", autodetectHistory)
+
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
-			Project:     "group/sub/repo",
-			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitLabCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Project:       "group/sub/repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "https://gitlab.com/group/sub/repo.git")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo
@@ -157,19 +156,18 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin is an Azure DevOps cloud https URL
+		repoDir, shas := fixture.WriteRepoWithHistory(
+			t, "https://dev.azure.com/contoso/platform/_git/yeet", "main", autodetectHistory)
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "https://dev.azure.com/contoso/platform/_git/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo
@@ -192,19 +190,18 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin is the v3 ssh form
+		repoDir, shas := fixture.WriteRepoWithHistory(
+			t, "git@ssh.dev.azure.com:v3/contoso/platform/yeet", "main", autodetectHistory)
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "git@ssh.dev.azure.com:v3/contoso/platform/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo
@@ -227,19 +224,18 @@ func TestReleaseAutoDetect(t *testing.T) {
 		t.Parallel()
 
 		// given: a git repo whose origin uses the legacy *.visualstudio.com host
+		repoDir, shas := fixture.WriteRepoWithHistory(
+			t, "https://contoso.visualstudio.com/platform/_git/yeet", "main", autodetectHistory)
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
-		repoDir := fixture.WriteRepo(t, "https://contoso.visualstudio.com/platform/_git/yeet")
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
 
 		// when: running `yeet release --dry-run` from inside that repo

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -36,33 +35,12 @@ const (
 	azureURLEnv  = "AZURE_DEVOPS_URL"
 )
 
-var ErrInvalidMaxConcurrentRequests = errors.New("invalid " + maxConcurrentRequestsEnv)
-
 const (
 	httpClientTimeout = 30 * time.Second
 	httpRetryMax      = 3
 	httpRetryWaitMin  = 1 * time.Second
 	httpRetryWaitMax  = 10 * time.Second
 )
-
-const maxConcurrentRequestsEnv = "YEET_MAX_CONCURRENT_REQUESTS"
-
-// providerConcurrencyOptions reads the optional YEET_MAX_CONCURRENT_REQUESTS
-// override. An unset or empty value keeps the provider default. A value that is
-// not a positive integer is a user error and fails the run.
-func providerConcurrencyOptions() ([]provider.Option, error) {
-	raw := strings.TrimSpace(os.Getenv(maxConcurrentRequestsEnv))
-	if raw == "" {
-		return nil, nil
-	}
-
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 {
-		return nil, fmt.Errorf("%w: must be a positive integer, got %q", ErrInvalidMaxConcurrentRequests, raw)
-	}
-
-	return []provider.Option{provider.WithMaxConcurrentRequests(limit)}, nil
-}
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
@@ -79,18 +57,13 @@ func newRetryableHTTPClient() *http.Client {
 }
 
 func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
-	opts, err := providerConcurrencyOptions()
-	if err != nil {
-		return nil, err
-	}
-
 	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
-		return createGitHubProvider(repository, opts...)
+		return createGitHubProvider(repository)
 	case config.ProviderGitLab:
-		return createGitLabProvider(repository, opts...)
+		return createGitLabProvider(repository)
 	case config.ProviderAzureDevOps:
-		return createAzureDevOpsProvider(repository, opts...)
+		return createAzureDevOpsProvider(repository)
 	case config.ProviderAuto:
 		return nil, fmt.Errorf(
 			"%w: %s (provider auto must be resolved before creation)",
@@ -101,10 +74,7 @@ func createProvider(repository *provider.RepositoryDescriptor) (provider.Provide
 	}
 }
 
-func createGitHubProvider(
-	repository *provider.RepositoryDescriptor,
-	providerOpts ...provider.Option,
-) (*provider.GitHub, error) {
+func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.GitHub, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GH_TOKEN")
@@ -136,13 +106,10 @@ func createGitHubProvider(
 		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
-	return provider.NewGitHub(client, repository.Owner, repository.Repo, providerOpts...), nil
+	return provider.NewGitHub(client, repository.Owner, repository.Repo), nil
 }
 
-func createGitLabProvider(
-	repository *provider.RepositoryDescriptor,
-	providerOpts ...provider.Option,
-) (*provider.GitLab, error) {
+func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.GitLab, error) {
 	token := os.Getenv("GITLAB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GL_TOKEN")
@@ -172,13 +139,10 @@ func createGitLabProvider(
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	return provider.NewGitLab(client, repository.Project, providerOpts...), nil
+	return provider.NewGitLab(client, repository.Project), nil
 }
 
-func createAzureDevOpsProvider(
-	repository *provider.RepositoryDescriptor,
-	providerOpts ...provider.Option,
-) (*provider.AzureDevOps, error) {
+func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*provider.AzureDevOps, error) {
 	systemAccessToken := os.Getenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN")
 	pat := os.Getenv("AZURE_DEVOPS_EXT_PAT")
 
@@ -219,7 +183,6 @@ func createAzureDevOpsProvider(
 			collection,
 			project,
 			repo,
-			providerOpts...,
 		), nil
 	}
 
@@ -231,7 +194,6 @@ func createAzureDevOpsProvider(
 		collection,
 		project,
 		repo,
-		providerOpts...,
 	), nil
 }
 

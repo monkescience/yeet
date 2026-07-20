@@ -12,14 +12,14 @@ Dry Run
 
 ### Features
 
-- ship a thing ([feat-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/feat-sha))
+- ship a thing ([c6c0c2b](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/c6c0c2baa5dd249340215ca6ad79ae33a5c78341))
 ### Bug Fixes
 
-- fix a thing ([fix-sha](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/fix-sha))
+- fix a thing ([4cce486](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/4cce486b859c5c9666378c65cc8ac1c740a55d11))
 ### Performance Improvements
 
-- speed up a thing ([perf-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/perf-sha))
+- speed up a thing ([424f94c](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/424f94c79671515cdd10df2c0d244ddd2ee79947))
 ### Reverts
 
-- roll back the prior feat ([revert-](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/revert-sha))
+- roll back the prior feat ([13e75ae](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/13e75ae7cdbedaf3c646528dddf05ca656f70521))
 
