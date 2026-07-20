@@ -105,6 +105,7 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 		writeJSON(w, gitlabCommitsList(opts.Commits))
 	})
 
+	mux.HandleFunc("GET "+prefix+"/repository/branches/{branch}", gitlabBranchHeadHandler(opts))
 	mux.HandleFunc("GET "+prefix+"/repository/compare", gitlabCompareHandler(opts))
 	mux.HandleFunc("GET "+prefix+"/repository/commits/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, gitlabCommitDetail(r.PathValue("ref"), opts))
@@ -156,6 +157,22 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 
 		writeJSON(w, []any{})
 	})
+}
+
+// gitlabBranchHeadHandler serves GetBranchHead: the branch head is the newest
+// fake commit when one exists, otherwise the shared base SHA.
+func gitlabBranchHeadHandler(opts GitLabOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		headSHA := fakeBaseSHA
+		if len(opts.Commits) > 0 {
+			headSHA = opts.Commits[0].SHA
+		}
+
+		writeJSON(w, map[string]any{
+			gitlabKeyName: r.PathValue("branch"),
+			"commit":      map[string]any{gitlabKeyID: headSHA},
+		})
+	}
 }
 
 func registerGitLabMergeBase(mux *http.ServeMux, prefix string, opts GitLabOptions) {

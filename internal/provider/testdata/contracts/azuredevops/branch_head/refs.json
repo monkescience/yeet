@@ -1,0 +1,13 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "name": "refs/heads/main2",
+      "objectId": "other-sha"
+    },
+    {
+      "name": "refs/heads/main",
+      "objectId": "head-sha"
+    }
+  ]
+}

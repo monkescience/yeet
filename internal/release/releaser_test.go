@@ -178,6 +178,72 @@ func TestReleaseUsesLatestVersionRef(t *testing.T) {
 	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[0])
 }
 
+func TestNewWithHistory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("history override serves version history instead of deps", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider deps and a separate history source with its own data
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		deps := newProviderStub()
+		deps.latestVersionRef = "v9.9.9"
+
+		override := &versionHistoryStub{
+			latestVersionRef: "v2.0.0",
+			commitsErrByRef:  make(map[string]error),
+			commitsByRef: map[string][]provider.CommitEntry{
+				"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
+			},
+		}
+
+		r, err := NewWithHistory(context.Background(), cfg, deps, override)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true)
+
+		// then: the override answered every history call and deps none
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2.0.0", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "2.1.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, 0, deps.getCommitsSinceRefsCalls)
+		testastic.Equal(t, 0, deps.getLatestVersionRefCalls)
+		testastic.True(t, override.getCommitsSinceRefsCalls > 0)
+	})
+
+	t.Run("nil history keeps the provider-backed default", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider deps and no history override
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		deps := newProviderStub()
+		deps.latestVersionRef = "v1.2.3"
+		deps.commitsByRef = map[string][]provider.CommitEntry{
+			"v1.2.3": {{Hash: "abcdef1234567890", Message: "fix: patch bug"}},
+		}
+
+		r, err := NewWithHistory(context.Background(), cfg, deps, nil)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(context.Background(), true)
+
+		// then: deps served the history calls
+		testastic.NoError(t, err)
+		testastic.Equal(t, "1.2.4", result.Plans[0].NextVersion)
+		testastic.True(t, deps.getCommitsSinceRefsCalls > 0)
+	})
+}
+
 func TestPrereleaseChannels(t *testing.T) {
 	t.Parallel()
 

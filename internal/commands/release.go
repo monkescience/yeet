@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/ui"
@@ -191,7 +192,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	r, err := release.New(ctx, cfg, p)
+	r, err := release.NewWithHistory(ctx, cfg, p, history.New(p, cfg.Branch, "."))
 	if err != nil {
 		return wrapReleaseConfigError(configPath, err)
 	}

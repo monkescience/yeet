@@ -87,6 +87,9 @@ type Provider interface {
 	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
 	GetCommitsSinceRefs(ctx context.Context, refs []string, branch string, includePaths bool) (CommitHistory, error)
+	// GetBranchHead returns the commit SHA the branch currently points at,
+	// wrapping ErrRefNotFound when the branch does not exist.
+	GetBranchHead(ctx context.Context, branch string) (string, error)
 
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
 	TagExists(ctx context.Context, tag string) (bool, error)

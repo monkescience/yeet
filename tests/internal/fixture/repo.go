@@ -77,6 +77,69 @@ func WriteRepoWithBranch(t *testing.T, remoteURL string, branch string) string {
 	return dir
 }
 
+// WriteRepoWithTaggedHistory initializes a repository on branch with one
+// commit tagged tag and one "feat: add local feature" commit on top. It
+// returns the repository root and the head commit SHA so tests can align a
+// fake provider's branch head with the local checkout.
+func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (string, string) {
+	t.Helper()
+
+	dir := WriteRepo(t, remoteURL)
+
+	repository, err := git.PlainOpen(dir)
+	testastic.NoError(t, err)
+
+	worktree, err := repository.Worktree()
+	testastic.NoError(t, err)
+
+	err = repository.Storer.SetReference(plumbing.NewSymbolicReference(
+		plumbing.HEAD,
+		plumbing.NewBranchReferenceName(branch),
+	))
+	testastic.NoError(t, err)
+
+	base := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tagged := commitFile(t, dir, worktree, "README.md", "fixture repo\n", "chore: initial commit", base)
+
+	_, err = repository.CreateTag(tag, tagged, nil)
+	testastic.NoError(t, err)
+
+	head := commitFile(
+		t, dir, worktree,
+		"feature.txt", "local feature\n",
+		"feat: add local feature",
+		base.Add(time.Minute),
+	)
+
+	return dir, head.String()
+}
+
+func commitFile(
+	t *testing.T,
+	dir string,
+	worktree *git.Worktree,
+	path, content, message string,
+	when time.Time,
+) plumbing.Hash {
+	t.Helper()
+
+	const filePerm = 0o600
+
+	err := os.WriteFile(filepath.Join(dir, path), []byte(content), filePerm)
+	testastic.NoError(t, err)
+
+	_, err = worktree.Add(path)
+	testastic.NoError(t, err)
+
+	signature := &object.Signature{Name: "yeet test", Email: "yeet@example.test", When: when}
+
+	hash, err := worktree.Commit(message, &git.CommitOptions{Author: signature, Committer: signature})
+	testastic.NoError(t, err)
+
+	return hash
+}
+
 // AddInsteadOfRewrite adds a git `url.<base>.insteadOf` rewrite rule to repoDir.
 func AddInsteadOfRewrite(t *testing.T, repoDir string, baseURL string, insteadOf string) {
 	t.Helper()

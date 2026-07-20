@@ -63,6 +63,31 @@ func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+// GetBranchHead returns the commit SHA branch currently points at. The
+// branches API only resolves branch names, so a tag with the same name cannot
+// shadow it.
+func (g *GitLab) GetBranchHead(ctx context.Context, branch string) (string, error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", fmt.Errorf("%w: empty branch", ErrRefNotFound)
+	}
+
+	branchInfo, resp, err := g.client.Branches.GetBranch(g.projectID, branch, gitlab.WithContext(ctx))
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("%w: branch %q", ErrRefNotFound, branch)
+		}
+
+		return "", fmt.Errorf("get branch head %q: %w", branch, err)
+	}
+
+	if branchInfo.Commit == nil || strings.TrimSpace(branchInfo.Commit.ID) == "" {
+		return "", fmt.Errorf("%w: branch %q has no head commit", ErrEmptyCommitSHA, branch)
+	}
+
+	return branchInfo.Commit.ID, nil
+}
+
 func (g *GitLab) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,

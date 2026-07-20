@@ -60,6 +60,23 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+// GetBranchHead returns the commit SHA branch currently points at. The
+// "heads/" prefix pins the lookup to the branch namespace so a tag with the
+// same name cannot shadow it.
+func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", fmt.Errorf("%w: empty branch", ErrRefNotFound)
+	}
+
+	sha, err := g.resolveCommitSHA(ctx, "heads/"+branch)
+	if err != nil {
+		return "", fmt.Errorf("get branch head %q: %w", branch, err)
+	}
+
+	return sha, nil
+}
+
 func (g *GitHub) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
