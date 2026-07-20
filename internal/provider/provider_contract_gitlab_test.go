@@ -28,17 +28,8 @@ func newGitLabContractProvider(t *testing.T, server *httptest.Server) provider.P
 
 func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
-	sharedPathsRecorder := newCommitPathsRecorder(t)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if handleGitLabBoundaryRequest(t, w, r, map[string]string{
-			providerContractTag:             "boundary-sha",
-			providerContractIntermediateTag: "intermediate-boundary-sha",
-			providerContractMissingTag:      "",
-		}) {
-			return
-		}
-
 		switch scenario {
 		case providerContractLatestRelease:
 			handleGitLabLatestReleaseContract(t, w, r)
@@ -50,16 +41,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
 			handleGitLabBranchHeadMissingContract(t, w, r)
-		case providerContractGetCommitsSinceRefs:
-			handleGitLabGetCommitsSinceContract(t, w, r)
-		case providerContractGetCommitsSinceRefsMissing:
-			handleGitLabGetCommitsSinceMissingContract(t, w, r)
-		case providerContractGetCommitsSinceRefsUnresolved:
-			handleGitLabGetCommitsSinceUnresolvedContract(t, w, r)
-		case providerContractGetCommitsSinceRefsMultiBoundary:
-			handleGitLabGetCommitsSinceMultiBoundaryContract(t, w, r)
-		case providerContractGetCommitsSinceRefsSharedPaths:
-			handleGitLabSharedPathsContract(t, w, r, sharedPathsRecorder)
 		case providerContractGetReleaseByTag:
 			handleGitLabGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -168,92 +149,6 @@ func handleGitLabListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
-}
-
-func handleGitLabGetCommitsSinceContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case isGitLabCompareRequest(r, providerContractTag):
-		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("to"))
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/compare.json")
-	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
-}
-
-func handleGitLabGetCommitsSinceMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case isGitLabCompareRequest(r, providerContractTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/compare.json")
-	case isGitLabCompareRequest(r, providerContractMissingTag):
-		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
-	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
-}
-
-func handleGitLabSharedPathsContract(
-	t *testing.T,
-	w http.ResponseWriter,
-	r *http.Request,
-	recorder *commitPathsRecorder,
-) {
-	t.Helper()
-
-	switch {
-	case isGitLabCompareRequest(r, providerContractIntermediateTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/intermediate_compare.json")
-	case isGitLabCompareRequest(r, providerContractTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/older_compare.json")
-	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
-		recorder.record(providerContractHeadSHA)
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	case isGitLabCommitDiffRequest(r, providerContractMidSHA):
-		recorder.record(providerContractMidSHA)
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	case isGitLabCommitDiffRequest(r, providerContractIntermediateSHA):
-		recorder.record(providerContractIntermediateSHA)
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
-}
-
-func handleGitLabGetCommitsSinceMultiBoundaryContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case isGitLabCompareRequest(r, providerContractIntermediateTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/intermediate_compare.json")
-	case isGitLabCompareRequest(r, providerContractTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since_multi_boundary/older_compare.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
-}
-
-func handleGitLabGetCommitsSinceUnresolvedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case isGitLabCompareRequest(r, providerContractTag):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/compare.json")
-	case isGitLabCompareRequest(r, providerContractMissingTag):
-		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
-	case isGitLabCommitDiffRequest(r, providerContractHeadSHA):
-		writeJSONFixture(t, w, "contracts/gitlab/get_commits_since/diff.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
 }
 
 func handleGitLabGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

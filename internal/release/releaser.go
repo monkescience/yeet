@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	ErrNilHistorySource          = errors.New("history source is required")
 	ErrInvalidReleaseAs          = errors.New("invalid release-as footer")
 	ErrConflictingReleaseAs      = errors.New("conflicting release-as footers")
 	ErrChangelogEntryNotFound    = errors.New("changelog entry not found")
@@ -59,19 +60,19 @@ type versionStrategy struct {
 	prefix   string
 }
 
-func New(ctx context.Context, cfg *config.Config, deps releaserDependencies) (*Releaser, error) {
-	return NewWithHistory(ctx, cfg, deps, deps)
-}
-
-// NewWithHistory is New with version history served by history instead of
-// deps. The release command injects the local-git accelerated history source
-// here. A nil history keeps the provider-backed default.
-func NewWithHistory(
+// New constructs a Releaser. Version history is served by history (the
+// local-git source wired by the release command), while every provider-side
+// capability comes from deps.
+func New(
 	ctx context.Context,
 	cfg *config.Config,
 	deps releaserDependencies,
 	history versionHistoryProvider,
 ) (*Releaser, error) {
+	if history == nil {
+		return nil, ErrNilHistorySource
+	}
+
 	targets, err := cfg.ResolvedTargets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
@@ -80,10 +81,6 @@ func NewWithHistory(
 	targets, err = targetsForActiveChannel(cfg, targets)
 	if err != nil {
 		return nil, err
-	}
-
-	if history == nil {
-		history = deps
 	}
 
 	return &Releaser{

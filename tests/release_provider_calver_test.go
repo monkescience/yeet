@@ -15,14 +15,17 @@ func TestReleaseGitLabCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project on GitLab with a prior month tag
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
-			Project:     "group/service",
-			LatestTag:   "v2025.11.1",
-			BoundarySHA: "boundary-sha",
-			Commits: []fakeprovider.GitLabCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v2025.11.1"},
-			},
+			Project:       "group/service",
+			LatestTag:     "v2025.11.1",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
 			},
@@ -41,6 +44,7 @@ func TestReleaseGitLabCalVer(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
@@ -56,16 +60,19 @@ func TestReleaseAzureCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project on Azure with a prior month tag
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v2025.11.1",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v2025.11.1"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v2025.11.1",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 			Files: map[string]string{
 				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
 			},
@@ -86,6 +93,7 @@ func TestReleaseAzureCalVer(t *testing.T) {
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
@@ -97,16 +105,19 @@ func TestReleaseAzureCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver azuredevops project ready for auto-merge
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v2025.11.1",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v2025.11.1"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v2025.11.1",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -123,6 +134,7 @@ func TestReleaseAzureCalVer(t *testing.T) {
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--auto-merge", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
@@ -137,18 +149,25 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 	t.Run("azuredevops picks the highest among multiple tags", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an Azure repo with several tags advertised
+		// given: an Azure repo with several tags advertised, each tagging its own
+		// local commit so highest-tag selection works against real ancestry
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v0.9.0", Tag: "v0.9.0"},
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0", Tag: "v1.1.0"},
+				{Message: "chore: release v1.2.0", Tag: "v1.2.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.2.0",
-			ExtraTags:    []string{"v1.0.0", "v1.1.0", "v0.9.0"},
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.2.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.2.0",
+			ExtraTags:     []string{"v1.0.0", "v1.1.0", "v0.9.0"},
+			BoundarySHA:   shas[3],
+			BranchHeadSHA: shas[4],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -163,6 +182,7 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
@@ -179,17 +199,20 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 		t.Parallel()
 
 		// given: an Azure server that reports the PR as draft
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			MergeBlocked: true,
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			MergeBlocked:  true,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -207,6 +230,7 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 				"release", "--auto-merge", "--auto-merge-force",
 				"--config", configPath,
 			},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
@@ -223,18 +247,30 @@ func TestReleaseAzureAutoMergeTagsMultipleTargets(t *testing.T) {
 		t.Parallel()
 
 		// given: an azure multi-target repo with commits in both api/ and web/
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{
+					Message: "chore: release api v1.0.0",
+					Tag:     "api/v1.0.0",
+					Files:   map[string]string{"api/handler.go": "package api\n"},
+				},
+				{
+					Message: "chore: release web v1.0.0",
+					Tag:     "web/v1.0.0",
+					Files:   map[string]string{"web/index.html": "<html></html>\n"},
+				},
+				{Message: "feat: api change", Files: map[string]string{"api/handler.go": "package api // v2\n"}},
+				{Message: "feat: web change", Files: map[string]string{"web/index.html": "<html>v2</html>\n"}},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "api/v1.0.0",
-			ExtraTags:    []string{"web/v1.0.0"},
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: api change", Files: []string{"api/handler.go"}},
-				{SHA: "web-sha", Message: "feat: web change", Files: []string{"web/index.html"}},
-				{SHA: "boundary-sha", Message: "chore: release", Files: []string{"CHANGELOG.md"}},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "api/v1.0.0",
+			ExtraTags:     []string{"web/v1.0.0"},
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[3],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -253,6 +289,7 @@ func TestReleaseAzureAutoMergeTagsMultipleTargets(t *testing.T) {
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--auto-merge", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 

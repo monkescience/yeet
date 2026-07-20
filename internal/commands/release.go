@@ -59,7 +59,8 @@ flags or config:
   Azure DevOps: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT
                 (optional AZURE_DEVOPS_URL)
 
-YEET_MAX_CONCURRENT_REQUESTS caps concurrent provider API requests.`,
+Commit history is read from the local git checkout. The checkout must be
+complete (not shallow, tags fetched) and match the remote release branch.`,
 		Example: releaseHelpExample,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
@@ -192,7 +193,7 @@ func runRelease(ctx context.Context, output io.Writer, configPath string, option
 		return fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	r, err := release.NewWithHistory(ctx, cfg, p, history.New(p, cfg.Branch, "."))
+	r, err := release.New(ctx, cfg, p, history.New(p, cfg.Branch, "."))
 	if err != nil {
 		return wrapReleaseConfigError(configPath, err)
 	}

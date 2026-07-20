@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- add a thing ([head-sh](http://127.0.0.1:{{regex `\d+`}}/group/service/-/commit/head-sha))
+- add a thing ([79b3c2e](http://127.0.0.1:{{regex `\d+`}}/group/service/-/commit/79b3c2e174a56d70cd8937686492372d87a0d066))
 

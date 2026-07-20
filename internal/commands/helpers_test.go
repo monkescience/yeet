@@ -15,54 +15,6 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func TestProviderConcurrencyOptions(t *testing.T) {
-	t.Run("returns no options when the env var is unset", func(t *testing.T) {
-		// given: the override env var is empty
-		t.Setenv(maxConcurrentRequestsEnv, "")
-
-		// when: the concurrency options are resolved
-		opts, err := providerConcurrencyOptions()
-
-		// then: no option is produced and the provider default applies
-		testastic.NoError(t, err)
-		testastic.Equal(t, 0, len(opts))
-	})
-
-	t.Run("returns one option for a positive integer", func(t *testing.T) {
-		// given: a positive override
-		t.Setenv(maxConcurrentRequestsEnv, "16")
-
-		// when: the concurrency options are resolved
-		opts, err := providerConcurrencyOptions()
-
-		// then: a single override option is produced
-		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(opts))
-	})
-
-	t.Run("errors on a non-integer value", func(t *testing.T) {
-		// given: a non-integer override
-		t.Setenv(maxConcurrentRequestsEnv, "abc")
-
-		// when: the concurrency options are resolved
-		_, err := providerConcurrencyOptions()
-
-		// then: the invalid-value sentinel is returned
-		testastic.ErrorIs(t, err, ErrInvalidMaxConcurrentRequests)
-	})
-
-	t.Run("errors on a non-positive value", func(t *testing.T) {
-		// given: a non-positive override
-		t.Setenv(maxConcurrentRequestsEnv, "0")
-
-		// when: the concurrency options are resolved
-		_, err := providerConcurrencyOptions()
-
-		// then: the invalid-value sentinel is returned
-		testastic.ErrorIs(t, err, ErrInvalidMaxConcurrentRequests)
-	})
-}
-
 func TestResolveRepository(t *testing.T) {
 	t.Parallel()
 

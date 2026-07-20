@@ -13,6 +13,11 @@ type GitLabOptions struct {
 	// Project is the full path with namespace, e.g. "group/repo". The server
 	// URL-encodes this to build endpoint paths.
 	Project string
+	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
+	// the head of the local fixture repository so yeet's checkout validation
+	// passes. When empty, the newest entry in Commits (or the shared base
+	// SHA) is used.
+	BranchHeadSHA string
 	// LatestTag is the most recent tag returned by the tags-fallback. When
 	// empty, the server reports no tags and no latest release.
 	LatestTag string
@@ -159,13 +164,17 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	})
 }
 
-// gitlabBranchHeadHandler serves GetBranchHead: the branch head is the newest
-// fake commit when one exists, otherwise the shared base SHA.
+// gitlabBranchHeadHandler serves GetBranchHead: the explicit BranchHeadSHA,
+// else the newest fake commit, else the shared base SHA.
 func gitlabBranchHeadHandler(opts GitLabOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		headSHA := fakeBaseSHA
-		if len(opts.Commits) > 0 {
+		headSHA := opts.BranchHeadSHA
+		if headSHA == "" && len(opts.Commits) > 0 {
 			headSHA = opts.Commits[0].SHA
+		}
+
+		if headSHA == "" {
+			headSHA = fakeBaseSHA
 		}
 
 		writeJSON(w, map[string]any{

@@ -86,9 +86,10 @@ type Provider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
 	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
-	GetCommitsSinceRefs(ctx context.Context, refs []string, branch string, includePaths bool) (CommitHistory, error)
 	// GetBranchHead returns the commit SHA the branch currently points at,
-	// wrapping ErrRefNotFound when the branch does not exist.
+	// wrapping ErrRefNotFound when the branch does not exist. Release commit
+	// ranges are computed from the local checkout (internal/history), which
+	// uses this to validate that the checkout matches the remote branch.
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)

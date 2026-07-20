@@ -10,20 +10,18 @@ import (
 var _ Provider = (*GitLab)(nil)
 
 type GitLab struct {
-	client                *gitlab.Client
-	projectID             string
-	repoURL               string
-	maxConcurrentRequests int
+	client    *gitlab.Client
+	projectID string
+	repoURL   string
 }
 
-func NewGitLab(client *gitlab.Client, project string, opts ...Option) *GitLab {
+func NewGitLab(client *gitlab.Client, project string) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
 
 	return &GitLab{
-		client:                client,
-		projectID:             project,
-		repoURL:               baseURL + "/" + project,
-		maxConcurrentRequests: newConcurrencyConfig(opts).maxConcurrentRequests,
+		client:    client,
+		projectID: project,
+		repoURL:   baseURL + "/" + project,
 	}
 }
 

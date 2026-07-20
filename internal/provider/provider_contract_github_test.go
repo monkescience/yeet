@@ -25,8 +25,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 
 	var reviewersRequested atomic.Bool
 
-	sharedPathsRecorder := newCommitPathsRecorder(t)
-
 	if scenario == providerContractCreateReleasePRReviewers {
 		t.Cleanup(func() {
 			if !reviewersRequested.Load() {
@@ -47,16 +45,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
 			handleGitHubBranchHeadMissingContract(t, w, r)
-		case providerContractGetCommitsSinceRefs:
-			handleGitHubGetCommitsSinceContract(t, w, r)
-		case providerContractGetCommitsSinceRefsMissing:
-			handleGitHubGetCommitsSinceMissingContract(t, w, r)
-		case providerContractGetCommitsSinceRefsUnresolved:
-			handleGitHubGetCommitsSinceUnresolvedContract(t, w, r)
-		case providerContractGetCommitsSinceRefsMultiBoundary:
-			handleGitHubGetCommitsSinceMultiBoundaryContract(t, w, r)
-		case providerContractGetCommitsSinceRefsSharedPaths:
-			handleGitHubSharedPathsContract(t, w, r, sharedPathsRecorder)
 		case providerContractGetReleaseByTag:
 			handleGitHubGetReleaseByTagContract(t, w, r)
 		case providerContractTagExists:
@@ -144,7 +132,7 @@ func handleGitHubBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/"+providerContractBaseBranch {
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
+		writeJSONFixture(t, w, "contracts/github/branch_head/commit.json")
 
 		return
 	}
@@ -163,105 +151,6 @@ func handleGitHubBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, 
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
-}
-
-// gitHubComparePath is the URL the compare endpoint receives for
-// base...baseBranch.
-func gitHubComparePath(base string) string {
-	return "/repos/o/r/compare/" + base + "..." + providerContractBaseBranch
-}
-
-func handleGitHubGetCommitsSinceContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/compare.json")
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func handleGitHubGetCommitsSinceMissingContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/compare.json")
-	case r.Method == http.MethodGet &&
-		r.URL.Path == gitHubComparePath(providerContractMissingTag):
-		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func handleGitHubGetCommitsSinceUnresolvedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/compare.json")
-	case r.Method == http.MethodGet &&
-		r.URL.Path == gitHubComparePath(providerContractMissingTag):
-		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractHeadSHA:
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func isGitHubCommitDetailRequest(r *http.Request, sha string) bool {
-	return r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+sha
-}
-
-func handleGitHubSharedPathsContract(
-	t *testing.T,
-	w http.ResponseWriter,
-	r *http.Request,
-	recorder *commitPathsRecorder,
-) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet &&
-		r.URL.Path == gitHubComparePath(providerContractIntermediateTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/intermediate_compare.json")
-	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/older_compare.json")
-	case isGitHubCommitDetailRequest(r, providerContractHeadSHA):
-		recorder.record(providerContractHeadSHA)
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	case isGitHubCommitDetailRequest(r, providerContractMidSHA):
-		recorder.record(providerContractMidSHA)
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	case isGitHubCommitDetailRequest(r, providerContractIntermediateSHA):
-		recorder.record(providerContractIntermediateSHA)
-		writeJSONFixture(t, w, "contracts/github/get_commits_since/detail.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func handleGitHubGetCommitsSinceMultiBoundaryContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet &&
-		r.URL.Path == gitHubComparePath(providerContractIntermediateTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/intermediate_compare.json")
-	case r.Method == http.MethodGet && r.URL.Path == gitHubComparePath(providerContractTag):
-		writeJSONFixture(t, w, "contracts/github/get_commits_since_multi_boundary/older_compare.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
 }
 
 func handleGitHubGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

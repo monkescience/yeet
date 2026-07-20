@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- add a thing ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- add a thing ([45bfd68](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/45bfd684c80be957f27e3d3d62233ad2f7f852a4))
 

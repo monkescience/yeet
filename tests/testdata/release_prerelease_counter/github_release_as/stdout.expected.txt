@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- rework api ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha))
+- rework api ([5aca1cf](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/5aca1cf49ddd15eb06d606f99bc5e2eab14e1062))
 

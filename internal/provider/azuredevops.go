@@ -17,13 +17,12 @@ const azureDevOpsZeroObjectID = "0000000000000000000000000000000000000000"
 var _ Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
-	conn                  *azuredevops.Connection
-	baseURL               string
-	organization          string
-	collection            string
-	project               string
-	repo                  string
-	maxConcurrentRequests int
+	conn         *azuredevops.Connection
+	baseURL      string
+	organization string
+	collection   string
+	project      string
+	repo         string
 
 	clientOnce sync.Once
 	gitClient  git.Client
@@ -39,18 +38,16 @@ type AzureDevOps struct {
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
-	opts ...Option,
 ) *AzureDevOps {
-	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo, opts...)
+	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo)
 }
 
 func NewAzureDevOpsWithSystemAccessToken(
 	httpClient *http.Client,
 	baseURL, token, organization, collection, project, repo string,
-	opts ...Option,
 ) *AzureDevOps {
 	return newAzureDevOps(
-		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo, opts...)
+		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo)
 }
 
 func newAzureDevOps(
@@ -58,7 +55,6 @@ func newAzureDevOps(
 	baseURL string,
 	connectionFactory func(string, string) *azuredevops.Connection,
 	token, organization, collection, project, repo string,
-	opts ...Option,
 ) *AzureDevOps {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 
@@ -75,13 +71,12 @@ func newAzureDevOps(
 	}
 
 	return &AzureDevOps{
-		conn:                  conn,
-		baseURL:               baseURL,
-		organization:          organization,
-		collection:            collection,
-		project:               project,
-		repo:                  repo,
-		maxConcurrentRequests: newConcurrencyConfig(opts).maxConcurrentRequests,
+		conn:         conn,
+		baseURL:      baseURL,
+		organization: organization,
+		collection:   collection,
+		project:      project,
+		repo:         repo,
 	}
 }
 
@@ -167,15 +162,4 @@ func azureDevOpsStatusCode(err error) int {
 
 func isAzureDevOpsNotFound(err error) bool {
 	return azureDevOpsStatusCode(err) == http.StatusNotFound
-}
-
-// azureDevOpsBoundaryError reports whether a GetCommits failure is the API
-// rejecting the boundary ref (ItemVersion) rather than a transport fault. Azure
-// answers a bounded commit query with 404 when the boundary ref is unknown and
-// 400 when it is otherwise unusable as a boundary, so both map to "ref not
-// reachable".
-func azureDevOpsBoundaryError(err error) bool {
-	status := azureDevOpsStatusCode(err)
-
-	return status == http.StatusNotFound || status == http.StatusBadRequest
 }

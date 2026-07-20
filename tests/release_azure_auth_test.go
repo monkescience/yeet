@@ -15,16 +15,19 @@ func TestReleaseAzureDevOpsAuth(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake Azure server and SYSTEM_ACCESSTOKEN set (no PAT)
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-			LatestTag:    "v1.0.0",
-			BoundarySHA:  "boundary-sha",
-			Commits: []fakeprovider.AzureCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
-			},
+			Organization:  "contoso",
+			Project:       "platform",
+			Repo:          "yeet",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -39,6 +42,7 @@ func TestReleaseAzureDevOpsAuth(t *testing.T) {
 		// when: invoking `yeet release --dry-run` with SYSTEM_ACCESSTOKEN instead of EXT_PAT
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(
 				"AZURE_DEVOPS_EXT_PAT=",
 				"AZURE_DEVOPS_SYSTEM_ACCESSTOKEN=system-token",

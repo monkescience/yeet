@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -28,51 +27,42 @@ type providerContractHarness struct {
 type providerContractScenario string
 
 const (
-	providerContractLatestRelease                    providerContractScenario = "latest release"
-	providerContractLatestFallbackTags               providerContractScenario = "latest fallback tags"
-	providerContractListTags                         providerContractScenario = "list tags"
-	providerContractBranchHead                       providerContractScenario = "branch head"
-	providerContractBranchHeadMissing                providerContractScenario = "branch head missing"
-	providerContractGetCommitsSinceRefs              providerContractScenario = "get commits since refs"
-	providerContractGetCommitsSinceRefsMissing       providerContractScenario = "get commits since refs missing"
-	providerContractGetCommitsSinceRefsUnresolved    providerContractScenario = "get commits since refs unresolved"
-	providerContractGetCommitsSinceRefsMultiBoundary providerContractScenario = "get commits since refs multi boundary"
-	providerContractGetCommitsSinceRefsSharedPaths   providerContractScenario = "get commits since refs shared paths"
-	providerContractGetReleaseByTag                  providerContractScenario = "get release by tag"
-	providerContractTagExists                        providerContractScenario = "tag exists"
-	providerContractCreateReleasePR                  providerContractScenario = "create release pr"
-	providerContractCreateReleasePRReviewers         providerContractScenario = "create release pr reviewers"
-	providerContractUnknownReviewer                  providerContractScenario = "unknown reviewer"
-	providerContractUpdateReleasePR                  providerContractScenario = "update release pr"
-	providerContractFindOpenPRs                      providerContractScenario = "find open prs"
-	providerContractFindMergedPR                     providerContractScenario = "find merged pr"
-	providerContractMarkReleasePR                    providerContractScenario = "mark release pr"
-	providerContractMergeReleasePR                   providerContractScenario = "merge release pr"
-	providerContractCommitPRBody                     providerContractScenario = "commit pr body"
-	providerContractCreateBranch                     providerContractScenario = "create branch"
-	providerContractCreateRelease                    providerContractScenario = "create release"
-	providerContractGetFile                          providerContractScenario = "get file"
-	providerContractUpdateFiles                      providerContractScenario = "update files"
-	providerContractMissingFile                      providerContractScenario = "missing file"
-	providerContractMissingRelease                   providerContractScenario = "missing release"
-	providerContractMissingPR                        providerContractScenario = "missing pr"
-	providerContractBlockedMerge                     providerContractScenario = "blocked merge"
-	providerContractUnsupportedMerge                 providerContractScenario = "unsupported merge"
-	providerContractReleaseTitle                                              = "chore: release v1.2.3"
-	providerContractReleaseBody                                               = "release body"
-	providerContractReleaseBranch                                             = "release-main"
-	providerContractPendingBranch                                             = "yeet/release-main"
-	providerContractBaseBranch                                                = "main"
-	providerContractTag                                                       = "v1.2.3"
-	providerContractHeadSHA                                                   = "head-sha"
-	providerContractMergeSHA                                                  = "merge-sha"
-	providerContractMissingTag                                                = "v0.5.0"
-	providerContractIntermediateTag                                           = "v1.4.0"
-	providerContractMidSHA                                                    = "mid-sha"
-	providerContractIntermediateSHA                                           = "inter-sha"
-	providerContractReviewerAlice                                             = "alice"
-	providerContractReviewerBob                                               = "bob"
-	providerContractUnknownReviewerName                                       = "ghost"
+	providerContractLatestRelease            providerContractScenario = "latest release"
+	providerContractLatestFallbackTags       providerContractScenario = "latest fallback tags"
+	providerContractListTags                 providerContractScenario = "list tags"
+	providerContractBranchHead               providerContractScenario = "branch head"
+	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
+	providerContractGetReleaseByTag          providerContractScenario = "get release by tag"
+	providerContractTagExists                providerContractScenario = "tag exists"
+	providerContractCreateReleasePR          providerContractScenario = "create release pr"
+	providerContractCreateReleasePRReviewers providerContractScenario = "create release pr reviewers"
+	providerContractUnknownReviewer          providerContractScenario = "unknown reviewer"
+	providerContractUpdateReleasePR          providerContractScenario = "update release pr"
+	providerContractFindOpenPRs              providerContractScenario = "find open prs"
+	providerContractFindMergedPR             providerContractScenario = "find merged pr"
+	providerContractMarkReleasePR            providerContractScenario = "mark release pr"
+	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
+	providerContractCommitPRBody             providerContractScenario = "commit pr body"
+	providerContractCreateBranch             providerContractScenario = "create branch"
+	providerContractCreateRelease            providerContractScenario = "create release"
+	providerContractGetFile                  providerContractScenario = "get file"
+	providerContractUpdateFiles              providerContractScenario = "update files"
+	providerContractMissingFile              providerContractScenario = "missing file"
+	providerContractMissingRelease           providerContractScenario = "missing release"
+	providerContractMissingPR                providerContractScenario = "missing pr"
+	providerContractBlockedMerge             providerContractScenario = "blocked merge"
+	providerContractUnsupportedMerge         providerContractScenario = "unsupported merge"
+	providerContractReleaseTitle                                      = "chore: release v1.2.3"
+	providerContractReleaseBody                                       = "release body"
+	providerContractReleaseBranch                                     = "release-main"
+	providerContractPendingBranch                                     = "yeet/release-main"
+	providerContractBaseBranch                                        = "main"
+	providerContractTag                                               = "v1.2.3"
+	providerContractHeadSHA                                           = "head-sha"
+	providerContractMergeSHA                                          = "merge-sha"
+	providerContractReviewerAlice                                     = "alice"
+	providerContractReviewerBob                                       = "bob"
+	providerContractUnknownReviewerName                               = "ghost"
 )
 
 func TestProviderContract(t *testing.T) {
@@ -184,163 +174,6 @@ func TestProviderContract(t *testing.T) {
 				// then: the sentinel ref-not-found error is surfaced
 				testastic.Error(t, err)
 				testastic.True(t, errors.Is(err, provider.ErrRefNotFound))
-			})
-
-			t.Run("gets commits since refs", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server with a commit history reachable from the contract tag
-				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefs))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetCommitsSinceRefs is invoked for the contract tag against the base branch
-				history, err := p.GetCommitsSinceRefs(
-					context.Background(),
-					[]string{providerContractTag},
-					providerContractBaseBranch,
-					true,
-				)
-
-				// then: the returned history contains the expected commit metadata and no missing refs
-				testastic.NoError(t, err)
-				testastic.Equal(t, 0, len(history.MissingRefs))
-
-				entries := history.EntriesByRef[providerContractTag]
-				testastic.Equal(t, 1, len(entries))
-				testastic.Equal(t, providerContractHeadSHA, entries[0].Hash)
-				testastic.Equal(t, "feat: add release flow", entries[0].Message)
-				testastic.SliceEqual(t, []string{"CHANGELOG.md", "VERSION.txt"}, entries[0].Paths)
-			})
-
-			t.Run("reports missing refs alongside reachable ones in a multi-ref call", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server where the contract tag exists but the missing tag does not
-				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefsMissing))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetCommitsSinceRefs is invoked for both the reachable and missing tags
-				history, err := p.GetCommitsSinceRefs(
-					context.Background(),
-					[]string{providerContractTag, providerContractMissingTag},
-					providerContractBaseBranch,
-					true,
-				)
-
-				// then: the missing tag is reported in MissingRefs while the reachable tag yields its commit history
-				testastic.NoError(t, err)
-				testastic.SliceEqual(t, []string{providerContractMissingTag}, history.MissingRefs)
-
-				entries := history.EntriesByRef[providerContractTag]
-				testastic.Equal(t, 1, len(entries))
-				testastic.Equal(t, providerContractHeadSHA, entries[0].Hash)
-
-				_, missingEntriesPresent := history.EntriesByRef[providerContractMissingTag]
-				testastic.False(t, missingEntriesPresent)
-			})
-
-			t.Run("includes intermediate boundary commits in older refs' histories", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server returning a multi-boundary history with intermediate and older tags
-				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefsMultiBoundary))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetCommitsSinceRefs is invoked for the intermediate and older tags
-				history, err := p.GetCommitsSinceRefs(
-					context.Background(),
-					[]string{providerContractIntermediateTag, providerContractTag},
-					providerContractBaseBranch,
-					false,
-				)
-
-				// then: each ref receives the commits visible up to its respective boundary
-				testastic.NoError(t, err)
-				testastic.Equal(t, 0, len(history.MissingRefs))
-
-				intermediateEntries := history.EntriesByRef[providerContractIntermediateTag]
-				testastic.SliceEqual(
-					t,
-					[]string{providerContractHeadSHA},
-					commitEntryHashes(intermediateEntries),
-				)
-
-				olderEntries := history.EntriesByRef[providerContractTag]
-				testastic.SliceEqual(
-					t,
-					[]string{
-						providerContractHeadSHA,
-						providerContractMidSHA,
-						providerContractIntermediateSHA,
-					},
-					commitEntryHashes(olderEntries),
-				)
-			})
-
-			t.Run("fetches each commit's changed paths once across overlapping refs", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server with two refs whose ranges overlap and which
-				// fails when a commit's changed paths are requested more than once
-				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefsSharedPaths))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetCommitsSinceRefs hydrates paths for the intermediate and older tags
-				history, err := p.GetCommitsSinceRefs(
-					context.Background(),
-					[]string{providerContractIntermediateTag, providerContractTag},
-					providerContractBaseBranch,
-					true,
-				)
-
-				// then: every entry of both refs is hydrated even though the shared
-				// commit's paths were fetched only once
-				testastic.NoError(t, err)
-
-				intermediateEntries := history.EntriesByRef[providerContractIntermediateTag]
-				testastic.Equal(t, 1, len(intermediateEntries))
-				testastic.SliceEqual(t, []string{"CHANGELOG.md", "VERSION.txt"}, intermediateEntries[0].Paths)
-
-				olderEntries := history.EntriesByRef[providerContractTag]
-				testastic.Equal(t, 3, len(olderEntries))
-
-				for _, entry := range olderEntries {
-					testastic.SliceEqual(t, []string{"CHANGELOG.md", "VERSION.txt"}, entry.Paths)
-				}
-			})
-
-			t.Run("reports unresolvable ref as missing without failing the batch", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server where the missing tag cannot be resolved by the API
-				server := httptest.NewServer(harness.handler(t, providerContractGetCommitsSinceRefsUnresolved))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetCommitsSinceRefs is invoked for the resolvable and unresolvable tags together
-				history, err := p.GetCommitsSinceRefs(
-					context.Background(),
-					[]string{providerContractTag, providerContractMissingTag},
-					providerContractBaseBranch,
-					true,
-				)
-
-				// then: the unresolvable tag is reported as missing while the batch still succeeds for the other tag
-				testastic.NoError(t, err)
-				testastic.SliceEqual(t, []string{providerContractMissingTag}, history.MissingRefs)
-
-				entries := history.EntriesByRef[providerContractTag]
-				testastic.Equal(t, 1, len(entries))
-				testastic.Equal(t, providerContractHeadSHA, entries[0].Hash)
 			})
 
 			t.Run("gets release by tag", func(t *testing.T) {
@@ -773,16 +606,6 @@ func providerContractHarnesses() []providerContractHarness {
 	}
 }
 
-func commitEntryHashes(entries []provider.CommitEntry) []string {
-	hashes := make([]string, 0, len(entries))
-
-	for _, entry := range entries {
-		hashes = append(hashes, entry.Hash)
-	}
-
-	return hashes
-}
-
 func decodeJSONRequest(t *testing.T, r *http.Request, value any) {
 	t.Helper()
 
@@ -818,27 +641,4 @@ func fatalUnexpectedProviderRequest(t *testing.T, providerName string, r *http.R
 	t.Helper()
 
 	t.Fatalf("unexpected %s request: %s %s", providerName, r.Method, r.URL.String())
-}
-
-type commitPathsRecorder struct {
-	t    *testing.T
-	mu   sync.Mutex
-	seen map[string]bool
-}
-
-func newCommitPathsRecorder(t *testing.T) *commitPathsRecorder {
-	t.Helper()
-
-	return &commitPathsRecorder{t: t, seen: make(map[string]bool)}
-}
-
-func (rec *commitPathsRecorder) record(sha string) {
-	rec.mu.Lock()
-	defer rec.mu.Unlock()
-
-	if rec.seen[sha] {
-		rec.t.Errorf("changed paths for commit %q fetched more than once", sha)
-	}
-
-	rec.seen[sha] = true
 }

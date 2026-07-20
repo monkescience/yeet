@@ -12,5 +12,5 @@ Dry Run
 
 ### Features
 
-- ship [ABC-123](https://issues.example.test/ABC-123) update ([head-sh](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/head-sha)) ([PROJ-99](https://tracker.example.test/PROJ-99))
+- ship [ABC-123](https://issues.example.test/ABC-123) update ([6648744](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/66487447e68cfa4b848d76cbb4eb4c724b38c7ba)) ([PROJ-99](https://tracker.example.test/PROJ-99))
 
