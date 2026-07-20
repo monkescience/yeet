@@ -62,6 +62,8 @@ type GitHubOptions struct {
 	// PaginateCommits splits the commit list across two pages so tests can prove
 	// release analysis follows provider pagination before finding the boundary.
 	PaginateCommits bool
+	// FailOnMutation fails the test if the fake receives a non-read-only request.
+	FailOnMutation bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -115,7 +117,21 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 		http.Error(w, "unhandled", http.StatusNotImplemented)
 	})
 
-	server := httptest.NewServer(mux)
+	var handler http.Handler = mux
+	if opts.FailOnMutation {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+				t.Errorf("fakeprovider/github: unexpected mutation %s %s", r.Method, r.URL.String())
+				http.Error(w, "mutation rejected", http.StatusInternalServerError)
+
+				return
+			}
+
+			mux.ServeHTTP(w, r)
+		})
+	}
+
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
 	return server

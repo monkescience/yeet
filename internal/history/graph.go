@@ -15,8 +15,8 @@ import (
 )
 
 // localHistory computes exact "reachable from head but not from boundary"
-// ranges over the validated local checkout. The graph, ancestor sets, and
-// per-commit changed paths are cached for the lifetime of one release run.
+// ranges over the validated local checkout. The graph and per-commit changed
+// paths are cached for the lifetime of one release run.
 type localHistory struct {
 	repo *git.Repository
 	head plumbing.Hash
@@ -237,19 +237,6 @@ func ancestorSet(graph *branchGraph, boundary plumbing.Hash) map[plumbing.Hash]s
 	}
 
 	return set
-}
-
-// tagCommit resolves the exact refs/tags name and peels annotated tags to
-// their commit. A tag the checkout lacks is fatal, so the error names the fix.
-func (l *localHistory) tagCommit(ref string) (plumbing.Hash, error) {
-	hash, err := l.repo.ResolveRevision(plumbing.Revision(plumbing.NewTagReferenceName(ref)))
-	if err != nil {
-		return plumbing.ZeroHash, fmt.Errorf(
-			"resolve local tag %q (fetch tags, e.g. git fetch --tags): %w", ref, err,
-		)
-	}
-
-	return *hash, nil
 }
 
 // commitPaths diffs the commit against its first parent (or the empty tree

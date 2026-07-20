@@ -640,10 +640,10 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.ErrorContains(t, err, "boom")
 	})
 
-	t.Run("tag absent from the checkout fails with fetch hint", func(t *testing.T) {
+	t.Run("remote tag target works without a local tag", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an eligible checkout that lacks the requested tag
+		// given: an eligible checkout that lacks a tag present on the provider
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
@@ -653,19 +653,18 @@ func TestSourceUnusableCheckout(t *testing.T) {
 			CommitSHA: fx.head().String(),
 		})
 
-		// when: an unknown tag is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
+		// when: the provider tag is used as the release boundary
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
 
-		// then: the run fails naming the tag and the fix
-		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "v9.9.9")
-		testastic.ErrorContains(t, err, "fetch --tags")
+		// then: the provider target bounds history without a local tag ref
+		testastic.NoError(t, err)
+		testastic.Len(t, result.EntriesByRef["v9.9.9"], 0)
 	})
 
-	t.Run("local tag target differing from remote fails", func(t *testing.T) {
+	t.Run("remote tag target overrides a stale local tag", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an eligible checkout whose local tag was moved away from the remote target
+		// given: an eligible checkout whose local tag differs from the provider target
 		fx := newRepoFixture(t)
 		c1 := fx.commit("chore: release", map[string]string{"a.txt": "one"})
 		fx.tag("v1.0.0", c1)
@@ -674,13 +673,30 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source, remote := fx.source()
 		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: c2.String()}}
 
-		// when: the local tag is used as a release boundary
+		// when: the tag is used as a release boundary
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+
+		// then: the provider target is authoritative
+		testastic.NoError(t, err)
+		testastic.Len(t, result.EntriesByRef["v1.0.0"], 0)
+	})
+
+	t.Run("invalid remote tag target fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an eligible checkout and malformed provider tag metadata
+		fx := newRepoFixture(t)
+		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+
+		source, remote := fx.source()
+		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: "not-a-commit"}}
+
+		// when: the malformed target is used as a release boundary
 		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
 
-		// then: validation rejects the mismatched release boundary
-		testastic.ErrorIs(t, err, history.ErrCheckoutUnusable)
-		testastic.ErrorContains(t, err, "local tag")
-		testastic.ErrorContains(t, err, "remote tag")
+		// then: invalid provider metadata is rejected
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "invalid commit hash")
 	})
 
 	t.Run("missing commit object fails", func(t *testing.T) {
@@ -697,11 +713,12 @@ func TestSourceUnusableCheckout(t *testing.T) {
 
 		source, _ := fx.source()
 
-		// when: a range is requested
-		_, err = source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
+		// when: the checkout is validated before release execution
+		err = source.Validate(t.Context())
 
-		// then: the run fails reading the pruned commit
+		// then: preflight fails while building the complete graph
 		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "validate local commit graph")
 		testastic.ErrorContains(t, err, "read local commit")
 	})
 

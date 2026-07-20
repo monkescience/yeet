@@ -95,7 +95,48 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.True(t, strings.Contains(result.Stderr, "does not match the remote head"))
 	})
 
-	t.Run("mismatched local tag target fails", func(t *testing.T) {
+	t.Run("stale checkout is rejected before remote mutation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a non-dry release with a merged PR ready to finalize but a stale checkout
+		repoDir, boundarySHA, _ := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:                "acme",
+			Repo:                 "repo",
+			LatestTag:            "v1.0.0",
+			BoundarySHA:          boundarySHA,
+			BranchHeadSHA:        "1111111111111111111111111111111111111111",
+			MergedPendingRelease: true,
+			FailOnMutation:       true,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: invoking a release that would otherwise finalize the merged PR
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: checkout validation fails before any provider mutation
+		testastic.NotEqual(t, 0, result.ExitCode)
+		testastic.True(t, strings.Contains(result.Stderr, "does not match the remote head"))
+	})
+
+	t.Run("remote tag target overrides stale local tag", func(t *testing.T) {
 		t.Parallel()
 
 		// given: HEAD matches the provider while the local release tag points to a different commit
@@ -122,17 +163,15 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
-		// when: invoking release analysis with the mismatched tag
+		// when: invoking release analysis with the mismatched local tag
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: the local tag cannot silently redefine the remote release boundary
-		testastic.NotEqual(t, 0, result.ExitCode)
-		testastic.True(t, strings.Contains(result.Stderr, "local tag"))
-		testastic.True(t, strings.Contains(result.Stderr, "remote tag"))
+		// then: the provider target remains authoritative
+		testastic.Equal(t, 0, result.ExitCode)
 	})
 
 	t.Run("missing repository fails with an actionable error", func(t *testing.T) {

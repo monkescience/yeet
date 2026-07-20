@@ -95,7 +95,6 @@ pool:
 steps:
   - checkout: self
     fetchDepth: 0
-    fetchTags: true
 
   - script: |
       docker run --rm \
@@ -117,7 +116,6 @@ checkout must faithfully represent the release branch:
 
 - Full history: no shallow clone (`fetch-depth: 0`, `GIT_DEPTH "0"`, or `fetchDepth: 0` as shown in
   the checkout examples above).
-- Tags fetched (`fetchTags: true` on Azure Pipelines; included in full fetches elsewhere).
 - HEAD at the current remote head of the configured release branch.
 
 yeet validates the checkout against the provider before analyzing and fails with an actionable
