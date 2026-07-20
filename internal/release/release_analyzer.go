@@ -35,14 +35,9 @@ func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider, prs r
 	}
 }
 
-func (a *releaseAnalyzer) analyze(ctx context.Context, selectedTargetIDs []string) (*Result, error) {
+func (a *releaseAnalyzer) analyze(ctx context.Context, selection releaseSelection) (*Result, error) {
 	r := a.core
 	result := &Result{BaseBranch: r.cfg.Branch}
-
-	selection, err := a.selectTargets(selectedTargetIDs)
-	if err != nil {
-		return nil, err
-	}
 
 	a.analyzedTargets = selection.pathTargetsToAnalyze
 

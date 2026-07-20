@@ -761,6 +761,35 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 - add release flow (abc1234)
 `
 
+	t.Run("invalid target does not finalize a merged release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR and an unknown selected target
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number: 2,
+			URL:    "https://example.com/pr/2",
+			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running a non-dry release for the unknown target
+		result, err := r.ReleaseTargets(context.Background(), false, []string{"missing"})
+
+		// then: target validation fails before provider reads or mutations
+		testastic.ErrorIs(t, err, ErrUnknownTarget)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.findMergedPRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
+
 	t.Run("does not create PR when no commits exist after finalized tag", func(t *testing.T) {
 		t.Parallel()
 

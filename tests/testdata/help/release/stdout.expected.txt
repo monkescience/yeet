@@ -17,7 +17,7 @@ flags or config:
                 (optional AZURE_DEVOPS_URL)
 
 Commit history is read from the local git checkout. The checkout must be
-complete (not shallow, tags fetched) and match the remote release branch.
+complete (not shallow) and match the remote release branch.
 
 Usage:
   yeet release [flags]

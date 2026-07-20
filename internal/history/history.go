@@ -60,6 +60,21 @@ func New(remote Remote, branch, dir string) *Source {
 	return &Source{remote: remote, branch: branch, dir: dir}
 }
 
+// Validate checks checkout eligibility and builds the complete reachable
+// commit graph before the release workflow can mutate provider state.
+func (s *Source) Validate(ctx context.Context) error {
+	local, err := s.eligibleLocal(ctx, s.branch)
+	if err != nil {
+		return err
+	}
+
+	if _, err := local.branchGraph(ctx); err != nil {
+		return fmt.Errorf("validate local commit graph: %w", err)
+	}
+
+	return nil
+}
+
 // GetLatestVersionRef always asks the remote provider. Remote tags and
 // releases are the source of truth.
 func (s *Source) GetLatestVersionRef(ctx context.Context) (string, error) {
@@ -96,7 +111,7 @@ func (s *Source) GetCommitsSinceRefs(
 		return provider.CommitHistory{}, err
 	}
 
-	boundaries, err := s.verifiedBoundaries(ctx, local, refs)
+	boundaries, err := s.remoteBoundaries(ctx, refs)
 	if err != nil {
 		return provider.CommitHistory{}, err
 	}
@@ -155,14 +170,10 @@ func (s *Source) loadRemoteTags(ctx context.Context) ([]string, map[string]strin
 	return slices.Clone(tags), commits, nil
 }
 
-func (s *Source) verifiedBoundaries(
-	ctx context.Context,
-	local *localHistory,
-	refs []string,
-) (map[string]plumbing.Hash, error) {
+func (s *Source) remoteBoundaries(ctx context.Context, refs []string) (map[string]plumbing.Hash, error) {
 	_, remoteCommits, err := s.loadRemoteTags(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load remote tags for checkout validation: %w", err)
+		return nil, fmt.Errorf("load remote tag boundaries: %w", err)
 	}
 
 	boundaries := make(map[string]plumbing.Hash, len(refs))
@@ -182,22 +193,12 @@ func (s *Source) verifiedBoundaries(
 			return nil, fmt.Errorf("%w: tag %q is not present in the remote tag list", ErrCheckoutUnusable, ref)
 		}
 
-		localCommit, err := local.tagCommit(ref)
-		if err != nil {
-			return nil, err
+		boundary, valid := plumbing.FromHex(remoteCommit)
+		if !valid {
+			return nil, fmt.Errorf("%w: tag %q has invalid commit hash", errRemoteTagMetadata, ref)
 		}
 
-		if !strings.EqualFold(localCommit.String(), remoteCommit) {
-			return nil, fmt.Errorf(
-				"%w: local tag %q points to %s but the remote tag points to %s, fetch tags before releasing",
-				ErrCheckoutUnusable,
-				ref,
-				localCommit,
-				remoteCommit,
-			)
-		}
-
-		boundaries[ref] = localCommit
+		boundaries[ref] = boundary
 	}
 
 	return boundaries, nil
@@ -248,7 +249,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 		return nil, fmt.Errorf(
 			"%w: checkout is shallow; fetch the full history "+
 				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, "+
-				"fetchDepth: 0 with fetchTags: true on Azure Pipelines)",
+				"fetchDepth: 0 on Azure Pipelines)",
 			ErrCheckoutUnusable,
 		)
 	}

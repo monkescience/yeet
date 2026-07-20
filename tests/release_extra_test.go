@@ -296,9 +296,10 @@ func TestReleaseTargetFilterErrors(t *testing.T) {
 		// given: a single-target config and a --target flag naming a non-existent
 		// target; the run fails before any history or provider access
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
-			Owner:     "testorg",
-			Repo:      "testrepo",
-			LatestTag: "v1.0.0",
+			Owner:          "testorg",
+			Repo:           "testrepo",
+			LatestTag:      "v1.0.0",
+			FailOnMutation: true,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
