@@ -22,7 +22,6 @@ type localHistory struct {
 	head plumbing.Hash
 
 	graph       *branchGraph
-	ancestors   map[plumbing.Hash]map[plumbing.Hash]struct{}
 	pathsByHash map[plumbing.Hash][]string
 }
 
@@ -44,7 +43,6 @@ func newLocalHistory(repo *git.Repository, head plumbing.Hash) *localHistory {
 	return &localHistory{
 		repo:        repo,
 		head:        head,
-		ancestors:   make(map[plumbing.Hash]map[plumbing.Hash]struct{}),
 		pathsByHash: make(map[plumbing.Hash][]string),
 	}
 }
@@ -68,7 +66,6 @@ func (l *localHistory) commitsSinceRefs(
 	history := provider.CommitHistory{
 		EntriesByRef: make(map[string][]provider.CommitEntry, len(normalizedRefs)),
 	}
-	rangesByRef := make(map[string][]plumbing.Hash, len(normalizedRefs))
 
 	for _, ref := range normalizedRefs {
 		hashes, reachable := l.refRange(graph, ref, boundaries)
@@ -78,20 +75,35 @@ func (l *localHistory) commitsSinceRefs(
 			continue
 		}
 
-		rangesByRef[ref] = hashes
-	}
-
-	if includePaths {
-		if err := l.hydratePaths(ctx, rangesByRef); err != nil {
-			return provider.CommitHistory{}, err
+		if includePaths {
+			if err := l.hydratePaths(ctx, hashes); err != nil {
+				return provider.CommitHistory{}, err
+			}
 		}
-	}
 
-	for ref, hashes := range rangesByRef {
 		history.EntriesByRef[ref] = l.materializeEntries(graph, hashes, includePaths)
 	}
 
 	return history, nil
+}
+
+// hydratePaths computes changed paths once per unique commit in one range,
+// reusing results cached from earlier ranges and calls.
+func (l *localHistory) hydratePaths(ctx context.Context, hashes []plumbing.Hash) error {
+	for _, hash := range hashes {
+		if _, exists := l.pathsByHash[hash]; exists {
+			continue
+		}
+
+		paths, err := l.commitPaths(ctx, hash)
+		if err != nil {
+			return err
+		}
+
+		l.pathsByHash[hash] = paths
+	}
+
+	return nil
 }
 
 // refRange returns the hashes reachable from head but not from ref's
@@ -111,7 +123,7 @@ func (l *localHistory) refRange(
 		return nil, false
 	}
 
-	excluded := l.ancestorSet(boundary)
+	excluded := ancestorSet(graph, boundary)
 	hashes := make([]plumbing.Hash, 0)
 
 	for _, hash := range graph.order {
@@ -202,14 +214,10 @@ func (l *localHistory) branchGraph(ctx context.Context) (*branchGraph, error) {
 	return l.graph, nil
 }
 
-// ancestorSet returns every commit reachable from boundary, boundary
-// included. Membership in a range is graph reachability, never a positional
-// or timestamp slice, so skewed commit dates cannot over-include commits.
-func (l *localHistory) ancestorSet(boundary plumbing.Hash) map[plumbing.Hash]struct{} {
-	if cached, exists := l.ancestors[boundary]; exists {
-		return cached
-	}
-
+// ancestorSet returns every commit reachable from boundary, boundary included.
+// The set is intentionally scoped to one range calculation. Retaining one set
+// per boundary makes memory grow with the commit count multiplied by ref count.
+func ancestorSet(graph *branchGraph, boundary plumbing.Hash) map[plumbing.Hash]struct{} {
 	set := make(map[plumbing.Hash]struct{})
 	pending := []plumbing.Hash{boundary}
 
@@ -223,12 +231,10 @@ func (l *localHistory) ancestorSet(boundary plumbing.Hash) map[plumbing.Hash]str
 
 		set[hash] = struct{}{}
 
-		if node, exists := l.graph.nodes[hash]; exists {
+		if node, exists := graph.nodes[hash]; exists {
 			pending = append(pending, node.parents...)
 		}
 	}
-
-	l.ancestors[boundary] = set
 
 	return set
 }
@@ -244,27 +250,6 @@ func (l *localHistory) tagCommit(ref string) (plumbing.Hash, error) {
 	}
 
 	return *hash, nil
-}
-
-// hydratePaths computes changed paths once per unique commit in the union of
-// all requested ranges, reusing results cached from earlier calls.
-func (l *localHistory) hydratePaths(ctx context.Context, rangesByRef map[string][]plumbing.Hash) error {
-	for _, hashes := range rangesByRef {
-		for _, hash := range hashes {
-			if _, exists := l.pathsByHash[hash]; exists {
-				continue
-			}
-
-			paths, err := l.commitPaths(ctx, hash)
-			if err != nil {
-				return err
-			}
-
-			l.pathsByHash[hash] = paths
-		}
-	}
-
-	return nil
 }
 
 // commitPaths diffs the commit against its first parent (or the empty tree
