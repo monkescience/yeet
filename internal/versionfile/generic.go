@@ -25,7 +25,6 @@ const (
 	semVerPartCount = 3
 )
 
-// allMarkerScopes defines the scope names accepted by marker regular expressions.
 var allMarkerScopes = []markerScope{
 	markerScopeMajor,
 	markerScopeMinor,

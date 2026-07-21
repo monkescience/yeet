@@ -1,11 +1,6 @@
-// Package history serves release commits and base-branch files from the local
-// git checkout.
-// The checkout must be complete (non-shallow) and its HEAD must exactly match
-// the remote head of the configured release branch. An unusable checkout
-// fails the run with an actionable error instead of silently analyzing the
-// wrong commits. The provider stays authoritative for tags, releases, and
-// everything mutable. The local repository is only read, never fetched,
-// checked out, or mutated.
+// Package history reads release commits and base-branch files from a complete
+// local checkout whose HEAD matches the remote release branch. It never
+// mutates the checkout, and the provider remains authoritative for remote data.
 package history
 
 import (
@@ -22,26 +17,20 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-// ErrCheckoutUnusable marks a local checkout that must not serve release
-// history: missing, shallow, on the wrong branch, or out of sync with the
-// remote release branch.
+// ErrCheckoutUnusable marks a checkout that cannot reliably serve release history.
 var ErrCheckoutUnusable = errors.New("local checkout cannot serve release history")
 
 var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
 
-// Remote is the provider-backed slice of history capabilities the local
-// source needs: authoritative version refs with commit targets and the branch
-// head used to validate the checkout.
+// Remote provides authoritative tag targets and the branch head used to
+// validate the local checkout.
 type Remote interface {
 	GetLatestReleaseRef(ctx context.Context) (string, error)
 	ListTagRefs(ctx context.Context) ([]provider.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
 
-// Source resolves commit ranges and file content from the local checkout.
-// Eligibility is validated once per Source: the repository must be complete
-// (non-shallow) and HEAD must be exactly the remote head of the configured
-// branch.
+// Source resolves commit ranges and file content from a validated local checkout.
 //
 // Source is not safe for concurrent use. The release analyzer issues history
 // calls sequentially.
@@ -56,9 +45,8 @@ type Source struct {
 	remoteTagCommits map[string]string
 }
 
-// New returns a history source for the configured release branch that looks
-// for a git repository at dir (searching parent directories like git does).
-// Construction never fails: the checkout is validated on first use.
+// New returns a history source that searches for a repository at dir or its
+// parents. The checkout is validated on first use.
 func New(remote Remote, branch, dir string) *Source {
 	return &Source{remote: remote, branch: branch, dir: dir}
 }
@@ -102,8 +90,8 @@ func (s *Source) GetLatestVersionRef(ctx context.Context) (string, error) {
 	return tags[0], nil
 }
 
-// ListTags loads names and commit targets from the remote provider. The same
-// snapshot validates local release boundaries later in the run.
+// ListTags returns remote tag names and caches their commit targets for later
+// boundary validation.
 func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	tags, _, err := s.loadRemoteTags(ctx)
 	if err != nil {
@@ -147,9 +135,7 @@ func (s *Source) GetFile(ctx context.Context, branch, path string) (string, erro
 	return content, nil
 }
 
-// GetCommitsSinceRefs serves exact per-ref commit ranges from the local
-// commit graph. It fails with ErrCheckoutUnusable when the checkout cannot
-// represent the release branch faithfully.
+// GetCommitsSinceRefs returns exact per-ref ranges from the local commit graph.
 func (s *Source) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
@@ -254,7 +240,6 @@ func (s *Source) remoteBoundaries(ctx context.Context, refs []string) (map[strin
 	return boundaries, nil
 }
 
-// eligibleLocal validates the checkout once per Source and memoizes success.
 func (s *Source) eligibleLocal(ctx context.Context, branch string) (*localHistory, error) {
 	if branch != s.branch {
 		return nil, fmt.Errorf(
@@ -277,8 +262,7 @@ func (s *Source) eligibleLocal(ctx context.Context, branch string) (*localHistor
 	return local, nil
 }
 
-// openEligibleLocal runs the once-per-run checkout validation. Every failure
-// names the problem and the fix, because there is no fallback path.
+// openEligibleLocal returns actionable errors because no history fallback exists.
 func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 	repo, err := git.PlainOpenWithOptions(s.dir, &git.PlainOpenOptions{
 		DetectDotGit: true,

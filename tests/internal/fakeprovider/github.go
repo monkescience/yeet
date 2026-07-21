@@ -14,68 +14,29 @@ import (
 )
 
 type GitHubOptions struct {
-	Owner string
-	Repo  string
-	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
-	// the head of the local fixture repository so yeet's checkout validation
-	// passes (or to another value to force the stale-checkout error). When
-	// empty, the newest entry in Commits (or the shared base SHA) is used.
-	BranchHeadSHA string
-	// LatestTag is the most recent tag returned by the tags-fallback. When
-	// empty, the server reports no tags and no latest release.
-	LatestTag string
-	// ExtraTags are additional historical tags returned alongside LatestTag
-	// from the tags-fallback. Used to drive the multi-ref ordering paths.
-	ExtraTags []string
-	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
-	BoundarySHA string
-	// TagSHAs overrides commit targets by tag name when multiple tags point to
-	// different commits.
-	TagSHAs map[string]string
-	// Commits are returned (newest first) from the commits listing for the
-	// release branch. The last entry should point at BoundarySHA so yeet can
-	// terminate the walk.
-	Commits []GitHubCommit
-	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
-	// fixture: when true, merged-PR search returns one PR with
-	// the autorelease:pending label so yeet enters the finalization path.
-	MergedPendingRelease bool
-	// Files maps repository-relative paths to their raw content. The contents
-	// endpoint serves these (base64-encoded) for matching paths. Paths not in
-	// the map return 404 except for CHANGELOG.md, which always has a default
-	// response.
-	Files map[string]string
-	// MultipleOpenPRs returns two pending release PRs from the open-pulls
-	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
-	MultipleOpenPRs bool
-	// MergeBlocked makes /pulls/{number} return a draft PR, triggering
-	// ErrMergeBlocked on --auto-merge.
-	MergeBlocked bool
-	// ExistingOpenReleasePRBody, when non-empty, makes the open-pulls listing
-	// return a single pending release PR with this body. The body should
-	// include the yeet release-manifest marker so yeet recognizes the PR and
-	// drives the update-existing-PR workflow.
+	Owner                     string
+	Repo                      string
+	BranchHeadSHA             string
+	LatestTag                 string
+	ExtraTags                 []string
+	BoundarySHA               string
+	TagSHAs                   map[string]string
+	Commits                   []GitHubCommit
+	MergedPendingRelease      bool
+	Files                     map[string]string
+	MultipleOpenPRs           bool
+	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
-	// ExistingRelease makes release-by-tag lookups return an already-created
-	// release so finalization can prove it is idempotent.
-	ExistingRelease bool
-	// PaginateCommits splits the commit list across two pages so tests can prove
-	// release analysis follows provider pagination before finding the boundary.
-	PaginateCommits bool
-	// FailOnMutation fails the test if the fake receives a non-read-only request.
-	FailOnMutation bool
+	ExistingRelease           bool
+	PaginateCommits           bool
+	FailOnMutation            bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
 type GitHubCommit struct {
-	SHA     string
-	Message string
-	// Files are the changed file paths returned by the commit-detail
-	// endpoint when yeet asks for per-commit paths (multi-target mode).
-	Files []string
-	// AssociatedPRBody, when non-empty, is returned as the body of the merged
-	// pull request associated with this commit by /commits/{sha}/pulls. Used
-	// to drive the commit-override path (BEGIN_COMMIT_OVERRIDE markers).
+	SHA              string
+	Message          string
+	Files            []string
 	AssociatedPRBody string
 }
 
@@ -94,9 +55,7 @@ const (
 	githubChangelog  = "CHANGELOG.md"
 )
 
-// NewGitHub starts an httptest.Server serving the minimum set of GitHub REST
-// endpoints exercised by `yeet release` against a configured owner/repo.
-// The server is stopped via t.Cleanup.
+// NewGitHub starts the GitHub REST fake and registers its cleanup with t.
 func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	t.Helper()
 
@@ -227,10 +186,7 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 	})
 }
 
-// githubCompareHandler serves base...head as GitHub's compare endpoint does:
-// the commits ahead of the boundary, oldest-first. An unknown base answers 404.
-// Under PaginateCommits the range is delivered on page 2 behind a next-page
-// link, so the test proves yeet follows compare pagination.
+// githubCompareHandler returns commits ahead of the boundary, oldest first.
 func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		base, _, _ := strings.Cut(r.PathValue("spec"), "...")
@@ -389,8 +345,7 @@ func githubTagSHA(opts GitHubOptions, tag string) string {
 	return opts.BoundarySHA
 }
 
-// githubHeadSHA is the branch head of the fake history: the explicit
-// BranchHeadSHA, else the newest commit, else the shared base SHA.
+// githubHeadSHA falls back from BranchHeadSHA to the newest commit, then the base SHA.
 func githubHeadSHA(opts GitHubOptions) string {
 	if opts.BranchHeadSHA != "" {
 		return opts.BranchHeadSHA
@@ -435,10 +390,7 @@ func githubFilesPayload(paths []string) []map[string]any {
 	return out
 }
 
-// registerGitHubWritePath attaches the handlers exercised by a non-dry-run
-// release (creating a release branch, updating files, opening the PR, and
-// managing labels). All responses are canned. The test asserts side effects
-// via exit code / stdout rather than payload bodies.
+// registerGitHubWritePath attaches the handlers used by non-dry-run releases.
 func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
 	registerGitHubGitData(mux, prefix)
 	registerGitHubContent(mux, prefix, opts)
@@ -587,8 +539,7 @@ func registerGitHubLabels(mux *http.ServeMux, prefix string) {
 	})
 }
 
-// githubReleaseManifest is the JSON payload yeet expects embedded inside the
-// merged release PR body so it can determine which tag/target to finalize.
+// githubReleaseManifest returns the manifest embedded in a merged release PR.
 const githubReleaseManifest = "<!-- yeet-release-manifest\n" +
 	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
 	"\n-->"

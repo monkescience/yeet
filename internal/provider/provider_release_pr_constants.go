@@ -12,5 +12,4 @@ func isExpectedReleaseBranch(sourceBranch, baseBranch string) bool {
 	return strings.TrimSpace(sourceBranch) == releaseBranchName(baseBranch)
 }
 
-// sortDirectionDesc is the descending sort token both GitHub and GitLab APIs accept.
 const sortDirectionDesc = "desc"

@@ -14,9 +14,7 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-// localHistory computes exact "reachable from head but not from boundary"
-// ranges over the validated local checkout. The graph and per-commit changed
-// paths are cached for the lifetime of one release run.
+// localHistory caches the reachable graph and changed paths for one release run.
 type localHistory struct {
 	repo *git.Repository
 	head plumbing.Hash
@@ -47,9 +45,8 @@ func newLocalHistory(repo *git.Repository, head plumbing.Hash) *localHistory {
 	}
 }
 
-// commitsSinceRefs mirrors the provider contract: one exact range per unique
-// ref, newest-first, with refs that are absent from the branch graph reported
-// in MissingRefs. Remote tag targets are validated before this method runs.
+// commitsSinceRefs returns one newest-first range per unique ref and reports
+// boundaries absent from the branch graph in MissingRefs.
 func (l *localHistory) commitsSinceRefs(
 	ctx context.Context,
 	refs []string,
@@ -87,8 +84,6 @@ func (l *localHistory) commitsSinceRefs(
 	return history, nil
 }
 
-// hydratePaths computes changed paths once per unique commit in one range,
-// reusing results cached from earlier ranges and calls.
 func (l *localHistory) hydratePaths(ctx context.Context, hashes []plumbing.Hash) error {
 	for _, hash := range hashes {
 		if _, exists := l.pathsByHash[hash]; exists {
@@ -297,8 +292,6 @@ func (l *localHistory) commitPaths(ctx context.Context, hash plumbing.Hash) ([]s
 	return paths, nil
 }
 
-// normalizeRefs trims and deduplicates refs while preserving order, matching
-// the provider-side batch normalization.
 func normalizeRefs(refs []string) []string {
 	normalized := make([]string, 0, len(refs))
 	seen := make(map[string]struct{}, len(refs))

@@ -81,8 +81,7 @@ type CommitHistory struct {
 	MissingRefs []string
 }
 
-// FileUpdate is the complete state needed to write one repository file.
-// Exists reports whether the path is present on the base branch.
+// FileUpdate holds new content and whether the file exists on the base branch.
 type FileUpdate struct {
 	Content string
 	Exists  bool
@@ -98,11 +97,8 @@ type TagRef struct {
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
-	// GetLatestReleaseRef returns the latest provider release without falling back to tags.
 	GetLatestReleaseRef(ctx context.Context) (string, error)
-	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
-	// ListTagRefs returns tags with their peeled commit hashes in newest-first order.
 	ListTagRefs(ctx context.Context) ([]TagRef, error)
 	// GetBranchHead returns the commit SHA the branch currently points at,
 	// wrapping ErrRefNotFound when the branch does not exist. Release commit
@@ -121,7 +117,6 @@ type Provider interface {
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MarkReleasePRTagged(ctx context.Context, number int) error
-	// CommitPullRequestBody finds the pull request whose merge result is hash.
 	CommitPullRequestBody(ctx context.Context, hash string) (body string, found bool, err error)
 
 	// MaxPRBodyLength returns zero when the provider has no known limit.
@@ -384,7 +379,6 @@ func parseAzureDevOpsHTTPRemote(remoteURL string) (*RepositoryDescriptor, error)
 }
 
 func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*RepositoryDescriptor, error) {
-	// Expect {org}/{project}/_git/{repo} (4 segments).
 	gitIdx := indexOf(segments, "_git")
 	if gitIdx < 2 || gitIdx != len(segments)-2 {
 		return nil, ErrUnknownRemote
@@ -453,7 +447,6 @@ func parseAzureDevOpsSSHRemote(remoteURL string) (*RepositoryDescriptor, error) 
 	path := normalizeRemotePath(matches[2])
 	segments := strings.Split(path, "/")
 
-	// Expect v3/{org}/{project}/{repo}.
 	const azureDevOpsSSHSegments = 4
 	if len(segments) != azureDevOpsSSHSegments || segments[0] != "v3" {
 		return nil, ErrUnknownRemote

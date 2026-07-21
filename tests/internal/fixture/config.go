@@ -1,5 +1,4 @@
-// Package fixture writes per-test on-disk artifacts used by blackbox tests,
-// such as a minimal .yeet.yaml that drives a single provider.
+// Package fixture writes on-disk artifacts for blackbox tests.
 package fixture
 
 import (
@@ -11,8 +10,7 @@ import (
 	"github.com/monkescience/testastic"
 )
 
-// ConfigOptions describes the values to render into a .yeet.yaml. Empty
-// fields are omitted so callers can mix and match defaults.
+// ConfigOptions describes values rendered into a .yeet.yaml.
 type ConfigOptions struct {
 	Provider          string
 	Branch            string
@@ -38,8 +36,7 @@ type ReferencePatternOptions struct {
 	URL     string
 }
 
-// TargetOptions describes one entry in the targets map. When empty, the
-// fixture writes a single "default" target.
+// TargetOptions describes one entry in the targets map.
 type TargetOptions struct {
 	Name         string
 	Path         string
@@ -49,8 +46,7 @@ type TargetOptions struct {
 	Includes     []string
 }
 
-// VersionFileOptions describes a version_files entry. Format and JSONPointer
-// are optional.
+// VersionFileOptions describes a version_files entry.
 type VersionFileOptions struct {
 	Path        string
 	Format      string
@@ -63,8 +59,7 @@ type ChannelOptions struct {
 	Prerelease string
 }
 
-// WriteConfig renders a .yeet.yaml under a fresh t.TempDir() and returns the
-// absolute path. The caller passes this path to the binary via --config.
+// WriteConfig renders a .yeet.yaml in a temporary directory.
 func WriteConfig(t *testing.T, opts ConfigOptions) string {
 	t.Helper()
 

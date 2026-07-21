@@ -10,54 +10,24 @@ import (
 )
 
 type GitLabOptions struct {
-	// Project is the full path with namespace, e.g. "group/repo". The server
-	// URL-encodes this to build endpoint paths.
-	Project string
-	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
-	// the head of the local fixture repository so yeet's checkout validation
-	// passes. When empty, the newest entry in Commits (or the shared base
-	// SHA) is used.
-	BranchHeadSHA string
-	// LatestTag is the most recent tag returned by the tags-fallback. When
-	// empty, the server reports no tags and no latest release.
-	LatestTag string
-	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
-	BoundarySHA string
-	// Commits are returned (newest first) from the commits listing for the
-	// release branch. The last entry should point at BoundarySHA so yeet can
-	// terminate the walk.
-	Commits []GitLabCommit
-	// Files maps repository-relative paths to raw content for /files/{path}/raw.
-	Files map[string]string
-	// MergedPendingRelease toggles the merged-release-MR fixture.
-	MergedPendingRelease bool
-	// MultipleOpenPRs returns two pending release MRs from the open-merge-requests
-	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
-	MultipleOpenPRs bool
-	// MergeBlocked makes GET /merge_requests/{iid} return a draft MR, triggering
-	// ErrMergeBlocked on --auto-merge.
-	MergeBlocked bool
-	// ExistingOpenReleasePRBody, when non-empty, makes the open-merge-requests
-	// listing return a single pending release MR with this body so yeet drives
-	// the update-existing-MR workflow.
+	Project                   string
+	BranchHeadSHA             string
+	LatestTag                 string
+	BoundarySHA               string
+	Commits                   []GitLabCommit
+	Files                     map[string]string
+	MergedPendingRelease      bool
+	MultipleOpenPRs           bool
+	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
-	// Users maps usernames to user IDs for the project-members lookup that
-	// resolves release reviewers. Unknown usernames return an empty list. The
-	// create-MR response echoes requested reviewer IDs back as reviewers.
-	Users map[string]int64
+	Users                     map[string]int64
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
 type GitLabCommit struct {
-	SHA     string
-	Message string
-	// Files are the changed file paths returned by the commit-diff endpoint
-	// when yeet asks for per-commit paths (multi-target mode).
-	Files []string
-	// AssociatedPRBody, when non-empty, is returned as the description of the
-	// merge request associated with this commit by
-	// /repository/commits/{sha}/merge_requests. Used to drive the
-	// commit-override path (BEGIN_COMMIT_OVERRIDE markers).
+	SHA              string
+	Message          string
+	Files            []string
 	AssociatedPRBody string
 }
 
@@ -70,9 +40,7 @@ const (
 	gitlabStateOpened = "opened"
 )
 
-// NewGitLab starts an httptest.Server serving the minimum GitLab REST surface
-// for `yeet release` (dry-run and non-dry-run). The server is closed via
-// t.Cleanup.
+// NewGitLab starts the GitLab REST fake and registers its cleanup with t.
 func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	t.Helper()
 
@@ -165,8 +133,7 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	})
 }
 
-// gitlabBranchHeadHandler serves GetBranchHead: the explicit BranchHeadSHA,
-// else the newest fake commit, else the shared base SHA.
+// gitlabBranchHeadHandler falls back to the newest commit, then the base SHA.
 func gitlabBranchHeadHandler(opts GitLabOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		headSHA := opts.BranchHeadSHA
@@ -258,8 +225,7 @@ func gitlabCreatedBranch() map[string]any {
 	}
 }
 
-// handleGitLabCreateMR echoes requested reviewer IDs back as applied
-// reviewers, mirroring a GitLab tier where all requested reviewers stick.
+// handleGitLabCreateMR echoes every requested reviewer as applied.
 func handleGitLabCreateMR(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		ReviewerIDs []int64 `json:"reviewer_ids"`
@@ -433,8 +399,7 @@ func gitlabCommitDetail(ref string, opts GitLabOptions) map[string]any {
 	return map[string]any{gitlabKeyID: ref}
 }
 
-// gitlabCompareHandler serves from..to as GitLab's compare endpoint does: the
-// commits ahead of the boundary. An unknown from ref answers 404.
+// gitlabCompareHandler returns commits ahead of the boundary.
 func gitlabCompareHandler(opts GitLabOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		boundarySHA, ok := gitlabResolveRefSHA(r.URL.Query().Get("from"), opts)

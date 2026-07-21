@@ -13,52 +13,27 @@ import (
 )
 
 type AzureOptions struct {
-	Organization string
-	Project      string
-	Repo         string
-	// BranchHeadSHA is the SHA reported as the release branch head. Set it to
-	// the head of the local fixture repository so yeet's checkout validation
-	// passes. When empty, the shared base SHA is used.
-	BranchHeadSHA string
-	// LatestTag is the most recent tag returned by the tags-fallback.
-	LatestTag string
-	// ExtraTags are additional historical tags returned alongside LatestTag
-	// from the tags listing. Used to drive the multi-ref ordering paths.
-	ExtraTags []string
-	// BoundarySHA is the SHA of the commit pointed at by LatestTag.
-	BoundarySHA string
-	// TagSHAs overrides commit targets by tag name when multiple tags point to
-	// different commits.
-	TagSHAs map[string]string
-	// Commits are returned (newest first) from the commits listing.
-	Commits []AzureCommit
-	// MergedPendingRelease toggles the merged-release-PR-waiting-for-tagging
-	// fixture: when true, the completed-pulls listing returns one merged PR
-	// with the autorelease:pending label so yeet enters the finalization path.
-	MergedPendingRelease bool
-	// MultipleOpenPRs returns two pending release PRs from the active-pulls
-	// listing to drive yeet down the ErrMultiplePendingReleasePRs path.
-	MultipleOpenPRs bool
-	// MergeBlocked makes GET /pullRequests/{id} return a draft PR, triggering
-	// ErrMergeBlocked on --auto-merge.
-	MergeBlocked bool
-	// ExistingOpenReleasePRBody, when non-empty, makes the active-pull-requests
-	// listing return a single pending release PR with this body so yeet drives
-	// the update-existing-PR workflow.
+	Organization              string
+	Project                   string
+	Repo                      string
+	BranchHeadSHA             string
+	LatestTag                 string
+	ExtraTags                 []string
+	BoundarySHA               string
+	TagSHAs                   map[string]string
+	Commits                   []AzureCommit
+	MergedPendingRelease      bool
+	MultipleOpenPRs           bool
+	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
-	// Files maps repository-relative paths to their raw content. The items
-	// endpoint serves these for matching paths. Paths not in the map return
-	// 404 except for CHANGELOG.md, which always has a default response.
-	Files map[string]string
+	Files                     map[string]string
 }
 
 // AzureCommit is a tiny subset of the Azure DevOps commit payload yeet reads.
 type AzureCommit struct {
 	SHA     string
 	Message string
-	// Files are the changed file paths returned by the changes endpoint when
-	// yeet asks for per-commit paths (multi-target mode).
-	Files []string
+	Files   []string
 }
 
 //go:embed testdata/resource_locations.json
@@ -67,8 +42,7 @@ var azureResourceLocations []byte
 //go:embed testdata/resource_areas_empty.json
 var azureResourceAreasEmpty []byte
 
-// NewAzure starts an httptest.Server serving the minimum Azure DevOps REST
-// surface yeet exercises. The server is closed via t.Cleanup.
+// NewAzure starts the Azure DevOps REST fake and registers its cleanup with t.
 func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	t.Helper()
 
@@ -118,13 +92,7 @@ func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions)
 	mux.HandleFunc("GET "+repoAPI+"/commits/{id}/changes", azureCommitChangesHandler(opts))
 }
 
-// azureCommitsHandler serves the commits endpoint for the three shapes yeet
-// issues: a top=1 resolve (no compare version) used by CreateRelease, the
-// unbounded branch walk (compare version, no boundary) used for an initial
-// release, and the graph-aware bounded range (boundary tag + compare branch)
-// used for every "commits since the previous tag" lookup. The bounded range
-// returns the commits ahead of the boundary commit, mirroring what Azure
-// computes server-side.
+// azureCommitsHandler supports ref resolution and bounded or unbounded history.
 func azureCommitsHandler(opts AzureOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -300,10 +268,7 @@ func azurePullRequestsListHandler(opts AzureOptions, merged *atomic.Bool) http.H
 	}
 }
 
-// azurePullRequestQueryHandler answers the pullRequestQuery endpoint used by
-// CommitPullRequestBody. It returns the merged pending-release PR keyed by its
-// merge commit SHA only under MergedPendingRelease, mirroring the completed-PR
-// listing it replaced. All other commits resolve to no pull request.
+// azurePullRequestQueryHandler resolves the fake merged PR by merge commit SHA.
 func azurePullRequestQueryHandler(opts AzureOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
@@ -495,10 +460,7 @@ func registerAzureReleases(mux *http.ServeMux, org, project string) {
 	})
 }
 
-// azureResolveCommitPayload mirrors what ADO returns when yeet resolves a ref
-// to its commit SHA via the commits endpoint (top=1, itemVersion=ref). Unknown
-// refs get an empty payload (count: 0), matching how the real API responds and
-// preventing typos or stale refs from quietly resolving to BoundarySHA.
+// azureResolveCommitPayload returns an empty result for unknown refs, like ADO.
 func azureResolveCommitPayload(ref string, opts AzureOptions) map[string]any {
 	sha, ok := azureResolveRefSHA(ref, opts)
 	if !ok {

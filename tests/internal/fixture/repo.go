@@ -13,13 +13,7 @@ import (
 	"github.com/monkescience/testastic"
 )
 
-// WriteRepo initializes a fresh git repository under a temp directory with a
-// single `origin` remote pointing at remoteURL. The returned path is the
-// repository root, suitable for `testastic.WithRunWorkDir(...)`.
-//
-// The repository contains no commits and no working-tree files. It exists so
-// that yeet's auto-detect path can read `.git/config` for the remote URL and
-// fall back to env-supplied branch info via GITHUB_REF_NAME.
+// WriteRepo creates an empty temporary repository with remoteURL as origin.
 func WriteRepo(t *testing.T, remoteURL string) string {
 	t.Helper()
 
@@ -37,9 +31,7 @@ func WriteRepo(t *testing.T, remoteURL string) string {
 	return dir
 }
 
-// WriteRepoWithBranch initializes a fresh git repository with origin pointing at
-// remoteURL and a checked-out branch containing one commit. The branch commit
-// lets blackbox tests exercise yeet's local branch fallback instead of CI envs.
+// WriteRepoWithBranch creates a temporary repository with one commit on branch.
 func WriteRepoWithBranch(t *testing.T, remoteURL string, branch string) string {
 	t.Helper()
 
@@ -77,25 +69,16 @@ func WriteRepoWithBranch(t *testing.T, remoteURL string, branch string) string {
 	return dir
 }
 
-// RepoCommit describes one commit in a scripted fixture repository. Files are
-// written (or overwritten) relative to the repository root before committing.
-// A non-empty Tag creates a lightweight tag on the commit.
+// RepoCommit describes one commit in a scripted fixture repository.
 type RepoCommit struct {
 	Message string
 	Files   map[string]string
 	Tag     string
-	// Branch, when non-empty, puts the commit on that side branch (created at
-	// the current release-branch head when it does not exist yet). The release
-	// branch is checked out again afterwards, so tags created here stay
-	// unreachable from it.
+	// Branch creates the commit on a side branch, then restores the release branch.
 	Branch string
 }
 
-// WriteRepoWithHistory initializes a repository on branch whose origin points
-// at remoteURL and creates commits in order with fixed timestamps, so the
-// resulting SHAs are deterministic across runs and machines. It returns the
-// repository root and one SHA per commit, in input order. The head SHA is the
-// last element.
+// WriteRepoWithHistory creates deterministic commits and returns their SHAs in order.
 func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []RepoCommit) (string, []string) {
 	t.Helper()
 
@@ -130,9 +113,7 @@ func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []Repo
 
 		files := commit.Files
 		if len(files) == 0 {
-			// go-git rejects empty commits by default; unspecified files fall
-			// back to a marker file derived from the message so every commit
-			// stays unique and deterministic.
+			// go-git rejects empty commits, so use the message as deterministic content.
 			files = map[string]string{"history.txt": commit.Message + "\n"}
 		}
 
@@ -156,10 +137,7 @@ func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []Repo
 	return dir, shas
 }
 
-// WriteRepoWithTaggedHistory initializes a repository on branch with one
-// commit tagged tag and one "feat: add local feature" commit on top. It
-// returns the repository root, tag commit SHA, and head commit SHA so tests can
-// align a fake provider with the local checkout.
+// WriteRepoWithTaggedHistory creates a tagged base and one feature commit.
 func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (string, string, string) {
 	t.Helper()
 
