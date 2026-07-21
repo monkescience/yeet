@@ -696,16 +696,6 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 			resetCalled = true
 
 			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "ref_reset.json"))
-		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("items"):
-			path := r.URL.Query().Get("path")
-			switch path {
-			case "CHANGELOG.md":
-				writeTextFixture(t, w, azureDevOpsContractFixture("update_files", "changelog.txt"))
-			case "VERSION.txt":
-				http.NotFound(w, r)
-			default:
-				fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-			}
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
 			testastic.True(t, resetCalled)
 

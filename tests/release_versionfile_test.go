@@ -10,13 +10,13 @@ import (
 
 // versionFileHistory writes the shared checkout used by version-file tests:
 // one tagged v1.0.0 boundary and one releasable feat commit.
-func versionFileHistory(t *testing.T) (string, []string) {
+func versionFileHistory(t *testing.T, files map[string]string) (string, []string) {
 	t.Helper()
 
 	return fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 		[]fixture.RepoCommit{
 			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-			{Message: "feat: add a thing"},
+			{Message: "feat: add a thing", Files: files},
 		})
 }
 
@@ -31,7 +31,8 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			"This release is 1.0.0 and supersedes the previous one.\n" +
 			"# x-yeet-end\n"
 
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{"VERSION.txt": fileContent}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -39,7 +40,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"VERSION.txt": fileContent},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -66,7 +67,10 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt whose x-yeet-start block has no matching x-yeet-end
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{
+			"VERSION.txt": "# x-yeet-start-version\nThis is 1.0.0 and the block is never closed.\n",
+		}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -74,9 +78,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "# x-yeet-start-version\nThis is 1.0.0 and the block is never closed.\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -109,7 +111,8 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			"# x-yeet-start-major\n" +
 			"# x-yeet-end\n"
 
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{"VERSION.txt": fileContent}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -117,7 +120,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"VERSION.txt": fileContent},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -145,7 +148,8 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt with no markers at all
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{"VERSION.txt": "1.0.0\n"}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -153,7 +157,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"VERSION.txt": "1.0.0\n"},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -189,7 +193,8 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 			"minor: 0  # x-yeet-minor\n" +
 			"patch: 0  # x-yeet-patch\n"
 
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{"VERSION.txt": fileContent}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -197,7 +202,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"VERSION.txt": fileContent},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -224,7 +229,8 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that uses `x-yeet-year` under a semver scheme
-		repoDir, shas := versionFileHistory(t)
+		files := map[string]string{"VERSION.txt": "year: 2026  # x-yeet-year\n"}
+		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
@@ -232,9 +238,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "year: 2026  # x-yeet-year\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -266,10 +270,11 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver config with a week-based format and an x-yeet-minor marker
+		files := map[string]string{"VERSION.txt": "minor: 5  # x-yeet-minor\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release", Tag: "v2026.05.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -278,9 +283,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 			LatestTag:     "v2026.05.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "minor: 5  # x-yeet-minor\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -315,17 +318,18 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 			"day: 14    # x-yeet-day\n" +
 			"micro: 0   # x-yeet-micro\n"
 
+		files := map[string]string{"VERSION.txt": fileContent}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: bootstrap"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
 			Repo:          "testrepo",
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"VERSION.txt": fileContent},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

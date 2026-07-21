@@ -49,7 +49,7 @@ type TargetPlan struct {
 
 type Releaser struct {
 	core      *releaseCore
-	history   versionHistoryProvider
+	source    releaseSource
 	prs       releasePRProvider
 	files     releaseFileProvider
 	publisher releasePublishingProvider
@@ -60,16 +60,15 @@ type versionStrategy struct {
 	prefix   string
 }
 
-// New constructs a Releaser. Version history is served by history (the
-// local-git source wired by the release command), while every provider-side
-// capability comes from deps.
+// New constructs a Releaser. History and base-branch files are served by the
+// local-git source, while every provider-side capability comes from deps.
 func New(
 	ctx context.Context,
 	cfg *config.Config,
 	deps releaserDependencies,
-	history versionHistoryProvider,
+	source releaseSource,
 ) (*Releaser, error) {
-	if history == nil {
+	if source == nil {
 		return nil, ErrNilHistorySource
 	}
 
@@ -85,7 +84,7 @@ func New(
 
 	return &Releaser{
 		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps},
-		history:   history,
+		source:    source,
 		prs:       deps,
 		files:     deps,
 		publisher: deps,
@@ -149,13 +148,13 @@ func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
 // ValidateTargets checks target selection without reading history or mutating
 // provider state.
 func (r *Releaser) ValidateTargets(selectedTargetIDs []string) error {
-	_, err := newReleaseAnalyzer(r.core, r.history).selectTargets(selectedTargetIDs)
+	_, err := newReleaseAnalyzer(r.core, r.source).selectTargets(selectedTargetIDs)
 
 	return err
 }
 
 func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
-	analyzer := newReleaseAnalyzer(r.core, r.history)
+	analyzer := newReleaseAnalyzer(r.core, r.source)
 
 	selection, err := analyzer.selectTargets(selectedTargetIDs)
 	if err != nil {
@@ -197,7 +196,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return result, nil
 	}
 
-	workflow := newReleasePRWorkflow(r.core, r.prs, r.files, r.publisher)
+	workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 
 	pr, err := workflow.createOrUpdate(ctx, result)
 	if err != nil {

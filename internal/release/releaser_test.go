@@ -193,12 +193,10 @@ func TestNewHistorySource(t *testing.T) {
 		deps := newProviderStub()
 		deps.latestVersionRef = "v9.9.9"
 
-		historySource := &versionHistoryStub{
-			latestVersionRef: "v2.0.0",
-			commitsErrByRef:  make(map[string]error),
-			commitsByRef: map[string][]provider.CommitEntry{
-				"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
-			},
+		historySource := newProviderStub()
+		historySource.latestVersionRef = "v2.0.0"
+		historySource.commitsByRef = map[string][]provider.CommitEntry{
+			"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
 		}
 
 		r, err := New(context.Background(), cfg, deps, historySource)
@@ -1915,7 +1913,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog is created with the release-please style header
 		testastic.NoError(t, err)
@@ -1929,6 +1927,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 - initial release (abc1234)
 `), strings.TrimSpace(updated))
+		testastic.False(t, stub.updates[0].exists)
 	})
 
 	t.Run("updates configured version files", func(t *testing.T) {
@@ -1954,12 +1953,56 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and version file are updated
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(stub.updates))
 		testastic.Equal(t, "version=1.2.4 # x-yeet-version", stub.files[providerFileKey(branch, "VERSION.txt")])
+	})
+
+	t.Run("reads base files only from the local release source", func(t *testing.T) {
+		t.Parallel()
+
+		// given: separate local and provider sources with two base branch files
+		cfg := config.Default()
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		localSource := newProviderStub()
+		localSource.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n"
+		localSource.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
+
+		remote := newProviderStub()
+		r, err := New(t.Context(), cfg, remote, localSource)
+		testastic.NoError(t, err)
+
+		result := &Result{Plans: []TargetPlan{{
+			ID:          "default",
+			NextVersion: "1.2.4",
+			NextTag:     "v1.2.4",
+			Changelog:   "## v1.2.4 (2026-03-01)\n",
+		}}}
+
+		// when: release branch files are prepared and written
+		err = newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			t.Context(),
+			"yeet/release-v1.2.4",
+			result,
+		)
+
+		// then: local blobs are read and the provider only receives one batched write
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, localSource.getFileCalls)
+		testastic.Equal(t, 0, remote.getFileCalls)
+		testastic.Equal(t, 1, remote.updateFilesCalls)
+		testastic.Equal(t, 2, len(remote.updates))
+
+		for _, update := range remote.updates {
+			testastic.True(t, update.exists)
+		}
 	})
 
 	t.Run("updates configured json version file", func(t *testing.T) {
@@ -1994,7 +2037,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and JSON version file are updated
 		expected := strings.Join([]string{
@@ -2037,7 +2080,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: changelog and JSON version file are updated with the calver string
 		testastic.NoError(t, err)
@@ -2068,7 +2111,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: missing markers abort the release and no provider updates are dispatched
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
@@ -2108,7 +2151,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: new entry is prepended and the changelog gains a top-level header
 		testastic.NoError(t, err)
@@ -2164,7 +2207,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
 
 		// then: the shared changelog contains both new entries instead of conflicting
 		testastic.NoError(t, err)
@@ -2193,7 +2236,11 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.files).updateFiles(context.Background(), "yeet/release-v1.2.4", result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(),
+			"yeet/release-v1.2.4",
+			result,
+		)
 
 		// then: missing file error is returned
 		testastic.Error(t, err)

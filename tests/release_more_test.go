@@ -228,10 +228,11 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
   ]
 }`
 
+		files := map[string]string{"manifest.json": manifest}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -240,7 +241,7 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"manifest.json": manifest},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -270,11 +271,12 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 
 		// given: a JSON pointer that references a non-existent array index
 		manifest := `{"packages":[{"version":"1.0.0"}]}`
+		files := map[string]string{"manifest.json": manifest}
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -283,7 +285,7 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"manifest.json": manifest},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -313,10 +315,11 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 		t.Parallel()
 
 		// given: a malformed JSON file targeted by the version_files pointer
+		files := map[string]string{"broken.json": `{"version": "1.0.0"`}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -325,7 +328,7 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files:         map[string]string{"broken.json": `{"version": "1.0.0"`},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -359,10 +362,11 @@ func TestReleaseJSONPointerProviders(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab repo with package.json /version
+		files := map[string]string{"package.json": `{"name":"yeet","version":"1.0.0"}`}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
@@ -370,9 +374,7 @@ func TestReleaseJSONPointerProviders(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"package.json": `{"name":"yeet","version":"1.0.0"}`,
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -400,10 +402,11 @@ func TestReleaseJSONPointerProviders(t *testing.T) {
 		t.Parallel()
 
 		// given: an azure repo with VERSION.txt
+		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
@@ -413,9 +416,7 @@ func TestReleaseJSONPointerProviders(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "1.0.0 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

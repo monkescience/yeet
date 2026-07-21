@@ -15,10 +15,11 @@ func TestReleaseGitLabCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project on GitLab with a prior month tag
+		files := map[string]string{"VERSION.txt": "2025.11.1 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
@@ -26,9 +27,7 @@ func TestReleaseGitLabCalVer(t *testing.T) {
 			LatestTag:     "v2025.11.1",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -60,10 +59,11 @@ func TestReleaseAzureCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project on Azure with a prior month tag
+		files := map[string]string{"VERSION.txt": "2025.11.1 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
@@ -73,9 +73,7 @@ func TestReleaseAzureCalVer(t *testing.T) {
 			LatestTag:     "v2025.11.1",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

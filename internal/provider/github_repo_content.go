@@ -88,7 +88,12 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 	return decoded, nil
 }
 
-func (g *GitHub) UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error {
+func (g *GitHub) UpdateFiles(
+	ctx context.Context,
+	branch, base string,
+	files map[string]FileUpdate,
+	message string,
+) error {
 	slog.DebugContext(ctx, "github: updating files",
 		slog.String("branch", branch),
 		slog.String("base", base),
@@ -142,15 +147,15 @@ func (g *GitHub) baseBranchCommit(ctx context.Context, base string) (*github.Com
 func (g *GitHub) createTreeForFiles(
 	ctx context.Context,
 	baseTreeSHA string,
-	files map[string]string,
+	files map[string]FileUpdate,
 ) (*github.Tree, error) {
 	entries := make([]*github.TreeEntry, 0, len(files))
 
-	for path, content := range files {
+	for path, update := range files {
 		pathValue := path
 		mode := "100644"
 		typeValue := "blob"
-		contentValue := content
+		contentValue := update.Content
 
 		entries = append(entries, &github.TreeEntry{
 			Path:    &pathValue,

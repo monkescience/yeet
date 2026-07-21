@@ -16,10 +16,11 @@ func TestReleaseScalarVersionFile(t *testing.T) {
 
 		// given: version_files written as a list of scalar paths and a local
 		// checkout with one releasable commit since v1.0.0
+		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -28,9 +29,7 @@ func TestReleaseScalarVersionFile(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "1.0.0 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		const configBody = `provider: github

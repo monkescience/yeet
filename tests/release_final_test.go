@@ -234,10 +234,15 @@ func TestReleaseMultipleVersionFiles(t *testing.T) {
 		t.Parallel()
 
 		// given: a config that lists three version_files with different formats
+		files := map[string]string{
+			"VERSION.txt":      "1.0.0 # x-yeet-version\n",
+			"package.json":     `{"name":"yeet","version":"1.0.0"}`,
+			"chart/Chart.yaml": "name: yeet\nversion: 1.0.0  # x-yeet-version\n",
+		}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -246,11 +251,7 @@ func TestReleaseMultipleVersionFiles(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt":      "1.0.0 # x-yeet-version\n",
-				"package.json":     `{"name":"yeet","version":"1.0.0"}`,
-				"chart/Chart.yaml": "name: yeet\nversion: 1.0.0  # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

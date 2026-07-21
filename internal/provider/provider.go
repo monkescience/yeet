@@ -81,6 +81,13 @@ type CommitHistory struct {
 	MissingRefs []string
 }
 
+// FileUpdate is the complete state needed to write one repository file.
+// Exists reports whether the path is present on the base branch.
+type FileUpdate struct {
+	Content string
+	Exists  bool
+}
+
 // TagRef identifies a remote tag and the commit it resolves to. CommitSHA is
 // the peeled commit hash for annotated tags.
 type TagRef struct {
@@ -121,7 +128,7 @@ type Provider interface {
 	CreateBranch(ctx context.Context, name, base string) error
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles force-updates a branch from base with one commit containing all file changes.
-	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
+	UpdateFiles(ctx context.Context, branch, base string, files map[string]FileUpdate, message string) error
 
 	RepoURL() string
 	// PathPrefix returns the path prefix for commit URLs (empty for GitHub, "/-" for GitLab).

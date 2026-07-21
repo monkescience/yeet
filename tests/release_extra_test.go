@@ -16,10 +16,11 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab fake with both merged-pending-release and version files
+		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
@@ -28,9 +29,7 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 			BoundarySHA:          shas[0],
 			BranchHeadSHA:        shas[1],
 			MergedPendingRelease: true,
-			Files: map[string]string{
-				"VERSION.txt": "1.0.0 # x-yeet-version\n",
-			},
+			Files:                files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -56,10 +55,11 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project with version_files and a feat commit
+		files := map[string]string{"VERSION.txt": "2025.05.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release", Tag: "v2025.05.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -68,9 +68,7 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 			LatestTag:     "v2025.05.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "2025.05.0 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
