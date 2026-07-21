@@ -1,5 +1,76 @@
 # Changelog
 
+## [v0.11.0](https://github.com/monkescience/yeet/compare/v0.10.20...v0.11.0) (2026-07-21)
+
+### Migration Notes
+
+yeet now reads release history from the local Git checkout. Release jobs must use a full,
+non-shallow checkout whose HEAD matches the remote release branch.
+
+#### GitHub Actions
+
+```yaml
+- uses: actions/checkout@<pinned-commit>
+  with:
+    fetch-depth: 0
+```
+
+#### GitLab CI
+
+```yaml
+variables:
+  GIT_STRATEGY: fetch
+  GIT_DEPTH: "0"
+```
+
+#### Azure Pipelines
+
+```yaml
+- checkout: self
+  fetchDepth: 0
+```
+
+Commit overrides are now read from the final Git commit message. Overrides stored only in PR or MR
+descriptions are ignored.
+
+```text
+chore: combine API changes
+
+BEGIN_COMMIT_OVERRIDE
+feat(auth): add OAuth token refresh
+fix(api): return 401 for expired sessions
+END_COMMIT_OVERRIDE
+```
+
+See [CI setup](docs/ci.md) and [commit overrides](docs/changelog-generation.md) for complete examples.
+
+### ⚠ BREAKING CHANGES
+
+- **release:** read overrides from local commits ([c754117](https://github.com/monkescience/yeet/commit/c75411781c44c218f86c9eb40f417f68d0df2aff))
+- require a full local checkout for release history ([2429976](https://github.com/monkescience/yeet/commit/242997650d7b71505414df64d4872a6e3ed70d45))
+
+### Features
+
+- require a full local checkout for release history ([2429976](https://github.com/monkescience/yeet/commit/242997650d7b71505414df64d4872a6e3ed70d45))
+- serve release history from the local git checkout ([284c4fd](https://github.com/monkescience/yeet/commit/284c4fdb60575aa22d43389175ce9933f906c107))
+
+### Bug Fixes
+
+- clarify CLI messages ([8203253](https://github.com/monkescience/yeet/commit/8203253e5d2d5e15d2532b7b847af8b59db5be62))
+- **release:** preserve custom changelog section positions ([0ad9a4a](https://github.com/monkescience/yeet/commit/0ad9a4a63c3cc36a33665612d1005d24e3b8bf4c))
+- **release:** validate history before mutations ([6d8361f](https://github.com/monkescience/yeet/commit/6d8361f258154364b0dfb244d46b02913d768949))
+- **history:** avoid retaining per-ref ancestry ([38bf26f](https://github.com/monkescience/yeet/commit/38bf26fa1872d103d9005e6ee1d686da69aa0d26))
+- **release:** validate local tags against remote ([7b9a791](https://github.com/monkescience/yeet/commit/7b9a7917bd7aa39c1c8c6ca1fda6c6437a9e3246))
+
+### Performance Improvements
+
+- **release:** cache changelog reads ([802675b](https://github.com/monkescience/yeet/commit/802675bfad311bfcf08c47e6d226cc79a32f7a88))
+- **history:** reuse remote tag snapshot ([ef88f8f](https://github.com/monkescience/yeet/commit/ef88f8f257651c1b98916bdedb4905c3406b4cfa))
+- **release:** avoid duplicate tag lookup ([77459a7](https://github.com/monkescience/yeet/commit/77459a798490adcbb3789fe6108cf635130a6598))
+- **release:** avoid duplicate release lookup ([fb1ab7b](https://github.com/monkescience/yeet/commit/fb1ab7bd33161ec8c22e1bb4152e980ab99be512))
+- **release:** read base files from local commits ([08ceeb1](https://github.com/monkescience/yeet/commit/08ceeb13fab36f074a09c207000d4e018bb76028))
+- **release:** read overrides from local commits ([c754117](https://github.com/monkescience/yeet/commit/c75411781c44c218f86c9eb40f417f68d0df2aff))
+
 ## [v0.10.20](https://github.com/monkescience/yeet/compare/v0.10.19...v0.10.20) (2026-07-18)
 
 ### Bug Fixes
