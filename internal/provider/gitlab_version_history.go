@@ -10,13 +10,6 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-func (g *GitLab) GetLatestVersionRef(ctx context.Context) (string, error) {
-	return latestVersionRefWithReleaseFallback(ctx,
-		g.GetLatestReleaseRef,
-		g.ListTags,
-	)
-}
-
 func (g *GitLab) GetLatestReleaseRef(ctx context.Context) (string, error) {
 	release, err := g.latestRelease(ctx)
 	if err != nil {
@@ -24,15 +17,6 @@ func (g *GitLab) GetLatestReleaseRef(ctx context.Context) (string, error) {
 	}
 
 	return release.TagName, nil
-}
-
-func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {
-	refs, err := g.ListTagRefs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return tagRefNames(refs), nil
 }
 
 func (g *GitLab) ListTagRefs(ctx context.Context) ([]TagRef, error) {

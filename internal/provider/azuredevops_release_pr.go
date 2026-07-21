@@ -501,59 +501,6 @@ func azureDevOpsPullRequestLabelID(labels []core.WebApiTagDefinition, target str
 	return "", false, nil
 }
 
-func (a *AzureDevOps) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {
-	commitHash := strings.TrimSpace(hash)
-	if commitHash == "" {
-		return "", false, nil
-	}
-
-	gitClient, err := a.client(ctx)
-	if err != nil {
-		return "", false, err
-	}
-
-	queryType := git.GitPullRequestQueryTypeValues.LastMergeCommit
-
-	query, err := gitClient.GetPullRequestQuery(ctx, git.GetPullRequestQueryArgs{
-		RepositoryId: &a.repo,
-		Project:      &a.project,
-		Queries: &git.GitPullRequestQuery{
-			Queries: &[]git.GitPullRequestQueryInput{{
-				Type:  &queryType,
-				Items: &[]string{commitHash},
-			}},
-		},
-	})
-	if err != nil {
-		return "", false, fmt.Errorf("query pull requests for commit %q: %w", commitHash, err)
-	}
-
-	prs := azureDevOpsCommitQueryResult(query, commitHash)
-	if len(prs) == 0 {
-		return "", false, nil
-	}
-
-	return derefString(prs[0].Description), true, nil
-}
-
-// azureDevOpsCommitQueryResult extracts the pull requests matching commitHash
-// from a GetPullRequestQuery response. Results[n] holds a commit->PRs map for
-// the n-th query input, so a single-commit query lands in the one entry that
-// contains commitHash.
-func azureDevOpsCommitQueryResult(query *git.GitPullRequestQuery, commitHash string) []git.GitPullRequest {
-	if query == nil || query.Results == nil {
-		return nil
-	}
-
-	for _, result := range *query.Results {
-		if prs, ok := result[commitHash]; ok {
-			return prs
-		}
-	}
-
-	return nil
-}
-
 func (a *AzureDevOps) getPullRequest(ctx context.Context, number int) (*git.GitPullRequest, error) {
 	gitClient, err := a.client(ctx)
 	if err != nil {

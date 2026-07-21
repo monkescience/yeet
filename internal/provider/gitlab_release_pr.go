@@ -337,49 +337,6 @@ func (g *GitLab) updateReleasePRLabels(
 	return nil
 }
 
-func (g *GitLab) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {
-	commitHash := strings.TrimSpace(hash)
-	if commitHash == "" {
-		return "", false, nil
-	}
-
-	var (
-		body  string
-		found bool
-	)
-
-	err := paginate(ctx, fmt.Sprintf("listing merge requests for commit %q", commitHash),
-		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
-			options := []gitlab.RequestOptionFunc{gitlab.WithContext(ctx)}
-			if page > 0 {
-				options = append(options, gitlab.WithOffsetPaginationParameters(int64(page)))
-			}
-
-			mrs, resp, err := g.client.Commits.ListMergeRequestsByCommit(g.projectID, commitHash, options...)
-			if err != nil {
-				return nil, 0, fmt.Errorf("list merge requests for commit %q: %w", commitHash, err)
-			}
-
-			return mrs, gitLabNextPage(resp), nil
-		},
-		func(mr *gitlab.BasicMergeRequest) (bool, error) {
-			if gitLabMergeRequestCommitSHA(mr) != commitHash {
-				return false, nil
-			}
-
-			body = mr.Description
-			found = true
-
-			return true, nil
-		},
-	)
-	if err != nil {
-		return "", false, err
-	}
-
-	return body, found, nil
-}
-
 func gitLabMergedAt(mergeRequest *gitlab.BasicMergeRequest) time.Time {
 	if mergeRequest.MergedAt == nil {
 		return time.Time{}

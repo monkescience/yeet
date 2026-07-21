@@ -13,30 +13,8 @@ const azureDevOpsTagRefPrefix = "refs/tags/"
 
 const azureDevOpsRefPageSize = 100
 
-func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
-	tags, err := a.ListTags(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	if len(tags) == 0 {
-		return "", ErrNoVersionRef
-	}
-
-	return tags[0], nil
-}
-
 func (a *AzureDevOps) GetLatestReleaseRef(context.Context) (string, error) {
 	return "", ErrNoRelease
-}
-
-func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
-	refs, err := a.ListTagRefs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return tagRefNames(refs), nil
 }
 
 func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]TagRef, error) {

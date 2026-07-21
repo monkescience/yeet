@@ -10,13 +10,6 @@ import (
 	"github.com/google/go-github/v89/github"
 )
 
-func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
-	return latestVersionRefWithReleaseFallback(ctx,
-		g.GetLatestReleaseRef,
-		g.ListTags,
-	)
-}
-
 func (g *GitHub) GetLatestReleaseRef(ctx context.Context) (string, error) {
 	release, err := g.latestRelease(ctx)
 	if err != nil {
@@ -24,15 +17,6 @@ func (g *GitHub) GetLatestReleaseRef(ctx context.Context) (string, error) {
 	}
 
 	return release.GetTagName(), nil
-}
-
-func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
-	refs, err := g.ListTagRefs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return tagRefNames(refs), nil
 }
 
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {

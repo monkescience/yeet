@@ -28,7 +28,6 @@ type providerContractScenario string
 
 const (
 	providerContractLatestRelease            providerContractScenario = "latest release"
-	providerContractLatestFallbackTags       providerContractScenario = "latest fallback tags"
 	providerContractListTags                 providerContractScenario = "list tags"
 	providerContractBranchHead               providerContractScenario = "branch head"
 	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
@@ -42,7 +41,6 @@ const (
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
 	providerContractMarkReleasePR            providerContractScenario = "mark release pr"
 	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
-	providerContractCommitPRBody             providerContractScenario = "commit pr body"
 	providerContractCreateBranch             providerContractScenario = "create branch"
 	providerContractCreateRelease            providerContractScenario = "create release"
 	providerContractGetFile                  providerContractScenario = "get file"
@@ -90,57 +88,6 @@ func TestProviderContract(t *testing.T) {
 				// then: the values match the harness expectations
 				testastic.Equal(t, harness.expectedRepoURL(server.URL), p.RepoURL())
 				testastic.Equal(t, harness.expectedPathPrefix, p.PathPrefix())
-			})
-
-			t.Run("prefers latest release as version ref", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server with a latest release of v1.2.4 available
-				server := httptest.NewServer(harness.handler(t, providerContractLatestRelease))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetLatestVersionRef is invoked
-				ref, err := p.GetLatestVersionRef(context.Background())
-
-				// then: the release tag v1.2.4 is returned as the version ref
-				testastic.NoError(t, err)
-				testastic.Equal(t, "v1.2.4", ref)
-			})
-
-			t.Run("falls back to tags for version ref", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server with no releases but a tag list available
-				server := httptest.NewServer(harness.handler(t, providerContractLatestFallbackTags))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: GetLatestVersionRef is invoked
-				ref, err := p.GetLatestVersionRef(context.Background())
-
-				// then: the latest tag is returned as the version ref
-				testastic.NoError(t, err)
-				testastic.Equal(t, providerContractTag, ref)
-			})
-
-			t.Run("lists tags", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server returning a fixture of two tags
-				server := httptest.NewServer(harness.handler(t, providerContractListTags))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: ListTags is invoked
-				tags, err := p.ListTags(context.Background())
-
-				// then: the tags are returned in the expected order
-				testastic.NoError(t, err)
-				testastic.SliceEqual(t, []string{providerContractTag, "v1.2.2"}, tags)
 			})
 
 			t.Run("lists tag commit targets", func(t *testing.T) {
@@ -398,24 +345,6 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the merge completes without error
 				testastic.NoError(t, err)
-			})
-
-			t.Run("finds commit pull request body", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server returning an overridden PR body for the merge commit SHA
-				server := httptest.NewServer(harness.handler(t, providerContractCommitPRBody))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: CommitPullRequestBody is invoked for the merge commit SHA
-				body, found, err := p.CommitPullRequestBody(context.Background(), providerContractMergeSHA)
-
-				// then: the overridden body is returned and the found flag is true
-				testastic.NoError(t, err)
-				testastic.True(t, found)
-				testastic.Equal(t, "override body", body)
 			})
 
 			t.Run("creates branch", func(t *testing.T) {

@@ -165,8 +165,6 @@ func newAzureDevOpsScenarioHandler(
 	switch scenario {
 	case providerContractLatestRelease:
 		return azureDevOpsLatestReleaseHandler(t)
-	case providerContractLatestFallbackTags:
-		return azureDevOpsLatestFallbackTagsHandler(t)
 	case providerContractListTags:
 		return azureDevOpsListTagsHandler(t)
 	case providerContractBranchHead:
@@ -193,8 +191,6 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsMarkReleasePRHandler(t)
 	case providerContractMergeReleasePR:
 		return azureDevOpsMergeReleasePRHandler(t)
-	case providerContractCommitPRBody:
-		return azureDevOpsCommitPRBodyHandler(t)
 	case providerContractCreateBranch:
 		return azureDevOpsCreateBranchHandler(t)
 	case providerContractCreateRelease:
@@ -234,30 +230,12 @@ func isAzureDevOpsPullRequestsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests")
 }
 
-func isAzureDevOpsPullRequestQueryRequest(r *http.Request) bool {
-	return r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pullRequestQuery")
-}
-
 func azureDevOpsLatestReleaseHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "tags/") {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("latest_release", "tags.json"))
-
-			return
-		}
-
-		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-	}
-}
-
-func azureDevOpsLatestFallbackTagsHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if isAzureDevOpsRefsRequest(r, "tags/") {
-			writeJSONFixture(t, w, azureDevOpsContractFixture("latest_fallback_tags", "tags.json"))
 
 			return
 		}
@@ -575,20 +553,6 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
-	}
-}
-
-func azureDevOpsCommitPRBodyHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !isAzureDevOpsPullRequestQueryRequest(r) {
-			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-
-			return
-		}
-
-		writeJSONFixture(t, w, azureDevOpsContractFixture("commit_pr_body", "pull_request_query.json"))
 	}
 }
 

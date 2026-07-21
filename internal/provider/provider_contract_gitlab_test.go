@@ -33,8 +33,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 		switch scenario {
 		case providerContractLatestRelease:
 			handleGitLabLatestReleaseContract(t, w, r)
-		case providerContractLatestFallbackTags:
-			handleGitLabLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitLabListTagsContract(t, w, r)
 		case providerContractBranchHead:
@@ -61,8 +59,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitLabMergeReleasePRContract(t, w, r)
-		case providerContractCommitPRBody:
-			handleGitLabCommitPRBodyContract(t, w, r)
 		case providerContractCreateBranch:
 			handleGitLabCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
@@ -97,19 +93,6 @@ func handleGitLabLatestReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
-}
-
-func handleGitLabLatestFallbackTagsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case isGitLabReleaseListRequest(r):
-		writeJSONFixture(t, w, "contracts/gitlab/latest_fallback_tags/empty_releases.json")
-	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/tags":
-		writeJSONFixture(t, w, "contracts/gitlab/latest_fallback_tags/tags.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
 }
 
 func handleGitLabBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -374,19 +357,6 @@ func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
-}
-
-func handleGitLabCommitPRBodyContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && r.URL.EscapedPath() ==
-		"/api/v4/projects/o%2Fr/repository/commits/"+providerContractMergeSHA+"/merge_requests" {
-		writeJSONFixture(t, w, "contracts/gitlab/commit_pr_body/prs.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
 func handleGitLabCreateBranchContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

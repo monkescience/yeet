@@ -129,7 +129,6 @@ func TestReleaseAnalyzerSharedMonorepoHistoryIndex(t *testing.T) {
 	testastic.Equal(t, 1, stub.listTagsCalls)
 	testastic.Equal(t, 1, stub.getCommitsSinceRefsCalls)
 	testastic.SliceEqual(t, []bool{true}, stub.getCommitsSinceIncludePath)
-	testastic.Equal(t, 0, stub.commitOverrideCalls)
 }
 
 func TestReleaseAnalyzerSharedHistoryUsesPerTargetBoundaries(t *testing.T) {

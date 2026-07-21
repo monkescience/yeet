@@ -260,54 +260,6 @@ func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabel
 	return nil
 }
 
-func (g *GitHub) CommitPullRequestBody(ctx context.Context, hash string) (string, bool, error) {
-	commitHash := strings.TrimSpace(hash)
-	if commitHash == "" {
-		return "", false, nil
-	}
-
-	options := &github.ListOptions{PerPage: gitHubPageSize}
-
-	var (
-		body  string
-		found bool
-	)
-
-	err := paginate(ctx, fmt.Sprintf("listing pull requests for commit %q", commitHash),
-		func(page int) ([]*github.PullRequest, int, error) {
-			options.Page = page
-
-			prs, resp, err := g.client.PullRequests.ListPullRequestsWithCommit(
-				ctx,
-				g.repo.Owner,
-				g.repo.Name,
-				commitHash,
-				options,
-			)
-			if err != nil {
-				return nil, 0, fmt.Errorf("list pull requests for commit %q: %w", commitHash, err)
-			}
-
-			return prs, gitHubNextPage(resp), nil
-		},
-		func(pr *github.PullRequest) (bool, error) {
-			if strings.TrimSpace(pr.GetMergeCommitSHA()) != commitHash {
-				return false, nil
-			}
-
-			body = pr.GetBody()
-			found = true
-
-			return true, nil
-		},
-	)
-	if err != nil {
-		return "", false, err
-	}
-
-	return body, found, nil
-}
-
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 

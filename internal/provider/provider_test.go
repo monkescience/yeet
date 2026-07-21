@@ -291,8 +291,8 @@ func TestGitHubVersionLookup(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		// when: resolving the latest version ref
-		ref, err := gh.GetLatestVersionRef(context.Background())
+		// when: resolving the latest provider release
+		ref, err := gh.GetLatestReleaseRef(context.Background())
 
 		// then: the latest published release tag is preferred
 		testastic.NoError(t, err)
@@ -319,38 +319,6 @@ func TestGitHubVersionLookup(t *testing.T) {
 
 		// then: the missing-release sentinel is returned without listing tags
 		testastic.ErrorIs(t, err, provider.ErrNoRelease)
-	})
-
-	t.Run("falls back to tags when no release exists", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository with tags but no published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest":
-				http.NotFound(w, r)
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/tags":
-				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
-				writeJSON(t, w, []map[string]any{{
-					"name":   "v1.2.3",
-					"commit": map[string]any{"sha": "abc123"},
-				}})
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client := newGitHubTestClient(t, server)
-
-		gh := provider.NewGitHub(client, "o", "r")
-
-		// when: resolving the latest version ref
-		ref, err := gh.GetLatestVersionRef(context.Background())
-
-		// then: the latest tag is returned when no release exists
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", ref)
 	})
 
 	t.Run("returns release by exact tag", func(t *testing.T) {
@@ -500,8 +468,8 @@ func TestGitLabVersionLookup(t *testing.T) {
 
 		gl := provider.NewGitLab(client, "o/r")
 
-		// when: resolving the latest version ref
-		ref, err := gl.GetLatestVersionRef(context.Background())
+		// when: resolving the latest provider release
+		ref, err := gl.GetLatestReleaseRef(context.Background())
 
 		// then: the latest published release tag is preferred
 		testastic.NoError(t, err)
@@ -536,45 +504,6 @@ func TestGitLabVersionLookup(t *testing.T) {
 
 		// then: the missing-release sentinel is returned without listing tags
 		testastic.ErrorIs(t, err, provider.ErrNoRelease)
-	})
-
-	t.Run("falls back to tags when no release exists", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab repository with tags but no published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases":
-				writeJSON(t, w, []map[string]any{})
-			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/tags":
-				testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
-				writeJSON(t, w, []map[string]any{{
-					"name":   "v1.2.3",
-					"target": "abc123",
-					"commit": map[string]any{"id": "abc123"},
-				}})
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
-
-		gl := provider.NewGitLab(client, "o/r")
-
-		// when: resolving the latest version ref
-		ref, err := gl.GetLatestVersionRef(context.Background())
-
-		// then: the latest tag is returned when no release exists
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.3", ref)
 	})
 
 	t.Run("returns release by exact tag", func(t *testing.T) {
@@ -1517,44 +1446,6 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 	})
 }
 
-func TestGitHubCommitPullRequestBody(t *testing.T) {
-	t.Parallel()
-
-	// given: GitHub returns PRs associated with a commit, but only one is the merge commit
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/abc123/pulls":
-			writeJSON(t, w, []map[string]any{
-				{
-					"number":           1,
-					"body":             "wrong body",
-					"merge_commit_sha": "def456",
-				},
-				{
-					"number":           2,
-					"body":             "override body",
-					"merge_commit_sha": "abc123",
-				},
-			})
-		default:
-			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-		}
-	}))
-	defer server.Close()
-
-	client := newGitHubTestClient(t, server)
-
-	gh := provider.NewGitHub(client, "o", "r")
-
-	// when: finding a PR body for the commit
-	body, found, err := gh.CommitPullRequestBody(context.Background(), "abc123")
-
-	// then: only the exact merge-commit PR body is returned
-	testastic.NoError(t, err)
-	testastic.True(t, found)
-	testastic.Equal(t, "override body", body)
-}
-
 func TestGitLabCreateReleasePR(t *testing.T) {
 	t.Parallel()
 
@@ -1636,105 +1527,6 @@ func TestGitLabUpdateReleasePR(t *testing.T) {
 
 	// then: no error
 	testastic.NoError(t, err)
-}
-
-func TestGitLabCommitPullRequestBody(t *testing.T) {
-	t.Parallel()
-
-	// given: GitLab returns MRs associated with a commit, but only one is the merge commit
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.EscapedPath() ==
-			"/api/v4/projects/o%2Fr/repository/commits/abc123/merge_requests":
-			writeJSON(t, w, []map[string]any{
-				{
-					"iid":              1,
-					"description":      "wrong body",
-					"merge_commit_sha": "def456",
-				},
-				{
-					"iid":              2,
-					"description":      "override body",
-					"merge_commit_sha": "abc123",
-				},
-			})
-		default:
-			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-		}
-	}))
-	defer server.Close()
-
-	client, err := gitlabapi.NewClient(
-		"",
-		gitlabapi.WithBaseURL(server.URL),
-		gitlabapi.WithHTTPClient(server.Client()),
-		gitlabapi.WithoutRetries(),
-	)
-	testastic.NoError(t, err)
-
-	gl := provider.NewGitLab(client, "o/r")
-
-	// when: finding an MR body for the commit
-	body, found, err := gl.CommitPullRequestBody(context.Background(), "abc123")
-
-	// then: only the exact merge-commit MR body is returned
-	testastic.NoError(t, err)
-	testastic.True(t, found)
-	testastic.Equal(t, "override body", body)
-}
-
-func TestGitLabCommitPullRequestBodyPaginatesPastFirstPage(t *testing.T) {
-	t.Parallel()
-
-	// given: the matching merge-commit MR is only present on the second page
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.EscapedPath() ==
-			"/api/v4/projects/o%2Fr/repository/commits/abc123/merge_requests":
-			switch r.URL.Query().Get("page") {
-			case "":
-				w.Header().Set("X-Next-Page", "2")
-				writeJSON(t, w, []map[string]any{
-					{
-						"iid":              1,
-						"description":      "wrong body",
-						"merge_commit_sha": "def456",
-					},
-				})
-			case "2":
-				writeJSON(t, w, []map[string]any{
-					{
-						"iid":              2,
-						"description":      "override body",
-						"merge_commit_sha": "abc123",
-					},
-				})
-			default:
-				t.Fatalf("unexpected GitLab commits page: %s", r.URL.RawQuery)
-			}
-		default:
-			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-		}
-	}))
-	defer server.Close()
-
-	client, err := gitlabapi.NewClient(
-		"",
-		gitlabapi.WithBaseURL(server.URL),
-		gitlabapi.WithHTTPClient(server.Client()),
-		gitlabapi.WithoutRetries(),
-	)
-	testastic.NoError(t, err)
-
-	gl := provider.NewGitLab(client, "o/r")
-
-	// when: finding an MR body for the commit
-	body, found, err := gl.CommitPullRequestBody(context.Background(), "abc123")
-
-	// then: the MR on the second page is found
-	testastic.NoError(t, err)
-	testastic.True(t, found)
-	testastic.Equal(t, "override body", body)
 }
 
 func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
@@ -2088,7 +1880,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 	})
 }
 
-func TestGitHubListTagsPaginationLimit(t *testing.T) {
+func TestGitHubListTagRefsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub API that always returns a next page
@@ -2114,14 +1906,14 @@ func TestGitHubListTagsPaginationLimit(t *testing.T) {
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: listing tags from an effectively infinite repository
-	_, err := gh.ListTags(context.Background())
+	_, err := gh.ListTagRefs(context.Background())
 
 	// then: pagination limit is enforced
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
 }
 
-func TestGitLabListTagsPaginationLimit(t *testing.T) {
+func TestGitLabListTagRefsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitLab API that always returns a next page
@@ -2152,7 +1944,7 @@ func TestGitLabListTagsPaginationLimit(t *testing.T) {
 	gl := provider.NewGitLab(client, "o/r")
 
 	// when: listing tags from an effectively infinite repository
-	_, err = gl.ListTags(context.Background())
+	_, err = gl.ListTagRefs(context.Background())
 
 	// then: pagination limit is enforced
 	testastic.Error(t, err)

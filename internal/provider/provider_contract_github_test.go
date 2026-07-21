@@ -37,8 +37,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 		switch scenario {
 		case providerContractLatestRelease:
 			handleGitHubLatestReleaseContract(t, w, r)
-		case providerContractLatestFallbackTags:
-			handleGitHubLatestFallbackTagsContract(t, w, r)
 		case providerContractListTags:
 			handleGitHubListTagsContract(t, w, r)
 		case providerContractBranchHead:
@@ -65,8 +63,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitHubMergeReleasePRContract(t, w, r)
-		case providerContractCommitPRBody:
-			handleGitHubCommitPRBodyContract(t, w, r)
 		case providerContractCreateBranch:
 			handleGitHubCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
@@ -101,19 +97,6 @@ func handleGitHubLatestReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
-}
-
-func handleGitHubLatestFallbackTagsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest":
-		http.NotFound(w, r)
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/tags":
-		writeJSONFixture(t, w, "contracts/github/latest_fallback_tags/tags.json")
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
 }
 
 func handleGitHubListTagsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -371,18 +354,6 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
-}
-
-func handleGitHubCommitPRBodyContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractMergeSHA+"/pulls" {
-		writeJSONFixture(t, w, "contracts/github/commit_pr_body/prs.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
 func handleGitHubCreateBranchContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

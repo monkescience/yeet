@@ -96,9 +96,7 @@ type TagRef struct {
 
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
-	GetLatestVersionRef(ctx context.Context) (string, error)
 	GetLatestReleaseRef(ctx context.Context) (string, error)
-	ListTags(ctx context.Context) ([]string, error)
 	ListTagRefs(ctx context.Context) ([]TagRef, error)
 	// GetBranchHead returns the commit SHA the branch currently points at,
 	// wrapping ErrRefNotFound when the branch does not exist. Release commit
@@ -117,8 +115,6 @@ type Provider interface {
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MarkReleasePRTagged(ctx context.Context, number int) error
-	CommitPullRequestBody(ctx context.Context, hash string) (body string, found bool, err error)
-
 	// MaxPRBodyLength returns zero when the provider has no known limit.
 	MaxPRBodyLength() int
 
