@@ -149,13 +149,13 @@ func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
 // ValidateTargets checks target selection without reading history or mutating
 // provider state.
 func (r *Releaser) ValidateTargets(selectedTargetIDs []string) error {
-	_, err := newReleaseAnalyzer(r.core, r.history, r.prs).selectTargets(selectedTargetIDs)
+	_, err := newReleaseAnalyzer(r.core, r.history).selectTargets(selectedTargetIDs)
 
 	return err
 }
 
 func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
-	analyzer := newReleaseAnalyzer(r.core, r.history, r.prs)
+	analyzer := newReleaseAnalyzer(r.core, r.history)
 
 	selection, err := analyzer.selectTargets(selectedTargetIDs)
 	if err != nil {

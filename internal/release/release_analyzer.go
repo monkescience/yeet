@@ -11,7 +11,6 @@ import (
 type releaseAnalyzer struct {
 	core            *releaseCore
 	history         versionHistoryProvider
-	prs             releasePRProvider
 	bumpMapping     commit.BumpMapping
 	commitCache     map[commitCacheKey][]provider.CommitEntry
 	overrideCache   map[string]commitOverrideResult
@@ -22,11 +21,10 @@ type releaseAnalyzer struct {
 	refReachable    map[string]bool
 }
 
-func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider, prs releasePRProvider) *releaseAnalyzer {
+func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider) *releaseAnalyzer {
 	return &releaseAnalyzer{
 		core:          core,
 		history:       history,
-		prs:           prs,
 		bumpMapping:   core.cfg.BumpTypes.ToBumpMapping(),
 		commitCache:   make(map[commitCacheKey][]provider.CommitEntry),
 		overrideCache: make(map[string]commitOverrideResult),

@@ -31,7 +31,7 @@ If you want release-please's release-PR workflow but your code lives on GitLab o
 | Commit type to bump mapping | configurable (`bump_types`) | fixed strategies only | configurable (`releaseRules`) |
 | Version updates in arbitrary files | comment markers and JSON pointers | comment markers and typed extra-files | plugins only |
 | Issue tracker links in changelog | built in (regex patterns and footers) | not supported | preset passthrough or community plugin |
-| Commit message overrides | PR/MR body override block | PR body override block (squash only) | not supported |
+| Commit message overrides | Git commit message override block | PR body override block (squash only) | not supported |
 | Monorepo | built in (targets) | built in (manifest) | third-party plugins |
 | Configuration | one YAML file with a JSON schema | JSON config plus manifest | plugin config in `.releaserc` |
 

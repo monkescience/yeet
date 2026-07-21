@@ -84,9 +84,11 @@ Reference patterns are validated when the config is loaded, so an invalid regula
 
 ## Commit overrides
 
-If a merged PR/MR has a vague squash or merge commit message, edit that source PR/MR body to add override entries:
+Add override entries to the body of the final git commit message when its subject does not describe the releasable changes:
 
-```md
+```text
+chore: combine API changes
+
 BEGIN_COMMIT_OVERRIDE
 feat(auth): add OAuth token refresh
 
@@ -94,7 +96,7 @@ fix(api): return 401 for expired sessions
 END_COMMIT_OVERRIDE
 ```
 
-When yeet analyzes the merge/squash commit, those conventional commit messages replace the commit message for version bumping and changelog generation. The generated changelog still links to the original commit hash.
+When yeet analyzes that commit, those conventional commit messages replace it for version bumping and changelog generation. The generated changelog still links to the original commit hash.
 
 This can split one merged commit into multiple release notes, or introduce a breaking change:
 
@@ -106,6 +108,4 @@ BREAKING CHANGE: existing session cookies are invalid after upgrade
 END_COMMIT_OVERRIDE
 ```
 
-Commit overrides are read from the original merged PR/MR body. Manual edits to the generated release PR/MR body may be overwritten the next time yeet updates the release branch.
-
-Overrides are matched through the merge or squash commit recorded by the provider, so rebase merges are not reliably matched: GitLab fast-forward and rebase MRs never apply overrides, and on GitHub only the tip commit of a rebase merge can match. Use squash or merge commits when you rely on overrides.
+The override block must exist in the final git commit message. Yeet does not read PR or MR bodies during commit analysis. A block written in a PR or MR body only works when the provider copies it into the final commit message before the commit reaches the release branch. This rule is the same for squash merges, merge commits, rebases, and direct pushes.
