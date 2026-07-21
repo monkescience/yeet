@@ -11,6 +11,7 @@ import (
 const (
 	gitHubFallbackTaggerName  = "yeet-bot"
 	gitHubFallbackTaggerEmail = "noreply@yeet.dev"
+	gitHubPageSize            = 100
 )
 
 var _ Provider = (*GitHub)(nil)

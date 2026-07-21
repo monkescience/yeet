@@ -38,7 +38,7 @@ func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "github: listing tags")
 
-	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
+	options := &github.ListOptions{PerPage: gitHubPageSize}
 	refs := make([]TagRef, 0)
 
 	err := paginate(ctx, "listing tags",

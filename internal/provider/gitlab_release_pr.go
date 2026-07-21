@@ -170,7 +170,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
 		Labels:       &labels,
-		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
 
 	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
@@ -234,7 +234,7 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
 		Labels:       &labels,
-		ListOptions:  gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
 
 	slog.DebugContext(ctx, "gitlab: searching merged release MRs",
@@ -306,40 +306,32 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 }
 
 func (g *GitLab) MarkReleasePRPending(ctx context.Context, number int) error {
-	err := g.ensureReleaseLabels(ctx)
-	if err != nil {
-		return err
-	}
-
-	addLabels := gitlab.LabelOptions{ReleaseLabelPending}
-	removeLabels := gitlab.LabelOptions{ReleaseLabelTagged}
-
-	_, _, err = g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
-		AddLabels:    &addLabels,
-		RemoveLabels: &removeLabels,
-	}, gitlab.WithContext(ctx))
-	if err != nil {
-		return fmt.Errorf("mark merge request !%d pending: %w", number, err)
-	}
-
-	return nil
+	return g.updateReleasePRLabels(ctx, number, ReleaseLabelPending, ReleaseLabelTagged, "pending")
 }
 
 func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int) error {
+	return g.updateReleasePRLabels(ctx, number, ReleaseLabelTagged, ReleaseLabelPending, "tagged")
+}
+
+func (g *GitLab) updateReleasePRLabels(
+	ctx context.Context,
+	number int,
+	addLabel, removeLabel, state string,
+) error {
 	err := g.ensureReleaseLabels(ctx)
 	if err != nil {
 		return err
 	}
 
-	addLabels := gitlab.LabelOptions{ReleaseLabelTagged}
-	removeLabels := gitlab.LabelOptions{ReleaseLabelPending}
+	addLabels := gitlab.LabelOptions{addLabel}
+	removeLabels := gitlab.LabelOptions{removeLabel}
 
 	_, _, err = g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
 		AddLabels:    &addLabels,
 		RemoveLabels: &removeLabels,
 	}, gitlab.WithContext(ctx))
 	if err != nil {
-		return fmt.Errorf("mark merge request !%d tagged: %w", number, err)
+		return fmt.Errorf("mark merge request !%d %s: %w", number, state, err)
 	}
 
 	return nil

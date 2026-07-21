@@ -39,7 +39,7 @@ func (g *GitLab) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "gitlab: listing tags")
 
 	options := &gitlab.ListTagsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: 100}, //nolint:mnd // reasonable API page size
+		ListOptions: gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
 	refs := make([]TagRef, 0)
 

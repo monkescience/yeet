@@ -12,38 +12,7 @@ func paginate[T any](
 	fetch func(page int) (items []T, nextPage int, err error),
 	handle func(T) (stop bool, err error),
 ) error {
-	page := 0
-
-	for range maxPaginationPages {
-		err := ctx.Err()
-		if err != nil {
-			return fmt.Errorf("paginate %s: %w", resource, err)
-		}
-
-		items, nextPage, err := fetch(page)
-		if err != nil {
-			return err
-		}
-
-		for _, item := range items {
-			stop, err := handle(item)
-			if err != nil {
-				return err
-			}
-
-			if stop {
-				return nil
-			}
-		}
-
-		if nextPage == 0 {
-			return nil
-		}
-
-		page = nextPage
-	}
-
-	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
+	return paginateByCursor(ctx, resource, 0, fetch, handle)
 }
 
 // paginateAzureDevOps walks Azure DevOps continuation-token APIs.
@@ -53,7 +22,17 @@ func paginateAzureDevOps[T any](
 	fetch func(token string) (items []T, nextToken string, err error),
 	handle func(T) (stop bool, err error),
 ) error {
-	token := ""
+	return paginateByCursor(ctx, resource, "", fetch, handle)
+}
+
+func paginateByCursor[T any, C comparable](
+	ctx context.Context,
+	resource string,
+	cursor C,
+	fetch func(C) (items []T, nextCursor C, err error),
+	handle func(T) (stop bool, err error),
+) error {
+	var exhausted C
 
 	for range maxPaginationPages {
 		err := ctx.Err()
@@ -61,7 +40,7 @@ func paginateAzureDevOps[T any](
 			return fmt.Errorf("paginate %s: %w", resource, err)
 		}
 
-		items, nextToken, err := fetch(token)
+		items, nextCursor, err := fetch(cursor)
 		if err != nil {
 			return err
 		}
@@ -77,11 +56,11 @@ func paginateAzureDevOps[T any](
 			}
 		}
 
-		if nextToken == "" {
+		if nextCursor == exhausted {
 			return nil
 		}
 
-		token = nextToken
+		cursor = nextCursor
 	}
 
 	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)

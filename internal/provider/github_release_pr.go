@@ -112,7 +112,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		Sort:      "updated",
 		Direction: sortDirectionDesc,
 		ListOptions: github.ListOptions{
-			PerPage: 100, //nolint:mnd // reasonable API page size
+			PerPage: gitHubPageSize,
 		},
 	}
 
@@ -173,7 +173,7 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 		Sort:  "updated",
 		Order: sortDirectionDesc,
 		ListOptions: github.ListOptions{
-			PerPage: 100, //nolint:mnd // reasonable API page size
+			PerPage: gitHubPageSize,
 		},
 	}
 
@@ -237,31 +237,23 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 }
 
 func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
-	if err := g.ensureReleaseLabels(ctx); err != nil {
-		return err
-	}
-
-	if err := g.addIssueLabels(ctx, number, []string{ReleaseLabelPending}); err != nil {
-		return err
-	}
-
-	if err := g.removeIssueLabel(ctx, number, ReleaseLabelTagged); err != nil {
-		return err
-	}
-
-	return nil
+	return g.updateReleasePRLabels(ctx, number, ReleaseLabelPending, ReleaseLabelTagged)
 }
 
 func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
+	return g.updateReleasePRLabels(ctx, number, ReleaseLabelTagged, ReleaseLabelPending)
+}
+
+func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabel, removeLabel string) error {
 	if err := g.ensureReleaseLabels(ctx); err != nil {
 		return err
 	}
 
-	if err := g.addIssueLabels(ctx, number, []string{ReleaseLabelTagged}); err != nil {
+	if err := g.addIssueLabels(ctx, number, []string{addLabel}); err != nil {
 		return err
 	}
 
-	if err := g.removeIssueLabel(ctx, number, ReleaseLabelPending); err != nil {
+	if err := g.removeIssueLabel(ctx, number, removeLabel); err != nil {
 		return err
 	}
 
@@ -274,7 +266,7 @@ func (g *GitHub) CommitPullRequestBody(ctx context.Context, hash string) (string
 		return "", false, nil
 	}
 
-	options := &github.ListOptions{PerPage: 100} //nolint:mnd // reasonable API page size
+	options := &github.ListOptions{PerPage: gitHubPageSize}
 
 	var (
 		body  string
