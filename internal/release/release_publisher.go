@@ -152,15 +152,6 @@ func (p *releasePublisher) createReleaseForUnreleasedTag(
 ) (*provider.Release, error) {
 	r := p.core
 
-	tagExists, err := p.publisher.TagExists(ctx, tag)
-	if err != nil {
-		return nil, fmt.Errorf("check tag %q: %w", tag, err)
-	}
-
-	if tagExists {
-		return p.createReleaseForTag(ctx, tag, "", releaseBody, prerelease)
-	}
-
 	creationRef := strings.TrimSpace(ref)
 	if creationRef == "" {
 		creationRef = r.cfg.Branch

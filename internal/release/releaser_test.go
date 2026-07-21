@@ -1708,6 +1708,7 @@ repository:
 		testastic.Equal(t, 1, len(releases))
 		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, stub.tagExistsCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 9, stub.markTaggedCalls[0])
 	})
@@ -1774,13 +1775,14 @@ repository:
 		// when: finalizing merged release PR
 		releases, err := r.finalizeMergedReleasePRs(context.Background())
 
-		// then: only the missing release object is created and no branch ref is forced
+		// then: the provider owns the single tag lookup and reuses the existing tag
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
 		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
-		testastic.Equal(t, "", stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, 1, stub.tagExistsCalls)
 	})
 
 	t.Run("creates missing tag from merged commit ref", func(t *testing.T) {
@@ -1818,6 +1820,7 @@ repository:
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, 1, stub.tagExistsCalls)
 	})
 
 	t.Run("returns no-pr error when no merged pending release PR exists", func(t *testing.T) {
