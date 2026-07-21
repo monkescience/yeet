@@ -157,7 +157,7 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "chore: squashed merge"},
+				{Message: "chore: squashed merge\n\nBEGIN_COMMIT_OVERRIDE\n\nEND_COMMIT_OVERRIDE\n"},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -166,13 +166,6 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Commits: []fakeprovider.GitHubCommit{
-				{
-					SHA:              shas[1],
-					Message:          "chore: squashed merge",
-					AssociatedPRBody: "BEGIN_COMMIT_OVERRIDE\n\nEND_COMMIT_OVERRIDE\n",
-				},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -202,7 +195,7 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "chore: squashed merge"},
+				{Message: "chore: squashed merge\n\nBEGIN_COMMIT_OVERRIDE\nfeat: ship\n"},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -211,13 +204,6 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Commits: []fakeprovider.GitHubCommit{
-				{
-					SHA:              shas[1],
-					Message:          "chore: squashed merge",
-					AssociatedPRBody: "BEGIN_COMMIT_OVERRIDE\nfeat: ship\n",
-				},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

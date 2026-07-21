@@ -1779,35 +1779,26 @@ func TestReleaseAsFooter(t *testing.T) {
 func TestReleaseCommitOverride(t *testing.T) {
 	t.Parallel()
 
-	t.Run("github merged-PR body BEGIN/END_COMMIT_OVERRIDE replaces the squashed message", func(t *testing.T) {
+	t.Run("github local commit BEGIN/END_COMMIT_OVERRIDE replaces the squashed message", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a squashed merge whose associated PR body wraps an override block
+		// given: a squashed merge whose local commit message wraps an override block
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "chore: squashed merge"},
+				{Message: "chore: squashed merge\n\n" +
+					"BEGIN_COMMIT_OVERRIDE\n" +
+					"feat: overridden first commit\n\n" +
+					"fix: overridden second commit\n" +
+					"END_COMMIT_OVERRIDE\n"},
 			})
 
-		// The commit-override PR body is still served by the provider, keyed by
-		// the local squashed-merge commit SHA.
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "testorg",
 			Repo:          "testrepo",
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Commits: []fakeprovider.GitHubCommit{
-				{
-					SHA:     shas[1],
-					Message: "chore: squashed merge",
-					AssociatedPRBody: "Some PR notes\n\n" +
-						"BEGIN_COMMIT_OVERRIDE\n" +
-						"feat: overridden first commit\n\n" +
-						"fix: overridden second commit\n" +
-						"END_COMMIT_OVERRIDE\n",
-				},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

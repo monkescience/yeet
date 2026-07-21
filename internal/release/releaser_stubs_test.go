@@ -297,7 +297,7 @@ type releasePRWorkflowStub struct {
 
 	maxPRBodyLength int
 
-	commitOverrideBodies map[string]string
+	commitOverrideCalls int
 
 	createPRCalls   int
 	createPROptions []provider.ReleasePROptions
@@ -377,10 +377,10 @@ func (s *releasePRWorkflowStub) MarkReleasePRPending(_ context.Context, number i
 	return nil
 }
 
-func (s *releasePRWorkflowStub) CommitPullRequestBody(_ context.Context, hash string) (string, bool, error) {
-	body, exists := s.commitOverrideBodies[hash]
+func (s *releasePRWorkflowStub) CommitPullRequestBody(_ context.Context, _ string) (string, bool, error) {
+	s.commitOverrideCalls++
 
-	return body, exists, nil
+	return "", false, nil
 }
 
 func (s *releasePRWorkflowStub) MaxPRBodyLength() int {

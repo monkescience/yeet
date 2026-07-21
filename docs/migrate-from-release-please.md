@@ -7,8 +7,9 @@ yeet is designed so a release-please repository can switch without re-tagging or
   release-please release.
 - yeet uses the same `autorelease: pending` and `autorelease: tagged` labels, so no label cleanup
   is needed.
-- Commit overrides use the same `BEGIN_COMMIT_OVERRIDE` / `END_COMMIT_OVERRIDE` markers in PR
-  bodies, so existing overrides keep working.
+- Commit overrides use the same `BEGIN_COMMIT_OVERRIDE` / `END_COMMIT_OVERRIDE` markers, but yeet
+  only reads them from the final git commit message. Existing blocks stored only in PR bodies do
+  not work unless the provider copies them into that commit message.
 
 yeet only recognizes release PRs created from its own `yeet/release-*` branches, so it never
 picks up or modifies release-please PRs, even when they carry the shared labels.

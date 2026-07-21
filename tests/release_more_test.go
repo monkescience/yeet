@@ -14,12 +14,16 @@ func TestReleaseCommitOverrideCrossProvider(t *testing.T) {
 	t.Run("gitlab BEGIN_COMMIT_OVERRIDE block replaces squashed message", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a local checkout with a squashed merge whose MR description
-		// wraps an override block served by the fake provider
+		// given: a local checkout with a squashed merge whose commit message
+		// wraps an override block
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "chore: squashed merge"},
+				{Message: "chore: squashed merge\n\n" +
+					"BEGIN_COMMIT_OVERRIDE\n" +
+					"feat: overridden first commit\n\n" +
+					"fix: overridden second commit\n" +
+					"END_COMMIT_OVERRIDE\n"},
 			})
 
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
@@ -27,17 +31,6 @@ func TestReleaseCommitOverrideCrossProvider(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Commits: []fakeprovider.GitLabCommit{
-				{
-					SHA:     shas[1],
-					Message: "chore: squashed merge",
-					AssociatedPRBody: "Some MR notes\n\n" +
-						"BEGIN_COMMIT_OVERRIDE\n" +
-						"feat: overridden first commit\n\n" +
-						"fix: overridden second commit\n" +
-						"END_COMMIT_OVERRIDE\n",
-				},
-			},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

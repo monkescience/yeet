@@ -116,23 +116,22 @@ func TestReleaseCommitOverrides(t *testing.T) {
 	t.Run("override changes bump and changelog", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a vague patch commit associated with a PR body override containing a feature and fix
+		// given: a vague patch commit whose message overrides it with a feature and fix
 		cfg := config.Default()
 		cfg.PreMajorFeaturesBumpPatch = false
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
 		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: auth stuff",
-		}}
-		stub.commitOverrideBodies = map[string]string{
-			"abcdef1234567890": `BEGIN_COMMIT_OVERRIDE
+			Hash: "abcdef1234567890",
+			Message: `fix: auth stuff
+
+BEGIN_COMMIT_OVERRIDE
 feat(auth): add OAuth token refresh
 
 fix(api): return 401 for expired sessions
 END_COMMIT_OVERRIDE`,
-		}
+		}}
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -152,23 +151,22 @@ END_COMMIT_OVERRIDE`,
 	t.Run("override can introduce breaking change", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a non-breaking commit whose PR body declares a breaking override
+		// given: a non-breaking commit whose message declares a breaking override
 		cfg := config.Default()
 		cfg.PreMajorBreakingBumpsMinor = false
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
 		stub.commits = []provider.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: auth stuff",
-		}}
-		stub.commitOverrideBodies = map[string]string{
-			"abcdef1234567890": `BEGIN_COMMIT_OVERRIDE
+			Hash: "abcdef1234567890",
+			Message: `fix: auth stuff
+
+BEGIN_COMMIT_OVERRIDE
 feat(auth)!: replace session cookie format
 
 BREAKING CHANGE: existing session cookies are invalid after upgrade
 END_COMMIT_OVERRIDE`,
-		}
+		}}
 
 		r := newTestReleaser(t, cfg, stub)
 
