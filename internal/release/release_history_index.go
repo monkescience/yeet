@@ -215,8 +215,8 @@ func (a *releaseAnalyzer) commitsSince(
 
 	if slices.Contains(history.MissingRefs, ref) {
 		return nil, fmt.Errorf(
-			"previous release ref %q is not reachable from release branch %q; "+
-				"verify the latest tag/release and branch ancestry: %w",
+			"previous release ref %q is not reachable from release branch %q. "+
+				"Verify the latest tag or release and branch ancestry: %w",
 			ref,
 			branch,
 			&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: branch},

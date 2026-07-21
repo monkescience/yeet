@@ -230,8 +230,8 @@ func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, 
 
 func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref string) error {
 	return fmt.Errorf(
-		"previous release ref %q is not reachable from release branch %q for target %q; "+
-			"verify the latest tag/release and branch ancestry: %w",
+		"previous release ref %q is not reachable from release branch %q for target %q. "+
+			"Verify the latest tag or release and branch ancestry: %w",
 		ref,
 		a.core.cfg.Branch,
 		target.ID,

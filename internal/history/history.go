@@ -269,7 +269,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: no git repository found; run yeet inside a full checkout of branch %q (%v)",
+			"%w: no git repository found. Run yeet inside a full checkout of branch %q (%v)",
 			ErrCheckoutUnusable, s.branch, err,
 		)
 	}
@@ -281,7 +281,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 
 	if len(shallows) > 0 {
 		return nil, fmt.Errorf(
-			"%w: checkout is shallow; fetch the full history "+
+			"%w: checkout is shallow. Fetch the full history "+
 				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, "+
 				"fetchDepth: 0 on Azure Pipelines)",
 			ErrCheckoutUnusable,
@@ -298,7 +298,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 	// are validated purely by the hash comparison below.
 	if head.Name().IsBranch() && head.Name().Short() != s.branch {
 		return nil, fmt.Errorf(
-			"%w: checkout is on branch %q; check out release branch %q",
+			"%w: checkout is on branch %q. Check out release branch %q",
 			ErrCheckoutUnusable, head.Name().Short(), s.branch,
 		)
 	}
@@ -310,8 +310,8 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 
 	if !strings.EqualFold(head.Hash().String(), strings.TrimSpace(remoteHead)) {
 		return nil, fmt.Errorf(
-			"%w: local HEAD %s does not match the remote head %s of branch %q; "+
-				"pull the latest commits before releasing",
+			"%w: local HEAD %s does not match the remote head %s of branch %q. "+
+				"Pull the latest commits before releasing",
 			ErrCheckoutUnusable, head.Hash(), strings.TrimSpace(remoteHead), s.branch,
 		)
 	}

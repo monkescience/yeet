@@ -24,10 +24,10 @@ const (
 	  yeet release --auto-merge
 	  yeet release --provider github --owner platform --repo yeet --dry-run`
 	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
-	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks; " +
-		"still blocks draft/conflicts; provider rules may still apply"
-	releaseTargetHelp  = "limit analysis to one or more configured targets; repeatable"
-	releaseChannelHelp = "run a configured prerelease channel; defaults to the channel matching the current branch"
+	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks. " +
+		"Draft status and conflicts still block merging. Provider rules may still apply"
+	releaseTargetHelp  = "limit analysis to one or more configured targets (repeatable)"
+	releaseChannelHelp = "run a configured prerelease channel, defaulting to the channel matching the current branch"
 )
 
 var (
@@ -117,7 +117,8 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 		"auto-merge-method",
 		"",
 		fmt.Sprintf(
-			"merge method for auto-merge: auto|squash|rebase|merge (defaults to config value; built-in default: %s)",
+			"merge method for auto-merge: auto|squash|rebase|merge "+
+				"(defaults to the configured method, or %s if unset)",
 			config.AutoMergeMethodAuto,
 		),
 	)
@@ -238,7 +239,7 @@ func releaseConfigForRun(ctx context.Context, configPath string, options release
 			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
 		}
 
-		slog.DebugContext(ctx, "could not determine current branch; proceeding with the configured default branch",
+		slog.DebugContext(ctx, "could not determine current branch (using configured default branch)",
 			slog.Any("error", branchErr),
 		)
 	}
@@ -260,7 +261,7 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 	}
 
 	if len(result.Releases) > 0 {
-		slog.InfoContext(ctx, "release finalized; no new release needed",
+		slog.InfoContext(ctx, "release finalized with no new release needed",
 			slog.String("tag", result.Releases[0].TagName),
 		)
 
@@ -275,7 +276,7 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 func wrapReleaseConfigError(configPath string, err error) error {
 	if errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf(
-			"configuration file not found: %s; run `yeet init` or pass --config: %w",
+			"configuration file not found: %s. Run `yeet init` or pass --config: %w",
 			configPath,
 			err,
 		)
@@ -291,14 +292,16 @@ func wrapReleaseConfigError(configPath string, err error) error {
 func wrapReleaseExecutionError(err error) error {
 	if errors.Is(err, provider.ErrMergeBlocked) {
 		return fmt.Errorf(
-			"release execution failed: merge blocked; resolve PR/MR readiness or use --auto-merge-force when appropriate: %w",
+			"release execution failed: merge blocked. Resolve pull request or merge request readiness, "+
+				"or use --auto-merge-force when appropriate: %w",
 			err,
 		)
 	}
 
 	if errors.Is(err, release.ErrMultiplePendingReleasePRs) {
 		return fmt.Errorf(
-			"release execution failed: multiple pending release PRs/MRs found; close or relabel stale entries: %w",
+			"release execution failed: multiple pending release changes found "+
+				"(pull requests or merge requests). Close or relabel stale entries: %w",
 			err,
 		)
 	}
@@ -359,7 +362,7 @@ func resolveReleaseMode(cfg *config.Config, currentBranch string, options releas
 	}
 
 	return fmt.Errorf(
-		"%w: %q; configure it as branch or release.channels.<name>.branch, or run --dry-run",
+		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
 		ErrUnconfiguredReleaseBranch,
 		currentBranch,
 	)
@@ -494,7 +497,7 @@ func applyGitHubReleaseOverrides(repository *config.RepositoryConfig, options re
 func applyGitLabReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
 	if options.repositoryOwnerSet || options.repositoryRepoSet {
 		return fmt.Errorf(
-			"%w: --owner/--repo are not valid for provider gitlab; use --project",
+			"%w: --owner/--repo are not valid for provider gitlab. Use --project",
 			config.ErrInvalidConfig,
 		)
 	}

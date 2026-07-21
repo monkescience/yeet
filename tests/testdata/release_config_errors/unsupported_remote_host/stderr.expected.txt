@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: repository.github set but provider is auto; set an explicit provider
+invalid configuration: load config: invalid config: repository.github set but provider is auto. Set an explicit provider

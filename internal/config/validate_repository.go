@@ -32,7 +32,7 @@ func validateRepositorySubsection(repository *RepositoryConfig, provider Provide
 
 	if provider == ProviderAuto && len(set) == 1 {
 		return fmt.Errorf(
-			"%w: repository.%s set but provider is auto; set an explicit provider",
+			"%w: repository.%s set but provider is auto. Set an explicit provider",
 			ErrInvalidConfig,
 			set[0],
 		)

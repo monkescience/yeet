@@ -244,7 +244,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.Equal(
 			t,
 			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
-				"valid for semver; use \"x-yeet-patch\"",
+				"valid for semver (use \"x-yeet-patch\")",
 			err.Error(),
 		)
 	})
@@ -408,7 +408,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(
 			t,
 			"yeet marker scope not valid for configured scheme: \"x-yeet-major\" at line 1 is not "+
-				"valid for calver format \"YYYY.0M.MICRO\"; use \"x-yeet-year\"",
+				"valid for calver format \"YYYY.0M.MICRO\" (use \"x-yeet-year\")",
 			err.Error(),
 		)
 	})
@@ -429,7 +429,8 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(
 			t,
 			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
-				"valid for calver format \"YYYY.0M.MICRO\"; the configured calver format has no day token",
+				"valid for calver format \"YYYY.0M.MICRO\" "+
+				"(the configured calver format has no day token)",
 			err.Error(),
 		)
 	})

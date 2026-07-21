@@ -238,6 +238,40 @@ func TestNewHistorySource(t *testing.T) {
 func TestPrereleaseChannels(t *testing.T) {
 	t.Parallel()
 
+	t.Run("calver target is rejected with an actionable error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a prerelease channel with a calver target
+		cfg := config.Default()
+		cfg.ActiveChannel = "beta"
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"default": {
+				Type:       config.TargetTypePath,
+				Path:       ".",
+				TagPrefix:  "v",
+				Versioning: config.VersioningCalVer,
+			},
+		}
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		stub := newProviderStub()
+
+		// when: constructing the releaser
+		_, err := New(context.Background(), cfg, stub, stub)
+
+		// then: the error identifies the incompatible target
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: prerelease channel \"beta\" supports semver targets only. "+
+				"Target \"default\" uses \"calver\"",
+			err.Error(),
+		)
+	})
+
 	t.Run("stable release ignores prerelease refs", func(t *testing.T) {
 		t.Parallel()
 
@@ -887,7 +921,7 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	testastic.Equal(
 		t,
 		"previous release ref \"v1.2.3\" is not reachable from release branch \"main\" for target "+
-			"\"default\"; verify the latest tag/release and branch ancestry: commit boundary not found: "+
+			"\"default\". Verify the latest tag or release and branch ancestry: commit boundary not found: "+
 			"ref \"v1.2.3\" is not reachable from branch \"main\"",
 		err.Error(),
 	)

@@ -31,9 +31,9 @@ Examples:
 
 Flags:
       --auto-merge                 automatically merge the release PR/MR and finalize the release in the same run
-      --auto-merge-force           attempt auto-merge while bypassing yeet readiness checks; still blocks draft/conflicts; provider rules may still apply
-      --auto-merge-method string   merge method for auto-merge: auto|squash|rebase|merge (defaults to config value; built-in default: auto)
-      --channel string             run a configured prerelease channel; defaults to the channel matching the current branch
+      --auto-merge-force           attempt auto-merge while bypassing yeet readiness checks. Draft status and conflicts still block merging. Provider rules may still apply
+      --auto-merge-method string   merge method for auto-merge: auto|squash|rebase|merge (defaults to the configured method, or auto if unset)
+      --channel string             run a configured prerelease channel, defaulting to the channel matching the current branch
       --dry-run                    show the planned release without creating a PR/MR
   -h, --help                       help for release
       --host string                override repository host, such as github.com or gitlab.company.com
@@ -42,7 +42,7 @@ Flags:
       --provider string            override provider: auto|github|gitlab|azuredevops
       --remote string              override git remote used for repository auto-detection
       --repo string                override repository name for github-style repositories
-      --target stringArray         limit analysis to one or more configured targets; repeatable
+      --target stringArray         limit analysis to one or more configured targets (repeatable)
 
 Global Flags:
       --config string   path to config file (default: nearest ancestor .yeet.yaml)

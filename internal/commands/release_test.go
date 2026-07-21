@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -223,7 +225,7 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Equal(
 			t,
 			"invalid release options: invalid config: --owner/--repo are not valid for provider "+
-				"gitlab; use --project",
+				"gitlab. Use --project",
 			err.Error(),
 		)
 	})
@@ -816,7 +818,7 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 		testastic.Equal(
 			t,
-			"release execution failed: merge blocked; resolve PR/MR readiness or use "+
+			"release execution failed: merge blocked. Resolve pull request or merge request readiness, or use "+
 				"--auto-merge-force when appropriate: release PR merge blocked: required checks pending",
 			err.Error(),
 		)
@@ -832,8 +834,9 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 		testastic.ErrorIs(t, err, release.ErrMultiplePendingReleasePRs)
 		testastic.Equal(
 			t,
-			"release execution failed: multiple pending release PRs/MRs found; close or relabel stale "+
-				"entries: multiple pending release PRs found: found 2",
+			"release execution failed: multiple pending release changes found "+
+				"(pull requests or merge requests). Close or relabel stale entries: "+
+				"multiple pending release PRs found: found 2",
 			err.Error(),
 		)
 	})
@@ -846,6 +849,66 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 
 		// then: the message wraps with the generic prefix
 		testastic.Equal(t, "release execution failed: unexpected failure", err.Error())
+	})
+}
+
+func TestReleaseLogMessages(t *testing.T) {
+	t.Run("branch fallback log explains the selected behavior", func(t *testing.T) {
+		// given: a valid config outside a git checkout with debug logging enabled
+		t.Chdir(t.TempDir())
+		clearBranchEnv(t)
+		writeTestConfig(t, func(_ *config.Config) {})
+
+		var logOutput bytes.Buffer
+
+		previousLogger := slog.Default()
+
+		slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+		t.Cleanup(func() {
+			slog.SetDefault(previousLogger)
+		})
+
+		// when: resolving release configuration without a detectable branch
+		_, err := releaseConfigForRun(t.Context(), config.DefaultFile, releaseRunOptions{dryRun: true})
+
+		// then: the fallback is logged without compressed punctuation
+		testastic.NoError(t, err)
+		testastic.True(
+			t,
+			strings.Contains(
+				logOutput.String(),
+				`"msg":"could not determine current branch (using configured default branch)"`,
+			),
+		)
+	})
+
+	t.Run("finalized release log states that no new release is needed", func(t *testing.T) {
+		// given: a finalized release and an info logger
+		result := &release.Result{
+			Releases: []*provider.Release{{TagName: "v1.2.3"}},
+		}
+
+		var logOutput bytes.Buffer
+
+		previousLogger := slog.Default()
+
+		slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, nil)))
+		t.Cleanup(func() {
+			slog.SetDefault(previousLogger)
+		})
+
+		// when: handling the finalized release
+		err := handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false)
+
+		// then: the log message uses plain sentence wording
+		testastic.NoError(t, err)
+		testastic.True(
+			t,
+			strings.Contains(
+				logOutput.String(),
+				`"msg":"release finalized with no new release needed"`,
+			),
+		)
 	})
 }
 

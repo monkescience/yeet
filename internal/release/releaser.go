@@ -109,7 +109,7 @@ func targetsForActiveChannel(
 	for targetID, target := range targets {
 		if target.Versioning != config.VersioningSemver {
 			return nil, fmt.Errorf(
-				"%w: prerelease channel %q supports semver targets only; target %q uses %q",
+				"%w: prerelease channel %q supports semver targets only. Target %q uses %q",
 				config.ErrInvalidConfig,
 				channelName,
 				targetID,

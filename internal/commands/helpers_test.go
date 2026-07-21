@@ -136,8 +136,8 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(
 			t,
 			"resolve repository provider for host \"code.company.com\": unsupported remote host: "+
-				"code.company.com; auto-detection only supports github.com, gitlab.com, and "+
-				"dev.azure.com; set provider, [repository], or pass explicit flags for custom domains",
+				"code.company.com. Auto-detection only supports github.com, gitlab.com, and "+
+				"dev.azure.com. Set provider, [repository], or pass explicit flags for custom domains",
 			err.Error(),
 		)
 	})
@@ -163,8 +163,8 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(
 			t,
 			"resolve repository provider for host \"github.company.com\": unsupported remote host: "+
-				"github.company.com; auto-detection only supports github.com, gitlab.com, and "+
-				"dev.azure.com; set provider, [repository], or pass explicit flags for custom domains",
+				"github.company.com. Auto-detection only supports github.com, gitlab.com, and "+
+				"dev.azure.com. Set provider, [repository], or pass explicit flags for custom domains",
 			err.Error(),
 		)
 	})

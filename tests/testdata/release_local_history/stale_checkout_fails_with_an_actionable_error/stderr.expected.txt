@@ -1,1 +1,1 @@
-release execution failed: local checkout cannot serve release history: local HEAD 7ea4b951bab3dfb0402b7d4f5f5c1c70775415fb does not match the remote head 1111111111111111111111111111111111111111 of branch "main"; pull the latest commits before releasing
+release execution failed: local checkout cannot serve release history: local HEAD 7ea4b951bab3dfb0402b7d4f5f5c1c70775415fb does not match the remote head 1111111111111111111111111111111111111111 of branch "main". Pull the latest commits before releasing

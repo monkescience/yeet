@@ -592,7 +592,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 		testastic.Equal(
 			t,
-			"local checkout cannot serve release history: checkout is shallow; fetch the full history "+
+			"local checkout cannot serve release history: checkout is shallow. Fetch the full history "+
 				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, fetchDepth: 0 on Azure "+
 				"Pipelines)",
 			err.Error(),
@@ -620,7 +620,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 			t,
 			"local checkout cannot serve release history: local HEAD "+
 				"8ef653648bf61273f097a29668e6d5ed4134a2cc does not match the remote head "+
-				"1111111111111111111111111111111111111111 of branch \"main\"; pull the latest commits "+
+				"1111111111111111111111111111111111111111 of branch \"main\". Pull the latest commits "+
 				"before releasing",
 			err.Error(),
 		)
@@ -645,7 +645,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 		testastic.Equal(
 			t,
-			"local checkout cannot serve release history: checkout is on branch \"feature\"; check out "+
+			"local checkout cannot serve release history: checkout is on branch \"feature\". Check out "+
 				"release branch \"main\"",
 			err.Error(),
 		)

@@ -298,7 +298,7 @@ func TestParse(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(
 			t,
-			"invalid config: repository.github set but provider is auto; set an explicit provider",
+			"invalid config: repository.github set but provider is auto. Set an explicit provider",
 			err.Error(),
 		)
 	})

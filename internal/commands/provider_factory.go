@@ -363,9 +363,9 @@ func providerURLEnvSet(providerType string) bool {
 
 func unsupportedAutoProviderError(host string, err error) error {
 	return fmt.Errorf(
-		"resolve repository provider for host %q: %w; "+
-			"auto-detection only supports github.com, gitlab.com, and dev.azure.com; "+
-			"set provider, [repository], or pass explicit flags for custom domains",
+		"resolve repository provider for host %q: %w. "+
+			"Auto-detection only supports github.com, gitlab.com, and dev.azure.com. "+
+			"Set provider, [repository], or pass explicit flags for custom domains",
 		host,
 		err,
 	)

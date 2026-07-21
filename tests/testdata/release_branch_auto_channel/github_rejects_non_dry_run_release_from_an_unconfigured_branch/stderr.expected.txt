@@ -1,1 +1,1 @@
-invalid release options: branch is not configured for releases: "feature/random"; configure it as branch or release.channels.<name>.branch, or run --dry-run
+invalid release options: branch is not configured for releases: "feature/random". Configure it as branch or release.channels.<name>.branch, or run --dry-run

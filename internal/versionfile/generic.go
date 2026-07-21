@@ -324,7 +324,7 @@ func (p *markerParser) checkAllowed(scope markerScope, lineNo int) error {
 	}
 
 	return fmt.Errorf(
-		"%w: %q at line %d is not valid for %s; %s",
+		"%w: %q at line %d is not valid for %s (%s)",
 		ErrMarkerSchemeMismatch,
 		"x-yeet-"+string(scope),
 		lineNo,
