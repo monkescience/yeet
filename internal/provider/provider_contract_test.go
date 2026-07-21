@@ -32,7 +32,6 @@ const (
 	providerContractBranchHead               providerContractScenario = "branch head"
 	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
 	providerContractGetReleaseByTag          providerContractScenario = "get release by tag"
-	providerContractTagExists                providerContractScenario = "tag exists"
 	providerContractCreateReleasePR          providerContractScenario = "create release pr"
 	providerContractCreateReleasePRReviewers providerContractScenario = "create release pr reviewers"
 	providerContractUnknownReviewer          providerContractScenario = "unknown reviewer"
@@ -159,23 +158,6 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractTag, release.TagName)
 				testastic.Equal(t, "release notes", release.Body)
 				testastic.Equal(t, harness.expectedReleaseURL(server.URL), release.URL)
-			})
-
-			t.Run("reports tag existence", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server confirming the contract tag exists
-				server := httptest.NewServer(harness.handler(t, providerContractTagExists))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: TagExists is invoked for the contract tag
-				exists, err := p.TagExists(context.Background(), providerContractTag)
-
-				// then: the provider reports the tag as existing
-				testastic.NoError(t, err)
-				testastic.True(t, exists)
 			})
 
 			t.Run("creates release pull request", func(t *testing.T) {

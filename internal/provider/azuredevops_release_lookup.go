@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -43,24 +42,6 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 	)
 
 	return a.azureDevOpsAnnotatedTagRelease(tag, annotated), nil
-}
-
-func (a *AzureDevOps) TagExists(ctx context.Context, tag string) (bool, error) {
-	tag = strings.TrimSpace(tag)
-	if tag == "" {
-		return false, nil
-	}
-
-	_, err := a.lookupTagObjectID(ctx, tag)
-	if err != nil {
-		if errors.Is(err, ErrNoRelease) || isAzureDevOpsNotFound(err) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return true, nil
 }
 
 func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {

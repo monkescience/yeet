@@ -41,8 +41,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabBranchHeadMissingContract(t, w, r)
 		case providerContractGetReleaseByTag:
 			handleGitLabGetReleaseByTagContract(t, w, r)
-		case providerContractTagExists:
-			handleGitLabTagExistsContract(t, w, r)
 		case providerContractCreateReleasePR:
 			handleGitLabCreateReleasePRContract(t, w, r)
 		case providerContractCreateReleasePRReviewers:
@@ -140,19 +138,6 @@ func handleGitLabGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() ==
 		"/api/v4/projects/o%2Fr/releases/"+providerContractEscapedTag() {
 		writeJSONFixture(t, w, "contracts/gitlab/get_release_by_tag/release.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitLab", r)
-}
-
-func handleGitLabTagExistsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && r.URL.EscapedPath() ==
-		"/api/v4/projects/o%2Fr/repository/tags/"+providerContractEscapedTag() {
-		writeJSONFixture(t, w, "contracts/gitlab/tag_exists/tag.json")
 
 		return
 	}

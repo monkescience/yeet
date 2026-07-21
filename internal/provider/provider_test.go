@@ -352,44 +352,6 @@ func TestGitHubVersionLookup(t *testing.T) {
 		testastic.Equal(t, "v1.2.3", release.TagName)
 		testastic.Equal(t, "release notes", release.Body)
 	})
-
-	t.Run("reports whether exact tag exists", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository with one existing tag
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
-				writeJSON(t, w, map[string]any{
-					"ref": "refs/tags/v1.2.3",
-					"object": map[string]any{
-						"sha":  "abc123",
-						"type": "commit",
-					},
-				})
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v9.9.9":
-				http.NotFound(w, r)
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client := newGitHubTestClient(t, server)
-
-		gh := provider.NewGitHub(client, "o", "r")
-
-		// when: checking existing and missing tags
-		exists, err := gh.TagExists(context.Background(), "v1.2.3")
-		testastic.NoError(t, err)
-		testastic.True(t, exists)
-
-		missing, err := gh.TagExists(context.Background(), "v9.9.9")
-
-		// then: the exact tag existence is reported without treating missing tags as errors
-		testastic.NoError(t, err)
-		testastic.False(t, missing)
-	})
 }
 
 func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
@@ -545,47 +507,6 @@ func TestGitLabVersionLookup(t *testing.T) {
 		testastic.Equal(t, "v1.2.3", release.TagName)
 		testastic.Equal(t, "release notes", release.Body)
 	})
-
-	t.Run("reports whether exact tag exists", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab repository with one existing tag
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.EscapedPath(), "/repository/tags/v1%2E2%2E3"):
-				writeJSON(t, w, map[string]any{
-					"name":   "v1.2.3",
-					"target": "abc123",
-				})
-			case r.Method == http.MethodGet && strings.HasSuffix(r.URL.EscapedPath(), "/repository/tags/v9%2E9%2E9"):
-				http.NotFound(w, r)
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
-
-		gl := provider.NewGitLab(client, "o/r")
-
-		// when: checking existing and missing tags
-		exists, err := gl.TagExists(context.Background(), "v1.2.3")
-		testastic.NoError(t, err)
-		testastic.True(t, exists)
-
-		missing, err := gl.TagExists(context.Background(), "v9.9.9")
-
-		// then: the exact tag existence is reported without treating missing tags as errors
-		testastic.NoError(t, err)
-		testastic.False(t, missing)
-	})
 }
 
 func TestGitHubCreateRelease(t *testing.T) {
@@ -689,6 +610,50 @@ func TestGitHubCreateRelease(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, "v1.2.3", release.TagName)
 	testastic.Equal(t, "release notes", release.Body)
+	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+}
+
+func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub repository where the target tag already exists
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+			writeJSON(t, w, map[string]any{
+				"ref": "refs/tags/v1.2.3",
+				"object": map[string]any{
+					"sha":  "existing-tag-sha",
+					"type": "tag",
+				},
+			})
+		case isGitHubCreateReleaseRequest(r):
+			writeJSON(t, w, map[string]any{
+				"tag_name": "v1.2.3",
+				"name":     "v1.2.3",
+				"body":     "release notes",
+				"html_url": "https://example.com/releases/v1.2.3",
+			})
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := newGitHubTestClient(t, server)
+	gh := provider.NewGitHub(client, "o", "r")
+
+	// when: creating a release for the existing tag
+	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+		TagName: "v1.2.3",
+		Ref:     "main",
+		Name:    "v1.2.3",
+		Body:    "release notes",
+	})
+
+	// then: the existing tag is reused without another tag creation request
+	testastic.NoError(t, err)
+	testastic.Equal(t, "v1.2.3", release.TagName)
 	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
 }
 

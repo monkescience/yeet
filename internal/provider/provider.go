@@ -105,7 +105,6 @@ type Provider interface {
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
-	TagExists(ctx context.Context, tag string) (bool, error)
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)

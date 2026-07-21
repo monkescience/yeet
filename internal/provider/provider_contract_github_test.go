@@ -45,8 +45,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubBranchHeadMissingContract(t, w, r)
 		case providerContractGetReleaseByTag:
 			handleGitHubGetReleaseByTagContract(t, w, r)
-		case providerContractTagExists:
-			handleGitHubTagExistsContract(t, w, r)
 		case providerContractCreateReleasePR:
 			handleGitHubCreateReleasePRContract(t, w, r)
 		case providerContractCreateReleasePRReviewers:
@@ -141,18 +139,6 @@ func handleGitHubGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r 
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/tags/"+providerContractTag {
 		writeJSONFixture(t, w, "contracts/github/get_release_by_tag/release.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitHub", r)
-}
-
-func handleGitHubTagExistsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag {
-		writeJSONFixture(t, w, "contracts/github/tag_exists/ref.json")
 
 		return
 	}

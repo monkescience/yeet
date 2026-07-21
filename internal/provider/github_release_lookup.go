@@ -37,7 +37,7 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 	return gitHubRelease(release), nil
 }
 
-func (g *GitHub) TagExists(ctx context.Context, tag string) (bool, error) {
+func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
 	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
@@ -98,7 +98,7 @@ func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message s
 		return nil
 	}
 
-	exists, err := g.TagExists(ctx, tagName)
+	exists, err := g.tagExists(ctx, tagName)
 	if err != nil {
 		return fmt.Errorf("check tag %q: %w", tagName, err)
 	}

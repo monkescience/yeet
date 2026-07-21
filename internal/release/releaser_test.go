@@ -14,6 +14,10 @@ import (
 	"github.com/monkescience/yeet/internal/versionfile"
 )
 
+func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
+	return r.ReleaseTargets(ctx, dryRun, nil)
+}
+
 func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 	t.Parallel()
 

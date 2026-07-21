@@ -141,10 +141,6 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 	return dir + base + "." + channelName + ext
 }
 
-func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
-	return r.ReleaseTargets(ctx, dryRun, nil)
-}
-
 // ValidateTargets checks target selection without reading history or mutating
 // provider state.
 func (r *Releaser) ValidateTargets(selectedTargetIDs []string) error {

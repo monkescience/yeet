@@ -32,19 +32,6 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 	return gitLabRelease(release), nil
 }
 
-func (g *GitLab) TagExists(ctx context.Context, tag string) (bool, error) {
-	_, _, err := g.client.Tags.GetTag(g.projectID, tag, gitlab.WithContext(ctx))
-	if err != nil {
-		if errors.Is(err, gitlab.ErrNotFound) {
-			return false, nil
-		}
-
-		return false, fmt.Errorf("get tag %q: %w", tag, err)
-	}
-
-	return true, nil
-}
-
 func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
 	ref := strings.TrimSpace(opts.Ref)
 

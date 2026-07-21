@@ -173,8 +173,6 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsBranchHeadMissingHandler(t)
 	case providerContractGetReleaseByTag:
 		return azureDevOpsGetReleaseByTagHandler(t)
-	case providerContractTagExists:
-		return azureDevOpsTagExistsHandler(t)
 	case providerContractCreateReleasePR:
 		return azureDevOpsCreateReleasePRHandler(t)
 	case providerContractCreateReleasePRReviewers:
@@ -303,20 +301,6 @@ func azureDevOpsGetReleaseByTagHandler(t *testing.T) http.HandlerFunc {
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
-	}
-}
-
-func azureDevOpsTagExistsHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if isAzureDevOpsRefsRequest(r, "tags/"+providerContractTag) {
-			writeJSONFixture(t, w, azureDevOpsContractFixture("tag_exists", "tag_refs.json"))
-
-			return
-		}
-
-		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 	}
 }
 
