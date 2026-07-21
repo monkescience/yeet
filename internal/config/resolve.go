@@ -34,7 +34,9 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 
 	resolved := make(map[string]ResolvedTarget, len(c.Targets))
 
-	for id, target := range c.Targets {
+	for _, id := range slices.Sorted(maps.Keys(c.Targets)) {
+		target := c.Targets[id]
+
 		resolvedTarget, err := c.resolveTarget(id, target)
 		if err != nil {
 			return nil, err
@@ -331,7 +333,8 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 func validateUniqueTagPrefixes(targets map[string]ResolvedTarget) error {
 	tagPrefixes := make(map[string]string, len(targets))
 
-	for id, target := range targets {
+	for _, id := range slices.Sorted(maps.Keys(targets)) {
+		target := targets[id]
 		if otherID, exists := tagPrefixes[target.TagPrefix]; exists {
 			return fmt.Errorf(
 				"%w: targets.%s.tag_prefix %q duplicates targets.%s.tag_prefix",
@@ -349,7 +352,8 @@ func validateUniqueTagPrefixes(targets map[string]ResolvedTarget) error {
 }
 
 func validateDerivedIncludes(targets map[string]ResolvedTarget) error {
-	for id, target := range targets {
+	for _, id := range slices.Sorted(maps.Keys(targets)) {
+		target := targets[id]
 		if target.Type != TargetTypeDerived {
 			continue
 		}
@@ -383,7 +387,8 @@ func validateDerivedIncludes(targets map[string]ResolvedTarget) error {
 
 func validateDirectPathOwnership(targets map[string]ResolvedTarget) error {
 	directTargets := make([]ResolvedTarget, 0, len(targets))
-	for _, target := range targets {
+	for _, id := range slices.Sorted(maps.Keys(targets)) {
+		target := targets[id]
 		if target.Path == "" {
 			continue
 		}

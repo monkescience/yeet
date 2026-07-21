@@ -1,0 +1,22 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v
+  bundle:
+    type: derived
+    tag_prefix: bundle-v
+    includes:
+      - api
+  all:
+    type: derived
+    tag_prefix: v
+    includes:
+      - bundle

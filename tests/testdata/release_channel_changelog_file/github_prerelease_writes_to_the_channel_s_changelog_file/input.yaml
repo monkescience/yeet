@@ -1,0 +1,18 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+release:
+  channels:
+    beta:
+      branch: beta
+      prerelease: beta
+      changelog_file: CHANGELOG-beta.md
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

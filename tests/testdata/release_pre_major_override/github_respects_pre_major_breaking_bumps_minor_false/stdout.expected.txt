@@ -1,0 +1,19 @@
+
+Dry Run
+
+  Target            default
+  Version           0.3.0 → 1.0.0 (major)
+  Tag               v1.0.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.0.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v0.3.0...v1.0.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### ⚠ BREAKING CHANGES
+
+- api ([346101c](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/346101c95e433f9a276d4ab9681eca59eebe9467))
+### Features
+
+- breaking change ([346101c](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/346101c95e433f9a276d4ab9681eca59eebe9467))
+{{regex `^$`}}

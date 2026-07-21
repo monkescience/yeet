@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: calver.format: invalid version: calver format only supports dots as separators: "YYYY.MM.FOO"

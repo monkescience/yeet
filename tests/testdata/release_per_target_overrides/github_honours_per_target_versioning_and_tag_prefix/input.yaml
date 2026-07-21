@@ -1,0 +1,19 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  api:
+    type: path
+    path: api/
+    tag_prefix: api-v
+  web:
+    type: path
+    path: web/
+    tag_prefix: web-v
+    versioning: calver
+    calver:
+      format: YYYY.0M.MICRO

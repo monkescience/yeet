@@ -1,0 +1,7 @@
+{
+  "packages": [
+    {"name": "sibling-a", "version": "9.9.9", "deps": {"x":1, "y":[2,3]}},
+    {"name": "sibling-b", "version": "8.8.8", "tags": ["one", "two"]},
+    {"name": "yeet", "version": "1.0.0"}
+  ]
+}

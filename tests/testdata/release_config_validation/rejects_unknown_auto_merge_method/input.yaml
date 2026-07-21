@@ -1,0 +1,14 @@
+provider: github
+branch: main
+release:
+  auto_merge_method: wrongo
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

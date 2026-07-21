@@ -189,7 +189,12 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 
 		// then: yeet plans v1.3.0 from the latest tag and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "1.3.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_extra_tags_cross_provider/"+
+				"azuredevops_picks_the_highest_among_multiple_tags/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -237,7 +242,12 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 
 		// then: azure still rejects merging drafts and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "draft")
+		testastic.AssertFile(
+			t,
+			"testdata/release_azure_auto_merge_force_rejects_draft/"+
+				"azuredevops___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 

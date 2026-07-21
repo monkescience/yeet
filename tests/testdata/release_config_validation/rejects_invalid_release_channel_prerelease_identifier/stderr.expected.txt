@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.channels.beta.prerelease: invalid semver prerelease identifier "bad value": invalid prerelease string

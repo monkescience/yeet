@@ -29,26 +29,11 @@ func TestReleaseConfigPerTargetReferences(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-    changelog:
-      references:
-        patterns:
-          - pattern: "ABC-\\d+"
-            url: https://issues.example.test/{value}
-        footers:
-          Refs: https://tracker.example.test/{value}
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_config_per_target_references/"+
+				"per_target_references_override_top_level_patterns/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -59,8 +44,12 @@ targets:
 
 		// then: yeet renders the linked references and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "ABC-1")
-		testastic.Contains(t, result.Stdout, "TKT-2")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_per_target_references/"+
+				"per_target_references_override_top_level_patterns/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -85,22 +74,11 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-changelog:
-  sections:
-    feat: "🚀 Features"
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_changelog_section_override/"+
+				"custom_sections_rename_a_default_commit_type/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -111,7 +89,12 @@ targets:
 
 		// then: yeet renders the custom section heading and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "🚀 Features")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_section_override/"+
+				"custom_sections_rename_a_default_commit_type/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("custom include adds a non-default commit type via capitalized fallback", func(t *testing.T) {
@@ -132,21 +115,11 @@ targets:
 			BranchHeadSHA: shas[1],
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-changelog:
-  sections: {}
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_changelog_section_override/"+
+				"custom_include_adds_a_non_default_commit_type_via_capitalized_fallback/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -157,7 +130,13 @@ targets:
 
 		// then: yeet still emits a section (default mapping preserved)
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "improve startup")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_section_override/"+
+				"custom_include_adds_a_non_default_commit_type_via_capitalized_fallback/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -200,7 +179,12 @@ func TestReleaseDryRunWithExtraTags(t *testing.T) {
 
 		// then: yeet plans v1.6.0 from v1.5.0 and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "1.6.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_dry_run_with_extra_tags/"+
+				"gitlab_picks_highest_among_multiple_advertised_tags/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -223,26 +207,18 @@ func TestReleaseChangelogNonDefaultFile(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"CHANGES.md": "# Changes\n\n## v1.0.0\n",
-			},
+			Files: map[string]string{"CHANGES.md": readTestFile(
+				t,
+				"testdata/release_changelog_non_default_file/"+
+					"github_writes_to_a_custom_changelog_file_path/CHANGES.md",
+			)},
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-changelog:
-  file: CHANGES.md
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_changelog_non_default_file/"+
+				"github_writes_to_a_custom_changelog_file_path/input.yaml",
+		)
 
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
@@ -277,24 +253,11 @@ func TestReleaseConfigPerTargetChangelog(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-    changelog:
-      file: CHANGES.md
-      include: [feat, fix]
-      sections:
-        feat: "✨ Features"
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_config_per_target_changelog/"+
+				"per_target_changelog_overrides_file__include_and_sections/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -305,7 +268,12 @@ targets:
 
 		// then: yeet renders the custom section heading and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "✨ Features")
+		testastic.AssertFile(
+			t,
+			"testdata/release_config_per_target_changelog/"+
+				"per_target_changelog_overrides_file__include_and_sections/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 

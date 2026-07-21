@@ -29,12 +29,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, 0, len(cfg.Release.Channels))
 	testastic.Equal(t, 0, cfg.Release.PRBodyMaxLength)
 	testastic.Equal(t, "## ٩(^ᴗ^)۶ release created", cfg.Release.PRBodyHeader)
-	testastic.Equal(
-		t,
-		"_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n"+
-			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
-		cfg.Release.PRBodyFooter,
-	)
+	testastic.AssertFile(t, "testdata/default/pr_body_footer.expected.md", cfg.Release.PRBodyFooter)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))
@@ -144,7 +139,7 @@ func TestParse(t *testing.T) {
 		// then: validation rejects the ambiguous JSON entry
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "json_pointer")
+		testastic.Equal(t, "invalid config: version_files json_pointer is required for format \"json\"", err.Error())
 	})
 
 	t.Run("config with custom bump types", func(t *testing.T) {
@@ -220,7 +215,11 @@ func TestParse(t *testing.T) {
 		// then: validation rejects the unsupported target versioning strategy
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.api.versioning")
+		testastic.Equal(
+			t,
+			"invalid config: targets.api.versioning must be \"semver\" or \"calver\", got \"calendar\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("invalid provider", func(t *testing.T) {
@@ -281,7 +280,7 @@ func TestParse(t *testing.T) {
 		// then: parsing rejects the mismatched sub-section
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.gitlab set but provider is github")
+		testastic.Equal(t, "invalid config: repository.gitlab set but provider is github", err.Error())
 	})
 
 	t.Run("provider auto rejects any repository sub-section", func(t *testing.T) {
@@ -297,7 +296,11 @@ func TestParse(t *testing.T) {
 		// then: parsing rejects the sub-section under auto
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github set but provider is auto")
+		testastic.Equal(
+			t,
+			"invalid config: repository.github set but provider is auto; set an explicit provider",
+			err.Error(),
+		)
 	})
 
 	t.Run("azuredevops happy path parses and hydrates", func(t *testing.T) {
@@ -348,7 +351,7 @@ func TestParse(t *testing.T) {
 		// then: target validation rejects the missing per-target prefix
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.api.tag_prefix must not be empty")
+		testastic.Equal(t, "invalid config: targets.api.tag_prefix must not be empty", err.Error())
 	})
 
 	t.Run("target tag prefix validation precedes versioning", func(t *testing.T) {
@@ -370,7 +373,7 @@ targets:
 		// then: the missing required prefix is reported first
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.api.tag_prefix must not be empty")
+		testastic.Equal(t, "invalid config: targets.api.tag_prefix must not be empty", err.Error())
 	})
 
 	t.Run("explicit empty targets config is invalid", func(t *testing.T) {
@@ -386,7 +389,7 @@ targets:
 		// then: validation rejects the empty targets block
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets must not be empty")
+		testastic.Equal(t, "invalid config: targets must not be empty", err.Error())
 	})
 }
 
@@ -478,7 +481,12 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the malformed regex
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "changelog.references")
+		testastic.Equal(
+			t,
+			"invalid config: changelog.references.patterns[0].pattern \"[invalid\" is not a valid "+
+				"regular expression: error parsing regexp: missing closing ]: `[invalid`",
+			err.Error(),
+		)
 	})
 
 	t.Run("empty reference pattern fails", func(t *testing.T) {
@@ -501,7 +509,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank pattern
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "changelog.references")
+		testastic.Equal(t, "invalid config: changelog.references.patterns[0].pattern must not be empty", err.Error())
 	})
 
 	t.Run("invalid target reference pattern regex fails", func(t *testing.T) {
@@ -530,7 +538,12 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the malformed regex with the target path
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.app.changelog.references")
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.references.patterns[0].pattern \"(unclosed\" is not "+
+				"a valid regular expression: error parsing regexp: missing closing ): `(unclosed`",
+			err.Error(),
+		)
 	})
 
 	t.Run("empty version file path fails", func(t *testing.T) {
@@ -597,7 +610,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.project must match repository.github.owner/repo")
+		testastic.Equal(t, "invalid config: repository.github.project must match repository.github.owner/repo", err.Error())
 	})
 
 	t.Run("github project must stay in owner repo form", func(t *testing.T) {
@@ -614,7 +627,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
+		testastic.Equal(t, "invalid config: repository.github.project must be in owner/repo form", err.Error())
 	})
 
 	t.Run("github project in valid owner repo form passes", func(t *testing.T) {
@@ -649,7 +662,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
+		testastic.Equal(t, "invalid config: repository.github.project must be in owner/repo form", err.Error())
 	})
 
 	t.Run("github project with empty repo segment fails", func(t *testing.T) {
@@ -666,7 +679,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.project must be in owner/repo form")
+		testastic.Equal(t, "invalid config: repository.github.project must be in owner/repo form", err.Error())
 	})
 
 	t.Run("empty repository remote fails", func(t *testing.T) {
@@ -703,7 +716,7 @@ func TestValidate(t *testing.T) {
 		// then: the repo-relative path validation rejects the absolute path
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must be repo-relative")
+		testastic.Equal(t, "invalid config: targets.api.path must be repo-relative", err.Error())
 	})
 
 	t.Run("windows drive letter exclude path fails", func(t *testing.T) {
@@ -732,7 +745,7 @@ func TestValidate(t *testing.T) {
 		// then: the repo-relative path validation rejects the absolute exclude path
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must be repo-relative")
+		testastic.Equal(t, "invalid config: targets.root.exclude_paths contains must be repo-relative", err.Error())
 	})
 
 	t.Run("shared inherited version file across targets succeeds", func(t *testing.T) {
@@ -791,7 +804,12 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the duplicate explicit ownership before release time
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "version_files")
+		testastic.Equal(
+			t,
+			"invalid config: targets.web.version_files entry \"VERSION\" duplicates "+
+				"targets.api.version_files entry",
+			err.Error(),
+		)
 	})
 
 	t.Run("overlapping bump types fails", func(t *testing.T) {
@@ -811,7 +829,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "feat")
+		testastic.Equal(t, "invalid config: bump_types: type \"feat\" appears in both minor and patch", err.Error())
 	})
 
 	t.Run("empty string in bump types minor fails", func(t *testing.T) {
@@ -830,7 +848,7 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "bump_types.minor")
+		testastic.Equal(t, "invalid config: bump_types.minor must not contain empty strings", err.Error())
 	})
 
 	t.Run("empty bump types lists are valid", func(t *testing.T) {
@@ -865,7 +883,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank host
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.host")
+		testastic.Equal(t, "invalid config: repository.github.host must not be blank", err.Error())
 	})
 
 	t.Run("blank repository owner fails", func(t *testing.T) {
@@ -882,7 +900,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank owner
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.owner")
+		testastic.Equal(t, "invalid config: repository.github.owner must not be blank", err.Error())
 	})
 
 	t.Run("blank repository repo fails", func(t *testing.T) {
@@ -899,7 +917,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank repo
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.repo")
+		testastic.Equal(t, "invalid config: repository.github.repo must not be blank", err.Error())
 	})
 
 	t.Run("blank repository project fails", func(t *testing.T) {
@@ -916,7 +934,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the blank project
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.gitlab.project")
+		testastic.Equal(t, "invalid config: repository.gitlab.project must not be blank", err.Error())
 	})
 
 	t.Run("github owner with slash fails", func(t *testing.T) {
@@ -933,7 +951,7 @@ func TestValidate(t *testing.T) {
 		// then: github does not allow nested owner paths
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.owner")
+		testastic.Equal(t, "invalid config: repository.github.owner must not contain '/'", err.Error())
 	})
 
 	t.Run("repository project must match owner and repo when project is owner-repo style", func(t *testing.T) {
@@ -954,7 +972,7 @@ func TestValidate(t *testing.T) {
 		// then: mismatch is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "repository.github.project must match")
+		testastic.Equal(t, "invalid config: repository.github.project must match repository.github.owner/repo", err.Error())
 	})
 
 	t.Run("release channel name must not be empty", func(t *testing.T) {
@@ -975,7 +993,7 @@ func TestValidate(t *testing.T) {
 		// then: empty channel name is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "release.channels")
+		testastic.Equal(t, "invalid config: release.channels keys must not be empty", err.Error())
 	})
 
 	t.Run("release channel name stable is reserved", func(t *testing.T) {
@@ -996,7 +1014,7 @@ func TestValidate(t *testing.T) {
 		// then: reserved name is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "stable")
+		testastic.Equal(t, "invalid config: release.channels.Stable must not use reserved name stable", err.Error())
 	})
 
 	t.Run("release channel branch must not be empty", func(t *testing.T) {
@@ -1017,7 +1035,7 @@ func TestValidate(t *testing.T) {
 		// then: empty branch is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "branch must not be empty")
+		testastic.Equal(t, "invalid config: release.channels.beta.branch must not be empty", err.Error())
 	})
 
 	t.Run("release channels with duplicate branches fails", func(t *testing.T) {
@@ -1039,7 +1057,12 @@ func TestValidate(t *testing.T) {
 		// then: duplicate branch is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "duplicates")
+		testastic.Equal(
+			t,
+			"invalid config: release.channels.beta.branch \"release\" duplicates "+
+				"release.channels.alpha.branch",
+			err.Error(),
+		)
 	})
 
 	t.Run("release channel prerelease must not be empty", func(t *testing.T) {
@@ -1060,7 +1083,7 @@ func TestValidate(t *testing.T) {
 		// then: empty prerelease is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "prerelease must not be empty")
+		testastic.Equal(t, "invalid config: release.channels.beta.prerelease must not be empty", err.Error())
 	})
 
 	t.Run("release channel invalid prerelease identifier fails", func(t *testing.T) {
@@ -1081,7 +1104,12 @@ func TestValidate(t *testing.T) {
 		// then: invalid identifier is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "prerelease")
+		testastic.Equal(
+			t,
+			"invalid config: release.channels.beta.prerelease: invalid semver prerelease identifier "+
+				"\"not valid!\": invalid prerelease string",
+			err.Error(),
+		)
 	})
 
 	t.Run("release channels with duplicate prerelease identifiers fails", func(t *testing.T) {
@@ -1103,7 +1131,12 @@ func TestValidate(t *testing.T) {
 		// then: duplicate prerelease identifier is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "duplicates")
+		testastic.Equal(
+			t,
+			"invalid config: release.channels.beta.prerelease \"rc\" duplicates "+
+				"release.channels.alpha.prerelease",
+			err.Error(),
+		)
 	})
 
 	t.Run("release channel branch must not duplicate stable branch", func(t *testing.T) {
@@ -1125,7 +1158,7 @@ func TestValidate(t *testing.T) {
 		// then: stable-branch collision is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "duplicates stable branch")
+		testastic.Equal(t, "invalid config: release.channels.beta.branch \"main\" duplicates stable branch", err.Error())
 	})
 
 	t.Run("duplicate target tag prefix fails", func(t *testing.T) {
@@ -1152,7 +1185,7 @@ func TestValidate(t *testing.T) {
 		// then: shared tag prefix is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "tag_prefix")
+		testastic.Equal(t, "invalid config: targets.web.tag_prefix \"v\" duplicates targets.api.tag_prefix", err.Error())
 	})
 
 	t.Run("derived target with unknown include fails", func(t *testing.T) {
@@ -1175,7 +1208,11 @@ func TestValidate(t *testing.T) {
 		// then: unknown include is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "does not refer to a defined target")
+		testastic.Equal(
+			t,
+			"invalid config: targets.root.includes entry \"missing\" does not refer to a defined target",
+			err.Error(),
+		)
 	})
 
 	t.Run("derived target including derived target fails", func(t *testing.T) {
@@ -1209,7 +1246,11 @@ func TestValidate(t *testing.T) {
 		// then: derived-of-derived include is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must refer to a path target")
+		testastic.Equal(
+			t,
+			"invalid config: targets.outer.includes entry \"inner\" must refer to a path target in v1",
+			err.Error(),
+		)
 	})
 
 	t.Run("target with empty type fails", func(t *testing.T) {
@@ -1227,7 +1268,7 @@ func TestValidate(t *testing.T) {
 		// then: missing target type is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.app.type")
+		testastic.Equal(t, "invalid config: targets.app.type must be \"path\" or \"derived\", got \"\"", err.Error())
 	})
 
 	t.Run("target with empty id fails", func(t *testing.T) {
@@ -1245,7 +1286,7 @@ func TestValidate(t *testing.T) {
 		// then: empty target ID is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "target IDs")
+		testastic.Equal(t, "invalid config: target IDs must be unique and non-empty", err.Error())
 	})
 
 	t.Run("path target with empty path fails", func(t *testing.T) {
@@ -1263,7 +1304,7 @@ func TestValidate(t *testing.T) {
 		// then: empty path is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "path must not be empty")
+		testastic.Equal(t, "invalid config: targets.app.path must not be empty", err.Error())
 	})
 
 	t.Run("path target with includes fails", func(t *testing.T) {
@@ -1291,7 +1332,7 @@ func TestValidate(t *testing.T) {
 		// then: includes on a path target are rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "includes is only valid for derived targets")
+		testastic.Equal(t, "invalid config: targets.api.includes is only valid for derived targets", err.Error())
 	})
 
 	t.Run("derived target with no includes fails", func(t *testing.T) {
@@ -1313,7 +1354,7 @@ func TestValidate(t *testing.T) {
 		// then: empty includes is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "includes must not be empty")
+		testastic.Equal(t, "invalid config: targets.root.includes must not be empty", err.Error())
 	})
 
 	t.Run("target with empty version_files entry fails", func(t *testing.T) {
@@ -1336,7 +1377,7 @@ func TestValidate(t *testing.T) {
 		// then: empty version_files entry is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "version_files")
+		testastic.Equal(t, "invalid config: targets.app.version_files must not contain empty paths", err.Error())
 	})
 
 	t.Run("target with empty changelog file fails", func(t *testing.T) {
@@ -1360,7 +1401,7 @@ func TestValidate(t *testing.T) {
 		// then: top-level changelog.file empty error first
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "changelog.file")
+		testastic.Equal(t, "invalid config: changelog.file must not be empty", err.Error())
 	})
 
 	t.Run("target inherits empty top-level changelog include is rejected", func(t *testing.T) {
@@ -1379,7 +1420,7 @@ func TestValidate(t *testing.T) {
 		// then: validation rejects the empty include
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "changelog.include")
+		testastic.Equal(t, "invalid config: changelog.include must not be empty", err.Error())
 	})
 
 	t.Run("target with relative parent path fails", func(t *testing.T) {
@@ -1397,7 +1438,7 @@ func TestValidate(t *testing.T) {
 		// then: parent paths are rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must be repo-relative")
+		testastic.Equal(t, "invalid config: targets.app.path must be repo-relative", err.Error())
 	})
 
 	t.Run("target with absolute slash path fails", func(t *testing.T) {
@@ -1415,7 +1456,7 @@ func TestValidate(t *testing.T) {
 		// then: absolute path is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must be repo-relative")
+		testastic.Equal(t, "invalid config: targets.app.path must be repo-relative", err.Error())
 	})
 
 	t.Run("target with empty path string fails", func(t *testing.T) {
@@ -1433,7 +1474,7 @@ func TestValidate(t *testing.T) {
 		// then: blank path is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must not be empty")
+		testastic.Equal(t, "invalid config: targets.app.path must not be empty", err.Error())
 	})
 
 	t.Run("exclude path outside target path fails", func(t *testing.T) {
@@ -1456,7 +1497,12 @@ func TestValidate(t *testing.T) {
 		// then: excludes outside the target are rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "must be inside")
+		testastic.Equal(
+			t,
+			"invalid config: targets.api.exclude_paths entry \"services/web\" must be inside "+
+				"\"services/api\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("exclude path with parent traversal fails", func(t *testing.T) {
@@ -1479,7 +1525,7 @@ func TestValidate(t *testing.T) {
 		// then: parent traversal is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "exclude_paths")
+		testastic.Equal(t, "invalid config: targets.app.exclude_paths contains must be repo-relative", err.Error())
 	})
 
 	t.Run("exclude path empty entry fails", func(t *testing.T) {
@@ -1502,7 +1548,7 @@ func TestValidate(t *testing.T) {
 		// then: empty exclude entry is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "exclude_paths")
+		testastic.Equal(t, "invalid config: targets.app.exclude_paths contains must not be empty", err.Error())
 	})
 }
 
@@ -1652,7 +1698,7 @@ func TestResolvedTargets(t *testing.T) {
 		// then: validation rejects the duplicate logical ID
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "target IDs must be unique and non-empty")
+		testastic.Equal(t, "invalid config: target IDs must be unique and non-empty", err.Error())
 	})
 
 	t.Run("rejects overlapping direct ownership", func(t *testing.T) {
@@ -1678,7 +1724,11 @@ func TestResolvedTargets(t *testing.T) {
 
 		// then: ambiguous ownership is rejected
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "direct path ownership overlaps")
+		testastic.Equal(
+			t,
+			"invalid config: direct path ownership overlaps between targets.api and targets.services",
+			err.Error(),
+		)
 	})
 }
 
@@ -1840,8 +1890,12 @@ func TestPreMajorOptions(t *testing.T) {
 
 		// then: error mentions the incompatibility
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "pre_major_breaking_bumps_minor")
-		testastic.ErrorContains(t, err, "calver")
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.pre_major_breaking_bumps_minor has no effect with calver "+
+				"versioning",
+			err.Error(),
+		)
 	})
 
 	t.Run("rejects pre_major_features_bump_patch on calver target", func(t *testing.T) {
@@ -1865,8 +1919,12 @@ func TestPreMajorOptions(t *testing.T) {
 
 		// then: error mentions the incompatibility
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "pre_major_features_bump_patch")
-		testastic.ErrorContains(t, err, "calver")
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.pre_major_features_bump_patch has no effect with calver "+
+				"versioning",
+			err.Error(),
+		)
 	})
 
 	t.Run("allows calver target without pre_major overrides", func(t *testing.T) {
@@ -1911,7 +1969,12 @@ func TestPreMajorOptions(t *testing.T) {
 		// then: validation fails before release planning
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "calver.format")
+		testastic.Equal(
+			t,
+			"invalid config: calver.format: invalid version: calver format only supports dots as "+
+				"separators: \"YYYY.QQ.MICRO\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("rejects invalid target calver format", func(t *testing.T) {
@@ -1937,7 +2000,12 @@ func TestPreMajorOptions(t *testing.T) {
 		// then: validation fails with the target path
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "targets.app.calver.format")
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.calver.format: invalid version: calver format must include "+
+				"MICRO: \"YYYY.0M\"",
+			err.Error(),
+		)
 	})
 }
 
@@ -1955,7 +2023,12 @@ func TestLoad(t *testing.T) {
 
 		// then: load returns a contextual error
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "read config file")
+		testastic.Equal(
+			t,
+			"read config file testdata/does_not_exist.yaml: open testdata/does_not_exist.yaml: no "+
+				"such file or directory",
+			err.Error(),
+		)
 	})
 
 	t.Run("loads valid file from disk", func(t *testing.T) {
@@ -2240,7 +2313,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		// then: overlap with the include is rejected
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "direct path ownership overlaps")
+		testastic.Equal(t, "invalid config: direct path ownership overlaps between targets.api and targets.root", err.Error())
 	})
 
 	t.Run("disjoint targets do not overlap", func(t *testing.T) {
@@ -2344,7 +2417,7 @@ func TestReleaseReviewers(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "release.reviewers")
+		testastic.Equal(t, "invalid config: release.reviewers must not contain empty strings", err.Error())
 	})
 
 	t.Run("whitespace-padded reviewer fails", func(t *testing.T) {
@@ -2363,7 +2436,12 @@ func TestReleaseReviewers(t *testing.T) {
 		// then: validation fails naming the padded entry
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "alice ")
+		testastic.Equal(
+			t,
+			"invalid config: release.reviewers entry \"alice \" must not have leading or trailing "+
+				"whitespace",
+			err.Error(),
+		)
 	})
 
 	t.Run("duplicate reviewer after trimming fails", func(t *testing.T) {
@@ -2400,6 +2478,6 @@ func TestReleaseReviewers(t *testing.T) {
 		// then: validation fails naming the duplicate
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.ErrorContains(t, err, "alice")
+		testastic.Equal(t, "invalid config: release.reviewers contains duplicate \"alice\"", err.Error())
 	})
 }

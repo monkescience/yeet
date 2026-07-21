@@ -1,0 +1,1 @@
+invalid release options: branch is not configured for releases: channel "beta" must run on branch "beta", got "main"

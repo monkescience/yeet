@@ -1,0 +1,1 @@
+provider setup failed: missing auth token: GITLAB_TOKEN or GL_TOKEN environment variable is required

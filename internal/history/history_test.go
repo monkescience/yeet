@@ -590,7 +590,13 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		// then: the run fails before any remote validation
 		testastic.Error(t, err)
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
-		testastic.ErrorContains(t, err, "shallow")
+		testastic.Equal(
+			t,
+			"local checkout cannot serve release history: checkout is shallow; fetch the full history "+
+				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, fetchDepth: 0 on Azure "+
+				"Pipelines)",
+			err.Error(),
+		)
 		testastic.Equal(t, 0, remote.branchHeadCalls)
 	})
 
@@ -610,7 +616,14 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		// then: the run fails asking for a current checkout
 		testastic.Error(t, err)
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
-		testastic.ErrorContains(t, err, "does not match the remote head")
+		testastic.Equal(
+			t,
+			"local checkout cannot serve release history: local HEAD "+
+				"8ef653648bf61273f097a29668e6d5ed4134a2cc does not match the remote head "+
+				"1111111111111111111111111111111111111111 of branch \"main\"; pull the latest commits "+
+				"before releasing",
+			err.Error(),
+		)
 	})
 
 	t.Run("checkout of another branch fails even at the same commit", func(t *testing.T) {
@@ -630,7 +643,12 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		// then: the run fails naming both branches
 		testastic.Error(t, err)
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
-		testastic.ErrorContains(t, err, "feature")
+		testastic.Equal(
+			t,
+			"local checkout cannot serve release history: checkout is on branch \"feature\"; check out "+
+				"release branch \"main\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("remote head lookup failure propagates", func(t *testing.T) {
@@ -648,8 +666,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 
 		// then: the remote error surfaces with validation context
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "validate local head")
-		testastic.ErrorContains(t, err, "boom")
+		testastic.Equal(t, "validate local head against remote branch \"main\": boom", err.Error())
 	})
 
 	t.Run("remote tag target works without a local tag", func(t *testing.T) {
@@ -708,7 +725,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 
 		// then: invalid provider metadata is rejected
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid commit hash")
+		testastic.Equal(t, "remote tag metadata invalid: tag \"v1.0.0\" has invalid commit hash", err.Error())
 	})
 
 	t.Run("missing commit object fails", func(t *testing.T) {
@@ -730,8 +747,12 @@ func TestSourceUnusableCheckout(t *testing.T) {
 
 		// then: preflight fails while building the complete graph
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "validate local commit graph")
-		testastic.ErrorContains(t, err, "read local commit")
+		testastic.Equal(
+			t,
+			"validate local commit graph: read local commit 8ef653648bf61273f097a29668e6d5ed4134a2cc: "+
+				"object not found",
+			err.Error(),
+		)
 	})
 
 	t.Run("branch other than the configured one fails", func(t *testing.T) {
@@ -864,7 +885,7 @@ func TestSourceDelegation(t *testing.T) {
 
 		// then: the provider error is returned without a tag scan
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "provider unavailable")
+		testastic.Equal(t, "remote latest release ref: provider unavailable", err.Error())
 		testastic.Equal(t, 1, remote.latestReleaseRefCalls)
 		testastic.Equal(t, 0, remote.tagRefCalls)
 	})

@@ -1,0 +1,17 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+    changelog:
+      file: CHANGES.md
+      include: [feat, fix]
+      sections:
+        feat: "✨ Features"

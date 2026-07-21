@@ -1,0 +1,19 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+    changelog:
+      references:
+        patterns:
+          - pattern: "ABC-\\d+"
+            url: https://issues.example.test/{value}
+        footers:
+          Refs: https://tracker.example.test/{value}

@@ -49,9 +49,7 @@ func TestParseRemote(t *testing.T) {
 
 		// then: the error names the URL with the entire userinfo redacted
 		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
-		testastic.False(t, strings.Contains(err.Error(), "secret-token"))
-		testastic.False(t, strings.Contains(err.Error(), "ci:"))
-		testastic.True(t, strings.Contains(err.Error(), "https://***@"))
+		testastic.Equal(t, "unable to parse remote URL: https://***@", err.Error())
 	})
 
 	t.Run("unknown remote error redacts username-only token", func(t *testing.T) {
@@ -65,8 +63,7 @@ func TestParseRemote(t *testing.T) {
 
 		// then: the error hides the token
 		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
-		testastic.False(t, strings.Contains(err.Error(), "ghp-secret-token"))
-		testastic.True(t, strings.Contains(err.Error(), "https://***@"))
+		testastic.Equal(t, "unable to parse remote URL: https://***@", err.Error())
 	})
 
 	t.Run("github https", func(t *testing.T) {

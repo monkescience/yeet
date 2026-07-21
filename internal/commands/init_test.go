@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
+	"syscall"
 	"testing"
 
 	git "github.com/go-git/go-git/v6"
@@ -55,9 +55,8 @@ func TestRunInit(t *testing.T) {
 			t.Fatalf("expected not-exist error, got %v", err)
 		}
 
-		if !strings.Contains(err.Error(), path) {
-			t.Fatalf("expected error to mention %s, got %v", path, err)
-		}
+		pathErr := &os.PathError{Op: "open", Path: path, Err: syscall.ENOENT}
+		testastic.Equal(t, "write "+path+": "+pathErr.Error(), err.Error())
 
 		_, statErr := os.Stat(config.DefaultFile)
 		testastic.Error(t, statErr)
@@ -115,7 +114,11 @@ func TestRunInit(t *testing.T) {
 		// then: init reports that the repository root config already exists
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, ErrConfigExists)
-		testastic.ErrorContains(t, err, filepath.Join(repositoryPath, config.DefaultFile))
+		testastic.Equal(
+			t,
+			"config file already exists: "+filepath.Join(repositoryPath, config.DefaultFile),
+			err.Error(),
+		)
 	})
 
 	t.Run("writes minimal config with target named after the config directory", func(t *testing.T) {
@@ -135,8 +138,15 @@ func TestRunInit(t *testing.T) {
 		testastic.NoError(t, readErr)
 
 		contentStr := string(content)
-		testastic.HasPrefix(t, contentStr, config.SchemaDirective+"\n")
-		testastic.Contains(t, contentStr, "\n  my-cool-app:\n")
+		testastic.AssertFile(
+			t,
+			commandTestFilePath(
+				t,
+				"testdata/run_init/writes_minimal_config_with_target_named_after_the_config_directory/"+
+					"config.expected.yaml",
+			),
+			contentStr,
+		)
 
 		cfg, parseErr := config.Parse(content)
 		testastic.NoError(t, parseErr)
@@ -162,7 +172,16 @@ func TestRunInit(t *testing.T) {
 		testastic.NoError(t, readErr)
 
 		contentStr := string(content)
-		testastic.Contains(t, contentStr, "\n  root:\n")
+		testastic.AssertFile(
+			t,
+			commandTestFilePath(
+				t,
+				"testdata/run_init/"+
+					"falls_back_to_root_target_name_when_directory_basename_is_not_a_safe_bare_key/"+
+					"config.expected.yaml",
+			),
+			contentStr,
+		)
 
 		cfg, parseErr := config.Parse(content)
 		testastic.NoError(t, parseErr)
@@ -214,10 +233,11 @@ func TestRootCommand(t *testing.T) {
 		// then: debug and info logs are emitted to stderr
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", stdout)
-		testastic.Contains(t, stderr, "DEBU")
-		testastic.Contains(t, stderr, "initializing config file")
-		testastic.Contains(t, stderr, "INFO")
-		testastic.Contains(t, stderr, "created config file")
+		testastic.AssertFile(
+			t,
+			commandTestFilePath(t, "testdata/root_command/verbose_emits_debug_logs_for_init/stderr.expected.txt"),
+			stderr,
+		)
 	})
 }
 

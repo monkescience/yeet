@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 1.1.0 (minor)
+  Tag               v1.1.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- address [ABC-1](https://issues.example.test/ABC-1) ([cbf52ac](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/cbf52ac8727df486e2bc21d1e77ab51c4f50d69b)) ([TKT-2](https://tracker.example.test/TKT-2))
+{{regex `^$`}}

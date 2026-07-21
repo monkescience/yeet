@@ -1,0 +1,1 @@
+provider setup failed: missing auth token: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT environment variable is required

@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 1.0.1 (patch)
+  Tag               v1.0.1
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.0.1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v1.0.1) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Performance Improvements
+
+- improve startup ([8b52e94](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/8b52e9467ffdbbbc9fdbc41031348a2a7f5bdb93))
+{{regex `^$`}}

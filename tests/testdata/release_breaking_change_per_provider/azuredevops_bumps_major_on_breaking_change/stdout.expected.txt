@@ -1,0 +1,19 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 2.0.0 (major)
+  Tag               v2.0.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.0.0&targetVersion=GTv2.0.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### ⚠ BREAKING CHANGES
+
+- removed v1 ([ce66a46](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/ce66a46ed63049f7b845345eeef4476f6f2e225e))
+### Features
+
+- redesign api ([ce66a46](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/ce66a46ed63049f7b845345eeef4476f6f2e225e))
+{{regex `^$`}}

@@ -143,6 +143,11 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 
 		// then: GitHub still rejects merging a draft PR and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "draft")
+		testastic.AssertFile(
+			t,
+			"testdata/release_auto_merge_force/github___auto_merge_force_does_not_bypass_draft_state/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }

@@ -1,0 +1,14 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+release:
+  subject_include_branch: true
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

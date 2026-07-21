@@ -50,7 +50,13 @@ func TestReleaseUnreachableAncestor(t *testing.T) {
 
 		// then: yeet falls back to v1.0.0 and plans v1.1.0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "v1.1.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_unreachable_ancestor/"+
+				"github_skips_a_newer_unreachable_tag_in_favor_of_an_older_reachable_one/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("github surfaces an unreachable boundary as a branch-ancestry error", func(t *testing.T) {
@@ -90,7 +96,12 @@ func TestReleaseUnreachableAncestor(t *testing.T) {
 
 		// then: yeet exits 1 with a "not reachable" branch ancestry error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "not reachable")
+		testastic.AssertFile(
+			t,
+			"testdata/release_unreachable_ancestor/"+
+				"github_surfaces_an_unreachable_boundary_as_a_branch_ancestry_error/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -118,27 +129,11 @@ func TestReleaseChannelChangelogFile(t *testing.T) {
 			},
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-release:
-  channels:
-    beta:
-      branch: beta
-      prerelease: beta
-      changelog_file: CHANGELOG-beta.md
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_channel_changelog_file/"+
+				"github_prerelease_writes_to_the_channel_s_changelog_file/input.yaml",
+		)
 
 		// when: invoking `yeet release --channel beta` on the beta branch
 		result := binary.RunWithOptions(t,
@@ -173,24 +168,11 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-release:
-  pr_body_header: "## Custom Release Header"
-  pr_body_footer: "_yeet release footer_"
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_p_r_body_header_footer/"+
+				"github_uses_configured_pr_body_header_and_pr_body_footer/input.yaml",
+		)
 
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
@@ -221,23 +203,11 @@ targets:
 			BranchHeadSHA: shas[1],
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-release:
-  subject_include_branch: true
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_p_r_body_header_footer/github_subject_include_branch_shapes_p_r_title/"+
+				"input.yaml",
+		)
 
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,

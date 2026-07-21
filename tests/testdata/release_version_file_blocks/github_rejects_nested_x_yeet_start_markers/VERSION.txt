@@ -1,0 +1,4 @@
+# x-yeet-start-version
+version 1.0.0
+# x-yeet-start-major
+# x-yeet-end

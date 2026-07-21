@@ -332,7 +332,12 @@ func TestReleaseReviewers(t *testing.T) {
 
 		// then: yeet fails and names the unresolved reviewer
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "ghost")
+		testastic.AssertFile(
+			t,
+			"testdata/release_reviewers/gitlab_fails_the_release_for_an_unknown_reviewer/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -907,7 +912,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a project with a package.json containing /version
-		files := map[string]string{"package.json": `{"name":"yeet","version":"1.0.0"}`}
+		files := map[string]string{"package.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_version_file/"+
+				"github_bumps_a_top_level_package_json_version/package.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -949,7 +958,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a manifest.json with a version at /packages/0/version
-		files := map[string]string{"manifest.json": `{"packages":[{"name":"yeet","version":"1.0.0"}]}`}
+		files := map[string]string{"manifest.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_version_file/"+
+				"github_bumps_a_nested_array_j_s_o_n_pointer/manifest.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -991,7 +1004,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a JSON pointer that uses ~0 and ~1 escapes
-		files := map[string]string{"escaped.json": `{"a~b":{"c/d":"1.0.0"}}`}
+		files := map[string]string{"escaped.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_version_file/github_escapes___and/"+
+				"in_the_j_s_o_n_pointer/escaped.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -1553,10 +1570,12 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		t.Parallel()
 
 		// given: an already-open release MR with a yeet manifest in its body
-		manifest := "<!-- yeet-release-manifest\n" +
-			`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
-			"\n-->"
-		existingBody := "## release\n\n### Features\n\n* feat: add a thing\n\n" + manifest + "\n"
+		existingBody := readTestFile(
+			t,
+			"testdata/release_updates_existing_p_r/"+
+				"gitlab_updates_the_open_release_m_r_in_place/"+
+				"existing_pull_request_body.input.md",
+		)
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
@@ -1594,10 +1613,12 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		t.Parallel()
 
 		// given: an already-open release PR carrying a yeet manifest
-		manifest := "<!-- yeet-release-manifest\n" +
-			`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
-			"\n-->"
-		existingBody := "## release\n\n### Features\n\n* feat: add a thing\n\n" + manifest + "\n"
+		existingBody := readTestFile(
+			t,
+			"testdata/release_updates_existing_p_r/"+
+				"azuredevops_updates_the_open_release_p_r_in_place/"+
+				"existing_pull_request_body.input.md",
+		)
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
 			[]fixture.RepoCommit{
@@ -1639,14 +1660,12 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		t.Parallel()
 
 		// given: an open release PR whose body carries a reviewer-added "Notes" section
-		manifest := "<!-- yeet-release-manifest\n" +
-			`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
-			"\n-->"
-		existingBody := "## release\n\n" +
-			"## [v1.1.0](https://example.test/compare/v1.0.0...v1.1.0) (2026-01-01)\n\n" +
-			"### Features\n\n* feat: add a thing\n\n" +
-			"### Notes\n\nManual reviewer note that must survive an update.\n\n" +
-			manifest + "\n"
+		existingBody := readTestFile(
+			t,
+			"testdata/release_updates_existing_p_r/"+
+				"github_updates_the_open_release_p_r_while_preserving_manual_sections/"+
+				"existing_pull_request_body.input.md",
+		)
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
@@ -1920,9 +1939,11 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver BUILD.txt with year/month/micro markers
-		files := map[string]string{
-			"BUILD.txt": "year: 2025  # x-yeet-year\nmonth: 11  # x-yeet-month\nmicro: 1  # x-yeet-micro\n",
-		}
+		files := map[string]string{"BUILD.txt": readTestFile(
+			t,
+			"testdata/release_version_file_errors/"+
+				"calver_target_updates_month_and_micro_markers_in_b_u_i_l_d_txt/BUILD.txt",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},

@@ -1,0 +1,16 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+version_files:
+  - path: package.json
+    format: json
+    json_pointer: /packages/~2/version
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

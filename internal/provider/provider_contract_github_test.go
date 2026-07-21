@@ -249,7 +249,12 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 
 	// then: the run fails naming the reviewer
 	testastic.Error(t, err)
-	testastic.ErrorContains(t, err, providerContractReviewerAlice)
+	testastic.Equal(
+		t,
+		"request reviewers [alice] for pull request #42: POST "+server.URL+
+			"/repos/o/r/pulls/42/requested_reviewers: 422 Reviews may only be requested from collaborators. []",
+		err.Error(),
+	)
 }
 
 func handleGitHubUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

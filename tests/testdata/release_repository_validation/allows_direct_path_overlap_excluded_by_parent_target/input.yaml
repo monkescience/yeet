@@ -1,0 +1,18 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  services:
+    type: path
+    path: services
+    tag_prefix: services-v
+    exclude_paths:
+      - services/api
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v

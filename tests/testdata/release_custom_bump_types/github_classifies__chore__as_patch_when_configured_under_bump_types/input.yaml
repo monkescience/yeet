@@ -1,0 +1,17 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+bump_types:
+  minor: [feat]
+  patch: [fix, perf, chore]
+changelog:
+  include: [feat, fix, perf, chore]
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

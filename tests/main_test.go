@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -51,4 +52,22 @@ func clearInheritedBranchEnv() error {
 	}
 
 	return nil
+}
+
+func absoluteTestFile(t *testing.T, path string) string {
+	t.Helper()
+
+	absolutePath, err := filepath.Abs(path)
+	testastic.NoError(t, err)
+
+	return absolutePath
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	testastic.NoError(t, err)
+
+	return string(contents)
 }

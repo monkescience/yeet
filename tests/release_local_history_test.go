@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -51,9 +50,12 @@ func TestReleaseLocalHistory(t *testing.T) {
 
 		// then: the plan reflects the local feat commit, not the provider fixture
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.True(t, strings.Contains(result.Stdout, "1.1.0"))
-		testastic.True(t, strings.Contains(result.Stdout, "add local feature"))
-		testastic.False(t, strings.Contains(result.Stdout, "remote patch"))
+		testastic.AssertFile(
+			t,
+			"testdata/release_local_history/matching_checkout_serves_commit_ranges_from_local_git/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("stale checkout fails with an actionable error", func(t *testing.T) {
@@ -92,7 +94,12 @@ func TestReleaseLocalHistory(t *testing.T) {
 
 		// then: the run fails telling the user to update the checkout
 		testastic.NotEqual(t, 0, result.ExitCode)
-		testastic.True(t, strings.Contains(result.Stderr, "does not match the remote head"))
+		testastic.AssertFile(
+			t,
+			"testdata/release_local_history/stale_checkout_fails_with_an_actionable_error/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("stale checkout is rejected before remote mutation", func(t *testing.T) {
@@ -133,7 +140,12 @@ func TestReleaseLocalHistory(t *testing.T) {
 
 		// then: checkout validation fails before any provider mutation
 		testastic.NotEqual(t, 0, result.ExitCode)
-		testastic.True(t, strings.Contains(result.Stderr, "does not match the remote head"))
+		testastic.AssertFile(
+			t,
+			"testdata/release_local_history/stale_checkout_is_rejected_before_remote_mutation/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("remote tag target overrides stale local tag", func(t *testing.T) {
@@ -202,6 +214,11 @@ func TestReleaseLocalHistory(t *testing.T) {
 
 		// then: the run fails asking for a full checkout
 		testastic.NotEqual(t, 0, result.ExitCode)
-		testastic.True(t, strings.Contains(result.Stderr, "local checkout cannot serve release history"))
+		testastic.AssertFile(
+			t,
+			"testdata/release_local_history/missing_repository_fails_with_an_actionable_error/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }

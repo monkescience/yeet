@@ -30,18 +30,11 @@ func TestReleaseGitHubProjectOnly(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		configPath := writeRawConfig(t, `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    project: testorg/testrepo
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_git_hub_project_only/github_accepts_owner/"+
+				"repo_derived_from_project_alone/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -185,7 +178,12 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 
 		// then: yeet exits 1 and stderr mentions the empty override block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "empty override block")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_override_empty_block/"+
+				"github_rejects_an_empty_commit_override_block/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects missing END_COMMIT_OVERRIDE", func(t *testing.T) {
@@ -223,7 +221,12 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 
 		// then: yeet exits 1 and stderr mentions the missing END marker
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "END_COMMIT_OVERRIDE")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_override_empty_block/"+
+				"github_rejects_missing_e_n_d_c_o_m_m_i_t_o_v_e_r_r_i_d_e/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -235,9 +238,21 @@ func TestReleaseMultipleVersionFiles(t *testing.T) {
 
 		// given: a config that lists three version_files with different formats
 		files := map[string]string{
-			"VERSION.txt":      "1.0.0 # x-yeet-version\n",
-			"package.json":     `{"name":"yeet","version":"1.0.0"}`,
-			"chart/Chart.yaml": "name: yeet\nversion: 1.0.0  # x-yeet-version\n",
+			"VERSION.txt": readTestFile(
+				t,
+				"testdata/release_multiple_version_files/"+
+					"github_bumps_multiple_configured_version_files/VERSION.txt",
+			),
+			"package.json": readTestFile(
+				t,
+				"testdata/release_multiple_version_files/"+
+					"github_bumps_multiple_configured_version_files/package.json",
+			),
+			"chart/Chart.yaml": readTestFile(
+				t,
+				"testdata/release_multiple_version_files/"+
+					"github_bumps_multiple_configured_version_files/chart/Chart.yaml",
+			),
 		}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
@@ -351,7 +366,12 @@ func TestReleaseMissingProviderTokens(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the missing env vars
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "GITLAB_TOKEN")
+		testastic.AssertFile(
+			t,
+			"testdata/release_missing_provider_tokens/"+
+				"gitlab_missing_token_surfaces_env_var_requirement/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("gitlab prefers GL_TOKEN when GITLAB_TOKEN is empty", func(t *testing.T) {
@@ -414,9 +434,11 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"CHANGELOG.md": "# Changelog\n\n## v1.0.0 (2025-12-01)\n\n### Features\n\n- prior change\n",
-			},
+			Files: map[string]string{"CHANGELOG.md": readTestFile(
+				t,
+				"testdata/release_changelog_prepend/"+
+					"github_prepends_a_new_entry_to_a____changelog__headed_file/CHANGELOG.md",
+			)},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -479,6 +501,11 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 
 		// then: gitlab still rejects merging a draft and the binary surfaces the block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "draft")
+		testastic.AssertFile(
+			t,
+			"testdata/release_git_lab_auto_merge_force/"+
+				"gitlab___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }

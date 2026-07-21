@@ -32,8 +32,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the CLI categorizes the failure as configuration-related
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid configuration")
-		testastic.ErrorContains(t, err, "versioning must be")
+		testastic.Equal(
+			t,
+			"invalid configuration: load config: invalid config: versioning must be \"semver\" or "+
+				"\"calver\", got \"broken\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("loads config from a nested directory", func(t *testing.T) {
@@ -63,8 +67,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the ancestor config is loaded instead of reporting a missing file
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid configuration")
-		testastic.ErrorContains(t, err, "versioning must be")
+		testastic.Equal(
+			t,
+			"invalid configuration: load config: invalid config: versioning must be \"semver\" or "+
+				"\"calver\", got \"broken\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("provider flag overrides unsupported host auto detection", func(t *testing.T) {
@@ -90,8 +98,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: repository resolution succeeds and provider setup uses the override
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "provider setup failed")
-		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
+		testastic.Equal(
+			t,
+			"provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable "+
+				"is required",
+			err.Error(),
+		)
 	})
 
 	t.Run("repository flags override configured provider and coordinates", func(t *testing.T) {
@@ -114,8 +126,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the github override wins
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "provider setup failed")
-		testastic.ErrorContains(t, err, "GITHUB_TOKEN or GH_TOKEN")
+		testastic.Equal(
+			t,
+			"provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable "+
+				"is required",
+			err.Error(),
+		)
 	})
 
 	t.Run("rejects Azure Pipelines non-branch ref without channels", func(t *testing.T) {
@@ -130,8 +146,7 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "resolve current branch")
-		testastic.ErrorContains(t, err, "not a branch")
+		testastic.Equal(t, "resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"", err.Error())
 	})
 
 	t.Run("rejects GitHub Actions non-branch ref without channels", func(t *testing.T) {
@@ -147,8 +162,7 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "resolve current branch")
-		testastic.ErrorContains(t, err, "not a branch")
+		testastic.Equal(t, "resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"", err.Error())
 	})
 
 	for name, environment := range map[string]map[string]string{
@@ -206,8 +220,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the override set is rejected before repository resolution
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "invalid release options")
-		testastic.ErrorContains(t, err, "--owner/--repo are not valid for provider gitlab")
+		testastic.Equal(
+			t,
+			"invalid release options: invalid config: --owner/--repo are not valid for provider "+
+				"gitlab; use --project",
+			err.Error(),
+		)
 	})
 }
 
@@ -359,7 +377,12 @@ func TestApplyReleaseOptions(t *testing.T) {
 
 		// then: the override set is rejected
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "explicit --provider")
+		testastic.Equal(
+			t,
+			"invalid config: repository field flags require an explicit --provider (auto cannot route "+
+				"them)",
+			err.Error(),
+		)
 	})
 }
 
@@ -415,7 +438,11 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 
 		// then: yeet refuses to send the token to the mismatched host
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "does not match git remote host")
+		testastic.Equal(
+			t,
+			"provider host is not trusted: \"evil.example\" does not match git remote host \"github.com\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("default public host does not require a remote lookup", func(t *testing.T) {
@@ -455,7 +482,12 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 
 		// then: the malformed host is rejected before any remote lookup
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "bare hostname")
+		testastic.Equal(
+			t,
+			"invalid provider host: \"github.com@evil.example\" must be a bare hostname without scheme, "+
+				"credentials, or path",
+			err.Error(),
+		)
 	})
 
 	t.Run("custom host with an unresolvable remote is rejected", func(t *testing.T) {
@@ -475,7 +507,12 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 
 		// then: trust cannot be established, so the host is rejected
 		testastic.Error(t, err)
-		testastic.ErrorContains(t, err, "could not be verified against git remote")
+		testastic.Equal(
+			t,
+			"provider host is not trusted: \"github.company.com\" could not be verified against git "+
+				"remote \"origin\": no remote",
+			err.Error(),
+		)
 	})
 }
 
@@ -734,7 +771,15 @@ func TestHandleReleaseResult(t *testing.T) {
 
 		output := ansi.Strip(buf.String())
 		testastic.True(t, len(output) > 0)
-		testastic.Contains(t, output, "v1.1.0")
+		testastic.AssertFile(
+			t,
+			commandTestFilePath(
+				t,
+				"testdata/handle_release_result/dry_run_with_plans_writes_the_dry_run_output/"+
+					"output.expected.txt",
+			),
+			output,
+		)
 	})
 
 	t.Run("non dry run with plans does not write output", func(t *testing.T) {
@@ -769,8 +814,12 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 
 		// then: the top-level message explains how to proceed
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
-		testastic.ErrorContains(t, err, "release execution failed: merge blocked")
-		testastic.ErrorContains(t, err, "--auto-merge-force")
+		testastic.Equal(
+			t,
+			"release execution failed: merge blocked; resolve PR/MR readiness or use "+
+				"--auto-merge-force when appropriate: release PR merge blocked: required checks pending",
+			err.Error(),
+		)
 	})
 
 	t.Run("multiple pending PRs advises cleanup", func(t *testing.T) {
@@ -781,7 +830,12 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 
 		// then: the message advises closing stale entries
 		testastic.ErrorIs(t, err, release.ErrMultiplePendingReleasePRs)
-		testastic.ErrorContains(t, err, "multiple pending release PRs/MRs found")
+		testastic.Equal(
+			t,
+			"release execution failed: multiple pending release PRs/MRs found; close or relabel stale "+
+				"entries: multiple pending release PRs found: found 2",
+			err.Error(),
+		)
 	})
 
 	t.Run("generic error wraps with execution prefix", func(t *testing.T) {
@@ -791,7 +845,7 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 		err := wrapReleaseExecutionError(errors.New("unexpected failure"))
 
 		// then: the message wraps with the generic prefix
-		testastic.ErrorContains(t, err, "release execution failed: unexpected failure")
+		testastic.Equal(t, "release execution failed: unexpected failure", err.Error())
 	})
 }
 

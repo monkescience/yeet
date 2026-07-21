@@ -1,0 +1,2 @@
+INFO release analysis complete targets=1
+release execution failed: update version file VERSION.txt: apply markers: unclosed x-yeet-start block: started at line 1

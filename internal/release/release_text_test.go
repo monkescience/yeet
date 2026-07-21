@@ -18,20 +18,20 @@ func TestReleasePRBody(t *testing.T) {
 
 		// given: releaser with default config
 		r := newTestReleaser(t, config.Default(), newProviderStub())
-		changelogBody := "## v1.2.4 (2026-03-01)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
+		changelogBody := readTestFile(
+			t,
+			"testdata/release_p_r_body/defaults_include_generated_header_and_footer/"+
+				"changelog.input.md",
+		)
 
 		// when: building PR body
 		body, truncated := r.core.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: changelog is wrapped by default header, manifest, and footer notes
 		testastic.False(t, truncated)
-		testastic.Equal(
+		testastic.AssertFile(
 			t,
-			"## ٩(^ᴗ^)۶ release created\n\n"+
-				strings.TrimSpace(changelogBody)+
-				"\n\n<!-- yeet-release-tag: v1.2.4 -->"+
-				"\n\n_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n"+
-				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
+			"testdata/release_p_r_body/defaults_include_generated_header_and_footer/body.expected.md",
 			body,
 		)
 	})
@@ -51,10 +51,9 @@ func TestReleasePRBody(t *testing.T) {
 
 		// then: body contains header, changelog, manifest, and footer in order
 		testastic.False(t, truncated)
-		testastic.Equal(
+		testastic.AssertFile(
 			t,
-			"Header\n\n"+
-				"## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->\n\nFooter",
+			"testdata/release_p_r_body/custom_header_and_footer_surround_changelog/body.expected.md",
 			body,
 		)
 	})
@@ -74,9 +73,9 @@ func TestReleasePRBody(t *testing.T) {
 
 		// then: body keeps only changelog and manifest, no wrapper text
 		testastic.False(t, truncated)
-		testastic.Equal(
+		testastic.AssertFile(
 			t,
-			"## v1.2.4\n\n<!-- yeet-release-tag: v1.2.4 -->",
+			"testdata/release_p_r_body/empty_wrapper_fields_collapse_to_changelog_and_manifest_only/body.expected.md",
 			body,
 		)
 	})
@@ -89,11 +88,19 @@ func TestReleasePRBody(t *testing.T) {
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
 
 		// when: building the body with a generous limit
-		body, truncated := r.core.releasePRBody("## v1.2.4\n\n- one note", marker, 4000)
+		body, truncated := r.core.releasePRBody(readTestFile(
+			t,
+			"testdata/release_p_r_body/body_within_limit_is_not_truncated/"+
+				"changelog.input.md",
+		), marker, 4000)
 
 		// then: nothing is truncated and the marker survives
 		testastic.False(t, truncated)
-		testastic.Contains(t, body, "- one note")
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body/body_within_limit_is_not_truncated/body.expected.md",
+			body,
+		)
 		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 
@@ -105,7 +112,12 @@ func TestReleasePRBody(t *testing.T) {
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
 
 		var changelog strings.Builder
-		changelog.WriteString("## v1.2.4\n\n### Features\n\n")
+		changelog.WriteString(readTestFile(
+			t,
+			"testdata/release_p_r_body/"+
+				"oversized_body_drops_the_whole_changelog_but_preserves_marker__header__and_footer/"+
+				"changelog_header.input.md",
+		))
 
 		for line := range 500 {
 			fmt.Fprintf(&changelog, "- feature number %d that adds yet more text to the notes\n", line)
@@ -117,11 +129,13 @@ func TestReleasePRBody(t *testing.T) {
 		// then: the body fits, no changelog lines survive, and the wrapper text plus notice remain
 		testastic.True(t, omitted)
 		testastic.True(t, len(body) <= 4000)
-		testastic.Contains(t, body, "## ٩(^ᴗ^)۶ release created")
-		testastic.Contains(t, body, "_Made with [yeet]")
-		testastic.Contains(t, body, "Release notes omitted")
-		testastic.NotContains(t, body, "- feature number 0")
-		testastic.NotContains(t, body, "### Features")
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body/"+
+				"oversized_body_drops_the_whole_changelog_but_preserves_marker__header__and_footer/"+
+				"body.expected.md",
+			body,
+		)
 		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 
@@ -135,7 +149,12 @@ func TestReleasePRBody(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, newProviderStub())
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
-		changelog := "## v1.2.4\n\n- a note that will not fit"
+		changelog := readTestFile(
+			t,
+			"testdata/release_p_r_body/"+
+				"body_one_byte_over_the_limit_drops_the_changelog_entirely/"+
+				"changelog.input.md",
+		)
 
 		full := changelog + "\n\n" + marker
 		limit := len(full) - 1
@@ -145,8 +164,11 @@ func TestReleasePRBody(t *testing.T) {
 
 		// then: the changelog is dropped wholesale, the notice and marker remain
 		testastic.True(t, omitted)
-		testastic.NotContains(t, body, "a note that will not fit")
-		testastic.Contains(t, body, "Release notes omitted")
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body/body_one_byte_over_the_limit_drops_the_changelog_entirely/body.expected.md",
+			body,
+		)
 		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 }
@@ -203,12 +225,11 @@ func TestCombinedPRChangelog(t *testing.T) {
 
 		// given: a single target release result
 		r := newTestReleaser(t, config.Default(), newProviderStub())
-		prChangelog := strings.TrimSpace(`## [v1.2.4](https://example.com/compare/v1.2.3...abc1234) (2026-03-21)
-
-### Bug Fixes
-
-- patch issue (abc1234)
-`) + "\n"
+		prChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/combined_p_r_changelog/"+
+				"single_target_preserves_existing_changelog_format/pr_changelog.input.md",
+		)) + "\n"
 
 		result := &Result{
 			BaseBranch: "main",
@@ -241,12 +262,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "1.3.0",
 					NextTag:        "api-v1.3.0",
 					BumpType:       "minor",
-					PRChangelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...abc1234) (2026-03-21)
-
-### Features
-
-- add token rotation (abc1234)
-`),
+					PRChangelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/combined_p_r_changelog/"+
+							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
+							"api_changelog.input.md",
+					)),
 				},
 				{
 					ID:             "web",
@@ -255,12 +276,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "2.1.4",
 					NextTag:        "web-v2.1.4",
 					BumpType:       "patch",
-					PRChangelog: strings.TrimSpace(`## [web-v2.1.4](https://example.com/compare/web-v2.1.3...def5678) (2026-03-21)
-
-### Bug Fixes
-
-- fix dashboard filters (def5678)
-`),
+					PRChangelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/combined_p_r_changelog/"+
+							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
+							"web_changelog.input.md",
+					)),
 				},
 				{
 					ID:              "root",
@@ -270,24 +291,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PRChangelog: strings.TrimSpace(`## [v3.0.0](https://example.com/compare/v2.9.0...9876abc) (2026-03-21)
-
-### Documentation
-
-- update README install steps (9876abc)
-
-### api
-
-### Features
-
-- add token rotation (abc1234)
-
-### web
-
-### Bug Fixes
-
-- fix dashboard filters (def5678)
-`),
+					PRChangelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/combined_p_r_changelog/"+
+							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
+							"root_changelog.input.md",
+					)),
 				},
 			},
 		}
@@ -314,12 +323,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "1.3.0",
 					NextTag:        "api-v1.3.0",
 					BumpType:       "minor",
-					PRChangelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...abc1234) (2026-03-21)
-
-### Features
-
-- add token rotation (abc1234)
-`),
+					PRChangelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/combined_p_r_changelog/"+
+							"derived_target_preserves_embedded_child_sections_when_some_child_plans_are_omitted/"+
+							"api_changelog.input.md",
+					)),
 				},
 				{
 					ID:              "root",
@@ -329,24 +338,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PRChangelog: strings.TrimSpace(`## [v3.0.0](https://example.com/compare/v2.9.0...9876abc) (2026-03-21)
-
-### Documentation
-
-- update README install steps (9876abc)
-
-### api
-
-### Features
-
-- add token rotation (abc1234)
-
-### web
-
-### Bug Fixes
-
-- fix dashboard filters (def5678)
-`),
+					PRChangelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/combined_p_r_changelog/"+
+							"derived_target_preserves_embedded_child_sections_when_some_child_plans_are_omitted/"+
+							"root_changelog.input.md",
+					)),
 				},
 			},
 		}
@@ -366,65 +363,65 @@ func TestChangelogEntryByTag(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog containing linked version headings
-		changelog := strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature
-
-## [v1.2.2](https://example.com/compare/v1.2.1...v1.2.2) (2026-02-20)
-
-### Bug Fixes
-
-- patch
-`)
+		changelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/changelog_entry_by_tag/extracts_linked_heading_entry/"+
+				"changelog.input.md",
+		))
 
 		// when: extracting entry for v1.2.3
 		entry, err := changelogEntryByTag(changelog, "v1.2.3")
 
 		// then: only matching section is returned
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, entry, "## [v1.2.3]")
-		testastic.NotContains(t, entry, "## [v1.2.2]")
+		testastic.AssertFile(
+			t,
+			"testdata/changelog_entry_by_tag/extracts_linked_heading_entry/entry.expected.md",
+			entry,
+		)
 	})
 
 	t.Run("extracts plain heading entry", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog with plain version heading
-		changelog := "# Changelog\n\n## v1.2.3 (2026-03-01)\n\n### Features\n\n- add feature\n"
+		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/extracts_plain_heading_entry/changelog.input.md")
 
 		// when: extracting entry for v1.2.3
 		entry, err := changelogEntryByTag(changelog, "v1.2.3")
 
 		// then: plain heading entry is returned
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, entry, "## v1.2.3")
+		testastic.AssertFile(
+			t,
+			"testdata/changelog_entry_by_tag/extracts_plain_heading_entry/entry.expected.md",
+			entry,
+		)
 	})
 
 	t.Run("extracts indented heading entry", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog whose version heading carries CommonMark leading indentation
-		changelog := "# Changelog\n\n  ## v1.2.3 (2026-03-01)\n\n### Features\n\n" +
-			"- add feature\n\n## v1.2.2 (2026-02-20)\n\n### Bug Fixes\n\n- patch\n"
+		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/extracts_indented_heading_entry/changelog.input.md")
 
 		// when: extracting entry for the indented heading
 		entry, err := changelogEntryByTag(changelog, "v1.2.3")
 
 		// then: the indented entry is found and bounded at the next heading
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, entry, "## v1.2.3")
-		testastic.NotContains(t, entry, "v1.2.2")
+		testastic.AssertFile(
+			t,
+			"testdata/changelog_entry_by_tag/extracts_indented_heading_entry/entry.expected.md",
+			entry,
+		)
 	})
 
 	t.Run("returns error for missing tag", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog without requested tag
-		changelog := "# Changelog\n\n## v1.2.2 (2026-02-20)\n"
+		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/returns_error_for_missing_tag/changelog.input.md")
 
 		// when: extracting entry for missing tag
 		_, err := changelogEntryByTag(changelog, "v1.2.3")
@@ -442,122 +439,84 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		t.Parallel()
 
 		// given: regenerated release notes and an existing changelog entry with manual sections
-		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch issue (abc1234)
-`)
-		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch issue (abc1234)
-
-### Migration Notes
-
-Run database migrations before deploying workers.
-
-### Rollback Notes
-
-Redeploy the previous worker image if queue latency spikes.
-`)
+		generatedEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"preserves_multiple_manual_sections_in_order/generated_entry.input.md",
+		))
+		existingEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"preserves_multiple_manual_sections_in_order/existing_entry.input.md",
+		))
 
 		// when: preserving manual sections from the existing changelog entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: all manual sections are appended in their original order
-		migrationIndex := strings.Index(updatedEntry, "### Migration Notes")
-		rollbackIndex := strings.Index(updatedEntry, "### Rollback Notes")
-
-		testastic.Contains(t, updatedEntry, "### Bug Fixes")
-		testastic.True(t, migrationIndex > strings.Index(updatedEntry, "### Bug Fixes"))
-		testastic.True(t, rollbackIndex > migrationIndex)
+		testastic.AssertFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/preserves_multiple_manual_sections_in_order/updated_entry.expected.md",
+			updatedEntry,
+		)
 	})
 
 	t.Run("preserves manual section positions among generated sections", func(t *testing.T) {
 		t.Parallel()
 
 		// given: manual sections before and between regenerated release-note sections
-		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### ⚠ BREAKING CHANGES
-
-- replace the session format (abc1234)
-
-### Features
-
-- add token refresh (def5678)
-
-### Bug Fixes
-
-- patch expiry handling (fed4321)
-`)
-		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Migration Notes
-
-Rotate existing sessions before deployment.
-
-### ⚠ BREAKING CHANGES
-
-- replace the session format (abc1234)
-
-### Features
-
-- add token refresh (def5678)
-
-### Rollback Notes
-
-Restore the previous session key if authentication fails.
-
-### Bug Fixes
-
-- patch expiry handling (fed4321)
-`)
+		generatedEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"preserves_manual_section_positions_among_generated_sections/"+
+				"generated_entry.input.md",
+		))
+		existingEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"preserves_manual_section_positions_among_generated_sections/"+
+				"existing_entry.input.md",
+		))
 
 		// when: preserving manual sections from the existing changelog entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: each manual section remains before its following generated section
-		migrationIndex := strings.Index(updatedEntry, "### Migration Notes")
-		breakingIndex := strings.Index(updatedEntry, "### ⚠ BREAKING CHANGES")
-		featuresIndex := strings.Index(updatedEntry, "### Features")
-		rollbackIndex := strings.Index(updatedEntry, "### Rollback Notes")
-		bugFixesIndex := strings.Index(updatedEntry, "### Bug Fixes")
-
-		testastic.Contains(t, updatedEntry, "### Migration Notes")
-		testastic.Contains(t, updatedEntry, "### Rollback Notes")
-		testastic.True(t, migrationIndex < breakingIndex)
-		testastic.True(t, featuresIndex < rollbackIndex)
-		testastic.True(t, rollbackIndex < bugFixesIndex)
+		testastic.AssertFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"preserves_manual_section_positions_among_generated_sections/updated_entry.expected.md",
+			updatedEntry,
+		)
 	})
 
 	t.Run("does not preserve edits inside regenerated sections", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a user edited the generated Bug Fixes section on the release branch
-		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch issue (abc1234)
-`)
-		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- custom rewrite of the generated note (abc1234)
-- extra hand-written fix note
-`)
+		generatedEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"does_not_preserve_edits_inside_regenerated_sections/"+
+				"generated_entry.input.md",
+		))
+		existingEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"does_not_preserve_edits_inside_regenerated_sections/"+
+				"existing_entry.input.md",
+		))
 
 		// when: preserving manual sections from the existing changelog entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: regenerated sections remain authoritative on rerun
-		testastic.Contains(t, updatedEntry, "- patch issue (abc1234)")
-		testastic.NotContains(t, updatedEntry, "custom rewrite")
-		testastic.NotContains(t, updatedEntry, "extra hand-written fix note")
+		testastic.AssertFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"does_not_preserve_edits_inside_regenerated_sections/updated_entry.expected.md",
+			updatedEntry,
+		)
 	})
 
 	t.Run("drops manual content outside level-3 sections", func(t *testing.T) {
@@ -565,24 +524,16 @@ Restore the previous session key if authentication fails.
 
 		// given: an existing entry with a manual ### section plus freeform text written
 		// directly under the ## version heading, which is not a level-3 section
-		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch issue (abc1234)
-`)
-		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
-
-A heads-up note written directly under the version heading.
-
-### Bug Fixes
-
-- patch issue (abc1234)
-
-### Migration Notes
-
-Run database migrations before deploying workers.
-`)
+		generatedEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"drops_manual_content_outside_level_3_sections/generated_entry.input.md",
+		))
+		existingEntry := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/preserve_manual_changelog_sections/"+
+				"drops_manual_content_outside_level_3_sections/existing_entry.input.md",
+		))
 
 		// when: preserving manual sections from the existing changelog entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)

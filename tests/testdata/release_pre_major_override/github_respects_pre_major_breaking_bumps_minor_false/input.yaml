@@ -1,0 +1,14 @@
+provider: github
+branch: main
+pre_major_breaking_bumps_minor: false
+pre_major_features_bump_patch: false
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

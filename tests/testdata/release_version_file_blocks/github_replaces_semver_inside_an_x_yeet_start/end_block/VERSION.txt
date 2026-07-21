@@ -1,0 +1,3 @@
+# x-yeet-start-version
+This release is 1.0.0 and supersedes the previous one.
+# x-yeet-end

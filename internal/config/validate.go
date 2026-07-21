@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -277,7 +279,10 @@ func validateReleaseReviewers(reviewers []string) error {
 
 func validateReleaseChannelBranches(stableBranch string, channels map[string]ReleaseChannelConfig) error {
 	stableBranch = strings.TrimSpace(stableBranch)
-	for name, channel := range channels {
+
+	for _, name := range slices.Sorted(maps.Keys(channels)) {
+		channel := channels[name]
+
 		branch := strings.TrimSpace(channel.Branch)
 		if branch == "" || stableBranch == "" || branch != stableBranch {
 			continue
@@ -298,7 +303,9 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 	seenBranches := make(map[string]string, len(channels))
 	seenPrereleaseIDs := make(map[string]string, len(channels))
 
-	for name, channel := range channels {
+	for _, name := range slices.Sorted(maps.Keys(channels)) {
+		channel := channels[name]
+
 		channelName := strings.TrimSpace(name)
 		if channelName == "" {
 			return fmt.Errorf("%w: release.channels keys must not be empty", ErrInvalidConfig)

@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.channels.beta.branch "main" duplicates stable branch

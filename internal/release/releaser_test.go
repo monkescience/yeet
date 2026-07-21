@@ -404,8 +404,16 @@ func TestPrereleaseChannels(t *testing.T) {
 			updatedFiles[update.path] = update.content
 		}
 
-		testastic.Contains(t, updatedFiles["CHANGELOG.beta.md"], "v1.3.0-beta.1")
-		testastic.Contains(t, updatedFiles["VERSION"], "1.3.0-beta.1")
+		testastic.AssertFile(
+			t,
+			"testdata/prerelease_channels/channel_release_writes_channel_changelog/changelog_beta.expected.md",
+			updatedFiles["CHANGELOG.beta.md"],
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/prerelease_channels/channel_release_writes_channel_changelog/version.expected.txt",
+			updatedFiles["VERSION"],
+		)
 	})
 
 	t.Run("auto-merged channel release creates provider prerelease", func(t *testing.T) {
@@ -754,14 +762,7 @@ func TestReleaseAsFooter(t *testing.T) {
 func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 	t.Parallel()
 
-	const changelogBody = `# Changelog
-
-## [v0.1.0](https://example.com/compare/v0.0.9...v0.1.0) (2026-03-01)
-
-### Features
-
-- add release flow (abc1234)
-`
+	changelogBody := readTestFile(t, "testdata/release_after_finalize_merged_release/changelog.input.md")
 
 	t.Run("invalid target does not finalize a merged release", func(t *testing.T) {
 		t.Parallel()
@@ -883,9 +884,13 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	testastic.Error(t, err)
 	testastic.Equal(t, (*Result)(nil), result)
 	testastic.ErrorIs(t, err, provider.ErrCommitBoundaryNotFound)
-	testastic.ErrorContains(t, err, "v1.2.3")
-	testastic.ErrorContains(t, err, cfg.Branch)
-	testastic.ErrorContains(t, err, "verify the latest tag/release and branch ancestry")
+	testastic.Equal(
+		t,
+		"previous release ref \"v1.2.3\" is not reachable from release branch \"main\" for target "+
+			"\"default\"; verify the latest tag/release and branch ancestry: commit boundary not found: "+
+			"ref \"v1.2.3\" is not reachable from branch \"main\"",
+		err.Error(),
+	)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.createReleaseCalls)
 	testastic.Equal(t, 0, len(stub.markPendingCalls))
@@ -1088,7 +1093,11 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.Equal(t, 1, len(stub.markPendingCalls))
 	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
-	testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-manifest")
+	testastic.AssertFile(
+		t,
+		"testdata/release_reuses_single_pending_p_r/pull_request_body.expected.md",
+		result.PullRequest.Body,
+	)
 }
 
 func TestReleasePRCarriesReviewers(t *testing.T) {
@@ -1139,8 +1148,12 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 	// then: release fails fast with actionable pending PR details
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, ErrMultiplePendingReleasePRs)
-	testastic.ErrorContains(t, err, "https://example.com/pr/1")
-	testastic.ErrorContains(t, err, "https://example.com/pr/2")
+	testastic.Equal(
+		t,
+		"multiple pending release PRs found: #1 https://example.com/pr/1, #2 "+
+			"https://example.com/pr/2",
+		err.Error(),
+	)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.updatePRCalls)
 }
@@ -1171,11 +1184,16 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.Equal(t, 1, stub.updateFilesCalls)
 		testastic.Equal(t, "chore: release "+result.Plans[0].NextVersion, stub.updateFilesMessages[0])
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
-		testastic.Contains(t, result.PullRequest.Body, "Auto-generated preview")
-		testastic.Contains(t, result.PullRequest.Body, "<!-- yeet-release-manifest")
-		testastic.NotContains(t, result.PullRequest.Body, "BEGIN_YEET_RELEASE_NOTES")
-		testastic.NotContains(t, result.Plans[0].Changelog,
-			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._")
+		testastic.AssertFile(
+			t,
+			"testdata/release_subject_formatting/default_subject_omits_branch_and_tag_prefix/pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_subject_formatting/default_subject_omits_branch_and_tag_prefix/plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
@@ -1203,15 +1221,16 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 
 		// then: PR body includes custom wrapper text while changelog content stays clean
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, result.PullRequest.Body, cfg.Release.PRBodyHeader+"\n\n")
-		testastic.HasSuffix(t, strings.TrimSpace(result.PullRequest.Body), cfg.Release.PRBodyFooter)
-		testastic.NotContains(
+		testastic.AssertFile(
 			t,
+			"testdata/release_subject_formatting/custom_header_and_footer_wrap_p_r_body_only/pull_request_body.expected.md",
 			result.PullRequest.Body,
-			"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		)
-		testastic.NotContains(t, result.Plans[0].Changelog, cfg.Release.PRBodyHeader)
-		testastic.NotContains(t, result.Plans[0].Changelog, cfg.Release.PRBodyFooter)
+		testastic.AssertFile(
+			t,
+			"testdata/release_subject_formatting/custom_header_and_footer_wrap_p_r_body_only/plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 	})
 }
 
@@ -1240,20 +1259,12 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		stub := newProviderStub()
 		existing := &provider.PullRequest{Branch: "yeet/release-main"}
-		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = strings.TrimSpace(`# Changelog
-
-## api-v1.2.3 (2026-03-01)
-
-### Features
-
-- add API feature (abc1234)
-
-## web-v2.3.4 (2026-03-01)
-
-### Bug Fixes
-
-- fix web bug (def5678)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"reads_a_shared_release_branch_changelog_once/existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
@@ -1326,14 +1337,29 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// then: the PR body tells users to edit the changelog and has no editable notes block
 		testastic.NoError(t, err)
-		testastic.Contains(t, result.PullRequest.Body, "edit `CHANGELOG.md` to customize release notes")
-		testastic.Contains(t, result.PullRequest.Body, "Auto-generated preview")
-		testastic.NotContains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
-		testastic.NotContains(t, result.PullRequest.Body, "<!-- END_YEET_RELEASE_NOTES -->")
-		testastic.NotContains(t, result.Plans[0].Changelog, "BEGIN_YEET_RELEASE_NOTES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"new_release_p_r_includes_changelog_guidance_without_editable_notes_markers/"+
+				"pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"new_release_p_r_includes_changelog_guidance_without_editable_notes_markers/"+
+				"plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
-		testastic.NotContains(t, updatedChangelog, "BEGIN_YEET_RELEASE_NOTES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"new_release_p_r_includes_changelog_guidance_without_editable_notes_markers/"+
+				"updated_changelog.expected.md",
+			updatedChangelog,
+		)
 	})
 
 	t.Run("existing release PR body notes are ignored when updating changelog", func(t *testing.T) {
@@ -1342,19 +1368,12 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		// given: an existing pending release PR with old manually edited markdown notes
 		cfg := config.Default()
 
-		manualNotes := strings.TrimSpace(`### Action Required
-
-Set the provider explicitly for custom hosts:
-
-` + "```yaml" + `
-provider: github
-repository:
-  github:
-    host: github.company.com
-    owner: platform
-    repo: app
-` + "```" + `
-`)
+		manualNotes := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_p_r_body_notes_are_ignored_when_updating_changelog/"+
+				"manual_notes.input.md",
+		))
 
 		existingPR := &provider.PullRequest{
 			Number: 42,
@@ -1382,14 +1401,29 @@ repository:
 		// then: old PR body notes do not affect the generated changelog entry
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, stub.updatePRCalls)
-		testastic.NotContains(t, result.PullRequest.Body, "<!-- BEGIN_YEET_RELEASE_NOTES -->")
-		testastic.NotContains(t, result.PullRequest.Body, manualNotes)
-		testastic.NotContains(t, result.Plans[0].Changelog, manualNotes)
-		testastic.NotContains(t, result.Plans[0].Changelog, "BEGIN_YEET_RELEASE_NOTES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_p_r_body_notes_are_ignored_when_updating_changelog/"+
+				"pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_p_r_body_notes_are_ignored_when_updating_changelog/"+
+				"plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
-		testastic.NotContains(t, updatedChangelog, manualNotes)
-		testastic.NotContains(t, updatedChangelog, "BEGIN_YEET_RELEASE_NOTES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_p_r_body_notes_are_ignored_when_updating_changelog/"+
+				"updated_changelog.expected.md",
+			updatedChangelog,
+		)
 	})
 
 	t.Run("existing release branch changelog manual section is preserved on rerun", func(t *testing.T) {
@@ -1397,8 +1431,6 @@ repository:
 
 		// given: an existing pending release PR whose release branch changelog was manually edited
 		cfg := config.Default()
-		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
-
 		existingPR := &provider.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
@@ -1414,16 +1446,13 @@ repository:
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
-		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch bug (abcdef1)
-
-` + manualNotes + `
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_changelog_manual_section_is_preserved_on_rerun/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1432,11 +1461,29 @@ repository:
 
 		// then: manual changelog-only content remains in the updated changelog entry
 		testastic.NoError(t, err)
-		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_changelog_manual_section_is_preserved_on_rerun/"+
+				"plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
-		testastic.Contains(t, updatedChangelog, manualNotes)
-		testastic.Contains(t, result.PullRequest.Body, manualNotes)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_changelog_manual_section_is_preserved_on_rerun/"+
+				"updated_changelog.expected.md",
+			updatedChangelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_changelog_manual_section_is_preserved_on_rerun/"+
+				"pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
 	})
 
 	t.Run("existing release branch manual section is preserved when planned tag changes", func(t *testing.T) {
@@ -1444,8 +1491,6 @@ repository:
 
 		// given: a patch release PR with manual notes and a new feature commit that raises the planned version
 		cfg := config.Default()
-		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
-
 		existingPR := &provider.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
@@ -1461,16 +1506,13 @@ repository:
 			Hash:    "abcdef1234567890",
 			Message: "feat: add release automation",
 		}}
-		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## v1.2.4 (2026-03-01)
-
-### Bug Fixes
-
-- patch bug (1234567)
-
-` + manualNotes + `
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_manual_section_is_preserved_when_planned_tag_changes/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1480,8 +1522,20 @@ repository:
 		// then: the old manifest tag locates and preserves manual notes in the new minor release entry
 		testastic.NoError(t, err)
 		testastic.Equal(t, "v1.3.0", result.Plans[0].NextTag)
-		testastic.Contains(t, result.Plans[0].Changelog, manualNotes)
-		testastic.Contains(t, stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)], manualNotes)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_manual_section_is_preserved_when_planned_tag_changes/"+
+				"plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"existing_release_branch_manual_section_is_preserved_when_planned_tag_changes/"+
+				"updated_changelog.expected.md",
+			stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)],
+		)
 	})
 }
 
@@ -1514,13 +1568,18 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 
-		canonicalCompareURL := stub.CompareURL("v1.2.3", "v1.2.4")
-		prCompareURL := stub.CompareURL("v1.2.3", headSHA)
-
-		testastic.Contains(t, result.Plans[0].Changelog, canonicalCompareURL)
-		testastic.NotContains(t, result.Plans[0].Changelog, prCompareURL)
-		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
-		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"github_compare_link_uses_latest_commit_sha_in_p_r_body/plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"github_compare_link_uses_latest_commit_sha_in_p_r_body/pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
@@ -1554,13 +1613,18 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 
-		canonicalCompareURL := stub.CompareURL("v1.2.3", "v1.2.4")
-		prCompareURL := stub.CompareURL("v1.2.3", headSHA)
-
-		testastic.Contains(t, result.Plans[0].Changelog, canonicalCompareURL)
-		testastic.NotContains(t, result.Plans[0].Changelog, prCompareURL)
-		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
-		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"gitlab_compare_link_uses_latest_commit_sha_in_p_r_body/plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"gitlab_compare_link_uses_latest_commit_sha_in_p_r_body/pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
@@ -1607,20 +1671,13 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Body:   manifest,
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = strings.TrimSpace(`# Changelog
-
-## api-v1.2.3 (2026-03-01)
-
-### Features
-
-- add API feature (abc1234)
-
-## web-v2.3.4 (2026-03-01)
-
-### Bug Fixes
-
-- fix web bug (def5678)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"reads_a_shared_changelog_once_for_multiple_releases/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1630,10 +1687,18 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: each release gets its entry from one shared changelog read
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(releases))
-		testastic.Contains(t, releases[0].Body, "add API feature")
-		testastic.NotContains(t, releases[0].Body, "fix web bug")
-		testastic.Contains(t, releases[1].Body, "fix web bug")
-		testastic.NotContains(t, releases[1].Body, "add API feature")
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"reads_a_shared_changelog_once_for_multiple_releases/release_0_body.expected.md",
+			releases[0].Body,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"reads_a_shared_changelog_once_for_multiple_releases/release_1_body.expected.md",
+			releases[1].Body,
+		)
 		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
 	})
 
@@ -1650,20 +1715,13 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-
-## [v1.2.2](https://example.com/compare/v1.2.1...v1.2.2) (2026-02-20)
-
-### Bug Fixes
-
-- fix bug (def5678)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_release_from_latest_changelog_entry_and_marks_p_r_tagged/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1680,8 +1738,13 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
-		testastic.Contains(t, releases[0].Body, "## [v1.2.3]")
-		testastic.NotContains(t, releases[0].Body, "## [v1.2.2]")
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_release_from_latest_changelog_entry_and_marks_p_r_tagged/"+
+				"release_0_body.expected.md",
+			releases[0].Body,
+		)
 	})
 
 	t.Run("ignores merged PR body release notes when changelog was not updated", func(t *testing.T) {
@@ -1690,18 +1753,12 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// given: a merged pending release PR with old manual notes that were not committed to CHANGELOG.md
 		cfg := config.Default()
 
-		manualNotes := strings.TrimSpace(`### Action Required
-
-Set the provider explicitly for custom hosts:
-
-` + "```yaml" + `
-provider: gitlab
-repository:
-  gitlab:
-    host: gitlab.company.com
-    project: group/subgroup/app
-` + "```" + `
-`)
+		manualNotes := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"ignores_merged_p_r_body_release_notes_when_changelog_was_not_updated/"+
+				"manual_notes.input.md",
+		))
 
 		manifest := testManifestBody(t, "v1.2.3", cfg.Changelog.File)
 		stub := newProviderStub()
@@ -1713,14 +1770,13 @@ repository:
 				"\n<!-- END_YEET_RELEASE_NOTES -->\n\n" + manifest,
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"ignores_merged_p_r_body_release_notes_when_changelog_was_not_updated/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1730,9 +1786,13 @@ repository:
 		// then: provider release notes come only from the matching changelog entry
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Contains(t, releases[0].Body, "### Features")
-		testastic.NotContains(t, releases[0].Body, manualNotes)
-		testastic.NotContains(t, releases[0].Body, "BEGIN_YEET_RELEASE_NOTES")
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"ignores_merged_p_r_body_release_notes_when_changelog_was_not_updated/"+
+				"release_0_body.expected.md",
+			releases[0].Body,
+		)
 	})
 
 	t.Run("includes manual changelog notes in provider release", func(t *testing.T) {
@@ -1740,7 +1800,6 @@ repository:
 
 		// given: a merged pending release PR with manual notes committed to CHANGELOG.md
 		cfg := config.Default()
-		manualNotes := "### Migration Notes\n\nRun database migrations before deploying workers."
 		manifest := gitLabNormalizeYeetMarkers(testManifestBody(t, "v1.2.3", cfg.Changelog.File))
 
 		stub := newProviderStub()
@@ -1750,16 +1809,13 @@ repository:
 			Body:   "## Release\n\n" + manifest,
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-
-` + manualNotes + `
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"includes_manual_changelog_notes_in_provider_release/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1769,7 +1825,12 @@ repository:
 		// then: the release is created with the manual changelog notes
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Contains(t, releases[0].Body, manualNotes)
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"includes_manual_changelog_notes_in_provider_release/release_0_body.expected.md",
+			releases[0].Body,
+		)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 	})
 
@@ -1788,14 +1849,12 @@ repository:
 				"### Upgrade notes\n\nRestart workers after deploying.\n\n" + manifest,
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"ignores_malformed_old_p_r_body_notes_block/existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1806,7 +1865,11 @@ repository:
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
 		testastic.Equal(t, 1, stub.createReleaseCalls)
-		testastic.NotContains(t, releases[0].Body, "Upgrade notes")
+		testastic.AssertFile(
+			t,
+			"testdata/finalize_merged_release_p_r/ignores_malformed_old_p_r_body_notes_block/release_0_body.expected.md",
+			releases[0].Body,
+		)
 	})
 
 	t.Run("rejects manifest from unexpected release branch", func(t *testing.T) {
@@ -1822,14 +1885,13 @@ repository:
 			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-v1.2.3",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"rejects_manifest_from_unexpected_release_branch/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1920,14 +1982,13 @@ repository:
 			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch: "yeet/release-main",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_missing_release_when_tag_already_exists/"+
+				"existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1958,14 +2019,12 @@ repository:
 			Branch:         "yeet/release-main",
 			MergeCommitSHA: "merged-sha",
 		}
-		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(`# Changelog
-
-## [v1.2.3](https://example.com/compare/v1.2.2...v1.2.3) (2026-03-01)
-
-### Features
-
-- add feature (abc1234)
-`)
+		existingChangelog := strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_missing_tag_from_merged_commit_ref/existing_changelog.input.md",
+		))
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -2066,12 +2125,11 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "0.1.0",
 				NextTag:     "v0.1.0",
-				Changelog: strings.TrimSpace(`## v0.1.0 (2026-03-01)
-
-### Features
-
-- initial release (abc1234)
-`),
+				Changelog: strings.TrimSpace(readTestFile(
+					t,
+					"testdata/update_release_branch_files/"+
+						"creates_missing_changelog_with_top_level_header/changelog.input.md",
+				)),
 			}},
 		}
 
@@ -2082,14 +2140,12 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.NoError(t, err)
 
 		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.Equal(t, strings.TrimSpace(`# Changelog
-
-## v0.1.0 (2026-03-01)
-
-### Features
-
-- initial release (abc1234)
-`), strings.TrimSpace(updated))
+		testastic.AssertFile(
+			t,
+			"testdata/update_release_branch_files/creates_missing_changelog_with_top_level_header/"+
+				"changelog.expected.md",
+			strings.TrimSpace(updated),
+		)
 		testastic.False(t, stub.updates[0].exists)
 	})
 
@@ -2290,12 +2346,12 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		stub := newProviderStub()
 		branch := "yeet/release-v0.1.1"
 		changelogPath := providerFileKey(cfg.Branch, cfg.Changelog.File)
-		stub.files[changelogPath] = strings.TrimSpace(`## [v0.1.0](https://example.com/compare/v0.0.9...v0.1.0) (2026-03-01)
-
-### Features
-
-- first release entry (abc1234)
-`)
+		stub.files[changelogPath] = strings.TrimSpace(readTestFile(
+			t,
+			"testdata/update_release_branch_files/"+
+				"prepends_changelog_entry_and_normalizes_headerless_history/"+
+				"existing_changelog.input.md",
+		))
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -2304,12 +2360,12 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "0.1.1",
 				NextTag:     "v0.1.1",
-				Changelog: strings.TrimSpace(`## [v0.1.1](https://example.com/compare/v0.1.0...v0.1.1) (2026-03-02)
-
-### Bug Fixes
-
-- follow-up fix (def5678)
-`),
+				Changelog: strings.TrimSpace(readTestFile(
+					t,
+					"testdata/update_release_branch_files/"+
+						"prepends_changelog_entry_and_normalizes_headerless_history/"+
+						"changelog.input.md",
+				)),
 			}},
 		}
 
@@ -2350,21 +2406,21 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 			Plans: []TargetPlan{
 				{
 					ID: "api",
-					Changelog: strings.TrimSpace(`## [api-v1.3.0](https://example.com/compare/api-v1.2.0...api1234) (2026-03-21)
-
-### Features
-
-- add token rotation (api1234)
-`),
+					Changelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/update_release_branch_files/"+
+							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
+							"api_changelog.input.md",
+					)),
 				},
 				{
 					ID: "web",
-					Changelog: strings.TrimSpace(`## [web-v2.1.4](https://example.com/compare/web-v2.1.3...web5678) (2026-03-21)
-
-### Bug Fixes
-
-- fix dashboard filters (web5678)
-`),
+					Changelog: strings.TrimSpace(readTestFile(
+						t,
+						"testdata/update_release_branch_files/"+
+							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
+							"web_changelog.input.md",
+					)),
 				},
 			},
 		}
@@ -2501,8 +2557,13 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "api", result.Plans[0].ID)
 		testastic.Equal(t, "root", result.Plans[1].ID)
 		testastic.Equal(t, "v3.1.0", result.Plans[1].NextTag)
-		testastic.NotContains(t, result.Plans[1].Changelog, "landing page")
-		testastic.NotContains(t, result.Plans[1].Changelog, "dashboard")
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_child_targets_still_compute_derived_targets_without_unselected_direct_commits/"+
+				"plan_1_changelog.expected.md",
+			result.Plans[1].Changelog,
+		)
 	})
 
 	t.Run("selected derived target analyzes included child targets without emitting them", func(t *testing.T) {
@@ -2548,7 +2609,13 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "v3.1.0", result.Plans[0].NextTag)
 		testastic.Equal(t, 1, result.Plans[0].CommitCount)
 		testastic.SliceEqual(t, []string{"api"}, result.Plans[0].IncludedTargets)
-		testastic.Contains(t, result.Plans[0].Changelog, "token rotation")
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_target_analyzes_included_child_targets_without_emitting_them/"+
+				"plan_0_changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 	})
 
 	t.Run("selected derived target PR compare link uses newest child sha", func(t *testing.T) {
@@ -2610,16 +2677,20 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "root", result.Plans[0].ID)
 		testastic.Equal(t, 2, result.Plans[0].CommitCount)
 
-		prCompareURL := stub.CompareURL("v3.0.0", webSHA)
-		staleChildCompareURL := stub.CompareURL("v3.0.0", apiSHA)
-		canonicalCompareURL := stub.CompareURL("v3.0.0", "v3.1.0")
-
-		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
-		testastic.NotContains(t, result.Plans[0].PRChangelog, staleChildCompareURL)
-		testastic.NotContains(t, result.Plans[0].PRChangelog, canonicalCompareURL)
-		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
-		testastic.NotContains(t, result.PullRequest.Body, staleChildCompareURL)
-		testastic.NotContains(t, result.PullRequest.Body, canonicalCompareURL)
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_target_p_r_compare_link_uses_newest_child_sha/"+
+				"plan_0_pr_changelog.expected.md",
+			result.Plans[0].PRChangelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_target_p_r_compare_link_uses_newest_child_sha/"+
+				"pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
 	})
 
 	t.Run("selected derived target PR compare link prefers newer child sha over older direct sha", func(t *testing.T) {
@@ -2675,13 +2746,20 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "root", result.Plans[0].ID)
 		testastic.Equal(t, apiSHA, result.Plans[0].PRCompareRef)
 
-		prCompareURL := stub.CompareURL("v3.0.0", apiSHA)
-		staleDirectCompareURL := stub.CompareURL("v3.0.0", rootSHA)
-
-		testastic.Contains(t, result.Plans[0].PRChangelog, prCompareURL)
-		testastic.NotContains(t, result.Plans[0].PRChangelog, staleDirectCompareURL)
-		testastic.Contains(t, result.PullRequest.Body, prCompareURL)
-		testastic.NotContains(t, result.PullRequest.Body, staleDirectCompareURL)
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_target_p_r_compare_link_prefers_newer_child_sha_over_older_direct_sha/"+
+				"plan_0_pr_changelog.expected.md",
+			result.Plans[0].PRChangelog,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_target_p_r_compare_link_prefers_newer_child_sha_over_older_direct_sha/"+
+				"pull_request_body.expected.md",
+			result.PullRequest.Body,
+		)
 	})
 
 	t.Run("selected derived and child targets emit only explicitly selected path targets", func(t *testing.T) {
@@ -2727,7 +2805,12 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "api", result.Plans[0].ID)
 		testastic.Equal(t, "root", result.Plans[1].ID)
 		testastic.SliceEqual(t, []string{"api", "web"}, result.Plans[1].IncludedTargets)
-		testastic.Contains(t, result.Plans[1].Changelog, "token rotation")
-		testastic.Contains(t, result.Plans[1].Changelog, "patch dashboard")
+		testastic.AssertFile(
+			t,
+			"testdata/release_targets_monorepo/"+
+				"selected_derived_and_child_targets_emit_only_explicitly_selected_path_targets/"+
+				"plan_1_changelog.expected.md",
+			result.Plans[1].Changelog,
+		)
 	})
 }

@@ -1,0 +1,15 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+release:
+  pr_body_header: "## Custom Release Header"
+  pr_body_footer: "_yeet release footer_"
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

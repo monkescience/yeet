@@ -27,11 +27,11 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that wraps prose in an x-yeet-start-version block
-		fileContent := "# x-yeet-start-version\n" +
-			"This release is 1.0.0 and supersedes the previous one.\n" +
-			"# x-yeet-end\n"
-
-		files := map[string]string{"VERSION.txt": fileContent}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_blocks/"+
+				"github_replaces_semver_inside_an_x_yeet_start/end_block/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -67,9 +67,11 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt whose x-yeet-start block has no matching x-yeet-end
-		files := map[string]string{
-			"VERSION.txt": "# x-yeet-start-version\nThis is 1.0.0 and the block is never closed.\n",
-		}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_blocks/"+
+				"github_rejects_an_unclosed_x_yeet_start_block/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -99,19 +101,23 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the unclosed block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "unclosed x-yeet-start block")
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_blocks/github_rejects_an_unclosed_x_yeet_start_block/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects nested x-yeet-start markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that opens a second block inside an already-open one
-		fileContent := "# x-yeet-start-version\n" +
-			"version 1.0.0\n" +
-			"# x-yeet-start-major\n" +
-			"# x-yeet-end\n"
-
-		files := map[string]string{"VERSION.txt": fileContent}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_blocks/"+
+				"github_rejects_nested_x_yeet_start_markers/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -141,14 +147,23 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the nested block
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "nested x-yeet-start")
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_blocks/github_rejects_nested_x_yeet_start_markers/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects a file that has no yeet markers", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt with no markers at all
-		files := map[string]string{"VERSION.txt": "1.0.0\n"}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_blocks/"+
+				"github_rejects_a_file_that_has_no_yeet_markers/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -178,7 +193,12 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the missing markers
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "no yeet markers")
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_blocks/github_rejects_a_file_that_has_no_yeet_markers/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -189,11 +209,11 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that breaks the version across major/minor/patch markers
-		fileContent := "major: 1  # x-yeet-major\n" +
-			"minor: 0  # x-yeet-minor\n" +
-			"patch: 0  # x-yeet-patch\n"
-
-		files := map[string]string{"VERSION.txt": fileContent}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_semver_scopes/"+
+				"github_updates_major__minor_and_patch_inline_markers/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -229,7 +249,11 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		t.Parallel()
 
 		// given: a VERSION.txt that uses `x-yeet-year` under a semver scheme
-		files := map[string]string{"VERSION.txt": "year: 2026  # x-yeet-year\n"}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_version_file_semver_scopes/"+
+				"github_surfaces_semver_suggestion_for_a_calver_only_marker/VERSION.txt",
+		)}
 		repoDir, shas := versionFileHistory(t, files)
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -259,7 +283,12 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 
 		// then: yeet exits 1 and stderr suggests x-yeet-major
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, `use "x-yeet-major"`)
+		testastic.AssertFile(
+			t,
+			"testdata/release_version_file_semver_scopes/"+
+				"github_surfaces_semver_suggestion_for_a_calver_only_marker/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -270,7 +299,11 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver config with a week-based format and an x-yeet-minor marker
-		files := map[string]string{"VERSION.txt": "minor: 5  # x-yeet-minor\n"}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_cal_ver_marker_suggestions/"+
+				"week_format_suggests_x_yeet_week_for_x_yeet_minor/VERSION.txt",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release", Tag: "v2026.05.0"},
@@ -306,19 +339,23 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 
 		// then: yeet rejects the marker and suggests x-yeet-week
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, `use "x-yeet-week"`)
+		testastic.AssertFile(
+			t,
+			"testdata/release_cal_ver_marker_suggestions/"+
+				"week_format_suggests_x_yeet_week_for_x_yeet_minor/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("day-aware format substitutes the x-yeet-day marker", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver format that exposes year/month/day/micro markers
-		fileContent := "year: 2026  # x-yeet-year\n" +
-			"month: 05  # x-yeet-month\n" +
-			"day: 14    # x-yeet-day\n" +
-			"micro: 0   # x-yeet-micro\n"
-
-		files := map[string]string{"VERSION.txt": fileContent}
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release_cal_ver_marker_suggestions/"+
+				"day_aware_format_substitutes_the_x_yeet_day_marker/VERSION.txt",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: bootstrap"},

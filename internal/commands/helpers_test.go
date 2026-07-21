@@ -133,7 +133,13 @@ func TestResolveRepository(t *testing.T) {
 		// then: resolution reports an unsupported host with remediation
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
-		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
+		testastic.Equal(
+			t,
+			"resolve repository provider for host \"code.company.com\": unsupported remote host: "+
+				"code.company.com; auto-detection only supports github.com, gitlab.com, and "+
+				"dev.azure.com; set provider, [repository], or pass explicit flags for custom domains",
+			err.Error(),
+		)
 	})
 
 	t.Run("fails on github custom host without explicit provider", func(t *testing.T) {
@@ -154,7 +160,13 @@ func TestResolveRepository(t *testing.T) {
 		// then: github custom hosts require an explicit provider override
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
-		testastic.ErrorContains(t, err, "set provider, [repository], or pass explicit flags")
+		testastic.Equal(
+			t,
+			"resolve repository provider for host \"github.company.com\": unsupported remote host: "+
+				"github.company.com; auto-detection only supports github.com, gitlab.com, and "+
+				"dev.azure.com; set provider, [repository], or pass explicit flags for custom domains",
+			err.Error(),
+		)
 	})
 
 	t.Run("honors explicit provider on unknown host", func(t *testing.T) {
@@ -565,7 +577,12 @@ func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
 
 	// then: the error names both supported environment variables
 	testastic.Error(t, err)
-	testastic.ErrorContains(t, err, "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT")
+	testastic.Equal(
+		t,
+		"missing auth token: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT environment "+
+			"variable is required",
+		err.Error(),
+	)
 }
 
 func TestGetGitRemoteURL(t *testing.T) {
@@ -663,7 +680,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		testastic.Equal(t, "", remoteURL)
 		testastic.Error(t, getErr)
 		testastic.ErrorIs(t, getErr, ErrGitRemoteNotFound)
-		testastic.ErrorContains(t, getErr, `"origin"`)
+		testastic.Equal(t, "git remote not found: \"origin\"", getErr.Error())
 	})
 }
 
@@ -682,15 +699,24 @@ func TestCurrentGitBranch(t *testing.T) {
 		testastic.Equal(t, "release/2026", branch)
 	})
 
-	for name, ref := range map[string]string{
-		"rejects Azure Pipelines pull request ref": "refs/pull/123/merge",
-		"rejects Azure Pipelines tag ref":          "refs/tags/v1.2.3",
+	for name, testCase := range map[string]struct {
+		ref       string
+		wantError string
+	}{
+		"rejects Azure Pipelines pull request ref": {
+			ref:       "refs/pull/123/merge",
+			wantError: `ci ref is not a branch: "refs/pull/123/merge"`,
+		},
+		"rejects Azure Pipelines tag ref": {
+			ref:       "refs/tags/v1.2.3",
+			wantError: `ci ref is not a branch: "refs/tags/v1.2.3"`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			// given: an Azure Pipelines source ref that is not a branch
 			t.Chdir(t.TempDir())
 			clearBranchEnv(t)
-			t.Setenv("BUILD_SOURCEBRANCH", ref)
+			t.Setenv("BUILD_SOURCEBRANCH", testCase.ref)
 
 			// when: resolving the current branch
 			branch, err := currentGitBranch(context.Background())
@@ -698,16 +724,25 @@ func TestCurrentGitBranch(t *testing.T) {
 			// then: the ref is rejected instead of being returned as a branch
 			testastic.Equal(t, "", branch)
 			testastic.Error(t, err)
-			testastic.ErrorContains(t, err, "not a branch")
+			testastic.Equal(t, testCase.wantError, err.Error())
 		})
 	}
 
 	for name, refs := range map[string]struct {
-		full string
-		name string
+		full      string
+		name      string
+		wantError string
 	}{
-		"rejects GitHub Actions pull request ref": {full: "refs/pull/123/merge", name: "123/merge"},
-		"rejects GitHub Actions tag ref":          {full: "refs/tags/v1.2.3", name: "v1.2.3"},
+		"rejects GitHub Actions pull request ref": {
+			full:      "refs/pull/123/merge",
+			name:      "123/merge",
+			wantError: `ci ref is not a branch: "refs/pull/123/merge"`,
+		},
+		"rejects GitHub Actions tag ref": {
+			full:      "refs/tags/v1.2.3",
+			name:      "v1.2.3",
+			wantError: `ci ref is not a branch: "refs/tags/v1.2.3"`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			// given: a GitHub Actions ref that is not a branch
@@ -722,7 +757,7 @@ func TestCurrentGitBranch(t *testing.T) {
 			// then: the ref is rejected instead of its short name being returned as a branch
 			testastic.Equal(t, "", branch)
 			testastic.Error(t, err)
-			testastic.ErrorContains(t, err, "not a branch")
+			testastic.Equal(t, refs.wantError, err.Error())
 		})
 	}
 }

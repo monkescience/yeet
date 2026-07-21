@@ -15,13 +15,14 @@ import (
 )
 
 type providerContractHarness struct {
-	name                 string
-	newProvider          func(t *testing.T, server *httptest.Server) provider.Provider
-	handler              func(t *testing.T, scenario providerContractScenario) http.Handler
-	expectedRepoURL      func(serverURL string) string
-	expectedReleasePRURL func(serverURL string) string
-	expectedReleaseURL   func(serverURL string) string
-	expectedPathPrefix   string
+	name                  string
+	newProvider           func(t *testing.T, server *httptest.Server) provider.Provider
+	handler               func(t *testing.T, scenario providerContractScenario) http.Handler
+	expectedRepoURL       func(serverURL string) string
+	expectedReleasePRURL  func(serverURL string) string
+	expectedReleaseURL    func(serverURL string) string
+	expectedReviewerError string
+	expectedPathPrefix    string
 }
 
 type providerContractScenario string
@@ -230,7 +231,7 @@ func TestProviderContract(t *testing.T) {
 				// then: the error names the reviewer and wraps the not-found sentinel
 				testastic.Error(t, err)
 				testastic.ErrorIs(t, err, provider.ErrReviewerNotFound)
-				testastic.ErrorContains(t, err, providerContractUnknownReviewerName)
+				testastic.Equal(t, harness.expectedReviewerError, err.Error())
 			})
 
 			t.Run("updates release pull request", func(t *testing.T) {
@@ -505,22 +506,24 @@ func TestProviderContract(t *testing.T) {
 func providerContractHarnesses() []providerContractHarness {
 	return []providerContractHarness{
 		{
-			name:                 "github",
-			newProvider:          newGitHubContractProvider,
-			handler:              newGitHubContractHandler,
-			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
-			expectedReleaseURL:   func(_ string) string { return "https://example.com/releases/v1.2.3" },
-			expectedPathPrefix:   "",
+			name:                  "github",
+			newProvider:           newGitHubContractProvider,
+			handler:               newGitHubContractHandler,
+			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL:  func(_ string) string { return "https://example.com/pulls/42" },
+			expectedReleaseURL:    func(_ string) string { return "https://example.com/releases/v1.2.3" },
+			expectedReviewerError: `reviewer not found: "ghost" is not a repository collaborator`,
+			expectedPathPrefix:    "",
 		},
 		{
-			name:                 "gitlab",
-			newProvider:          newGitLabContractProvider,
-			handler:              newGitLabContractHandler,
-			expectedRepoURL:      func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL: func(_ string) string { return "https://example.com/pulls/42" },
-			expectedReleaseURL:   func(_ string) string { return "https://example.com/releases/v1.2.3" },
-			expectedPathPrefix:   "/-",
+			name:                  "gitlab",
+			newProvider:           newGitLabContractProvider,
+			handler:               newGitLabContractHandler,
+			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL:  func(_ string) string { return "https://example.com/pulls/42" },
+			expectedReleaseURL:    func(_ string) string { return "https://example.com/releases/v1.2.3" },
+			expectedReviewerError: `reviewer not found: "ghost" is not a project member`,
+			expectedPathPrefix:    "/-",
 		},
 		{
 			name:                 "azuredevops",
@@ -531,7 +534,8 @@ func providerContractHarnesses() []providerContractHarness {
 			expectedReleaseURL: func(s string) string {
 				return azureDevOpsContractExpectedRepoURL(s) + "?version=GT" + providerContractTag
 			},
-			expectedPathPrefix: "",
+			expectedReviewerError: `reviewer not found: "ghost"`,
+			expectedPathPrefix:    "",
 		},
 	}
 }

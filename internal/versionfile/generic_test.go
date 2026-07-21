@@ -241,7 +241,12 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
 		testastic.False(t, changed)
 		testastic.Equal(t, content, updated)
-		testastic.True(t, strings.Contains(err.Error(), `x-yeet-patch`))
+		testastic.Equal(
+			t,
+			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
+				"valid for semver; use \"x-yeet-patch\"",
+			err.Error(),
+		)
 	})
 }
 
@@ -400,7 +405,12 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
 		testastic.False(t, changed)
 		testastic.Equal(t, content, updated)
-		testastic.True(t, strings.Contains(err.Error(), `x-yeet-year`))
+		testastic.Equal(
+			t,
+			"yeet marker scope not valid for configured scheme: \"x-yeet-major\" at line 1 is not "+
+				"valid for calver format \"YYYY.0M.MICRO\"; use \"x-yeet-year\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("day marker in format without day token returns mismatch error", func(t *testing.T) {
@@ -416,7 +426,12 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
 		testastic.False(t, changed)
 		testastic.Equal(t, content, updated)
-		testastic.True(t, strings.Contains(err.Error(), `calver format`))
+		testastic.Equal(
+			t,
+			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
+				"valid for calver format \"YYYY.0M.MICRO\"; the configured calver format has no day token",
+			err.Error(),
+		)
 	})
 
 	t.Run("month marker substitutes first numeric on lines with multiple numbers", func(t *testing.T) {

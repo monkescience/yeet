@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 1.1.0 (minor)
+  Tag               v1.1.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- add a thing ([90e0bd1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/90e0bd177fbb250e603b55c243391d036c1791a9))
+{{regex `^$`}}

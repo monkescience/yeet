@@ -1,0 +1,12 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: "   "
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

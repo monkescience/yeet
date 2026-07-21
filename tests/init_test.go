@@ -8,9 +8,6 @@ import (
 	"github.com/monkescience/testastic"
 )
 
-const schemaDirective = "# yaml-language-server: $schema=" +
-	"https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json"
-
 func TestInit(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +27,11 @@ func TestInit(t *testing.T) {
 
 		content, err := os.ReadFile(configPath)
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, string(content), schemaDirective+"\n")
+		testastic.AssertFile(
+			t,
+			"testdata/init/writes_config_at_the_explicit___config_path/config.expected.yaml",
+			string(content),
+		)
 	})
 
 	t.Run("writes config in the working dir when --config is omitted", func(t *testing.T) {
@@ -47,7 +48,11 @@ func TestInit(t *testing.T) {
 
 		content, err := os.ReadFile(filepath.Join(tempDir, ".yeet.yaml"))
 		testastic.NoError(t, err)
-		testastic.HasPrefix(t, string(content), schemaDirective+"\n")
+		testastic.AssertFile(
+			t,
+			"testdata/init/writes_config_in_the_working_dir_when___config_is_omitted/config.expected.yaml",
+			string(content),
+		)
 	})
 
 	t.Run("fails when the config already exists", func(t *testing.T) {

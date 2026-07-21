@@ -254,7 +254,12 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 	// then: the run fails naming the reviewer GitLab silently dropped
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, provider.ErrReviewerNotApplied)
-	testastic.ErrorContains(t, err, providerContractReviewerBob)
+	testastic.Equal(
+		t,
+		"reviewer not applied: [bob] (multiple merge request reviewers require GitLab Premium or "+
+			"Ultimate)",
+		err.Error(),
+	)
 	testastic.True(t, pendingMarked)
 }
 

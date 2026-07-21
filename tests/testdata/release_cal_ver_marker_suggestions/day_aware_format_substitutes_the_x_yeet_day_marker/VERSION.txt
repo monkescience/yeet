@@ -1,0 +1,4 @@
+year: 2026  # x-yeet-year
+month: 05  # x-yeet-month
+day: 14    # x-yeet-day
+micro: 0   # x-yeet-micro

@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: repository.github.host must not be blank

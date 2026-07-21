@@ -1,0 +1,2 @@
+INFO release analysis complete targets=1
+release execution failed: create release PR: reviewer not found: "ghost" is not a project member

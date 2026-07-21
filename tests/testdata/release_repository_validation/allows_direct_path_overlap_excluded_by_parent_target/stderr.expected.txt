@@ -1,0 +1,1 @@
+provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable is required

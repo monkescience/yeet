@@ -140,8 +140,12 @@ func TestReleaseProviderPagination(t *testing.T) {
 
 		// then: the changelog covers the whole range, including the oldest commit
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "change 001")
-		testastic.Contains(t, result.Stdout, "change 105")
+		testastic.AssertFile(
+			t,
+			"testdata/release_provider_pagination/"+
+				"github_local_history_serves_more_than_100_commits_since_the_tag/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -152,15 +156,12 @@ func TestReleaseExistingOpenPRUpdate(t *testing.T) {
 		t.Parallel()
 
 		// given: an open release PR whose body already contains Features but is stale
-		manifest := "<!-- yeet-release-manifest\n" +
-			`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
-			"\n-->"
-
-		existingBody := "## release\n\n" +
-			"## [v1.1.0](https://example.test/compare/v1.0.0...v1.1.0) (2025-01-01)\n\n" +
-			"### Features\n\n* feat: outdated\n\n" +
-			"### Bug Fixes\n\n* fix: stale entry\n\n" +
-			manifest + "\n"
+		existingBody := readTestFile(
+			t,
+			"testdata/release_existing_open_p_r_update/"+
+				"github_updates_open_release_p_r_while_replacing_c_h_a_n_g_e_l_o_g_sections/"+
+				"existing_pull_request_body.input.md",
+		)
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
@@ -316,7 +317,12 @@ func TestReleaseTargetFilterErrors(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the missing target
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "target")
+		testastic.AssertFile(
+			t,
+			"testdata/release_target_filter_errors/github_rejects___target_naming_an_unknown_target/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -327,13 +333,12 @@ func TestReleaseGitLabExistingPRUpdate(t *testing.T) {
 		t.Parallel()
 
 		// given: an open release MR with stale body
-		manifest := "<!-- yeet-release-manifest\n" +
-			`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
-			"\n-->"
-		existingBody := "## release\n\n" +
-			"## [v1.1.0](https://example.test/compare/v1.0.0...v1.1.0) (2025-01-01)\n\n" +
-			"### Features\n\n* feat: outdated\n\n" +
-			manifest + "\n"
+		existingBody := readTestFile(
+			t,
+			"testdata/release_git_lab_existing_p_r_update/"+
+				"gitlab_updates_open_release_m_r_with_stale_body_sections/"+
+				"existing_pull_request_body.input.md",
+		)
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{

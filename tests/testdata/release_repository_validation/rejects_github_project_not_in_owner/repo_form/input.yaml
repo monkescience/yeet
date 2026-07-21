@@ -1,0 +1,11 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    project: a/b/c
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

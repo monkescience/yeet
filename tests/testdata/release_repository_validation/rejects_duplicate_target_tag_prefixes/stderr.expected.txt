@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: targets.worker.tag_prefix "service-v" duplicates targets.api.tag_prefix

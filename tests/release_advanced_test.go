@@ -32,23 +32,11 @@ func TestReleaseScalarVersionFile(t *testing.T) {
 			Files:         files,
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-version_files:
-  - VERSION.txt
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_scalar_version_file/"+
+				"github_accepts_scalar_shorthand_for_version_files_entries/input.yaml",
+		)
 
 		// when: invoking `yeet release`
 		result := binary.RunWithOptions(t,
@@ -88,28 +76,11 @@ func TestReleasePerTargetOverrides(t *testing.T) {
 			BranchHeadSHA: shas[3],
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-targets:
-  api:
-    type: path
-    path: api/
-    tag_prefix: api-v
-  web:
-    type: path
-    path: web/
-    tag_prefix: web-v
-    versioning: calver
-    calver:
-      format: YYYY.0M.MICRO
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_per_target_overrides/"+
+				"github_honours_per_target_versioning_and_tag_prefix/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -120,8 +91,12 @@ targets:
 
 		// then: yeet plans semver for api/ and calver for web/, exiting 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "api-v")
-		testastic.Contains(t, result.Stdout, "web-v")
+		testastic.AssertFile(
+			t,
+			"testdata/release_per_target_overrides/"+
+				"github_honours_per_target_versioning_and_tag_prefix/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -146,26 +121,11 @@ func TestReleaseCustomBumpTypes(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-bump_types:
-  minor: [feat]
-  patch: [fix, perf, chore]
-changelog:
-  include: [feat, fix, perf, chore]
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_custom_bump_types/"+
+				"github_classifies__chore__as_patch_when_configured_under_bump_types/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -176,8 +136,12 @@ targets:
 
 		// then: yeet bumps the patch version and emits a Miscellaneous Chores section
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "1.0.1")
-		testastic.Contains(t, result.Stdout, "Miscellaneous Chores")
+		testastic.AssertFile(
+			t,
+			"testdata/release_custom_bump_types/"+
+				"github_classifies__chore__as_patch_when_configured_under_bump_types/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -203,29 +167,11 @@ func TestReleaseDerivedExclude(t *testing.T) {
 			BranchHeadSHA: shas[2],
 		})
 
-		const configBody = `provider: github
-branch: main
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-targets:
-  api:
-    type: path
-    path: services/api
-    tag_prefix: api-v
-  root:
-    type: derived
-    path: .
-    tag_prefix: v
-    includes:
-      - api
-    exclude_paths:
-      - services/api
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_derived_exclude/"+
+				"github_derived_target_ignores_path_target_commits_via_exclude_paths/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run --target root`
 		result := binary.RunWithOptions(t,
@@ -236,8 +182,12 @@ targets:
 
 		// then: yeet plans only the root target's commit, exiting 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "root")
-		testastic.Contains(t, result.Stdout, "root change")
+		testastic.AssertFile(
+			t,
+			"testdata/release_derived_exclude/"+
+				"github_derived_target_ignores_path_target_commits_via_exclude_paths/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -262,23 +212,11 @@ func TestReleasePreMajorOverride(t *testing.T) {
 			BranchHeadSHA: shas[1],
 		})
 
-		const configBody = `provider: github
-branch: main
-pre_major_breaking_bumps_minor: false
-pre_major_features_bump_patch: false
-repository:
-  github:
-    host: github.com
-    owner: testorg
-    repo: testrepo
-targets:
-  default:
-    type: path
-    path: .
-    tag_prefix: v
-`
-
-		configPath := writeRawConfig(t, configBody)
+		configPath := absoluteTestFile(
+			t,
+			"testdata/release_pre_major_override/"+
+				"github_respects_pre_major_breaking_bumps_minor_false/input.yaml",
+		)
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -289,6 +227,11 @@ targets:
 
 		// then: the breaking change bumps to v1.0.0 instead of v0.4.0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "1.0.0")
+		testastic.AssertFile(
+			t,
+			"testdata/release_pre_major_override/"+
+				"github_respects_pre_major_breaking_bumps_minor_false/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }

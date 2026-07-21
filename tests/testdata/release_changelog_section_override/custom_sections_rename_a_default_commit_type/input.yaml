@@ -1,0 +1,15 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+changelog:
+  sections:
+    feat: "🚀 Features"
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

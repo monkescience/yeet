@@ -1,0 +1,1 @@
+release execution failed: invalid release-as footer: "2.0.0-rc.1" must be a stable version

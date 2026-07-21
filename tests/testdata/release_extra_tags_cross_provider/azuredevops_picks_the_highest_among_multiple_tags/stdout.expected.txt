@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           1.2.0 → 1.3.0 (minor)
+  Tag               v1.3.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.3.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.2.0&targetVersion=GTv1.3.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- add a thing ([45bfd68](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/45bfd684c80be957f27e3d3d62233ad2f7f852a4))
+{{regex `^$`}}

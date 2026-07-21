@@ -31,14 +31,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		t.Parallel()
 
 		// given: a body with two conventional messages between override markers
-		body := `Release notes:
-
-BEGIN_COMMIT_OVERRIDE
-feat(auth): add OAuth token refresh
-
-fix(api): return 401 for expired sessions
-END_COMMIT_OVERRIDE
-`
+		body := readTestFile(t, "testdata/commit_override_messages/extracts_multiple_conventional_messages/body.input.md")
 
 		// when: parsing the override body
 		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
@@ -56,13 +49,11 @@ END_COMMIT_OVERRIDE
 		t.Parallel()
 
 		// given: an override block with subject, body, and footer
-		body := `BEGIN_COMMIT_OVERRIDE
-feat(auth)!: replace session cookie format
-
-Session cookies now use a keyed format.
-
-BREAKING CHANGE: existing session cookies are invalid after upgrade
-END_COMMIT_OVERRIDE`
+		body := readTestFile(
+			t,
+			"testdata/commit_override_messages/"+
+				"keeps_body_and_footer_lines_with_an_override_message/body.input.md",
+		)
 
 		// when: parsing the override body
 		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
@@ -80,13 +71,11 @@ END_COMMIT_OVERRIDE`
 		t.Parallel()
 
 		// given: a single override commit whose body ends with a git-trailer footer
-		body := `BEGIN_COMMIT_OVERRIDE
-feat(api): add pagination
-
-Adds cursor-based pagination to the list endpoint.
-
-Closes: #45
-END_COMMIT_OVERRIDE`
+		body := readTestFile(
+			t,
+			"testdata/commit_override_messages/"+
+				"keeps_issue_reference_footers_with_their_commit_message/body.input.md",
+		)
 
 		// when: parsing the override body
 		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
@@ -95,7 +84,11 @@ END_COMMIT_OVERRIDE`
 		testastic.NoError(t, err)
 		testastic.True(t, ok)
 		testastic.Equal(t, 1, len(messages))
-		testastic.Contains(t, messages[0], "Closes: #45")
+		testastic.AssertFile(
+			t,
+			"testdata/commit_override_messages/keeps_issue_reference_footers_with_their_commit_message/message.expected.txt",
+			messages[0],
+		)
 	})
 
 	t.Run("rejects missing end marker", func(t *testing.T) {
@@ -141,11 +134,11 @@ END_COMMIT_OVERRIDE`,
 		// then: the override controls both version bump and changelog entries
 		testastic.NoError(t, err)
 		testastic.Equal(t, "1.3.0", result.Plans[0].NextVersion)
-		testastic.Contains(t, result.Plans[0].Changelog, "### Features")
-		testastic.Contains(t, result.Plans[0].Changelog, "- **auth:** add OAuth token refresh")
-		testastic.Contains(t, result.Plans[0].Changelog, "### Bug Fixes")
-		testastic.Contains(t, result.Plans[0].Changelog, "- **api:** return 401 for expired sessions")
-		testastic.NotContains(t, result.Plans[0].Changelog, "auth stuff")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_overrides/override_changes_bump_and_changelog/changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 	})
 
 	t.Run("override can introduce breaking change", func(t *testing.T) {
@@ -176,7 +169,10 @@ END_COMMIT_OVERRIDE`,
 		// then: the breaking override controls the bump and breaking section
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2.0.0", result.Plans[0].NextVersion)
-		testastic.Contains(t, result.Plans[0].Changelog, "### ⚠ BREAKING CHANGES")
-		testastic.Contains(t, result.Plans[0].Changelog, "existing session cookies are invalid after upgrade")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_overrides/override_can_introduce_breaking_change/changelog.expected.md",
+			result.Plans[0].Changelog,
+		)
 	})
 }

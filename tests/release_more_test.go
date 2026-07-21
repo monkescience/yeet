@@ -49,8 +49,13 @@ func TestReleaseCommitOverrideCrossProvider(t *testing.T) {
 
 		// then: the changelog reflects the overridden subjects, not the squashed message
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "overridden first commit")
-		testastic.Contains(t, result.Stdout, "overridden second commit")
+		testastic.AssertFile(
+			t,
+			"testdata/release_commit_override_cross_provider/"+
+				"gitlab_b_e_g_i_n_c_o_m_m_i_t_o_v_e_r_r_i_d_e_block_replaces_squashed_message/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -168,8 +173,12 @@ func TestReleaseBreakingChangePerProvider(t *testing.T) {
 
 		// then: yeet plans v2.0.0 with breaking-changes section
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "2.0.0")
-		testastic.Contains(t, result.Stdout, "BREAKING CHANGES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_breaking_change_per_provider/gitlab_bumps_major_on_breaking_change/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 
 	t.Run("azuredevops bumps major on breaking change", func(t *testing.T) {
@@ -209,7 +218,12 @@ func TestReleaseBreakingChangePerProvider(t *testing.T) {
 
 		// then: yeet emits the breaking-changes section and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stdout, "BREAKING CHANGES")
+		testastic.AssertFile(
+			t,
+			"testdata/release_breaking_change_per_provider/"+
+				"azuredevops_bumps_major_on_breaking_change/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }
 
@@ -220,15 +234,12 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 		t.Parallel()
 
 		// given: a JSON manifest where the target version is the third entry
-		manifest := `{
-  "packages": [
-    {"name": "sibling-a", "version": "9.9.9", "deps": {"x":1, "y":[2,3]}},
-    {"name": "sibling-b", "version": "8.8.8", "tags": ["one", "two"]},
-    {"name": "yeet", "version": "1.0.0"}
-  ]
-}`
-
-		files := map[string]string{"manifest.json": manifest}
+		files := map[string]string{"manifest.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_skip_paths/"+
+				"github_bumps_a_second_array_entry__skipping_earlier_objects/"+
+				"manifest.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -270,8 +281,11 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 		t.Parallel()
 
 		// given: a JSON pointer that references a non-existent array index
-		manifest := `{"packages":[{"version":"1.0.0"}]}`
-		files := map[string]string{"manifest.json": manifest}
+		files := map[string]string{"manifest.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_skip_paths/"+
+				"github_rejects_an_invalid_j_s_o_n_pointer_index/manifest.json",
+		)}
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
@@ -308,14 +322,23 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 
 		// then: yeet exits 1 with a JSON pointer not-found error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "json")
+		testastic.AssertFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_skip_paths/"+
+				"github_rejects_an_invalid_j_s_o_n_pointer_index/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github surfaces malformed JSON in the version file", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a malformed JSON file targeted by the version_files pointer
-		files := map[string]string{"broken.json": `{"version": "1.0.0"`}
+		files := map[string]string{"broken.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_skip_paths/"+
+				"github_surfaces_malformed_j_s_o_n_in_the_version_file/broken.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -351,7 +374,12 @@ func TestReleaseJSONPointerSkipPaths(t *testing.T) {
 
 		// then: yeet exits 1 with a JSON parsing error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "json")
+		testastic.AssertFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_skip_paths/"+
+				"github_surfaces_malformed_j_s_o_n_in_the_version_file/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
 
@@ -362,7 +390,11 @@ func TestReleaseJSONPointerProviders(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab repo with package.json /version
-		files := map[string]string{"package.json": `{"name":"yeet","version":"1.0.0"}`}
+		files := map[string]string{"package.json": readTestFile(
+			t,
+			"testdata/release_j_s_o_n_pointer_providers/"+
+				"gitlab_bumps_a_j_s_o_n_pointer_targeted_version/package.json",
+		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},

@@ -134,7 +134,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		// then: ErrMergeBlocked is returned with the blocked mergeable state in the message
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
-		testastic.ErrorContains(t, err, "mergeable_state=blocked")
+		testastic.Equal(t, "release PR merge blocked: pull request #42 mergeable_state=blocked", err.Error())
 	})
 
 	t.Run("forces merge when readiness is otherwise blocked", func(t *testing.T) {
@@ -465,7 +465,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		// then: ErrMergeBlocked is returned with the detailed merge status in the message
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
-		testastic.ErrorContains(t, err, "detailed_merge_status=not_approved")
+		testastic.Equal(t, "release PR merge blocked: merge request !8 detailed_merge_status=not_approved", err.Error())
 	})
 
 	t.Run("forces merge and forwards squash option", func(t *testing.T) {

@@ -1,0 +1,13 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: alice
+    repo: tools
+    project: bob/tools
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

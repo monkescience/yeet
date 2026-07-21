@@ -433,7 +433,7 @@ func TestAzureDevOpsRejectsAmbiguousReviewer(t *testing.T) {
 	// then: the run fails before any PR is created, flagging the ambiguity
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, provider.ErrReviewerAmbiguous)
-	testastic.ErrorContains(t, err, "alex")
+	testastic.Equal(t, "reviewer is ambiguous: \"alex\" matches 2 identities", err.Error())
 }
 
 func azureDevOpsUpdateReleasePRHandler(t *testing.T) http.HandlerFunc {

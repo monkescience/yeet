@@ -1,0 +1,3 @@
+INFO release analysis complete targets=1
+INFO created release PR url=https://example.test/mr/42
+release execution failed: merge blocked; resolve PR/MR readiness or use --auto-merge-force when appropriate: force merge release PR: release PR merge blocked: merge request !42 is draft

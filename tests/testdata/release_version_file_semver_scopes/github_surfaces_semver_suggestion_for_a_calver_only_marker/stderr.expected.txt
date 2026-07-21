@@ -1,0 +1,2 @@
+INFO release analysis complete targets=1
+release execution failed: update version file VERSION.txt: apply markers: yeet marker scope not valid for configured scheme: "x-yeet-year" at line 1 is not valid for semver; use "x-yeet-major"

@@ -127,7 +127,13 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 
 		// then: yeet exits 1 and stderr names the incompatible merge_method
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "merge_method")
+		testastic.AssertFile(
+			t,
+			"testdata/release_auto_merge_methods/"+
+				"gitlab___auto_merge_method_rebase_reports_incompatible_project_setting/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("gitlab --auto-merge-method squash succeeds when project allows squash", func(t *testing.T) {
@@ -240,7 +246,12 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 
 		// then: yeet exits 1 with the multi-MR error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "multiple pending release")
+		testastic.AssertFile(
+			t,
+			"testdata/release_auto_merge_methods/gitlab_rejects_multiple_pending_release_m_rs/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("gitlab blocks --auto-merge when MR is gated", func(t *testing.T) {
@@ -277,7 +288,12 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 
 		// then: yeet exits 1 with a merge-blocked error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "merge blocked")
+		testastic.AssertFile(
+			t,
+			"testdata/release_auto_merge_methods/gitlab_blocks___auto_merge_when_m_r_is_gated/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("azuredevops --auto-merge-method rebase merges via rebase strategy", func(t *testing.T) {

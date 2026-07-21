@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.auto_merge_method must be "auto", "squash", "rebase", or "merge", got "wrongo"

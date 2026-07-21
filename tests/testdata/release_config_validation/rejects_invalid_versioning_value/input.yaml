@@ -1,0 +1,13 @@
+provider: github
+branch: main
+versioning: bogus
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

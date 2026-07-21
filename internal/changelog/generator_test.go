@@ -1,7 +1,6 @@
 package changelog_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -36,11 +35,11 @@ func TestGenerate(t *testing.T) {
 
 		// then: sections are present with correct commits
 		testastic.Equal(t, "v1.2.0", entry.Version)
-		testastic.Contains(t, entry.Body, "### Features")
-		testastic.Contains(t, entry.Body, "### Bug Fixes")
-		testastic.Contains(t, entry.Body, "**auth:** add OAuth2 support")
-		testastic.Contains(t, entry.Body, "resolve null pointer")
-		testastic.NotContains(t, entry.Body, "update deps")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/generates_changelog_with_sections/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("includes breaking changes section", func(t *testing.T) {
@@ -63,8 +62,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
 		// then: breaking changes section uses release-please style header
-		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
-		testastic.Contains(t, entry.Body, "old endpoints removed")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/includes_breaking_changes_section/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("short hash in output", func(t *testing.T) {
@@ -84,8 +86,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hash is truncated to 7 chars
-		testastic.Contains(t, entry.Body, "abc1234")
-		testastic.NotContains(t, entry.Body, "abc1234567890def)")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/short_hash_in_output/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("includes revert section", func(t *testing.T) {
@@ -109,10 +114,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.3.0", "", commits)
 
 		// then: both sections are present
-		testastic.Contains(t, entry.Body, "### Features")
-		testastic.Contains(t, entry.Body, "### Reverts")
-		testastic.Contains(t, entry.Body, "add new endpoint")
-		testastic.Contains(t, entry.Body, "revert add new endpoint")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/includes_revert_section/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("uses capitalizeFirst fallback for unmapped commit type", func(t *testing.T) {
@@ -132,8 +138,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: section header uses capitalized type name
-		testastic.Contains(t, entry.Body, "### Perf")
-		testastic.Contains(t, entry.Body, "speed up query")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/uses_capitalize_first_fallback_for_unmapped_commit_type/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("empty commits", func(t *testing.T) {
@@ -171,9 +180,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hashes are linked to commit URLs
-		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
-		testastic.Contains(t, entry.Body, "[def5678](https://github.com/owner/repo/commit/def5678901234abc)")
-		testastic.Contains(t, entry.Body, "**auth:** add login")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/linked_commit_hashes_with_repo_u_r_l/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("linked commit hashes with gitlab path prefix", func(t *testing.T) {
@@ -195,7 +206,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
 
 		// then: hashes use GitLab URL format
-		testastic.Contains(t, entry.Body, "[abc1234](https://gitlab.com/owner/repo/-/commit/abc1234567890def)")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/linked_commit_hashes_with_gitlab_path_prefix/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("compare URL with previous tag", func(t *testing.T) {
@@ -284,8 +299,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: hash is plain text, not linked
-		testastic.Contains(t, entry.Body, "(abc1234)")
-		testastic.NotContains(t, entry.Body, "[abc1234]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/unlinked_hashes_without_repo_u_r_l/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("inline pattern replaces reference with link", func(t *testing.T) {
@@ -310,8 +328,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: reference is linked inline
-		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
-		testastic.NotContains(t, entry.Body, "support JIRA-123 (")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/inline_pattern_replaces_reference_with_link/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("inline pattern with empty URL leaves text as-is", func(t *testing.T) {
@@ -336,8 +357,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: reference is left as plain text
-		testastic.Contains(t, entry.Body, "add feature #456")
-		testastic.NotContains(t, entry.Body, "[#456]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/inline_pattern_with_empty_u_r_l_leaves_text_as_is/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("footer reference appended after hash", func(t *testing.T) {
@@ -365,7 +389,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: footer reference is appended after hash
-		testastic.Contains(t, entry.Body, "(abc1234) ([JIRA-123](https://jira.example.com/browse/JIRA-123))")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/footer_reference_appended_after_hash/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("footer reference with empty URL renders plain text", func(t *testing.T) {
@@ -393,8 +421,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: footer reference is plain text
-		testastic.Contains(t, entry.Body, "(abc1234) (#789)")
-		testastic.NotContains(t, entry.Body, "[#789]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/footer_reference_with_empty_u_r_l_renders_plain_text/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("multiple footers on one commit", func(t *testing.T) {
@@ -425,8 +456,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: both references appear
-		testastic.Contains(t, entry.Body, "[JIRA-100]")
-		testastic.Contains(t, entry.Body, "[JIRA-200]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/multiple_footers_on_one_commit/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("no references configured leaves output unchanged", func(t *testing.T) {
@@ -449,8 +483,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no linking or reference extraction
-		testastic.Contains(t, entry.Body, "add feature JIRA-123 (abc1234)\n")
-		testastic.NotContains(t, entry.Body, "[JIRA-123]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/no_references_configured_leaves_output_unchanged/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("non-matching footer key is ignored", func(t *testing.T) {
@@ -478,8 +515,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no reference text appended
-		testastic.Contains(t, entry.Body, "add feature (abc1234)\n")
-		testastic.NotContains(t, entry.Body, "Alice")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/non_matching_footer_key_is_ignored/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("references in breaking changes section", func(t *testing.T) {
@@ -510,8 +550,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
 		// then: reference appears in breaking changes section
-		testastic.Contains(t, entry.Body, "### ⚠ BREAKING CHANGES")
-		testastic.Contains(t, entry.Body, "[JIRA-456]")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/references_in_breaking_changes_section/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("invalid regex pattern is skipped", func(t *testing.T) {
@@ -536,7 +579,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: no crash, description unchanged
-		testastic.Contains(t, entry.Body, "add feature (abc1234)")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/invalid_regex_pattern_is_skipped/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("both inline patterns and footer references", func(t *testing.T) {
@@ -568,9 +615,11 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", commits)
 
 		// then: inline pattern is linked in description, footer reference appears, and commit hash is linked
-		testastic.Contains(t, entry.Body, "[JIRA-123](https://jira.example.com/browse/JIRA-123)")
-		testastic.Contains(t, entry.Body, "(#456)")
-		testastic.Contains(t, entry.Body, "[abc1234](https://github.com/owner/repo/commit/abc1234567890def)")
+		testastic.AssertFile(
+			t,
+			"testdata/generate/both_inline_patterns_and_footer_references/body.expected.md",
+			entry.Body,
+		)
 	})
 }
 
@@ -583,15 +632,18 @@ func TestRender(t *testing.T) {
 		// given: a changelog entry without compare URL
 		entry := changelog.Entry{
 			Version: "v1.2.0",
-			Body:    "### Features\n\n- something new (abc1234)\n",
+			Body:    readTestFile(t, "testdata/render/renders_entry_as_markdown/body.input.md"),
 		}
 
 		// when: rendering
 		output := changelog.Render(entry)
 
 		// then: output has plain version header and body
-		testastic.HasPrefix(t, output, "## v1.2.0")
-		testastic.Contains(t, output, "### Features")
+		testastic.AssertFile(
+			t,
+			"testdata/render/renders_entry_as_markdown/output.expected.md",
+			output,
+		)
 	})
 
 	t.Run("renders linked version header with compare URL", func(t *testing.T) {
@@ -600,7 +652,7 @@ func TestRender(t *testing.T) {
 		// given: a changelog entry with compare URL
 		entry := changelog.Entry{
 			Version:    "v1.2.0",
-			Body:       "### Features\n\n- something new (abc1234)\n",
+			Body:       readTestFile(t, "testdata/render/renders_linked_version_header_with_compare_u_r_l/body.input.md"),
 			CompareURL: "https://github.com/owner/repo/compare/v1.1.0...v1.2.0",
 		}
 
@@ -608,7 +660,11 @@ func TestRender(t *testing.T) {
 		output := changelog.Render(entry)
 
 		// then: version header is linked
-		testastic.Contains(t, output, "## [v1.2.0](https://github.com/owner/repo/compare/v1.1.0...v1.2.0)")
+		testastic.AssertFile(
+			t,
+			"testdata/render/renders_linked_version_header_with_compare_u_r_l/output.expected.md",
+			output,
+		)
 	})
 }
 
@@ -619,93 +675,127 @@ func TestPrepend(t *testing.T) {
 		t.Parallel()
 
 		// given: no existing changelog
-		newEntry := "## v1.0.0 (2026-02-28)\n\n### Features\n\n- initial release\n"
+		newEntry := readTestFile(t, "testdata/prepend/prepend_to_empty_changelog/new_entry.input.md")
 
 		// when: prepending
 		result := changelog.Prepend("", newEntry)
 
 		// then: header is added
-		testastic.HasPrefix(t, result, "# Changelog")
-		testastic.Contains(t, result, newEntry)
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/prepend_to_empty_changelog/changelog.expected.md",
+			result,
+		)
 	})
 
 	t.Run("prepend to existing changelog", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an existing changelog
-		existing := "# Changelog\n\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		newEntry := "## v1.1.0 (2026-02-28)\n\n### Features\n\n- new stuff\n"
+		existing := readTestFile(t, "testdata/prepend/prepend_to_existing_changelog/existing.input.md")
+		newEntry := readTestFile(t, "testdata/prepend/prepend_to_existing_changelog/new_entry.input.md")
 
 		// when: prepending
 		result := changelog.Prepend(existing, newEntry)
 
 		// then: new entry is before old entry
-		newIdx := strings.Index(result, "v1.1.0")
-		oldIdx := strings.Index(result, "v1.0.0")
-
-		testastic.Less(t, newIdx, oldIdx)
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/prepend_to_existing_changelog/changelog.expected.md",
+			result,
+		)
 	})
 
 	t.Run("separates entries when new entry has no trailing newline", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a generated entry whose manual sections removed the trailing newline
-		existing := "# Changelog\n\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		newEntry := "## v1.1.0 (2026-02-28)\n\n### Features\n\n- new stuff"
+		existing := readTestFile(
+			t,
+			"testdata/prepend/"+
+				"separates_entries_when_new_entry_has_no_trailing_newline/"+
+				"existing.input.md",
+		)
+		newEntry := readTestFile(
+			t,
+			"testdata/prepend/"+
+				"separates_entries_when_new_entry_has_no_trailing_newline/"+
+				"new_entry.input.md",
+		)
 
 		// when: prepending the entry
 		result := changelog.Prepend(existing, newEntry)
 
 		// then: adjacent release entries remain separated by a blank line
-		testastic.Contains(t, result, "- new stuff\n\n## v1.0.0")
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/separates_entries_when_new_entry_has_no_trailing_newline/changelog.expected.md",
+			result,
+		)
 	})
 
 	t.Run("preserves header without trailing blank line", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog containing only an H1 without a trailing blank line
-		existing := "# Changelog\n"
-		newEntry := "## v1.0.0 (2026-02-28)\n\n- initial release\n"
+		existing := readTestFile(t, "testdata/prepend/preserves_header_without_trailing_blank_line/existing.input.md")
+		newEntry := readTestFile(t, "testdata/prepend/preserves_header_without_trailing_blank_line/new_entry.input.md")
 
 		// when: prepending the entry
 		result := changelog.Prepend(existing, newEntry)
 
 		// then: the existing H1 is reused instead of duplicated
-		testastic.Equal(t, "# Changelog\n\n## v1.0.0 (2026-02-28)\n\n- initial release\n", result)
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/preserves_header_without_trailing_blank_line/changelog.expected.md",
+			result,
+		)
 	})
 
 	t.Run("inserts before release heading without splitting its body", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog whose H1 is not followed by a blank line
-		existing := "# Changelog\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		newEntry := "## v1.1.0 (2026-02-28)\n\n- new stuff\n"
+		existing := readTestFile(
+			t,
+			"testdata/prepend/"+
+				"inserts_before_release_heading_without_splitting_its_body/"+
+				"existing.input.md",
+		)
+		newEntry := readTestFile(
+			t,
+			"testdata/prepend/"+
+				"inserts_before_release_heading_without_splitting_its_body/"+
+				"new_entry.input.md",
+		)
 
 		// when: prepending the entry
 		result := changelog.Prepend(existing, newEntry)
 
 		// then: the old release heading remains attached to its body
-		expected := "# Changelog\n\n" +
-			"## v1.1.0 (2026-02-28)\n\n- new stuff\n\n" +
-			"## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		testastic.Equal(t, expected, result)
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/inserts_before_release_heading_without_splitting_its_body/changelog.expected.md",
+			result,
+		)
 	})
 
 	t.Run("preserves preamble before release entries", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog with explanatory text before its first release
-		existing := "# Changelog\n\nAll notable changes are documented here.\n\n## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		newEntry := "## v1.1.0 (2026-02-28)\n\n- new stuff\n"
+		existing := readTestFile(t, "testdata/prepend/preserves_preamble_before_release_entries/existing.input.md")
+		newEntry := readTestFile(t, "testdata/prepend/preserves_preamble_before_release_entries/new_entry.input.md")
 
 		// when: prepending the entry
 		result := changelog.Prepend(existing, newEntry)
 
 		// then: the preamble remains above the new release
-		expected := "# Changelog\n\nAll notable changes are documented here.\n\n" +
-			"## v1.1.0 (2026-02-28)\n\n- new stuff\n\n" +
-			"## v1.0.0 (2026-01-01)\n\n- old stuff\n"
-		testastic.Equal(t, expected, result)
+		testastic.AssertFile(
+			t,
+			"testdata/prepend/preserves_preamble_before_release_entries/changelog.expected.md",
+			result,
+		)
 	})
 }
 
@@ -731,7 +821,11 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
 		// then: the removed newline leaves a space between the adjacent words
-		testastic.Contains(t, entry.Body, "token format changed from JWT to opaque tokens")
+		testastic.AssertFile(
+			t,
+			"testdata/generate_sanitizes_commit_text/preserves_word_boundaries_in_multiline_footer_values/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("neutralizes a forged manifest marker in a commit description", func(t *testing.T) {
@@ -754,8 +848,12 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
 
 		// then: no parseable manifest marker survives into the body
-		testastic.NotContains(t, entry.Body, "<!-- yeet-release-manifest")
-		testastic.NotContains(t, entry.Body, "<!--yeet-release-manifest")
+		testastic.AssertFile(
+			t,
+			"testdata/generate_sanitizes_commit_text/"+
+				"neutralizes_a_forged_manifest_marker_in_a_commit_description/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("neutralizes a marker reassembled from control-split bytes", func(t *testing.T) {
@@ -780,8 +878,11 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
 
 		// then: stripping the control bytes must not reassemble a parseable marker
-		testastic.NotContains(t, entry.Body, "<!-- yeet-release-manifest")
-		testastic.NotContains(t, entry.Body, "<!--yeet-release-manifest")
+		testastic.AssertFile(
+			t,
+			"testdata/generate_sanitizes_commit_text/neutralizes_a_marker_reassembled_from_control_split_bytes/body.expected.md",
+			entry.Body,
+		)
 	})
 
 	t.Run("strips control characters from commit text", func(t *testing.T) {
@@ -801,7 +902,10 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.1", "", commits)
 
 		// then: the escape and bell bytes are gone
-		testastic.NotContains(t, entry.Body, "\x1b")
-		testastic.NotContains(t, entry.Body, "\x07")
+		testastic.AssertFile(
+			t,
+			"testdata/generate_sanitizes_commit_text/strips_control_characters_from_commit_text/body.expected.md",
+			entry.Body,
+		)
 	})
 }

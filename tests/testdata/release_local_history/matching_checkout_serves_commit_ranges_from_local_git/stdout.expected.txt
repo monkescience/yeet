@@ -1,0 +1,16 @@
+
+Dry Run
+
+  Target            default
+  Version           1.0.0 → 1.1.0 (minor)
+  Tag               v1.1.0
+  Commits           1
+
+  ────────────────────────────────
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/acme/repo/compare/v1.0.0...v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Features
+
+- add local feature ([7ea4b95](http://127.0.0.1:{{regex `\d+`}}/acme/repo/commit/7ea4b951bab3dfb0402b7d4f5f5c1c70775415fb))
+{{regex `^$`}}

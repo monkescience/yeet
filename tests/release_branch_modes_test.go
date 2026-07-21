@@ -90,7 +90,12 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 
 		// then: yeet exits 1 with an unknown-channel error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "unknown release channel")
+		testastic.AssertFile(
+			t,
+			"testdata/release_branch_auto_channel/github_rejects_unknown___channel_value/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects explicit channel from the wrong branch", func(t *testing.T) {
@@ -116,7 +121,12 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 
 		// then: yeet rejects the branch/channel mismatch before provider work starts
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "must run on branch")
+		testastic.AssertFile(
+			t,
+			"testdata/release_branch_auto_channel/"+
+				"github_rejects_explicit_channel_from_the_wrong_branch/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects non-dry-run release from an unconfigured branch", func(t *testing.T) {
@@ -153,7 +163,12 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 
 		// then: yeet exits 1 with an unconfigured-branch error
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "branch is not configured for releases")
+		testastic.AssertFile(
+			t,
+			"testdata/release_branch_auto_channel/"+
+				"github_rejects_non_dry_run_release_from_an_unconfigured_branch/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github runs --dry-run from an unconfigured branch with no plans", func(t *testing.T) {

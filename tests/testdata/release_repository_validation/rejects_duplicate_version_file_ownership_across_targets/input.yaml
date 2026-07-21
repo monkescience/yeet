@@ -1,0 +1,20 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v
+    version_files:
+      - services/api/VERSION.txt
+  worker:
+    type: path
+    path: services/worker
+    tag_prefix: worker-v
+    version_files:
+      - services/api/VERSION.txt

@@ -665,7 +665,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		// then: validateParts rejects the impossible date
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
-		testastic.ErrorContains(t, err, "invalid date")
+		testastic.Equal(t, "invalid version: invalid date in \"2026.02.30.1\"", err.Error())
 	})
 
 	t.Run("rejects out-of-range day", func(t *testing.T) {

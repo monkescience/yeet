@@ -1,0 +1,17 @@
+provider: github
+branch: main
+release:
+  channels:
+    stable:
+      branch: stable
+      prerelease: stable
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

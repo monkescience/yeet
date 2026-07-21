@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
+
+targets:
+  my-cool-app:
+    type: path
+    path: .
+    tag_prefix: v

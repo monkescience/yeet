@@ -68,12 +68,25 @@ func TestReleaseCalVerInvalidFormats(t *testing.T) {
 	t.Parallel()
 
 	invalidFormats := []struct {
-		name   string
-		format string
+		name         string
+		format       string
+		expectedFile string
 	}{
-		{name: "missing year", format: "MM.DD"},
-		{name: "duplicate year tokens", format: "YYYY.YYYY.MICRO"},
-		{name: "unknown token", format: "YYYY.MM.FOO"},
+		{
+			name:         "missing year",
+			format:       "MM.DD",
+			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_missing_year/stderr.expected.txt",
+		},
+		{
+			name:         "duplicate year tokens",
+			format:       "YYYY.YYYY.MICRO",
+			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_duplicate_year_tokens/stderr.expected.txt",
+		},
+		{
+			name:         "unknown token",
+			format:       "YYYY.MM.FOO",
+			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_unknown_token/stderr.expected.txt",
+		},
 	}
 
 	for _, tc := range invalidFormats {
@@ -103,7 +116,7 @@ func TestReleaseCalVerInvalidFormats(t *testing.T) {
 
 			// then: yeet exits 1 with a calver validation error
 			testastic.Equal(t, 1, result.ExitCode)
-			testastic.Contains(t, result.Stderr, "calver")
+			testastic.AssertFile(t, tc.expectedFile, result.Stderr)
 		})
 	}
 }
@@ -146,7 +159,12 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 
 		// then: yeet exits 1 saying the version must be stable
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "stable")
+		testastic.AssertFile(
+			t,
+			"testdata/release_as_prerelease_rejected/"+
+				"github_rejects_release_as_pinning_a_prerelease_version/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("github rejects Release-As that doesn't advance the version", func(t *testing.T) {
@@ -184,6 +202,11 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 
 		// then: yeet exits 1 saying the version must be greater
 		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "greater than")
+		testastic.AssertFile(
+			t,
+			"testdata/release_as_prerelease_rejected/"+
+				"github_rejects_release_as_that_doesn_t_advance_the_version/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 }
