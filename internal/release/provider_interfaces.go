@@ -46,7 +46,6 @@ type releaseFileProvider interface {
 type releasePublishingProvider interface {
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*provider.PullRequest, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
-	TagExists(ctx context.Context, tag string) (bool, error)
 	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
 	MarkReleasePRTagged(ctx context.Context, number int) error
 	GetFile(ctx context.Context, branch, path string) (string, error)

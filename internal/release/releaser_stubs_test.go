@@ -468,6 +468,7 @@ type releasePublishingStub struct {
 	tags          map[string]bool
 
 	getReleaseByTagCalls int
+	tagExistsCalls       int
 	createReleaseCalls   int
 	createReleaseOpts    []provider.ReleaseOptions
 
@@ -507,6 +508,8 @@ func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (
 }
 
 func (s *releasePublishingStub) TagExists(_ context.Context, tag string) (bool, error) {
+	s.tagExistsCalls++
+
 	if s.tags[tag] {
 		return true, nil
 	}
@@ -523,11 +526,17 @@ func (s *releasePublishingStub) TagExists(_ context.Context, tag string) (bool, 
 }
 
 func (s *releasePublishingStub) CreateRelease(
-	_ context.Context,
+	ctx context.Context,
 	opts provider.ReleaseOptions,
 ) (*provider.Release, error) {
 	s.createReleaseCalls++
 	s.createReleaseOpts = append(s.createReleaseOpts, opts)
+
+	if strings.TrimSpace(opts.Ref) != "" {
+		if _, err := s.TagExists(ctx, opts.TagName); err != nil {
+			return nil, err
+		}
+	}
 
 	release := &provider.Release{
 		TagName: opts.TagName,
