@@ -17,6 +17,41 @@ const (
 	derivedChangelogPreview
 )
 
+type changelogFileKey struct {
+	branch string
+	path   string
+}
+
+type changelogFileRead struct {
+	content string
+	err     error
+}
+
+type changelogFileCache struct {
+	reads map[changelogFileKey]changelogFileRead
+}
+
+func newChangelogFileCache() *changelogFileCache {
+	return &changelogFileCache{
+		reads: make(map[changelogFileKey]changelogFileRead),
+	}
+}
+
+func (c *changelogFileCache) get(
+	branch, path string,
+	load func() (string, error),
+) (string, error) {
+	key := changelogFileKey{branch: branch, path: path}
+	if read, exists := c.reads[key]; exists {
+		return read.content, read.err
+	}
+
+	content, err := load()
+	c.reads[key] = changelogFileRead{content: content, err: err}
+
+	return content, err
+}
+
 func newTargetChangelogEntry(
 	ctx context.Context,
 	target config.ResolvedTarget,

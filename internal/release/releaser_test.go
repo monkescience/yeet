@@ -1214,6 +1214,95 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 	t.Parallel()
 
+	t.Run("reads a shared release branch changelog once", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two release plans sharing one changelog on an existing release branch
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		existing := &provider.PullRequest{Branch: "yeet/release-main"}
+		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = strings.TrimSpace(`# Changelog
+
+## api-v1.2.3 (2026-03-01)
+
+### Features
+
+- add API feature (abc1234)
+
+## web-v2.3.4 (2026-03-01)
+
+### Bug Fixes
+
+- fix web bug (def5678)
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		result := &Result{Plans: []TargetPlan{
+			{ID: "api", NextTag: "api-v1.2.3", Changelog: "## api-v1.2.3 (2026-03-01)"},
+			{ID: "web", NextTag: "web-v2.3.4", Changelog: "## web-v2.3.4 (2026-03-01)"},
+		}}
+
+		// when: preserving edits for both release plans
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+
+		// then: the shared branch and path are fetched once
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(existing.Branch, "CHANGELOG.md")])
+	})
+
+	t.Run("caches a missing shared release branch changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two release plans sharing a missing changelog on an existing release branch
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		existing := &provider.PullRequest{Branch: "yeet/release-main"}
+		r := newTestReleaser(t, cfg, stub)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		result := &Result{Plans: []TargetPlan{
+			{ID: "api", NextTag: "api-v1.2.3"},
+			{ID: "web", NextTag: "web-v2.3.4"},
+		}}
+
+		// when: preserving edits for both release plans
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+
+		// then: the shared missing branch and path are fetched once
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(existing.Branch, "CHANGELOG.md")])
+	})
+
 	t.Run("new release PR includes changelog guidance without editable notes markers", func(t *testing.T) {
 		t.Parallel()
 
@@ -1477,6 +1566,72 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Parallel()
+
+	t.Run("reads a shared changelog once for multiple releases", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged release PR with two tags sharing one base-branch changelog
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+		}
+
+		manifest, err := releaseManifestMarker(releaseManifest{
+			BaseBranch: cfg.Branch,
+			Targets: []releaseManifestEntry{
+				{ID: "api", Type: string(config.TargetTypePath), Tag: "api-v1.2.3", ChangelogFile: "CHANGELOG.md"},
+				{ID: "web", Type: string(config.TargetTypePath), Tag: "web-v2.3.4", ChangelogFile: "CHANGELOG.md"},
+			},
+		})
+		testastic.NoError(t, err)
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 42,
+			URL:    "https://example.com/pr/42",
+			Body:   manifest,
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = strings.TrimSpace(`# Changelog
+
+## api-v1.2.3 (2026-03-01)
+
+### Features
+
+- add API feature (abc1234)
+
+## web-v2.3.4 (2026-03-01)
+
+### Bug Fixes
+
+- fix web bug (def5678)
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing both releases
+		releases, err := r.finalizeMergedReleasePRs(t.Context())
+
+		// then: each release gets its entry from one shared changelog read
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(releases))
+		testastic.Contains(t, releases[0].Body, "add API feature")
+		testastic.NotContains(t, releases[0].Body, "fix web bug")
+		testastic.Contains(t, releases[1].Body, "fix web bug")
+		testastic.NotContains(t, releases[1].Body, "add API feature")
+		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
+	})
 
 	t.Run("creates release from latest changelog entry and marks PR tagged", func(t *testing.T) {
 		t.Parallel()

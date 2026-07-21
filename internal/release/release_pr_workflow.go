@@ -22,6 +22,7 @@ type releasePRWorkflow struct {
 	files         releaseFileProvider
 	branchUpdater *releaseBranchUpdater
 	publisher     *releasePublisher
+	changelogs    *changelogFileCache
 }
 
 func newReleasePRWorkflow(
@@ -37,6 +38,7 @@ func newReleasePRWorkflow(
 		files:         files,
 		branchUpdater: newReleaseBranchUpdater(core, source, files),
 		publisher:     newReleasePublisher(core, publisher),
+		changelogs:    newChangelogFileCache(),
 	}
 }
 
@@ -108,13 +110,13 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		existingChangelog, err := w.files.GetFile(ctx, existing.Branch, target.Changelog.File)
+		existingChangelog, err := w.releaseBranchChangelog(ctx, existing.Branch, target.Changelog.File)
 		if err != nil {
 			if errors.Is(err, provider.ErrFileNotFound) {
 				continue
 			}
 
-			return fmt.Errorf("get release branch changelog file %s: %w", target.Changelog.File, err)
+			return err
 		}
 
 		existingEntry, found, err := changelogEntryForRefresh(
@@ -137,6 +139,17 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	}
 
 	return nil
+}
+
+func (w *releasePRWorkflow) releaseBranchChangelog(ctx context.Context, branch, path string) (string, error) {
+	return w.changelogs.get(branch, path, func() (string, error) {
+		content, err := w.files.GetFile(ctx, branch, path)
+		if err != nil {
+			return "", fmt.Errorf("get release branch changelog file %s: %w", path, err)
+		}
+
+		return content, nil
+	})
 }
 
 func changelogEntryForRefresh(changelogBody, nextTag, previousTag string) (string, bool, error) {

@@ -98,7 +98,8 @@ func newProviderStub() *providerStub {
 			pullRequests: make(map[string]*provider.PullRequest),
 		},
 		releaseFileStub: &releaseFileStub{
-			files: make(map[string]string),
+			files:             make(map[string]string),
+			getFileCallsByKey: make(map[string]int),
 		},
 		releasePublishingStub: &releasePublishingStub{
 			releasesByTag: make(map[string]*provider.Release),
@@ -401,10 +402,12 @@ type releaseFileStub struct {
 	updateFilesCalls    int
 	updateFilesMessages []string
 	getFileCalls        int
+	getFileCallsByKey   map[string]int
 }
 
 func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (string, error) {
 	s.getFileCalls++
+	s.getFileCallsByKey[providerFileKey(branch, path)]++
 
 	content, exists := s.files[providerFileKey(branch, path)]
 	if !exists {
