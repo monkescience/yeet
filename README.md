@@ -53,13 +53,13 @@ scoop install yeet
 Or with Go:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.10.20 # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.11.0 # x-yeet-version
 ```
 
 Or use the published container image:
 
 ```sh
-docker run --rm ghcr.io/monkescience/yeet:v0.10.20 --help # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.11.0 --help # x-yeet-version
 ```
 
 Shell completions are available via `yeet completion bash|zsh|fish|powershell`.
@@ -85,14 +85,14 @@ Verify the container image signature:
 cosign verify \
   --certificate-identity-regexp 'https://github.com/monkescience/yeet/.github/workflows/image.yaml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/monkescience/yeet:v0.10.20 # x-yeet-version
+  ghcr.io/monkescience/yeet:v0.11.0 # x-yeet-version
 ```
 
 Verify build provenance (which workflow and commit produced the artifact) with the GitHub CLI:
 
 ```sh
 gh attestation verify yeet_linux_amd64.tar.gz --repo monkescience/yeet
-gh attestation verify oci://ghcr.io/monkescience/yeet:v0.10.20 --repo monkescience/yeet # x-yeet-version
+gh attestation verify oci://ghcr.io/monkescience/yeet:v0.11.0 --repo monkescience/yeet # x-yeet-version
 ```
 
 ## Quick start
