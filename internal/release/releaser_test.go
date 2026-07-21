@@ -1515,6 +1515,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
 		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, 1, stub.getReleaseByTagCalls)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)

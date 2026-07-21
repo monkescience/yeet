@@ -101,7 +101,7 @@ func (p *releasePublisher) releaseForTag(
 		return nil, err
 	}
 
-	return p.ensureReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
+	return p.createReleaseForUnreleasedTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
 func (p *releasePublisher) createReleaseForTag(
@@ -133,8 +133,6 @@ func (p *releasePublisher) ensureReleaseForTag(
 	tag, ref, releaseBody string,
 	prerelease bool,
 ) (*provider.Release, error) {
-	r := p.core
-
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -143,6 +141,16 @@ func (p *releasePublisher) ensureReleaseForTag(
 	if exists {
 		return existingRelease, nil
 	}
+
+	return p.createReleaseForUnreleasedTag(ctx, tag, ref, releaseBody, prerelease)
+}
+
+func (p *releasePublisher) createReleaseForUnreleasedTag(
+	ctx context.Context,
+	tag, ref, releaseBody string,
+	prerelease bool,
+) (*provider.Release, error) {
+	r := p.core
 
 	tagExists, err := p.publisher.TagExists(ctx, tag)
 	if err != nil {
