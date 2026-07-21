@@ -467,8 +467,9 @@ type releasePublishingStub struct {
 	releasesByTag map[string]*provider.Release
 	tags          map[string]bool
 
-	createReleaseCalls int
-	createReleaseOpts  []provider.ReleaseOptions
+	getReleaseByTagCalls int
+	createReleaseCalls   int
+	createReleaseOpts    []provider.ReleaseOptions
 
 	history *versionHistoryStub
 }
@@ -492,6 +493,8 @@ func (s *releasePublishingStub) FindMergedReleasePR(context.Context, string) (*p
 }
 
 func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (*provider.Release, error) {
+	s.getReleaseByTagCalls++
+
 	if releaseInfo, exists := s.releasesByTag[tag]; exists {
 		return releaseInfo, nil
 	}
