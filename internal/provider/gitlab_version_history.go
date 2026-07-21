@@ -12,16 +12,18 @@ import (
 
 func (g *GitLab) GetLatestVersionRef(ctx context.Context) (string, error) {
 	return latestVersionRefWithReleaseFallback(ctx,
-		func(ctx context.Context) (string, error) {
-			release, err := g.latestRelease(ctx)
-			if err != nil {
-				return "", err
-			}
-
-			return release.TagName, nil
-		},
+		g.GetLatestReleaseRef,
 		g.ListTags,
 	)
+}
+
+func (g *GitLab) GetLatestReleaseRef(ctx context.Context) (string, error) {
+	release, err := g.latestRelease(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return release.TagName, nil
 }
 
 func (g *GitLab) ListTags(ctx context.Context) ([]string, error) {

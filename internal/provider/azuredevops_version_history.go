@@ -26,6 +26,10 @@ func (a *AzureDevOps) GetLatestVersionRef(ctx context.Context) (string, error) {
 	return tags[0], nil
 }
 
+func (a *AzureDevOps) GetLatestReleaseRef(context.Context) (string, error) {
+	return "", ErrNoRelease
+}
+
 func (a *AzureDevOps) ListTags(ctx context.Context) ([]string, error) {
 	refs, err := a.ListTagRefs(ctx)
 	if err != nil {

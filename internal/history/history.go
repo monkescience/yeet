@@ -33,7 +33,7 @@ var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
 // source needs: authoritative version refs with commit targets and the branch
 // head used to validate the checkout.
 type Remote interface {
-	GetLatestVersionRef(ctx context.Context) (string, error)
+	GetLatestReleaseRef(ctx context.Context) (string, error)
 	ListTagRefs(ctx context.Context) ([]provider.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
@@ -78,15 +78,28 @@ func (s *Source) Validate(ctx context.Context) error {
 	return nil
 }
 
-// GetLatestVersionRef always asks the remote provider. Remote tags and
-// releases are the source of truth.
+// GetLatestVersionRef prefers the remote provider release and falls back to
+// the cached authoritative remote tag snapshot.
 func (s *Source) GetLatestVersionRef(ctx context.Context) (string, error) {
-	ref, err := s.remote.GetLatestVersionRef(ctx)
-	if err != nil {
-		return "", fmt.Errorf("remote latest version ref: %w", err)
+	ref, err := s.remote.GetLatestReleaseRef(ctx)
+	if err == nil {
+		return ref, nil
 	}
 
-	return ref, nil
+	if !errors.Is(err, provider.ErrNoRelease) {
+		return "", fmt.Errorf("remote latest release ref: %w", err)
+	}
+
+	tags, _, err := s.loadRemoteTags(ctx)
+	if err != nil {
+		return "", fmt.Errorf("remote tags: %w", err)
+	}
+
+	if len(tags) == 0 {
+		return "", provider.ErrNoVersionRef
+	}
+
+	return tags[0], nil
 }
 
 // ListTags loads names and commit targets from the remote provider. The same
