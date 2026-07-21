@@ -300,14 +300,16 @@ func appendMarkdown(markdown, insertion string) string {
 }
 
 type changelogSection struct {
-	heading string
-	body    string
+	heading   string
+	body      string
+	startLine int
 }
 
 // preserveManualChangelogSections carries hand-written notes from existingEntry
 // into generatedEntry when a release PR is refreshed. Only level-3 (### )
 // sections are preserved: freeform text directly under the ## version heading,
-// or headings deeper than ###, are not considered and will be dropped.
+// or headings deeper than ###, are not considered and will be dropped. Manual
+// sections retain their position relative to the next generated section.
 func preserveManualChangelogSections(generatedEntry, existingEntry string) string {
 	generatedSections := changelogLevel3Sections(generatedEntry)
 
@@ -316,9 +318,11 @@ func preserveManualChangelogSections(generatedEntry, existingEntry string) strin
 		generatedHeadings[section.heading] = struct{}{}
 	}
 
-	manualSections := make([]string, 0)
+	existingSections := changelogLevel3Sections(existingEntry)
+	manualSectionsBefore := make(map[string][]string)
+	manualSectionCount := 0
 
-	for _, section := range changelogLevel3Sections(existingEntry) {
+	for idx, section := range existingSections {
 		if _, generated := generatedHeadings[section.heading]; generated {
 			continue
 		}
@@ -327,10 +331,43 @@ func preserveManualChangelogSections(generatedEntry, existingEntry string) strin
 			continue
 		}
 
-		manualSections = append(manualSections, section.body)
+		followingHeading := ""
+
+		for _, followingSection := range existingSections[idx+1:] {
+			if _, generated := generatedHeadings[followingSection.heading]; generated {
+				followingHeading = followingSection.heading
+
+				break
+			}
+		}
+
+		manualSectionsBefore[followingHeading] = append(manualSectionsBefore[followingHeading], section.body)
+		manualSectionCount++
 	}
 
-	return appendMarkdown(generatedEntry, strings.Join(manualSections, "\n\n"))
+	if manualSectionCount == 0 {
+		return generatedEntry
+	}
+
+	updatedEntry := strings.TrimSpace(generatedEntry)
+	if len(generatedSections) > 0 {
+		lines := splitLines(generatedEntry)
+		updatedEntry = strings.TrimSpace(strings.Join(lines[:generatedSections[0].startLine], "\n"))
+	}
+
+	for _, section := range generatedSections {
+		for _, manualSection := range manualSectionsBefore[section.heading] {
+			updatedEntry = appendMarkdown(updatedEntry, manualSection)
+		}
+
+		updatedEntry = appendMarkdown(updatedEntry, section.body)
+	}
+
+	for _, manualSection := range manualSectionsBefore[""] {
+		updatedEntry = appendMarkdown(updatedEntry, manualSection)
+	}
+
+	return updatedEntry
 }
 
 func changelogLevel3Sections(markdown string) []changelogSection {
@@ -356,8 +393,9 @@ func changelogLevel3Sections(markdown string) []changelogSection {
 		}
 
 		sections = append(sections, changelogSection{
-			heading: strings.TrimSpace(lines[start]),
-			body:    body,
+			heading:   strings.TrimSpace(lines[start]),
+			body:      body,
+			startLine: start,
 		})
 	}
 

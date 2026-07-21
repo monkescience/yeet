@@ -475,6 +475,64 @@ Redeploy the previous worker image if queue latency spikes.
 		testastic.True(t, rollbackIndex > migrationIndex)
 	})
 
+	t.Run("preserves manual section positions among generated sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: manual sections before and between regenerated release-note sections
+		generatedEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### ⚠ BREAKING CHANGES
+
+- replace the session format (abc1234)
+
+### Features
+
+- add token refresh (def5678)
+
+### Bug Fixes
+
+- patch expiry handling (fed4321)
+`)
+		existingEntry := strings.TrimSpace(`## v1.2.4 (2026-03-01)
+
+### Migration Notes
+
+Rotate existing sessions before deployment.
+
+### ⚠ BREAKING CHANGES
+
+- replace the session format (abc1234)
+
+### Features
+
+- add token refresh (def5678)
+
+### Rollback Notes
+
+Restore the previous session key if authentication fails.
+
+### Bug Fixes
+
+- patch expiry handling (fed4321)
+`)
+
+		// when: preserving manual sections from the existing changelog entry
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+
+		// then: each manual section remains before its following generated section
+		migrationIndex := strings.Index(updatedEntry, "### Migration Notes")
+		breakingIndex := strings.Index(updatedEntry, "### ⚠ BREAKING CHANGES")
+		featuresIndex := strings.Index(updatedEntry, "### Features")
+		rollbackIndex := strings.Index(updatedEntry, "### Rollback Notes")
+		bugFixesIndex := strings.Index(updatedEntry, "### Bug Fixes")
+
+		testastic.Contains(t, updatedEntry, "### Migration Notes")
+		testastic.Contains(t, updatedEntry, "### Rollback Notes")
+		testastic.True(t, migrationIndex < breakingIndex)
+		testastic.True(t, featuresIndex < rollbackIndex)
+		testastic.True(t, rollbackIndex < bugFixesIndex)
+	})
+
 	t.Run("does not preserve edits inside regenerated sections", func(t *testing.T) {
 		t.Parallel()
 
