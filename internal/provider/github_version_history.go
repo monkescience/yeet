@@ -12,16 +12,18 @@ import (
 
 func (g *GitHub) GetLatestVersionRef(ctx context.Context) (string, error) {
 	return latestVersionRefWithReleaseFallback(ctx,
-		func(ctx context.Context) (string, error) {
-			release, err := g.latestRelease(ctx)
-			if err != nil {
-				return "", err
-			}
-
-			return release.GetTagName(), nil
-		},
+		g.GetLatestReleaseRef,
 		g.ListTags,
 	)
+}
+
+func (g *GitHub) GetLatestReleaseRef(ctx context.Context) (string, error) {
+	release, err := g.latestRelease(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return release.GetTagName(), nil
 }
 
 func (g *GitHub) ListTags(ctx context.Context) ([]string, error) {

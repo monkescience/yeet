@@ -98,6 +98,8 @@ type TagRef struct {
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
 	GetLatestVersionRef(ctx context.Context) (string, error)
+	// GetLatestReleaseRef returns the latest provider release without falling back to tags.
+	GetLatestReleaseRef(ctx context.Context) (string, error)
 	// ListTags returns tags in newest-first order.
 	ListTags(ctx context.Context) ([]string, error)
 	// ListTagRefs returns tags with their peeled commit hashes in newest-first order.
