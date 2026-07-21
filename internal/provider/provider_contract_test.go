@@ -490,9 +490,9 @@ func TestProviderContract(t *testing.T) {
 					context.Background(),
 					providerContractReleaseBranch,
 					providerContractBaseBranch,
-					map[string]string{
-						"CHANGELOG.md": "# Changelog\n",
-						"VERSION.txt":  "version=1.2.3\n",
+					map[string]provider.FileUpdate{
+						"CHANGELOG.md": {Content: "# Changelog\n", Exists: true},
+						"VERSION.txt":  {Content: "version=1.2.3\n"},
 					},
 					"chore: release v1.2.3",
 				)

@@ -15,17 +15,22 @@ import (
 )
 
 type releaseBranchUpdater struct {
-	core  *releaseCore
-	files releaseFileProvider
+	core   *releaseCore
+	source releaseSource
+	files  releaseFileProvider
 }
 
-func newReleaseBranchUpdater(core *releaseCore, files releaseFileProvider) *releaseBranchUpdater {
-	return &releaseBranchUpdater{core: core, files: files}
+func newReleaseBranchUpdater(
+	core *releaseCore,
+	source releaseSource,
+	files releaseFileProvider,
+) *releaseBranchUpdater {
+	return &releaseBranchUpdater{core: core, source: source, files: files}
 }
 
 func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, result *Result) error {
 	r := u.core
-	files := map[string]string{}
+	files := map[string]provider.FileUpdate{}
 
 	for _, plan := range result.Plans {
 		target, exists := r.targets[plan.ID]
@@ -40,45 +45,60 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 
 		files[target.Changelog.File] = changelogContent
 
-		scheme, schemeErr := markerScheme(target)
-		if schemeErr != nil {
-			return fmt.Errorf("build marker scheme for target %s: %w", plan.ID, schemeErr)
-		}
-
-		for _, versionFile := range target.VersionFiles {
-			content, fileErr := u.files.GetFile(ctx, r.cfg.Branch, versionFile.Path)
-			if fileErr != nil {
-				return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
-			}
-
-			updatedContent, changed, markerErr := applyVersionFile(content, plan.NextVersion, scheme, versionFile)
-			if markerErr != nil {
-				return fmt.Errorf("update version file %s: %w", versionFile.Path, markerErr)
-			}
-
-			if !changed {
-				slog.InfoContext(ctx, "version file already at target version",
-					slog.String("path", versionFile.Path),
-				)
-
-				continue
-			}
-
-			slog.DebugContext(ctx, "versionfile: rewrote",
-				slog.String("path", versionFile.Path),
-				slog.String("format", string(versionFile.Format)),
-				slog.String("next_version", plan.NextVersion),
-			)
-
-			if err := setBranchFileContent(files, versionFile.Path, updatedContent); err != nil {
-				return err
-			}
+		if err := u.updateVersionFiles(ctx, files, target, plan.ID, plan.NextVersion); err != nil {
+			return err
 		}
 	}
 
 	err := u.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
+	}
+
+	return nil
+}
+
+func (u *releaseBranchUpdater) updateVersionFiles(
+	ctx context.Context,
+	files map[string]provider.FileUpdate,
+	target config.ResolvedTarget,
+	targetID string,
+	nextVersion string,
+) error {
+	scheme, err := markerScheme(target)
+	if err != nil {
+		return fmt.Errorf("build marker scheme for target %s: %w", targetID, err)
+	}
+
+	for _, versionFile := range target.VersionFiles {
+		content, fileErr := u.source.GetFile(ctx, u.core.cfg.Branch, versionFile.Path)
+		if fileErr != nil {
+			return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
+		}
+
+		updatedContent, changed, markerErr := applyVersionFile(content, nextVersion, scheme, versionFile)
+		if markerErr != nil {
+			return fmt.Errorf("update version file %s: %w", versionFile.Path, markerErr)
+		}
+
+		if !changed {
+			slog.InfoContext(ctx, "version file already at target version", slog.String("path", versionFile.Path))
+
+			continue
+		}
+
+		slog.DebugContext(ctx, "versionfile: rewrote",
+			slog.String("path", versionFile.Path),
+			slog.String("format", string(versionFile.Format)),
+			slog.String("next_version", nextVersion),
+		)
+
+		if setErr := setBranchFileContent(files, versionFile.Path, provider.FileUpdate{
+			Content: updatedContent,
+			Exists:  true,
+		}); setErr != nil {
+			return setErr
+		}
 	}
 
 	return nil
@@ -109,34 +129,36 @@ func applyVersionFile(
 
 func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	ctx context.Context,
-	pendingFiles map[string]string,
+	pendingFiles map[string]provider.FileUpdate,
 	target config.ResolvedTarget,
 	changelogEntry string,
-) (string, error) {
+) (provider.FileUpdate, error) {
 	r := u.core
 
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
-		return prependChangelogEntry(existing, changelogEntry), nil
+		existing.Content = prependChangelogEntry(existing.Content, changelogEntry)
+
+		return existing, nil
 	}
 
-	existing, err := u.files.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
+	existing, err := u.source.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
 	if err != nil {
 		if errors.Is(err, provider.ErrFileNotFound) {
-			return changelog.Prepend("", changelogEntry), nil
+			return provider.FileUpdate{Content: changelog.Prepend("", changelogEntry)}, nil
 		}
 
-		return "", fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
+		return provider.FileUpdate{}, fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
 	}
 
-	return prependChangelogEntry(existing, changelogEntry), nil
+	return provider.FileUpdate{Content: prependChangelogEntry(existing, changelogEntry), Exists: true}, nil
 }
 
-func setBranchFileContent(files map[string]string, path, content string) error {
-	if existingContent, exists := files[path]; exists && existingContent != content {
+func setBranchFileContent(files map[string]provider.FileUpdate, path string, update provider.FileUpdate) error {
+	if existingUpdate, exists := files[path]; exists && existingUpdate != update {
 		return fmt.Errorf("%w: %s", ErrConflictingFileUpdate, path)
 	}
 
-	files[path] = content
+	files[path] = update
 
 	return nil
 }

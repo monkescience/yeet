@@ -17,6 +17,11 @@ type versionHistoryProvider interface {
 	) (provider.CommitHistory, error)
 }
 
+type releaseSource interface {
+	versionHistoryProvider
+	GetFile(ctx context.Context, branch, path string) (string, error)
+}
+
 type repoMetadataProvider interface {
 	RepoURL() string
 	PathPrefix() string
@@ -35,7 +40,7 @@ type releasePRProvider interface {
 
 type releaseFileProvider interface {
 	GetFile(ctx context.Context, branch, path string) (string, error)
-	UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error
+	UpdateFiles(ctx context.Context, branch, base string, files map[string]provider.FileUpdate, message string) error
 }
 
 type releasePublishingProvider interface {

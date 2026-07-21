@@ -290,9 +290,9 @@ func TestGitHubUpdateFiles(t *testing.T) {
 
 	gh := provider.NewGitHub(client, "o", "r")
 
-	err := gh.UpdateFiles(context.Background(), "release-main", "main", map[string]string{
-		"VERSION.txt":  "version=1.2.3",
-		"CHANGELOG.md": "# Changelog",
+	err := gh.UpdateFiles(context.Background(), "release-main", "main", map[string]provider.FileUpdate{
+		"VERSION.txt":  {Content: "version=1.2.3"},
+		"CHANGELOG.md": {Content: "# Changelog", Exists: true},
 	}, "chore: release 1.2.3")
 
 	testastic.NoError(t, err)
@@ -571,11 +571,6 @@ func TestGitLabUpdateFiles(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && isGitLabRawFilePath(r, "CHANGELOG.md"):
-			_, err := w.Write([]byte("# Changelog"))
-			testastic.NoError(t, err)
-		case r.Method == http.MethodGet && isGitLabRawFilePath(r, "VERSION.txt"):
-			http.NotFound(w, r)
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits":
 			err := json.NewDecoder(r.Body).Decode(&commitRequest)
 			testastic.NoError(t, err)
@@ -589,9 +584,9 @@ func TestGitLabUpdateFiles(t *testing.T) {
 
 	gl := newGitLabProvider(t, server)
 
-	err := gl.UpdateFiles(context.Background(), "release-main", "main", map[string]string{
-		"VERSION.txt":  "version=1.2.3",
-		"CHANGELOG.md": "# Changelog",
+	err := gl.UpdateFiles(context.Background(), "release-main", "main", map[string]provider.FileUpdate{
+		"VERSION.txt":  {Content: "version=1.2.3"},
+		"CHANGELOG.md": {Content: "# Changelog", Exists: true},
 	}, "chore: release 1.2.3")
 
 	testastic.NoError(t, err)

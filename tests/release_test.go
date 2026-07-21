@@ -706,10 +706,11 @@ func TestReleaseChannelAndVersionFiles(t *testing.T) {
 		t.Parallel()
 
 		// given: a config that lists VERSION.txt as a version_files entry
+		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -718,9 +719,7 @@ func TestReleaseChannelAndVersionFiles(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "1.0.0 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -751,10 +750,11 @@ func TestReleaseCalVer(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project at v2025.11.1 with one new feat commit
+		files := map[string]string{"VERSION.txt": "2025.11.1 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -763,9 +763,7 @@ func TestReleaseCalVer(t *testing.T) {
 			LatestTag:     "v2025.11.1",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "2025.11.1 # x-yeet-version\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -909,10 +907,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a project with a package.json containing /version
+		files := map[string]string{"package.json": `{"name":"yeet","version":"1.0.0"}`}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -921,9 +920,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"package.json": `{"name":"yeet","version":"1.0.0"}`,
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -952,10 +949,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a manifest.json with a version at /packages/0/version
+		files := map[string]string{"manifest.json": `{"packages":[{"name":"yeet","version":"1.0.0"}]}`}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -964,9 +962,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"manifest.json": `{"packages":[{"name":"yeet","version":"1.0.0"}]}`,
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -995,10 +991,11 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		t.Parallel()
 
 		// given: a JSON pointer that uses ~0 and ~1 escapes
+		files := map[string]string{"escaped.json": `{"a~b":{"c/d":"1.0.0"}}`}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -1007,9 +1004,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"escaped.json": `{"a~b":{"c/d":"1.0.0"}}`,
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -1833,10 +1828,11 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: a semver project whose VERSION.txt carries an `x-yeet-month` marker
+		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-month\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -1845,9 +1841,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "1.0.0 # x-yeet-month\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -1879,10 +1873,11 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver project whose VERSION.txt carries an `x-yeet-major` marker
+		files := map[string]string{"VERSION.txt": "2025.11.1 # x-yeet-major\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -1891,9 +1886,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 			LatestTag:     "v2025.11.1",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"VERSION.txt": "2025.11.1 # x-yeet-major\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -1927,10 +1920,13 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver BUILD.txt with year/month/micro markers
+		files := map[string]string{
+			"BUILD.txt": "year: 2025  # x-yeet-year\nmonth: 11  # x-yeet-month\nmicro: 1  # x-yeet-micro\n",
+		}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.11.1", Tag: "v2025.11.1"},
-				{Message: "feat: add a thing"},
+				{Message: "feat: add a thing", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -1939,9 +1935,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 			LatestTag:     "v2025.11.1",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Files: map[string]string{
-				"BUILD.txt": "year: 2025  # x-yeet-year\nmonth: 11  # x-yeet-month\nmicro: 1  # x-yeet-micro\n",
-			},
+			Files:         files,
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{

@@ -172,7 +172,7 @@ func readAzureDevOpsFileBody(body io.Reader, path, branch string) (string, error
 func (a *AzureDevOps) UpdateFiles(
 	ctx context.Context,
 	branch, base string,
-	files map[string]string,
+	files map[string]FileUpdate,
 	message string,
 ) error {
 	slog.DebugContext(ctx, "azure devops: updating files",
@@ -186,10 +186,7 @@ func (a *AzureDevOps) UpdateFiles(
 		return err
 	}
 
-	changes, err := a.buildPushChanges(ctx, base, files)
-	if err != nil {
-		return err
-	}
+	changes := a.buildPushChanges(files)
 
 	gitClient, err := a.client(ctx)
 	if err != nil {
@@ -282,11 +279,7 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 	return baseTip, nil
 }
 
-func (a *AzureDevOps) buildPushChanges(
-	ctx context.Context,
-	branch string,
-	files map[string]string,
-) ([]any, error) {
+func (a *AzureDevOps) buildPushChanges(files map[string]FileUpdate) []any {
 	paths := make([]string, 0, len(files))
 	for path := range files {
 		paths = append(paths, path)
@@ -298,14 +291,16 @@ func (a *AzureDevOps) buildPushChanges(
 	rawText := git.ItemContentTypeValues.RawText
 
 	for _, path := range paths {
-		changeType, err := a.azureDevOpsFileChangeType(ctx, branch, path)
-		if err != nil {
-			return nil, err
+		update := files[path]
+
+		changeType := git.VersionControlChangeTypeValues.Edit
+		if !update.Exists {
+			changeType = git.VersionControlChangeTypeValues.Add
 		}
 
 		ct := changeType
 		fullPath := ensureLeadingSlash(path)
-		content := files[path]
+		content := update.Content
 
 		changes = append(changes, git.GitChange{
 			ChangeType: &ct,
@@ -319,23 +314,7 @@ func (a *AzureDevOps) buildPushChanges(
 		})
 	}
 
-	return changes, nil
-}
-
-func (a *AzureDevOps) azureDevOpsFileChangeType(
-	ctx context.Context,
-	branch, path string,
-) (git.VersionControlChangeType, error) {
-	_, err := a.GetFile(ctx, branch, path)
-	if err == nil {
-		return git.VersionControlChangeTypeValues.Edit, nil
-	}
-
-	if errors.Is(err, ErrFileNotFound) {
-		return git.VersionControlChangeTypeValues.Add, nil
-	}
-
-	return "", fmt.Errorf("probe file %q on branch %q: %w", path, branch, err)
+	return changes
 }
 
 var (

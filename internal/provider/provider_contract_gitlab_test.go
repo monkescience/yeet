@@ -441,10 +441,6 @@ func handleGitLabUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 	t.Helper()
 
 	switch {
-	case r.Method == http.MethodGet && isGitLabRawFilePath(r, "CHANGELOG.md"):
-		writeTextFixture(t, w, "contracts/gitlab/update_files/file.txt")
-	case r.Method == http.MethodGet && isGitLabRawFilePath(r, "VERSION.txt"):
-		http.NotFound(w, r)
 	case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits":
 		writeJSONFixture(t, w, "contracts/gitlab/update_files/push.json")
 	default:

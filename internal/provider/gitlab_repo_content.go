@@ -73,7 +73,12 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 	return string(raw), nil
 }
 
-func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map[string]string, message string) error {
+func (g *GitLab) UpdateFiles(
+	ctx context.Context,
+	branch, base string,
+	files map[string]FileUpdate,
+	message string,
+) error {
 	paths := make([]string, 0, len(files))
 
 	for path := range files {
@@ -85,19 +90,15 @@ func (g *GitLab) UpdateFiles(ctx context.Context, branch, base string, files map
 	actions := make([]*gitlab.CommitActionOptions, 0, len(paths))
 
 	for _, path := range paths {
+		update := files[path]
+
 		action := gitlab.FileUpdate
-
-		_, err := g.GetFile(ctx, base, path)
-		if err != nil && !errors.Is(err, ErrFileNotFound) {
-			return fmt.Errorf("get file %s on branch %s: %w", path, base, err)
-		}
-
-		if errors.Is(err, ErrFileNotFound) {
+		if !update.Exists {
 			action = gitlab.FileCreate
 		}
 
 		pathValue := path
-		contentValue := files[path]
+		contentValue := update.Content
 		actionValue := action
 
 		actions = append(actions, &gitlab.CommitActionOptions{

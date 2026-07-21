@@ -1,4 +1,5 @@
-// Package history serves release commit history from the local git checkout.
+// Package history serves release commits and base-branch files from the local
+// git checkout.
 // The checkout must be complete (non-shallow) and its HEAD must exactly match
 // the remote head of the configured release branch. An unusable checkout
 // fails the run with an actionable error instead of silently analyzing the
@@ -17,6 +18,7 @@ import (
 
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -36,9 +38,10 @@ type Remote interface {
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
 
-// Source resolves commit ranges from the local checkout. Eligibility is
-// validated once per Source: the repository must be complete (non-shallow)
-// and HEAD must be exactly the remote head of the configured branch.
+// Source resolves commit ranges and file content from the local checkout.
+// Eligibility is validated once per Source: the repository must be complete
+// (non-shallow) and HEAD must be exactly the remote head of the configured
+// branch.
 //
 // Source is not safe for concurrent use. The release analyzer issues history
 // calls sequentially.
@@ -95,6 +98,40 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	}
 
 	return tags, nil
+}
+
+// GetFile reads a blob from the validated local HEAD commit. Working-tree
+// changes are intentionally ignored so release inputs match the remote branch.
+func (s *Source) GetFile(ctx context.Context, branch, path string) (string, error) {
+	local, err := s.eligibleLocal(ctx, branch)
+	if err != nil {
+		return "", err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("read local file %q: %w", path, err)
+	}
+
+	commit, err := local.repo.CommitObject(local.head)
+	if err != nil {
+		return "", fmt.Errorf("read local head commit: %w", err)
+	}
+
+	file, err := commit.File(path)
+	if errors.Is(err, object.ErrFileNotFound) {
+		return "", provider.ErrFileNotFound
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("find local file %q: %w", path, err)
+	}
+
+	content, err := file.Contents()
+	if err != nil {
+		return "", fmt.Errorf("read local file %q: %w", path, err)
+	}
+
+	return content, nil
 }
 
 // GetCommitsSinceRefs serves exact per-ref commit ranges from the local

@@ -790,3 +790,39 @@ func TestSourceDelegation(t *testing.T) {
 		testastic.SliceEqual(t, []string{"v3.0.0", "v2.0.0"}, tags)
 	})
 }
+
+func TestSourceGetFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads the committed blob instead of the dirty worktree", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an eligible checkout whose working file differs from HEAD
+		fx := newRepoFixture(t)
+		fx.commit("feat: add config", map[string]string{"config.txt": "committed\n"})
+		fx.writeFile("config.txt", "dirty\n")
+		source, _ := fx.source()
+
+		// when: the base branch file is read
+		content, err := source.GetFile(t.Context(), fixtureBranch, "config.txt")
+
+		// then: release input comes from the validated HEAD commit
+		testastic.NoError(t, err)
+		testastic.Equal(t, "committed\n", content)
+	})
+
+	t.Run("returns the provider file sentinel for a missing blob", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an eligible checkout without the requested file
+		fx := newRepoFixture(t)
+		fx.commit("feat: add config", map[string]string{"config.txt": "committed\n"})
+		source, _ := fx.source()
+
+		// when: a missing base branch file is read
+		_, err := source.GetFile(t.Context(), fixtureBranch, "missing.txt")
+
+		// then: callers receive the shared missing-file sentinel
+		testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+	})
+}

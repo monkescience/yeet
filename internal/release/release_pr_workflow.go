@@ -26,6 +26,7 @@ type releasePRWorkflow struct {
 
 func newReleasePRWorkflow(
 	core *releaseCore,
+	source releaseSource,
 	prs releasePRProvider,
 	files releaseFileProvider,
 	publisher releasePublishingProvider,
@@ -34,7 +35,7 @@ func newReleasePRWorkflow(
 		core:          core,
 		prs:           prs,
 		files:         files,
-		branchUpdater: newReleaseBranchUpdater(core, files),
+		branchUpdater: newReleaseBranchUpdater(core, source, files),
 		publisher:     newReleasePublisher(core, publisher),
 	}
 }

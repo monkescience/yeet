@@ -74,6 +74,7 @@ type fileUpdate struct {
 	branch  string
 	path    string
 	content string
+	exists  bool
 	message string
 }
 
@@ -399,9 +400,12 @@ type releaseFileStub struct {
 
 	updateFilesCalls    int
 	updateFilesMessages []string
+	getFileCalls        int
 }
 
 func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (string, error) {
+	s.getFileCalls++
+
 	content, exists := s.files[providerFileKey(branch, path)]
 	if !exists {
 		return "", provider.ErrFileNotFound
@@ -413,7 +417,7 @@ func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (strin
 func (s *releaseFileStub) UpdateFiles(
 	_ context.Context,
 	branch, base string,
-	files map[string]string,
+	files map[string]provider.FileUpdate,
 	message string,
 ) error {
 	s.updateFilesCalls++
@@ -438,12 +442,13 @@ func (s *releaseFileStub) UpdateFiles(
 		s.files[providerFileKey(branch, path)] = content
 	}
 
-	for path, content := range files {
-		s.files[providerFileKey(branch, path)] = content
+	for path, update := range files {
+		s.files[providerFileKey(branch, path)] = update.Content
 		s.updates = append(s.updates, fileUpdate{
 			branch:  branch,
 			path:    path,
-			content: content,
+			content: update.Content,
+			exists:  update.Exists,
 			message: message,
 		})
 	}
