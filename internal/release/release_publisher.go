@@ -11,12 +11,17 @@ import (
 )
 
 type releasePublisher struct {
-	core      *releaseCore
-	publisher releasePublishingProvider
+	core       *releaseCore
+	publisher  releasePublishingProvider
+	changelogs *changelogFileCache
 }
 
 func newReleasePublisher(core *releaseCore, publisher releasePublishingProvider) *releasePublisher {
-	return &releasePublisher{core: core, publisher: publisher}
+	return &releasePublisher{
+		core:       core,
+		publisher:  publisher,
+		changelogs: newChangelogFileCache(),
+	}
 }
 
 func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*provider.Release, error) {
@@ -193,9 +198,16 @@ func (p *releasePublisher) releaseNotesFromChangelog(
 ) (string, error) {
 	r := p.core
 
-	changelogBody, err := p.publisher.GetFile(ctx, r.cfg.Branch, changelogFile)
+	changelogBody, err := p.changelogs.get(r.cfg.Branch, changelogFile, func() (string, error) {
+		content, getErr := p.publisher.GetFile(ctx, r.cfg.Branch, changelogFile)
+		if getErr != nil {
+			return "", fmt.Errorf("get changelog file %s: %w", changelogFile, getErr)
+		}
+
+		return content, nil
+	})
 	if err != nil {
-		return "", fmt.Errorf("get changelog file %s: %w", changelogFile, err)
+		return "", err
 	}
 
 	entry, err := changelogEntryByTag(changelogBody, tag)
