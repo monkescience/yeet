@@ -610,7 +610,6 @@ func logParsedCommits(ctx context.Context, targetID string, commits []commit.Com
 			slog.String("hash", parsed.Hash),
 			slog.String("type", parsed.Type),
 			slog.Bool("breaking", parsed.Breaking),
-			slog.String("description", parsed.Description),
 		)
 	}
 }

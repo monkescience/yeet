@@ -73,7 +73,7 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 		return nil, nil
 	}
 
-	slog.DebugContext(ctx, "gitlab: resolving reviewers", slog.Any("reviewers", usernames))
+	slog.DebugContext(ctx, "gitlab: resolving reviewers", slog.Int("reviewer_count", len(usernames)))
 
 	ids := make([]int64, 0, len(usernames))
 

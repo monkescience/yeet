@@ -81,7 +81,7 @@ func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]g
 		return nil, nil
 	}
 
-	slog.DebugContext(ctx, "azure devops: resolving reviewers", slog.Any("reviewers", names))
+	slog.DebugContext(ctx, "azure devops: resolving reviewers", slog.Int("reviewer_count", len(names)))
 
 	identityClient, err := identity.NewClient(ctx, a.conn)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-github/v89/github"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/httptrace"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -44,7 +45,7 @@ const (
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
-func newRetryableHTTPClient() *http.Client {
+func newRetryableClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
 	client.RetryMax = httpRetryMax
 	client.RetryWaitMin = httpRetryWaitMin
@@ -52,6 +53,19 @@ func newRetryableHTTPClient() *http.Client {
 	client.Logger = nil
 
 	client.HTTPClient.Timeout = httpClientTimeout
+
+	return client
+}
+
+func newRetryableHTTPClient() *http.Client {
+	return newRetryableClient().StandardClient()
+}
+
+func newTracedRetryableHTTPClient(providerType config.ProviderType) *http.Client {
+	client := newRetryableClient()
+	trace := httptrace.New(string(providerType))
+	client.RequestLogHook = trace.RequestHook
+	client.HTTPClient.Transport = trace.Interceptor(client.HTTPClient.Transport)
 
 	return client.StandardClient()
 }
@@ -94,7 +108,7 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 	}
 
 	opts := []github.ClientOptionsFunc{
-		github.WithHTTPClient(newRetryableHTTPClient()),
+		github.WithHTTPClient(newTracedRetryableHTTPClient(config.ProviderGitHub)),
 		github.WithAuthToken(token),
 	}
 	if baseURL != "" {
@@ -128,7 +142,11 @@ func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.
 		}
 	}
 
-	var opts []gitlab.ClientOptionFunc
+	trace := httptrace.New(string(config.ProviderGitLab))
+	opts := []gitlab.ClientOptionFunc{
+		gitlab.WithRequestLogHook(trace.RequestHook),
+		gitlab.WithInterceptor(trace.Interceptor),
+	}
 
 	if baseURL != "" {
 		opts = append(opts, gitlab.WithBaseURL(baseURL))

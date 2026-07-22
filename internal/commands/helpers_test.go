@@ -409,6 +409,19 @@ func TestNewRetryableHTTPClient(t *testing.T) {
 	testastic.Equal(t, httpRetryWaitMax, roundTripper.Client.RetryWaitMax)
 	testastic.Equal(t, httpClientTimeout, roundTripper.Client.HTTPClient.Timeout)
 	testastic.True(t, roundTripper.Client.Logger == nil)
+	testastic.True(t, roundTripper.Client.RequestLogHook == nil)
+}
+
+func TestNewTracedRetryableHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	// when: constructing a traced retryable HTTP client for GitHub
+	httpClient := newTracedRetryableHTTPClient(config.ProviderGitHub)
+
+	// then: the retry hook is configured on the underlying client
+	roundTripper, ok := httpClient.Transport.(*retryablehttp.RoundTripper)
+	testastic.True(t, ok)
+	testastic.True(t, roundTripper.Client.RequestLogHook != nil)
 }
 
 func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {

@@ -45,7 +45,7 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 
 		slog.DebugContext(ctx, "github: requested reviewers",
 			slog.Int("pr_number", pr.GetNumber()),
-			slog.Any("reviewers", opts.Reviewers),
+			slog.Int("reviewer_count", len(opts.Reviewers)),
 		)
 	}
 
@@ -67,7 +67,7 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 		return nil
 	}
 
-	slog.DebugContext(ctx, "github: validating reviewers", slog.Any("reviewers", reviewers))
+	slog.DebugContext(ctx, "github: validating reviewers", slog.Int("reviewer_count", len(reviewers)))
 
 	for _, reviewer := range reviewers {
 		isCollaborator, _, err := g.client.Repositories.IsCollaborator(ctx, g.repo.Owner, g.repo.Name, reviewer)

@@ -2,14 +2,44 @@
 package release
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
+
+func TestLogParsedCommits(t *testing.T) {
+	// given: a parsed commit containing private text and debug logging
+	var logOutput bytes.Buffer
+
+	previousLogger := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	commits := []commit.Commit{{
+		Hash:        "abc1234",
+		Type:        "fix",
+		Description: "private customer incident details",
+	}}
+
+	// when: logging the parsed commit metadata
+	logParsedCommits(t.Context(), "service", commits)
+
+	// then: useful classification remains without copying commit text into the log
+	testastic.True(t, strings.Contains(logOutput.String(), `"hash":"abc1234"`))
+	testastic.True(t, strings.Contains(logOutput.String(), `"type":"fix"`))
+	testastic.False(t, strings.Contains(logOutput.String(), "private customer incident details"))
+}
 
 func TestOrderedPlans(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,8 @@
 package commit_test
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -8,6 +10,26 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 )
+
+func TestParseLogging(t *testing.T) {
+	// given: a non-conventional commit containing private text and debug logging
+	var logOutput bytes.Buffer
+
+	previousLogger := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	// when: parsing the commit
+	parsed := commit.Parse(t.Context(), "abc1234", "private customer incident details")
+
+	// then: the commit is parsed without copying its text into the log
+	testastic.Equal(t, "private customer incident details", parsed.Description)
+	testastic.True(t, strings.Contains(logOutput.String(), `"hash":"abc1234"`))
+	testastic.False(t, strings.Contains(logOutput.String(), "private customer incident details"))
+}
 
 func TestParse(t *testing.T) {
 	t.Parallel()

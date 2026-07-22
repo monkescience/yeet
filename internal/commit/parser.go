@@ -67,7 +67,6 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 
 		slog.DebugContext(ctx, "commit: non-conventional header, treating as no-bump",
 			slog.String("hash", hash),
-			slog.String("header", header),
 		)
 
 		return c
