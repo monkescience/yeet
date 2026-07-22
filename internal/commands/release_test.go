@@ -169,8 +169,8 @@ func TestReleaseCommand(t *testing.T) {
 
 	for name, environment := range map[string]map[string]string{
 		"allows GitHub pull request ref for dry run": {
-			"GITHUB_REF":     "refs/pull/123/merge",
-			githubRefNameEnv: "123/merge",
+			"GITHUB_REF":      "refs/pull/123/merge",
+			"GITHUB_REF_NAME": "123/merge",
 		},
 		"allows Azure pull request ref for dry run": {
 			"BUILD_SOURCEBRANCH": "refs/pull/123/merge",
@@ -188,7 +188,7 @@ func TestReleaseCommand(t *testing.T) {
 			writeTestConfig(t, func(cfg *config.Config) {})
 
 			// when: resolving release configuration for a dry run
-			cfg, err := releaseConfigForRun(context.Background(), config.DefaultFile, releaseRunOptions{dryRun: true})
+			cfg, err := release.Prepare(context.Background(), config.DefaultFile, release.Options{DryRun: true})
 
 			// then: stable preview mode is selected despite the synthetic PR ref
 			testastic.NoError(t, err)
@@ -248,15 +248,15 @@ func TestApplyReleaseOptions(t *testing.T) {
 		}
 
 		// when: applying explicit repository overrides
-		err := applyReleaseOptions(cfg, releaseRunOptions{
-			repositoryRemote:    "upstream",
-			repositoryRemoteSet: true,
-			repositoryHost:      "github.company.com",
-			repositoryHostSet:   true,
-			repositoryOwner:     "platform",
-			repositoryOwnerSet:  true,
-			repositoryRepo:      "yeet",
-			repositoryRepoSet:   true,
+		err := release.ApplyOptions(cfg, release.Options{
+			RepositoryRemote:    "upstream",
+			RepositoryRemoteSet: true,
+			RepositoryHost:      "github.company.com",
+			RepositoryHostSet:   true,
+			RepositoryOwner:     "platform",
+			RepositoryOwnerSet:  true,
+			RepositoryRepo:      "yeet",
+			RepositoryRepoSet:   true,
 		})
 
 		// then: the overrides become the effective release config
@@ -281,13 +281,13 @@ func TestApplyReleaseOptions(t *testing.T) {
 		}
 
 		// when: switching provider to github with github overrides
-		err := applyReleaseOptions(cfg, releaseRunOptions{
-			provider:           string(config.ProviderGitHub),
-			providerSet:        true,
-			repositoryOwner:    "platform",
-			repositoryOwnerSet: true,
-			repositoryRepo:     "yeet",
-			repositoryRepoSet:  true,
+		err := release.ApplyOptions(cfg, release.Options{
+			Provider:           string(config.ProviderGitHub),
+			ProviderSet:        true,
+			RepositoryOwner:    "platform",
+			RepositoryOwnerSet: true,
+			RepositoryRepo:     "yeet",
+			RepositoryRepoSet:  true,
 		})
 
 		// then: the gitlab sub-section is cleared and github is populated
@@ -310,18 +310,18 @@ func TestApplyReleaseOptions(t *testing.T) {
 			Project: "group/subgroup/service",
 		}
 
-		err := applyReleaseOptions(cfg, releaseRunOptions{
-			provider:           string(config.ProviderGitHub),
-			providerSet:        true,
-			repositoryOwner:    "platform",
-			repositoryOwnerSet: true,
-			repositoryRepo:     "yeet",
-			repositoryRepoSet:  true,
+		err := release.ApplyOptions(cfg, release.Options{
+			Provider:           string(config.ProviderGitHub),
+			ProviderSet:        true,
+			RepositoryOwner:    "platform",
+			RepositoryOwnerSet: true,
+			RepositoryRepo:     "yeet",
+			RepositoryRepoSet:  true,
 		})
 		testastic.NoError(t, err)
 
 		// when: resolving the repository after applying overrides
-		repository, err := resolveRepository(
+		repository, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -349,9 +349,9 @@ func TestApplyReleaseOptions(t *testing.T) {
 		}
 
 		// when: applying a project-only github override
-		err := applyReleaseOptions(cfg, releaseRunOptions{
-			repositoryProject:    "other/widgets",
-			repositoryProjectSet: true,
+		err := release.ApplyOptions(cfg, release.Options{
+			RepositoryProject:    "other/widgets",
+			RepositoryProjectSet: true,
 		})
 
 		// then: project is set and stale owner/repo are cleared
@@ -370,11 +370,11 @@ func TestApplyReleaseOptions(t *testing.T) {
 		cfg := config.Default()
 
 		// when: applying github-shaped CLI overrides without --provider
-		err := applyReleaseOptions(cfg, releaseRunOptions{
-			repositoryOwner:    "platform",
-			repositoryOwnerSet: true,
-			repositoryRepo:     "yeet",
-			repositoryRepoSet:  true,
+		err := release.ApplyOptions(cfg, release.Options{
+			RepositoryOwner:    "platform",
+			RepositoryOwnerSet: true,
+			RepositoryRepo:     "yeet",
+			RepositoryRepoSet:  true,
 		})
 
 		// then: the override set is rejected
@@ -410,7 +410,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.company.com")
 
 		// when: resolving with a remote on the same host
-		repository, err := resolveRepository(
+		repository, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -430,7 +430,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("evil.example")
 
 		// when: resolving with a remote on github.com
-		_, err := resolveRepository(
+		_, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -454,7 +454,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig(provider.DefaultGitHubHost)
 
 		// when: resolving with a getter that fails if called
-		repository, err := resolveRepository(
+		repository, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -474,7 +474,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.com@evil.example")
 
 		// when: resolving
-		_, err := resolveRepository(
+		_, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -499,7 +499,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.company.com")
 
 		// when: resolving with a getter that errors
-		_, err := resolveRepository(
+		_, err := provider.ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -525,7 +525,7 @@ func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
 	cfg := githubTrustConfig("github.company.com")
 
 	// when: resolving with a remote on a different host
-	repository, err := resolveRepository(
+	repository, err := provider.ResolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {
@@ -551,7 +551,7 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on main
-		err := resolveReleaseMode(cfg, "main", releaseRunOptions{})
+		err := release.ResolveMode(cfg, "main", release.Options{})
 
 		// then: stable mode is selected
 		testastic.NoError(t, err)
@@ -569,7 +569,7 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on beta
-		err := resolveReleaseMode(cfg, "beta", releaseRunOptions{})
+		err := release.ResolveMode(cfg, "beta", release.Options{})
 
 		// then: beta mode is selected and branch is scoped to beta
 		testastic.NoError(t, err)
@@ -587,11 +587,11 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on an unconfigured branch
-		err := resolveReleaseMode(cfg, "feature/demo", releaseRunOptions{})
+		err := release.ResolveMode(cfg, "feature/demo", release.Options{})
 
 		// then: mutating release is rejected
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrUnconfiguredReleaseBranch)
+		testastic.ErrorIs(t, err, release.ErrUnconfiguredReleaseBranch)
 	})
 
 	t.Run("unconfigured branch is allowed for dry run", func(t *testing.T) {
@@ -604,7 +604,7 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode for dry-run on an unconfigured branch
-		err := resolveReleaseMode(cfg, "feature/demo", releaseRunOptions{dryRun: true})
+		err := release.ResolveMode(cfg, "feature/demo", release.Options{DryRun: true})
 
 		// then: dry-run falls back to stable branch planning
 		testastic.NoError(t, err)
@@ -626,11 +626,11 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: requesting a channel that does not exist
-		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "alpha", channelSet: true})
+		err := release.ResolveExplicitChannel(cfg, "beta", release.Options{Channel: "alpha", ChannelSet: true})
 
 		// then: the unknown channel error is returned
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrUnknownReleaseChannel)
+		testastic.ErrorIs(t, err, release.ErrUnknownReleaseChannel)
 	})
 
 	t.Run("matching branch activates the channel", func(t *testing.T) {
@@ -643,7 +643,7 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: resolving the explicit channel on its branch
-		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "beta", channelSet: true})
+		err := release.ResolveExplicitChannel(cfg, "beta", release.Options{Channel: "beta", ChannelSet: true})
 
 		// then: the channel becomes active and the branch is scoped
 		testastic.NoError(t, err)
@@ -661,11 +661,11 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: requesting beta from a non-beta branch
-		err := resolveExplicitReleaseChannel(cfg, "main", releaseRunOptions{channel: "beta", channelSet: true})
+		err := release.ResolveExplicitChannel(cfg, "main", release.Options{Channel: "beta", ChannelSet: true})
 
 		// then: the unconfigured branch error is returned
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrUnconfiguredReleaseBranch)
+		testastic.ErrorIs(t, err, release.ErrUnconfiguredReleaseBranch)
 	})
 
 	t.Run("branch mismatch is allowed for dry run", func(t *testing.T) {
@@ -678,10 +678,10 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: dry-running the explicit channel from a different branch
-		err := resolveExplicitReleaseChannel(
+		err := release.ResolveExplicitChannel(
 			cfg,
 			"main",
-			releaseRunOptions{channel: "beta", channelSet: true, dryRun: true},
+			release.Options{Channel: "beta", ChannelSet: true, DryRun: true},
 		)
 
 		// then: the channel is activated despite the branch mismatch
@@ -700,7 +700,7 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: resolving with surrounding whitespace in the channel option
-		err := resolveExplicitReleaseChannel(cfg, "beta", releaseRunOptions{channel: "  beta  ", channelSet: true})
+		err := release.ResolveExplicitChannel(cfg, "beta", release.Options{Channel: "  beta  ", ChannelSet: true})
 
 		// then: the channel is found and activated
 		testastic.NoError(t, err)
@@ -869,7 +869,7 @@ func TestReleaseLogMessages(t *testing.T) {
 		})
 
 		// when: resolving release configuration without a detectable branch
-		_, err := releaseConfigForRun(t.Context(), config.DefaultFile, releaseRunOptions{dryRun: true})
+		_, err := release.Prepare(t.Context(), config.DefaultFile, release.Options{DryRun: true})
 
 		// then: the fallback is logged without compressed punctuation
 		testastic.NoError(t, err)
@@ -971,13 +971,13 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		cfg.Release.AutoMerge = true
 		cfg.Release.AutoMergeForce = true
 
-		options := releaseRunOptions{
-			autoMergeSet: true,
-			autoMerge:    false,
+		options := release.Options{
+			AutoMergeSet: true,
+			AutoMerge:    false,
 		}
 
 		// when: applying options
-		applyReleaseBehaviorOptions(cfg, options)
+		release.ApplyBehaviorOptions(cfg, options)
 
 		// then: the explicit flag disables both normal and forced auto-merge
 		testastic.False(t, cfg.Release.AutoMerge)
@@ -991,13 +991,13 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		cfg := config.Default()
 		cfg.Release.AutoMerge = false
 
-		options := releaseRunOptions{
-			autoMergeForceSet: true,
-			autoMergeForce:    true,
+		options := release.Options{
+			AutoMergeForceSet: true,
+			AutoMergeForce:    true,
 		}
 
 		// when: applying options
-		applyReleaseBehaviorOptions(cfg, options)
+		release.ApplyBehaviorOptions(cfg, options)
 
 		// then: auto merge is enabled by force
 		testastic.True(t, cfg.Release.AutoMerge)
@@ -1010,13 +1010,13 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		// given: options specifying a merge method
 		cfg := config.Default()
 
-		options := releaseRunOptions{
-			autoMergeMethodSet: true,
-			autoMergeMethod:    string(config.AutoMergeMethodSquash),
+		options := release.Options{
+			AutoMergeMethodSet: true,
+			AutoMergeMethod:    string(config.AutoMergeMethodSquash),
 		}
 
 		// when: applying options
-		applyReleaseBehaviorOptions(cfg, options)
+		release.ApplyBehaviorOptions(cfg, options)
 
 		// then: merge method is applied
 		testastic.Equal(t, config.AutoMergeMethodSquash, cfg.Release.AutoMergeMethod)
@@ -1044,7 +1044,7 @@ func clearBranchEnv(t *testing.T) {
 
 	for _, envName := range []string{
 		"GITHUB_REF",
-		githubRefNameEnv,
+		"GITHUB_REF_NAME",
 		"CI_COMMIT_BRANCH",
 		"BRANCH_NAME",
 		"BUILD_SOURCEBRANCH",

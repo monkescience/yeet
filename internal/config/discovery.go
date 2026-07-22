@@ -1,4 +1,4 @@
-package commands
+package config
 
 import (
 	"context"
@@ -7,17 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/monkescience/yeet/internal/config"
 )
 
-func loadConfig(ctx context.Context, path string) (*config.Config, string, error) {
-	resolvedPath, err := resolveConfigPath(ctx, path)
+func LoadResolved(ctx context.Context, path string) (*Config, string, error) {
+	resolvedPath, err := ResolvePath(ctx, path)
 	if err != nil {
 		return nil, resolvedPath, err
 	}
 
-	cfg, err := config.Load(ctx, resolvedPath)
+	cfg, err := Load(ctx, resolvedPath)
 	if err != nil {
 		return nil, resolvedPath, fmt.Errorf("load config: %w", err)
 	}
@@ -25,7 +23,7 @@ func loadConfig(ctx context.Context, path string) (*config.Config, string, error
 	return cfg, resolvedPath, nil
 }
 
-func resolveConfigPath(ctx context.Context, path string) (string, error) {
+func ResolvePath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
@@ -41,19 +39,19 @@ func resolveConfigPath(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 
-	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
+	configDir, found, err := findAncestorContaining(ctx, workingDir, DefaultFile, searchRoot)
 	if err != nil {
 		return "", fmt.Errorf("discover config path: %w", err)
 	}
 
 	if !found {
-		return config.DefaultFile, missingPathError(config.DefaultFile)
+		return DefaultFile, missingPathError(DefaultFile)
 	}
 
-	return filepath.Join(configDir, config.DefaultFile), nil
+	return filepath.Join(configDir, DefaultFile), nil
 }
 
-func resolveInitConfigPath(ctx context.Context, path string) (string, error) {
+func ResolveInitPath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
@@ -69,20 +67,20 @@ func resolveInitConfigPath(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 
-	configDir, found, err := findAncestorContaining(ctx, workingDir, config.DefaultFile, searchRoot)
+	configDir, found, err := findAncestorContaining(ctx, workingDir, DefaultFile, searchRoot)
 	if err != nil {
 		return "", fmt.Errorf("discover config path: %w", err)
 	}
 
 	if found {
-		return filepath.Join(configDir, config.DefaultFile), nil
+		return filepath.Join(configDir, DefaultFile), nil
 	}
 
 	if searchRoot == "" {
-		return config.DefaultFile, nil
+		return DefaultFile, nil
 	}
 
-	return filepath.Join(searchRoot, config.DefaultFile), nil
+	return filepath.Join(searchRoot, DefaultFile), nil
 }
 
 func explicitConfigPath(path string) (string, bool) {

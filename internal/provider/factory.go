@@ -1,4 +1,4 @@
-package commands
+package provider
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/httptrace"
-	"github.com/monkescience/yeet/internal/provider"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
@@ -70,7 +69,7 @@ func newTracedRetryableHTTPClient(providerType config.ProviderType) *http.Client
 	return client.StandardClient()
 }
 
-func createProvider(repository *provider.RepositoryDescriptor) (provider.Provider, error) {
+func Create(repository *RepositoryDescriptor) (Provider, error) {
 	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		return createGitHubProvider(repository)
@@ -88,7 +87,7 @@ func createProvider(repository *provider.RepositoryDescriptor) (provider.Provide
 	}
 }
 
-func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.GitHub, error) {
+func createGitHubProvider(repository *RepositoryDescriptor) (*GitHub, error) {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GH_TOKEN")
@@ -102,7 +101,7 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 
 	if baseURL == "" {
 		host := strings.TrimSpace(repository.Host)
-		if host != "" && !strings.EqualFold(host, provider.DefaultGitHubHost) {
+		if host != "" && !strings.EqualFold(host, DefaultGitHubHost) {
 			baseURL = fmt.Sprintf("https://%s/api/v3/", host)
 		}
 	}
@@ -120,10 +119,10 @@ func createGitHubProvider(repository *provider.RepositoryDescriptor) (*provider.
 		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
-	return provider.NewGitHub(client, repository.Owner, repository.Repo), nil
+	return NewGitHub(client, repository.Owner, repository.Repo), nil
 }
 
-func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.GitLab, error) {
+func createGitLabProvider(repository *RepositoryDescriptor) (*GitLab, error) {
 	token := os.Getenv("GITLAB_TOKEN")
 	if token == "" {
 		token = os.Getenv("GL_TOKEN")
@@ -137,7 +136,7 @@ func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.
 
 	if baseURL == "" {
 		host := strings.TrimSpace(repository.Host)
-		if host != "" && !strings.EqualFold(host, provider.DefaultGitLabHost) {
+		if host != "" && !strings.EqualFold(host, DefaultGitLabHost) {
 			baseURL = fmt.Sprintf("https://%s/api/v4", host)
 		}
 	}
@@ -157,10 +156,10 @@ func createGitLabProvider(repository *provider.RepositoryDescriptor) (*provider.
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	return provider.NewGitLab(client, repository.Project), nil
+	return NewGitLab(client, repository.Project), nil
 }
 
-func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*provider.AzureDevOps, error) {
+func createAzureDevOpsProvider(repository *RepositoryDescriptor) (*AzureDevOps, error) {
 	systemAccessToken := os.Getenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN")
 	pat := os.Getenv("AZURE_DEVOPS_EXT_PAT")
 
@@ -176,7 +175,7 @@ func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*prov
 	if baseURL == "" {
 		host := strings.TrimSpace(repository.Host)
 		if host == "" || strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
-			host = provider.DefaultAzureDevOpsHost
+			host = DefaultAzureDevOpsHost
 		}
 
 		baseURL = "https://" + host
@@ -193,7 +192,7 @@ func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*prov
 	httpClient := newRetryableHTTPClient()
 
 	if systemAccessToken != "" {
-		return provider.NewAzureDevOpsWithSystemAccessToken(
+		return NewAzureDevOpsWithSystemAccessToken(
 			httpClient,
 			baseURL,
 			systemAccessToken,
@@ -204,7 +203,7 @@ func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*prov
 		), nil
 	}
 
-	return provider.NewAzureDevOps(
+	return NewAzureDevOps(
 		httpClient,
 		baseURL,
 		pat,
@@ -215,11 +214,11 @@ func createAzureDevOpsProvider(repository *provider.RepositoryDescriptor) (*prov
 	), nil
 }
 
-func resolveRepository(
+func ResolveRepository(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
-) (*provider.RepositoryDescriptor, error) {
+) (*RepositoryDescriptor, error) {
 	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL)
 	if err != nil {
 		return nil, err
@@ -247,7 +246,7 @@ func repositoryDescriptorFromSources(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
-) (*provider.RepositoryDescriptor, error) {
+) (*RepositoryDescriptor, error) {
 	repository := repositoryFromConfig(cfg)
 	if repository.Remote == "" {
 		repository.Remote = "origin"
@@ -259,7 +258,7 @@ func repositoryDescriptorFromSources(
 			return nil, fmt.Errorf("get git remote %q url: %w", repository.Remote, err)
 		}
 
-		detected, err := provider.ParseRemote(remoteURL)
+		detected, err := ParseRemote(remoteURL)
 		if err != nil {
 			return nil, fmt.Errorf("parse git remote %q url: %w", repository.Remote, err)
 		}
@@ -273,9 +272,9 @@ func repositoryDescriptorFromSources(
 	return repository, nil
 }
 
-func resolveRepositoryProvider(repository *provider.RepositoryDescriptor) error {
+func resolveRepositoryProvider(repository *RepositoryDescriptor) error {
 	if repository.Provider == "" {
-		providerType, err := provider.DetectType(repository.Host)
+		providerType, err := DetectType(repository.Host)
 		if err != nil {
 			return unsupportedAutoProviderError(repository.Host, err)
 		}
@@ -286,19 +285,19 @@ func resolveRepositoryProvider(repository *provider.RepositoryDescriptor) error 
 	return nil
 }
 
-func applyRepositoryProviderDefaults(repository *provider.RepositoryDescriptor) {
+func applyRepositoryProviderDefaults(repository *RepositoryDescriptor) {
 	switch config.ProviderType(repository.Provider) {
 	case config.ProviderGitHub:
 		if repository.Host == "" {
-			repository.Host = provider.DefaultGitHubHost
+			repository.Host = DefaultGitHubHost
 		}
 	case config.ProviderGitLab:
 		if repository.Host == "" {
-			repository.Host = provider.DefaultGitLabHost
+			repository.Host = DefaultGitLabHost
 		}
 	case config.ProviderAzureDevOps:
 		if repository.Host == "" {
-			repository.Host = provider.DefaultAzureDevOpsHost
+			repository.Host = DefaultAzureDevOpsHost
 		}
 
 		if repository.Collection == "" {
@@ -311,7 +310,7 @@ func applyRepositoryProviderDefaults(repository *provider.RepositoryDescriptor) 
 
 func validateProviderHostTrust(
 	ctx context.Context,
-	repository *provider.RepositoryDescriptor,
+	repository *RepositoryDescriptor,
 	getRemoteURL gitRemoteURLGetter,
 ) error {
 	host := strings.TrimSpace(repository.Host)
@@ -323,7 +322,7 @@ func validateProviderHostTrust(
 		return nil
 	}
 
-	if _, err := provider.DetectType(host); err == nil {
+	if _, err := DetectType(host); err == nil {
 		return nil
 	}
 
@@ -335,7 +334,7 @@ func validateProviderHostTrust(
 		)
 	}
 
-	detected, err := provider.ParseRemote(remoteURL)
+	detected, err := ParseRemote(remoteURL)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: %q could not be verified against git remote %q: %s",
@@ -389,8 +388,8 @@ func unsupportedAutoProviderError(host string, err error) error {
 	)
 }
 
-func repositoryFromConfig(cfg *config.Config) *provider.RepositoryDescriptor {
-	descriptor := &provider.RepositoryDescriptor{
+func repositoryFromConfig(cfg *config.Config) *RepositoryDescriptor {
+	descriptor := &RepositoryDescriptor{
 		Provider: normalizedRepositoryProvider(cfg.Provider),
 		Remote:   strings.TrimSpace(cfg.Repository.Remote),
 	}
@@ -435,7 +434,7 @@ func normalizedRepositoryProvider(providerType config.ProviderType) string {
 	return provider
 }
 
-func needsRemoteLookup(repository *provider.RepositoryDescriptor) bool {
+func needsRemoteLookup(repository *RepositoryDescriptor) bool {
 	if !hasRepositoryCoordinates(repository) {
 		return true
 	}
@@ -443,14 +442,14 @@ func needsRemoteLookup(repository *provider.RepositoryDescriptor) bool {
 	return repository.Provider == "" && repository.Host == ""
 }
 
-func hasRepositoryCoordinates(repository *provider.RepositoryDescriptor) bool {
+func hasRepositoryCoordinates(repository *RepositoryDescriptor) bool {
 	return repository.Project != "" || (repository.Owner != "" && repository.Repo != "")
 }
 
 func mergeRepositoryDescriptor(
-	base *provider.RepositoryDescriptor,
-	override *provider.RepositoryDescriptor,
-) *provider.RepositoryDescriptor {
+	base *RepositoryDescriptor,
+	override *RepositoryDescriptor,
+) *RepositoryDescriptor {
 	if override.Provider != "" {
 		base.Provider = override.Provider
 	}
@@ -476,7 +475,7 @@ func mergeRepositoryDescriptor(
 	return base
 }
 
-func mergeRepositoryCoordinates(base *provider.RepositoryDescriptor, override *provider.RepositoryDescriptor) {
+func mergeRepositoryCoordinates(base *RepositoryDescriptor, override *RepositoryDescriptor) {
 	switch {
 	case override.Project != "":
 		base.Project = override.Project
@@ -497,7 +496,7 @@ func mergeRepositoryCoordinates(base *provider.RepositoryDescriptor, override *p
 	}
 }
 
-func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
+func normalizeRepositoryDescriptor(repository *RepositoryDescriptor) {
 	repository.Provider = strings.TrimSpace(repository.Provider)
 	repository.Host = strings.TrimSpace(repository.Host)
 	repository.Owner = strings.TrimSpace(repository.Owner)
@@ -515,7 +514,7 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 		return
 	}
 
-	owner, repo := provider.SplitProjectPath(repository.Project)
+	owner, repo := SplitProjectPath(repository.Project)
 	if repository.Owner == "" {
 		repository.Owner = owner
 	}
@@ -525,7 +524,7 @@ func normalizeRepositoryDescriptor(repository *provider.RepositoryDescriptor) {
 	}
 }
 
-func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) error {
+func validateRepositoryDescriptor(repository *RepositoryDescriptor) error {
 	if err := validateRepositoryCoordinates(repository); err != nil {
 		return err
 	}
@@ -559,7 +558,7 @@ func validateRepositoryDescriptor(repository *provider.RepositoryDescriptor) err
 	return nil
 }
 
-func validateRepositoryCoordinates(repository *provider.RepositoryDescriptor) error {
+func validateRepositoryCoordinates(repository *RepositoryDescriptor) error {
 	if repository.Project == "" || repository.Owner == "" || repository.Repo == "" {
 		return nil
 	}

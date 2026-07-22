@@ -1,4 +1,4 @@
-package commands //nolint:testpackage // validates unexported repository helpers directly
+package provider //nolint:testpackage // validates unexported provider construction directly
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestResolveRepository(t *testing.T) {
@@ -32,7 +31,7 @@ func TestResolveRepository(t *testing.T) {
 		remoteLookedUp := false
 
 		// when: resolving the repository against a remote on the same host
-		repository, err := resolveRepository(
+		repository, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -67,7 +66,7 @@ func TestResolveRepository(t *testing.T) {
 		remoteLookedUp := false
 
 		// when: resolving the repository
-		repository, err := resolveRepository(
+		repository, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -95,7 +94,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg.Repository.Remote = "upstream"
 
 		// when: resolving the repository
-		repository, err := resolveRepository(
+		repository, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(_ context.Context, remote string) (string, error) {
@@ -122,7 +121,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg := config.Default()
 
 		// when: resolving the repository
-		_, err := resolveRepository(
+		_, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -132,7 +131,7 @@ func TestResolveRepository(t *testing.T) {
 
 		// then: resolution reports an unsupported host with remediation
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
+		testastic.ErrorIs(t, err, ErrUnsupportedHost)
 		testastic.Equal(
 			t,
 			"resolve repository provider for host \"code.company.com\": unsupported remote host: "+
@@ -149,7 +148,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg := config.Default()
 
 		// when: resolving the repository
-		_, err := resolveRepository(
+		_, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -159,7 +158,7 @@ func TestResolveRepository(t *testing.T) {
 
 		// then: github custom hosts require an explicit provider override
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
+		testastic.ErrorIs(t, err, ErrUnsupportedHost)
 		testastic.Equal(
 			t,
 			"resolve repository provider for host \"github.company.com\": unsupported remote host: "+
@@ -177,7 +176,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg.Provider = config.ProviderGitLab
 
 		// when: resolving the repository
-		repository, err := resolveRepository(
+		repository, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -206,7 +205,7 @@ func TestResolveRepository(t *testing.T) {
 		}
 
 		// when: resolving the repository
-		repository, err := resolveRepository(
+		repository, err := ResolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -243,7 +242,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(servicePath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolvePath(context.Background(), "")
 
 		// then: the nearest ancestor config is selected
 		testastic.NoError(t, resolveErr)
@@ -262,7 +261,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving an explicit config path
-		resolvedPath, resolveErr := resolveConfigPath(context.Background(), " custom.yaml ")
+		resolvedPath, resolveErr := config.ResolvePath(context.Background(), " custom.yaml ")
 
 		// then: the explicit path is used as-is after trimming
 		testastic.NoError(t, resolveErr)
@@ -278,7 +277,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolvePath(context.Background(), "")
 
 		// then: the missing path is reported against the default filename
 		testastic.Equal(t, config.DefaultFile, resolvedPath)
@@ -303,7 +302,7 @@ func TestResolveConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default config path
-		resolvedPath, resolveErr := resolveConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolvePath(context.Background(), "")
 
 		// then: discovery stops at the repo root instead of using the parent config
 		testastic.Equal(t, config.DefaultFile, resolvedPath)
@@ -325,7 +324,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolveInitPath(context.Background(), "")
 
 		// then: init targets the repository root config path
 		testastic.NoError(t, resolveErr)
@@ -348,7 +347,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolveInitPath(context.Background(), "")
 
 		// then: init points at the existing ancestor config file
 		testastic.NoError(t, resolveErr)
@@ -364,7 +363,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolveInitPath(context.Background(), "")
 
 		// then: init falls back to the local default filename
 		testastic.NoError(t, resolveErr)
@@ -387,7 +386,7 @@ func TestResolveInitConfigPath(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: resolving the default init destination
-		resolvedPath, resolveErr := resolveInitConfigPath(context.Background(), "")
+		resolvedPath, resolveErr := config.ResolveInitPath(context.Background(), "")
 
 		// then: init still targets the repo root config path
 		testastic.NoError(t, resolveErr)
@@ -430,7 +429,7 @@ func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
+	githubProvider, err := createGitHubProvider(&RepositoryDescriptor{
 		Host:  "github.company.com",
 		Owner: "platform",
 		Repo:  "yeet",
@@ -447,7 +446,7 @@ func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "")
 
 	// when: creating the github provider
-	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
+	githubProvider, err := createGitHubProvider(&RepositoryDescriptor{
 		Host:  "github.company.com",
 		Owner: "platform",
 		Repo:  "yeet",
@@ -464,7 +463,7 @@ func TestCreateGitLabProviderPrefersGitLabURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://gitlab-proxy.example/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
+	gitlabProvider, err := createGitLabProvider(&RepositoryDescriptor{
 		Host:    "gitlab.company.com",
 		Project: "group/subgroup/service",
 	})
@@ -480,7 +479,7 @@ func TestCreateGitLabProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
+	gitlabProvider, err := createGitLabProvider(&RepositoryDescriptor{
 		Host:    "gitlab.company.com",
 		Project: "group/subgroup/service",
 	})
@@ -496,8 +495,8 @@ func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://example.test/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := createGitHubProvider(&provider.RepositoryDescriptor{
-		Host:  provider.DefaultGitHubHost,
+	githubProvider, err := createGitHubProvider(&RepositoryDescriptor{
+		Host:  DefaultGitHubHost,
 		Owner: "platform",
 		Repo:  "yeet",
 	})
@@ -513,8 +512,8 @@ func TestCreateGitLabProviderHonorsGitLabURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://example.test/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{
-		Host:    provider.DefaultGitLabHost,
+	gitlabProvider, err := createGitLabProvider(&RepositoryDescriptor{
+		Host:    DefaultGitLabHost,
 		Project: "group/subgroup/service",
 	})
 
@@ -528,7 +527,7 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
@@ -546,7 +545,7 @@ func TestCreateAzureDevOpsProviderNormalizesLegacyHost(t *testing.T) {
 	t.Setenv(azureURLEnv, "")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&RepositoryDescriptor{
 		Host:         "contoso.visualstudio.com",
 		Organization: "contoso",
 		Project:      "release-tools",
@@ -563,7 +562,7 @@ func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+	azureDevOpsProvider, err := createAzureDevOpsProvider(&RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
@@ -581,7 +580,7 @@ func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
 
 	// when: creating the Azure DevOps provider
-	_, err := createAzureDevOpsProvider(&provider.RepositoryDescriptor{
+	_, err := createAzureDevOpsProvider(&RepositoryDescriptor{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
@@ -606,7 +605,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, err := getGitRemoteURL(context.Background(), "origin")
+		remoteURL, err := GitRemoteURL(context.Background(), "origin")
 
 		// then: the configured URL is returned
 		testastic.NoError(t, err)
@@ -624,7 +623,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: reading the custom remote URL
-		remoteURL, getErr := getGitRemoteURL(context.Background(), "upstream")
+		remoteURL, getErr := GitRemoteURL(context.Background(), "upstream")
 
 		// then: the repository is discovered automatically
 		testastic.NoError(t, getErr)
@@ -651,7 +650,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
 
 		// then: the rewritten URL matches git behavior
 		testastic.NoError(t, getErr)
@@ -672,7 +671,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
 
 		// then: worktreeConfig does not block repository discovery
 		testastic.NoError(t, getErr)
@@ -687,7 +686,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading an unknown remote
-		remoteURL, getErr := getGitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
 
 		// then: a clear error is returned
 		testastic.Equal(t, "", remoteURL)
@@ -695,84 +694,6 @@ func TestGetGitRemoteURL(t *testing.T) {
 		testastic.ErrorIs(t, getErr, ErrGitRemoteNotFound)
 		testastic.Equal(t, "git remote not found: \"origin\"", getErr.Error())
 	})
-}
-
-func TestCurrentGitBranch(t *testing.T) {
-	t.Run("uses Azure Pipelines full source branch", func(t *testing.T) {
-		// given: an Azure Pipelines checkout where Git HEAD cannot provide the branch
-		t.Chdir(t.TempDir())
-		clearBranchEnv(t)
-		t.Setenv("BUILD_SOURCEBRANCH", " refs/heads/release/2026 ")
-
-		// when: resolving the current branch
-		branch, err := currentGitBranch(context.Background())
-
-		// then: the heads prefix is removed without losing nested branch segments
-		testastic.NoError(t, err)
-		testastic.Equal(t, "release/2026", branch)
-	})
-
-	for name, testCase := range map[string]struct {
-		ref       string
-		wantError string
-	}{
-		"rejects Azure Pipelines pull request ref": {
-			ref:       "refs/pull/123/merge",
-			wantError: `ci ref is not a branch: "refs/pull/123/merge"`,
-		},
-		"rejects Azure Pipelines tag ref": {
-			ref:       "refs/tags/v1.2.3",
-			wantError: `ci ref is not a branch: "refs/tags/v1.2.3"`,
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			// given: an Azure Pipelines source ref that is not a branch
-			t.Chdir(t.TempDir())
-			clearBranchEnv(t)
-			t.Setenv("BUILD_SOURCEBRANCH", testCase.ref)
-
-			// when: resolving the current branch
-			branch, err := currentGitBranch(context.Background())
-
-			// then: the ref is rejected instead of being returned as a branch
-			testastic.Equal(t, "", branch)
-			testastic.Error(t, err)
-			testastic.Equal(t, testCase.wantError, err.Error())
-		})
-	}
-
-	for name, refs := range map[string]struct {
-		full      string
-		name      string
-		wantError string
-	}{
-		"rejects GitHub Actions pull request ref": {
-			full:      "refs/pull/123/merge",
-			name:      "123/merge",
-			wantError: `ci ref is not a branch: "refs/pull/123/merge"`,
-		},
-		"rejects GitHub Actions tag ref": {
-			full:      "refs/tags/v1.2.3",
-			name:      "v1.2.3",
-			wantError: `ci ref is not a branch: "refs/tags/v1.2.3"`,
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			// given: a GitHub Actions ref that is not a branch
-			t.Chdir(t.TempDir())
-			clearBranchEnv(t)
-			t.Setenv("GITHUB_REF", refs.full)
-			t.Setenv("GITHUB_REF_NAME", refs.name)
-
-			// when: resolving the current branch
-			branch, err := currentGitBranch(context.Background())
-
-			// then: the ref is rejected instead of its short name being returned as a branch
-			testastic.Equal(t, "", branch)
-			testastic.Error(t, err)
-			testastic.Equal(t, refs.wantError, err.Error())
-		})
-	}
 }
 
 func initializeRepositoryWithRemote(t *testing.T, path, remoteName, remoteURL string) *git.Repository {

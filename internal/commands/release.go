@@ -7,11 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
@@ -28,11 +25,6 @@ const (
 		"Draft status and conflicts still block merging. Provider rules may still apply"
 	releaseTargetHelp  = "limit analysis to one or more configured targets (repeatable)"
 	releaseChannelHelp = "run a configured prerelease channel, defaulting to the channel matching the current branch"
-)
-
-var (
-	ErrUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
-	ErrUnknownReleaseChannel     = errors.New("unknown release channel")
 )
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
@@ -126,129 +118,50 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 	cmd.Flags().StringArrayVar(&flags.targets, "target", nil, releaseTargetHelp)
 }
 
-func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) releaseRunOptions {
-	return releaseRunOptions{
-		dryRun:               flags.dryRun,
-		provider:             flags.providerType,
-		providerSet:          cmd.Flags().Changed("provider"),
-		repositoryRemote:     flags.remote,
-		repositoryRemoteSet:  cmd.Flags().Changed("remote"),
-		repositoryHost:       flags.host,
-		repositoryHostSet:    cmd.Flags().Changed("host"),
-		repositoryOwner:      flags.owner,
-		repositoryOwnerSet:   cmd.Flags().Changed("owner"),
-		repositoryRepo:       flags.repo,
-		repositoryRepoSet:    cmd.Flags().Changed("repo"),
-		repositoryProject:    flags.project,
-		repositoryProjectSet: cmd.Flags().Changed("project"),
-		autoMerge:            flags.autoMerge,
-		autoMergeSet:         cmd.Flags().Changed("auto-merge"),
-		autoMergeForce:       flags.autoMergeForce,
-		autoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
-		autoMergeMethod:      flags.autoMergeMethod,
-		autoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
-		channel:              flags.channel,
-		channelSet:           cmd.Flags().Changed("channel"),
-		targets:              append([]string(nil), flags.targets...),
+func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) release.Options {
+	return release.Options{
+		DryRun:               flags.dryRun,
+		Provider:             flags.providerType,
+		ProviderSet:          cmd.Flags().Changed("provider"),
+		RepositoryRemote:     flags.remote,
+		RepositoryRemoteSet:  cmd.Flags().Changed("remote"),
+		RepositoryHost:       flags.host,
+		RepositoryHostSet:    cmd.Flags().Changed("host"),
+		RepositoryOwner:      flags.owner,
+		RepositoryOwnerSet:   cmd.Flags().Changed("owner"),
+		RepositoryRepo:       flags.repo,
+		RepositoryRepoSet:    cmd.Flags().Changed("repo"),
+		RepositoryProject:    flags.project,
+		RepositoryProjectSet: cmd.Flags().Changed("project"),
+		AutoMerge:            flags.autoMerge,
+		AutoMergeSet:         cmd.Flags().Changed("auto-merge"),
+		AutoMergeForce:       flags.autoMergeForce,
+		AutoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
+		AutoMergeMethod:      flags.autoMergeMethod,
+		AutoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
+		Channel:              flags.channel,
+		ChannelSet:           cmd.Flags().Changed("channel"),
+		Targets:              append([]string(nil), flags.targets...),
 	}
 }
 
-type releaseRunOptions struct {
-	dryRun               bool
-	provider             string
-	providerSet          bool
-	repositoryRemote     string
-	repositoryRemoteSet  bool
-	repositoryHost       string
-	repositoryHostSet    bool
-	repositoryOwner      string
-	repositoryOwnerSet   bool
-	repositoryRepo       string
-	repositoryRepoSet    bool
-	repositoryProject    string
-	repositoryProjectSet bool
-	autoMerge            bool
-	autoMergeSet         bool
-	autoMergeForce       bool
-	autoMergeForceSet    bool
-	autoMergeMethod      string
-	autoMergeMethodSet   bool
-	channel              string
-	channelSet           bool
-	targets              []string
-}
-
-func runRelease(ctx context.Context, output io.Writer, configPath string, options releaseRunOptions) error {
-	cfg, err := releaseConfigForRun(ctx, configPath, options)
+func runRelease(ctx context.Context, output io.Writer, configPath string, options release.Options) error {
+	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
-		return err
-	}
-
-	repository, err := resolveRepository(ctx, cfg, getGitRemoteURL)
-	if err != nil {
-		return fmt.Errorf("repository resolution failed: %w", err)
-	}
-
-	p, err := createProvider(repository)
-	if err != nil {
-		return fmt.Errorf("provider setup failed: %w", err)
-	}
-
-	historySource := history.New(p, cfg.Branch, ".")
-
-	r, err := release.New(ctx, cfg, p, historySource)
-	if err != nil {
-		return wrapReleaseConfigError(configPath, err)
-	}
-
-	if err := r.ValidateTargets(options.targets); err != nil {
-		return wrapReleaseExecutionError(err)
-	}
-
-	if err := historySource.Validate(ctx); err != nil {
-		return wrapReleaseExecutionError(err)
-	}
-
-	result, err := r.ReleaseTargets(ctx, options.dryRun, options.targets)
-	if err != nil {
-		return wrapReleaseExecutionError(err)
-	}
-
-	return handleReleaseResult(ctx, output, result, options.dryRun)
-}
-
-func releaseConfigForRun(ctx context.Context, configPath string, options releaseRunOptions) (*config.Config, error) {
-	cfg, resolvedConfigPath, err := loadConfig(ctx, configPath)
-	if err != nil {
-		return nil, wrapReleaseConfigError(resolvedConfigPath, err)
-	}
-
-	logReleaseCommand(ctx, resolvedConfigPath, options)
-
-	if err := applyReleaseOptions(cfg, options); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
-	}
-
-	currentBranch, branchErr := currentGitBranch(ctx)
-	if branchErr != nil {
-		if !options.dryRun && (errors.Is(branchErr, ErrCINonBranchRef) || len(cfg.Release.Channels) > 0) {
-			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
+		var configErr *release.ConfigError
+		if errors.As(err, &configErr) {
+			return wrapReleaseConfigError(configErr.Path(), err)
 		}
 
-		slog.DebugContext(ctx, "could not determine current branch (using configured default branch)",
-			slog.Any("error", branchErr),
-		)
+		var executionErr *release.ExecutionError
+		if errors.As(err, &executionErr) {
+			return wrapReleaseExecutionError(err)
+		}
+
+		return err //nolint:wrapcheck // preserve stage-specific user-facing error verbatim
 	}
 
-	if err := resolveReleaseMode(cfg, currentBranch, options); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
-	}
-
-	return cfg, nil
+	return handleReleaseResult(ctx, output, result, options.DryRun)
 }
 
 func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
@@ -290,7 +203,7 @@ func wrapReleaseConfigError(configPath string, err error) error {
 }
 
 func wrapReleaseExecutionError(err error) error {
-	if errors.Is(err, provider.ErrMergeBlocked) {
+	if release.IsMergeBlocked(err) {
 		return fmt.Errorf(
 			"release execution failed: merge blocked. Resolve pull request or merge request readiness, "+
 				"or use --auto-merge-force when appropriate: %w",
@@ -307,277 +220,6 @@ func wrapReleaseExecutionError(err error) error {
 	}
 
 	return fmt.Errorf("release execution failed: %w", err)
-}
-
-func logReleaseCommand(ctx context.Context, configPath string, options releaseRunOptions) {
-	slog.DebugContext(ctx, "running release command",
-		slog.String("config", configPath),
-		slog.Bool("dry_run", options.dryRun),
-		slog.Bool("provider_override_set", options.providerSet),
-		slog.Bool("remote_override_set", options.repositoryRemoteSet),
-		slog.Bool("host_override_set", options.repositoryHostSet),
-		slog.Bool("owner_override_set", options.repositoryOwnerSet),
-		slog.Bool("repo_override_set", options.repositoryRepoSet),
-		slog.Bool("project_override_set", options.repositoryProjectSet),
-		slog.String("channel", options.channel),
-		slog.Bool("channel_set", options.channelSet),
-		slog.Any("targets", options.targets),
-	)
-}
-
-func resolveReleaseMode(cfg *config.Config, currentBranch string, options releaseRunOptions) error {
-	currentBranch = strings.TrimSpace(currentBranch)
-
-	if options.channelSet {
-		return resolveExplicitReleaseChannel(cfg, currentBranch, options)
-	}
-
-	if currentBranch == cfg.Branch {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	if currentBranch == "" && len(cfg.Release.Channels) == 0 {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	for channelName, channel := range cfg.Release.Channels {
-		if currentBranch != strings.TrimSpace(channel.Branch) {
-			continue
-		}
-
-		cfg.Branch = strings.TrimSpace(channel.Branch)
-		cfg.ActiveChannel = strings.TrimSpace(channelName)
-
-		return nil
-	}
-
-	if options.dryRun {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	return fmt.Errorf(
-		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
-		ErrUnconfiguredReleaseBranch,
-		currentBranch,
-	)
-}
-
-func resolveExplicitReleaseChannel(cfg *config.Config, currentBranch string, options releaseRunOptions) error {
-	channelName := strings.TrimSpace(options.channel)
-
-	channel, exists := cfg.Release.Channels[channelName]
-	if !exists {
-		return fmt.Errorf("%w: %q", ErrUnknownReleaseChannel, channelName)
-	}
-
-	channelBranch := strings.TrimSpace(channel.Branch)
-	if !options.dryRun && strings.TrimSpace(currentBranch) != channelBranch {
-		return fmt.Errorf(
-			"%w: channel %q must run on branch %q, got %q",
-			ErrUnconfiguredReleaseBranch,
-			channelName,
-			channelBranch,
-			currentBranch,
-		)
-	}
-
-	cfg.Branch = channelBranch
-	cfg.ActiveChannel = channelName
-
-	return nil
-}
-
-func applyReleaseOptions(cfg *config.Config, options releaseRunOptions) error {
-	if err := applyRepositoryReleaseOptions(cfg, options); err != nil {
-		return err
-	}
-
-	applyReleaseBehaviorOptions(cfg, options)
-
-	return nil
-}
-
-func applyRepositoryReleaseOptions(cfg *config.Config, options releaseRunOptions) error {
-	previousProvider := cfg.Provider
-
-	if options.providerSet {
-		cfg.Provider = config.ProviderType(options.provider)
-	}
-
-	if options.repositoryRemoteSet {
-		cfg.Repository.Remote = options.repositoryRemote
-	}
-
-	hasRepoFieldOverride := options.repositoryHostSet ||
-		options.repositoryOwnerSet ||
-		options.repositoryRepoSet ||
-		options.repositoryProjectSet
-
-	if cfg.Provider == config.ProviderAuto {
-		if hasRepoFieldOverride {
-			return fmt.Errorf(
-				"%w: repository field flags require an explicit --provider (auto cannot route them)",
-				config.ErrInvalidConfig,
-			)
-		}
-
-		cfg.Repository.GitHub = nil
-		cfg.Repository.GitLab = nil
-		cfg.Repository.AzureDevOps = nil
-
-		return nil
-	}
-
-	if providerChanged(previousProvider, cfg.Provider) {
-		cfg.Repository.GitHub = nil
-		cfg.Repository.GitLab = nil
-		cfg.Repository.AzureDevOps = nil
-	}
-
-	switch cfg.Provider {
-	case config.ProviderGitHub:
-		return applyGitHubReleaseOverrides(&cfg.Repository, options)
-	case config.ProviderGitLab:
-		return applyGitLabReleaseOverrides(&cfg.Repository, options)
-	case config.ProviderAzureDevOps:
-		return applyAzureDevOpsReleaseOverrides(&cfg.Repository, options)
-	case config.ProviderAuto:
-	}
-
-	return nil
-}
-
-func applyGitHubReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
-	if repository.GitHub == nil {
-		repository.GitHub = &config.GitHubRepositoryConfig{}
-	}
-
-	github := repository.GitHub
-
-	if options.repositoryHostSet {
-		github.Host = options.repositoryHost
-	}
-
-	if options.repositoryOwnerSet {
-		github.Owner = options.repositoryOwner
-	}
-
-	if options.repositoryRepoSet {
-		github.Repo = options.repositoryRepo
-	}
-
-	if options.repositoryProjectSet {
-		github.Project = options.repositoryProject
-
-		if !options.repositoryOwnerSet {
-			github.Owner = ""
-		}
-
-		if !options.repositoryRepoSet {
-			github.Repo = ""
-		}
-	}
-
-	if !options.repositoryProjectSet &&
-		(options.repositoryOwnerSet || options.repositoryRepoSet) &&
-		strings.TrimSpace(github.Owner) != "" &&
-		strings.TrimSpace(github.Repo) != "" {
-		github.Project = ""
-	}
-
-	return nil
-}
-
-func applyGitLabReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
-	if options.repositoryOwnerSet || options.repositoryRepoSet {
-		return fmt.Errorf(
-			"%w: --owner/--repo are not valid for provider gitlab. Use --project",
-			config.ErrInvalidConfig,
-		)
-	}
-
-	if repository.GitLab == nil {
-		repository.GitLab = &config.GitLabRepositoryConfig{}
-	}
-
-	gitlab := repository.GitLab
-
-	if options.repositoryHostSet {
-		gitlab.Host = options.repositoryHost
-	}
-
-	if options.repositoryProjectSet {
-		gitlab.Project = options.repositoryProject
-	}
-
-	return nil
-}
-
-func applyAzureDevOpsReleaseOverrides(repository *config.RepositoryConfig, options releaseRunOptions) error {
-	if options.repositoryOwnerSet {
-		return fmt.Errorf(
-			"%w: --owner is not valid for provider azuredevops",
-			config.ErrInvalidConfig,
-		)
-	}
-
-	if repository.AzureDevOps == nil {
-		repository.AzureDevOps = &config.AzureDevOpsRepositoryConfig{}
-	}
-
-	azure := repository.AzureDevOps
-
-	if options.repositoryHostSet {
-		azure.Host = options.repositoryHost
-	}
-
-	if options.repositoryRepoSet {
-		azure.Repo = options.repositoryRepo
-	}
-
-	if options.repositoryProjectSet {
-		azure.Project = options.repositoryProject
-	}
-
-	return nil
-}
-
-func providerChanged(previous, next config.ProviderType) bool {
-	previousProvider := normalizedRepositoryProvider(previous)
-	nextProvider := normalizedRepositoryProvider(next)
-
-	if previousProvider == "" || nextProvider == "" {
-		return false
-	}
-
-	return previousProvider != nextProvider
-}
-
-func applyReleaseBehaviorOptions(cfg *config.Config, options releaseRunOptions) {
-	if options.autoMergeSet {
-		cfg.Release.AutoMerge = options.autoMerge
-		if !options.autoMerge {
-			cfg.Release.AutoMergeForce = false
-		}
-	}
-
-	if options.autoMergeForceSet {
-		cfg.Release.AutoMergeForce = options.autoMergeForce
-	}
-
-	if options.autoMergeMethodSet {
-		cfg.Release.AutoMergeMethod = config.AutoMergeMethod(options.autoMergeMethod)
-	}
-
-	if cfg.Release.AutoMergeForce {
-		cfg.Release.AutoMerge = true
-	}
 }
 
 func printDryRun(w io.Writer, result *release.Result) {

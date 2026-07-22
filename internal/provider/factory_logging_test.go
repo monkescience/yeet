@@ -1,4 +1,4 @@
-package commands //nolint:testpackage // validates unexported provider factory wiring directly
+package provider //nolint:testpackage // validates unexported provider factory wiring directly
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
@@ -35,7 +34,7 @@ func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
 		slog.SetDefault(previousLogger)
 	})
 
-	gitLabProvider, err := createGitLabProvider(&provider.RepositoryDescriptor{Project: "group/private"})
+	gitLabProvider, err := createGitLabProvider(&RepositoryDescriptor{Project: "group/private"})
 	testastic.NoError(t, err)
 
 	// when: the provider lists repository tags

@@ -1,4 +1,4 @@
-package commands //nolint:testpackage // validates unexported runInit behavior directly
+package commands //nolint:testpackage // validates unexported init command wiring directly
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestRunInit(t *testing.T) {
+func TestInitCommand(t *testing.T) {
 	t.Run("root command honors config flag for init", func(t *testing.T) {
 		// given: an empty temporary workspace and a custom config destination
 		tempDir := t.TempDir()
@@ -113,7 +113,7 @@ func TestRunInit(t *testing.T) {
 
 		// then: init reports that the repository root config already exists
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrConfigExists)
+		testastic.ErrorIs(t, err, config.ErrExists)
 		testastic.Equal(
 			t,
 			"config file already exists: "+filepath.Join(repositoryPath, config.DefaultFile),
@@ -130,7 +130,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(projectDir)
 
 		// when: initializing config
-		err = runInit(t.Context(), config.DefaultFile)
+		err = config.Initialize(t.Context(), config.DefaultFile)
 		testastic.NoError(t, err)
 
 		// then: config is minimal, parseable, and names the target after the directory
@@ -164,7 +164,7 @@ func TestRunInit(t *testing.T) {
 		t.Chdir(projectDir)
 
 		// when: initializing config
-		err = runInit(t.Context(), config.DefaultFile)
+		err = config.Initialize(t.Context(), config.DefaultFile)
 		testastic.NoError(t, err)
 
 		// then: the target name falls back to "root"
