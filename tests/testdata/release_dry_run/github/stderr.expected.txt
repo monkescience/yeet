@@ -1,0 +1,18 @@
+DEBU config: loading file path={{regex `.+[\\/]\.yeet\.yaml`}}
+DEBU config: loaded file path={{regex `.+[\\/]\.yeet\.yaml`}} bytes=176 targets=1
+DEBU running release command config={{regex `.+[\\/]\.yeet\.yaml`}} dry_run=true provider_override_set=false remote_override_set=false host_override_set=false owner_override_set=false repo_override_set=false project_override_set=false channel="" channel_set=false targets=[]
+DEBU config: resolved target id=default type=path path=. versioning=semver
+DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/commits/heads/main status=200 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
+DEBU github: looking up latest release
+DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/releases/latest status=404 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
+DEBU github: no latest release status=404
+DEBU github: listing tags
+DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/tags status=200 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
+DEBU github: listed tags count=1
+DEBU local git history served commit ranges branch=main refs=1
+DEBU planning target target=default current_version=1.0.0 boundary_ref=v1.0.0 branch=main
+DEBU commits since boundary target=default total=1 filtered=1
+DEBU parsed commit target=default hash=79b3c2e174a56d70cd8937686492372d87a0d066 type=feat breaking=false
+DEBU release plan decision target=default bump_type=minor next_bump_type=minor next_version=1.1.0 should_release=true
+DEBU changelog: generated entry version=v1.1.0 previous_tag=v1.0.0 commits_in=1 commits_included=1 sections=1 bytes=129
+INFO release analysis complete targets=1

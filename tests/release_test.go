@@ -126,19 +126,24 @@ func TestReleaseDryRun(t *testing.T) {
 			Repo:     "testrepo",
 		})
 
-		// when: invoking `yeet release --dry-run` inside the checkout
+		// when: invoking `yeet --verbose release --dry-run` inside the checkout
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--dry-run", "--config", configPath},
+			[]string{"--verbose", "release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: the binary exits 0 and prints the planned release
+		// then: the binary prints the plan and sanitized HTTP diagnostics
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
 			"testdata/release_dry_run/github/stdout.expected.txt",
 			result.Stdout,
+		)
+		testastic.AssertFile(
+			t,
+			"testdata/release_dry_run/github/stderr.expected.txt",
+			result.Stderr,
 		)
 	})
 }
