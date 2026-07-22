@@ -1,10 +1,3 @@
-// Package build exposes the binary's identity and version metadata.
-//
-// Values injected via -ldflags (at release or Makefile build time) take
-// precedence. When a value is not injected (e.g. `go install`, `go build`,
-// or a ko image build without ldflags), the accessors fall back to
-// runtime/debug.ReadBuildInfo so `yeet version` still reports meaningful
-// module and VCS information.
 package build
 
 import (
