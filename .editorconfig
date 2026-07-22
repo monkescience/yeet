@@ -8,12 +8,15 @@ trim_trailing_whitespace = true
 indent_style = tab
 indent_size = 4
 
-[*.{yml,yaml,toml,json,md}]
+[*.{yml,yaml,toml,json}]
 indent_style = space
 indent_size = 2
 
 [*.md]
+indent_style = space
+indent_size = 2
 trim_trailing_whitespace = false
 
-[Makefile]
-indent_style = tab
+[*.sh]
+indent_style = space
+indent_size = 2
