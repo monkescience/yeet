@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.11.1](https://github.com/monkescience/yeet/compare/v0.11.0...v0.11.1) (2026-07-22)
+
+### Features
+
+- **logging:** add sanitized provider HTTP traces ([3c18859](https://github.com/monkescience/yeet/commit/3c1885933ffe036ba66370a3fd4ce2bff1c41226))
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.50.0 (#187) ([2431c6e](https://github.com/monkescience/yeet/commit/2431c6efc553b5d081013abe1acfc6e7a683cf1c))
+
 ## [v0.11.0](https://github.com/monkescience/yeet/compare/v0.10.20...v0.11.0) (2026-07-21)
 
 ### Migration Notes
