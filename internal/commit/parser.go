@@ -42,10 +42,10 @@ type BumpMapping map[string]BumpType
 
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
-	`^(?P<type>[a-zA-Z]+)` +
-		`(?:\((?P<scope>[^)]*)\))?` +
+	`^(?P<type>[a-z]+)` +
+		`(?:\((?P<scope>[^()\r\n]+)\))?` +
 		`(?P<breaking>!)?` +
-		`:\s*(?P<description>.+)$`,
+		`: (?P<description>\S.*)$`,
 )
 
 // Parse returns a Commit with an empty Type when the message is not conventional.

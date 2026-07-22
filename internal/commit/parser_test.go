@@ -144,6 +144,35 @@ func TestParse(t *testing.T) {
 		testastic.False(t, c.IsConventional())
 	})
 
+	t.Run("malformed conventional headers", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			raw  string
+		}{
+			{name: "uppercase type", raw: "FEAT: add authentication"},
+			{name: "empty scope", raw: "fix(): resolve timeout"},
+			{name: "missing separator space", raw: "fix:resolve timeout"},
+			{name: "extra separator spaces", raw: "fix:  resolve timeout"},
+			{name: "empty description", raw: "fix: "},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				// when: parsing a malformed conventional-looking header
+				c := commit.Parse(t.Context(), "bad1234", tt.raw)
+
+				// then: it is treated as a non-conventional commit
+				testastic.Equal(t, "", c.Type)
+				testastic.Equal(t, strings.TrimSpace(tt.raw), c.Description)
+				testastic.False(t, c.IsConventional())
+			})
+		}
+	})
+
 	t.Run("commit with multiple footers", func(t *testing.T) {
 		t.Parallel()
 
