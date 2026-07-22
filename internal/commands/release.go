@@ -14,19 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	releaseHelpExample = `  yeet release --dry-run
-	  yeet release --target api --target web --dry-run
-	  yeet release --channel beta
-	  yeet release --auto-merge
-	  yeet release --provider github --owner platform --repo yeet --dry-run`
-	releaseAutoMergeHelp      = "automatically merge the release PR/MR and finalize the release in the same run"
-	releaseAutoMergeForceHelp = "attempt auto-merge while bypassing yeet readiness checks. " +
-		"Draft status and conflicts still block merging. Provider rules may still apply"
-	releaseTargetHelp  = "limit analysis to one or more configured targets (repeatable)"
-	releaseChannelHelp = "run a configured prerelease channel, defaulting to the channel matching the current branch"
-)
-
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	flags := &releaseFlagValues{}
 
@@ -53,7 +40,11 @@ flags or config:
 
 Commit history is read from the local git checkout. The checkout must be
 complete (not shallow) and match the remote release branch.`,
-		Example: releaseHelpExample,
+		Example: `  yeet release --dry-run
+	  yeet release --target api --target web --dry-run
+	  yeet release --channel beta
+	  yeet release --auto-merge
+	  yeet release --provider github --owner platform --repo yeet --dry-run`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
 				cmd.Context(),
@@ -97,12 +88,18 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 	)
 	cmd.Flags().StringVar(&flags.repo, "repo", "", "override repository name for github-style repositories")
 	cmd.Flags().StringVar(&flags.project, "project", "", "override full GitLab project path, including subgroups")
-	cmd.Flags().BoolVar(&flags.autoMerge, "auto-merge", false, releaseAutoMergeHelp)
+	cmd.Flags().BoolVar(
+		&flags.autoMerge,
+		"auto-merge",
+		false,
+		"automatically merge the release PR/MR and finalize the release in the same run",
+	)
 	cmd.Flags().BoolVar(
 		&flags.autoMergeForce,
 		"auto-merge-force",
 		false,
-		releaseAutoMergeForceHelp,
+		"attempt auto-merge while bypassing yeet readiness checks. "+
+			"Draft status and conflicts still block merging. Provider rules may still apply",
 	)
 	cmd.Flags().StringVar(
 		&flags.autoMergeMethod,
@@ -114,8 +111,18 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 			config.AutoMergeMethodAuto,
 		),
 	)
-	cmd.Flags().StringVar(&flags.channel, "channel", "", releaseChannelHelp)
-	cmd.Flags().StringArrayVar(&flags.targets, "target", nil, releaseTargetHelp)
+	cmd.Flags().StringVar(
+		&flags.channel,
+		"channel",
+		"",
+		"run a configured prerelease channel, defaulting to the channel matching the current branch",
+	)
+	cmd.Flags().StringArrayVar(
+		&flags.targets,
+		"target",
+		nil,
+		"limit analysis to one or more configured targets (repeatable)",
+	)
 }
 
 func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) release.Options {
