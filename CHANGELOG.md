@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.11.2](https://github.com/monkescience/yeet/compare/v0.11.1...v0.11.2) (2026-07-22)
+
+### Bug Fixes
+
+- **commit:** validate conventional headers strictly ([d1b6bd5](https://github.com/monkescience/yeet/commit/d1b6bd575d40df91cb426dac2a706902c86ffece))
+
 ## [v0.11.1](https://github.com/monkescience/yeet/compare/v0.11.0...v0.11.1) (2026-07-22)
 
 ### Features
