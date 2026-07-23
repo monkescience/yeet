@@ -166,6 +166,109 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 	testastic.Equal(t, int32(1), branchLookups.Load())
 }
 
+func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
+	t.Parallel()
+
+	// given: Azure queues completion while returning preview and source commits
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			writeJSON(t, w, map[string]any{
+				"pullRequestId": 42,
+				"status":        "active",
+				"mergeStatus":   "succeeded",
+				"isDraft":       false,
+				"sourceRefName": "refs/heads/yeet/release-main",
+				"targetRefName": "refs/heads/main",
+				"lastMergeSourceCommit": map[string]any{
+					"commitId": "source-sha",
+				},
+			})
+		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			writeJSON(t, w, map[string]any{
+				"pullRequestId": 42,
+				"status":        "completed",
+				"mergeStatus":   "queued",
+				"lastMergeCommit": map[string]any{
+					"commitId": "preview-sha",
+				},
+				"lastMergeSourceCommit": map[string]any{
+					"commitId": "source-sha",
+				},
+			})
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: the release pull request is submitted for completion
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		Method: provider.MergeMethodSquash,
+	})
+
+	// then: no provisional commit is returned as the final release ref
+	testastic.NoError(t, err)
+	testastic.Equal(t, "", mergeSHA)
+}
+
+func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
+	t.Parallel()
+
+	pullRequest := map[string]any{
+		"pullRequestId": 42,
+		"status":        "completed",
+		"sourceRefName": "refs/heads/yeet/release-main",
+		"targetRefName": "refs/heads/main",
+		"lastMergeSourceCommit": map[string]any{
+			"commitId": "source-sha",
+		},
+		"labels": []map[string]any{{
+			"name":   provider.ReleaseLabelPending,
+			"active": true,
+		}},
+	}
+
+	// given: a completed pull request whose final merge commit is not populated
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsPullRequestsListRequest(r):
+			writeJSON(t, w, map[string]any{
+				"count": 1,
+				"value": []map[string]any{pullRequest},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			writeJSON(t, w, pullRequest)
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: the completed release pull request is found
+	pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch)
+
+	// then: its source commit is not exposed as the final merge commit
+	testastic.NoError(t, err)
+	testastic.Equal(t, "", pr.MergeCommitSHA)
+}
+
 // newAzureDevOpsContractHandler wraps every scenario with the bootstrap
 // (OPTIONS /_apis + resourceAreas) so the SDK's lazy lookups succeed.
 func newAzureDevOpsContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {

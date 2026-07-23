@@ -352,7 +352,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		slog.String("strategy", string(strategy)),
 	)
 
-	return azureDevOpsMergeCommit(merged), nil
+	return azureDevOpsCompletionResponseCommit(merged), nil
 }
 
 func isTrustedAzureDevOpsReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
@@ -549,11 +549,17 @@ func azureDevOpsMergeCommit(pr *git.GitPullRequest) string {
 		return *pr.LastMergeCommit.CommitId
 	}
 
-	if pr.LastMergeSourceCommit != nil && pr.LastMergeSourceCommit.CommitId != nil {
-		return *pr.LastMergeSourceCommit.CommitId
+	return ""
+}
+
+func azureDevOpsCompletionResponseCommit(pr *git.GitPullRequest) string {
+	if pr == nil ||
+		derefString((*string)(pr.Status)) != string(git.PullRequestStatusValues.Completed) ||
+		derefString((*string)(pr.MergeStatus)) != string(git.PullRequestAsyncStatusValues.Succeeded) {
+		return ""
 	}
 
-	return ""
+	return azureDevOpsMergeCommit(pr)
 }
 
 func azureDevOpsMergeStatusBlocked(status string) bool {
