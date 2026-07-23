@@ -13,10 +13,6 @@ const azureDevOpsTagRefPrefix = "refs/tags/"
 
 const azureDevOpsRefPageSize = 100
 
-func (a *AzureDevOps) GetLatestReleaseRef(context.Context) (string, error) {
-	return "", ErrNoRelease
-}
-
 func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "azure devops: listing tags")
 

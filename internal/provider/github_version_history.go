@@ -10,15 +10,6 @@ import (
 	"github.com/google/go-github/v89/github"
 )
 
-func (g *GitHub) GetLatestReleaseRef(ctx context.Context) (string, error) {
-	release, err := g.latestRelease(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return release.GetTagName(), nil
-}
-
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "github: listing tags")
 
@@ -76,30 +67,6 @@ func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, erro
 	}
 
 	return sha, nil
-}
-
-func (g *GitHub) latestRelease(ctx context.Context) (*github.RepositoryRelease, error) {
-	slog.DebugContext(ctx, "github: looking up latest release")
-
-	release, resp, err := g.client.Repositories.GetLatestRelease(ctx, g.repo.Owner, g.repo.Name)
-	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			slog.DebugContext(ctx, "github: no latest release",
-				slog.Int("status", resp.StatusCode),
-			)
-
-			return nil, ErrNoRelease
-		}
-
-		return nil, fmt.Errorf("get latest release: %w", err)
-	}
-
-	slog.DebugContext(ctx, "github: latest release",
-		slog.String("tag", release.GetTagName()),
-		slog.String("url", release.GetHTMLURL()),
-	)
-
-	return release, nil
 }
 
 func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {

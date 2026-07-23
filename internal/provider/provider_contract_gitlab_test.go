@@ -31,8 +31,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch scenario {
-		case providerContractLatestRelease:
-			handleGitLabLatestReleaseContract(t, w, r)
 		case providerContractListTags:
 			handleGitLabListTagsContract(t, w, r)
 		case providerContractBranchHead:
@@ -79,18 +77,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			t.Fatalf("unhandled GitLab contract scenario: %s", scenario)
 		}
 	})
-}
-
-func handleGitLabLatestReleaseContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if isGitLabReleaseListRequest(r) {
-		writeJSONFixture(t, w, "contracts/gitlab/latest_release/releases.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
 func handleGitLabBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -470,10 +456,6 @@ func handleGitLabUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
-}
-
-func isGitLabReleaseListRequest(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases"
 }
 
 func providerContractEscapedTag() string {

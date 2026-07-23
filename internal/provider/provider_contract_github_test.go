@@ -35,8 +35,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch scenario {
-		case providerContractLatestRelease:
-			handleGitHubLatestReleaseContract(t, w, r)
 		case providerContractListTags:
 			handleGitHubListTagsContract(t, w, r)
 		case providerContractBranchHead:
@@ -83,18 +81,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			t.Fatalf("unhandled GitHub contract scenario: %s", scenario)
 		}
 	})
-}
-
-func handleGitHubLatestReleaseContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest" {
-		writeJSONFixture(t, w, "contracts/github/latest_release/release.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
 func handleGitHubListTagsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

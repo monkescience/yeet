@@ -168,11 +168,8 @@ func (s *repoMetadataStub) CompareURL(fromRef, toRef string) string {
 }
 
 type versionHistoryStub struct {
-	latestVersionRef    string
-	latestVersionRefErr error
-	tagList             []string
+	tagList []string
 
-	getLatestVersionRefCalls int
 	listTagsCalls            int
 	getCommitsSinceRefsCalls int
 
@@ -186,24 +183,6 @@ type versionHistoryStub struct {
 	getCommitsSinceIncludePath []bool
 
 	publishing *releasePublishingStub
-}
-
-func (s *versionHistoryStub) GetLatestVersionRef(context.Context) (string, error) {
-	s.getLatestVersionRefCalls++
-
-	if s.latestVersionRefErr != nil {
-		return "", s.latestVersionRefErr
-	}
-
-	if s.latestVersionRef != "" {
-		return s.latestVersionRef, nil
-	}
-
-	if s.publishing.latestRelease == nil {
-		return "", provider.ErrNoVersionRef
-	}
-
-	return s.publishing.latestRelease.TagName, nil
 }
 
 func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {

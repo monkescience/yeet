@@ -214,7 +214,6 @@ func TestNewHistorySource(t *testing.T) {
 		testastic.Equal(t, "2.0.0", result.Plans[0].CurrentVersion)
 		testastic.Equal(t, "2.1.0", result.Plans[0].NextVersion)
 		testastic.Equal(t, 0, deps.getCommitsSinceRefsCalls)
-		testastic.Equal(t, 0, deps.getLatestVersionRefCalls)
 		testastic.True(t, historySource.getCommitsSinceRefsCalls > 0)
 	})
 

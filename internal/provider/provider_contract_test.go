@@ -28,7 +28,6 @@ type providerContractHarness struct {
 type providerContractScenario string
 
 const (
-	providerContractLatestRelease            providerContractScenario = "latest release"
 	providerContractListTags                 providerContractScenario = "list tags"
 	providerContractBranchHead               providerContractScenario = "branch head"
 	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
@@ -78,8 +77,8 @@ func TestProviderContract(t *testing.T) {
 			t.Run("exposes repository metadata", func(t *testing.T) {
 				t.Parallel()
 
-				// given: a provider server serving the latest release scenario
-				server := httptest.NewServer(harness.handler(t, providerContractLatestRelease))
+				// given: a provider server for the current harness
+				server := httptest.NewServer(harness.handler(t, providerContractListTags))
 				defer server.Close()
 
 				p := harness.newProvider(t, server)

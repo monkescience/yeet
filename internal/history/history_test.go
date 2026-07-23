@@ -22,27 +22,10 @@ const fixtureBranch = "main"
 type remoteStub struct {
 	branchHead    string
 	branchHeadErr error
-	latestRef     string
-	latestRefErr  error
 	tagRefs       []provider.TagRef
 
-	branchHeadCalls       int
-	latestReleaseRefCalls int
-	tagRefCalls           int
-}
-
-func (r *remoteStub) GetLatestReleaseRef(context.Context) (string, error) {
-	r.latestReleaseRefCalls++
-
-	if r.latestRefErr != nil {
-		return "", r.latestRefErr
-	}
-
-	if r.latestRef == "" {
-		return "", provider.ErrNoRelease
-	}
-
-	return r.latestRef, nil
+	branchHeadCalls int
+	tagRefCalls     int
 }
 
 func (r *remoteStub) ListTagRefs(_ context.Context) ([]provider.TagRef, error) {
@@ -797,98 +780,23 @@ func TestSourceUnusableCheckout(t *testing.T) {
 func TestSourceDelegation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("tags and latest ref always come from the provider", func(t *testing.T) {
-		t.Parallel()
+	// given: provider-side tag state
+	fx := newRepoFixture(t)
+	fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		// given: provider-side tag state
-		fx := newRepoFixture(t)
-		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+	source, remote := fx.source()
+	remote.tagRefs = []provider.TagRef{
+		{Name: "v3.0.0", CommitSHA: "3333333333333333333333333333333333333333"},
+		{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
+	}
 
-		source, remote := fx.source()
-		remote.latestRef = "v3.0.0"
-		remote.tagRefs = []provider.TagRef{
-			{Name: "v3.0.0", CommitSHA: "3333333333333333333333333333333333333333"},
-			{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
-		}
+	// when: tags are requested
+	tags, err := source.ListTags(t.Context())
 
-		// when: tags and the latest ref are requested
-		latest, err := source.GetLatestVersionRef(t.Context())
-		testastic.NoError(t, err)
-
-		tags, err := source.ListTags(t.Context())
-
-		// then: the provider answers both
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v3.0.0", latest)
-		testastic.SliceEqual(t, []string{"v3.0.0", "v2.0.0"}, tags)
-		testastic.Equal(t, 1, remote.latestReleaseRefCalls)
-		testastic.Equal(t, 1, remote.tagRefCalls)
-	})
-
-	t.Run("reuses tag snapshot for latest ref fallback", func(t *testing.T) {
-		t.Parallel()
-
-		// given: no provider release and two remote tags
-		fx := newRepoFixture(t)
-		fx.commit("feat: one", map[string]string{"a.txt": "one"})
-
-		source, remote := fx.source()
-		remote.tagRefs = []provider.TagRef{
-			{Name: "v3.0.0", CommitSHA: "3333333333333333333333333333333333333333"},
-			{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
-		}
-
-		// when: latest ref fallback and the complete tag list are requested
-		latest, err := source.GetLatestVersionRef(t.Context())
-		testastic.NoError(t, err)
-
-		tags, err := source.ListTags(t.Context())
-
-		// then: one tag-ref snapshot answers both requests
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v3.0.0", latest)
-		testastic.SliceEqual(t, []string{"v3.0.0", "v2.0.0"}, tags)
-		testastic.Equal(t, 1, remote.latestReleaseRefCalls)
-		testastic.Equal(t, 1, remote.tagRefCalls)
-	})
-
-	t.Run("returns no version ref for an empty tag fallback", func(t *testing.T) {
-		t.Parallel()
-
-		// given: no provider release and no remote tags
-		fx := newRepoFixture(t)
-		fx.commit("feat: one", map[string]string{"a.txt": "one"})
-
-		source, remote := fx.source()
-
-		// when: the latest version ref is requested
-		_, err := source.GetLatestVersionRef(t.Context())
-
-		// then: the no-version sentinel is returned after one tag scan
-		testastic.ErrorIs(t, err, provider.ErrNoVersionRef)
-		testastic.Equal(t, 1, remote.latestReleaseRefCalls)
-		testastic.Equal(t, 1, remote.tagRefCalls)
-	})
-
-	t.Run("does not scan tags after a latest release error", func(t *testing.T) {
-		t.Parallel()
-
-		// given: the provider latest release lookup fails
-		fx := newRepoFixture(t)
-		fx.commit("feat: one", map[string]string{"a.txt": "one"})
-
-		source, remote := fx.source()
-		remote.latestRefErr = errors.New("provider unavailable")
-
-		// when: the latest version ref is requested
-		_, err := source.GetLatestVersionRef(t.Context())
-
-		// then: the provider error is returned without a tag scan
-		testastic.Error(t, err)
-		testastic.Equal(t, "remote latest release ref: provider unavailable", err.Error())
-		testastic.Equal(t, 1, remote.latestReleaseRefCalls)
-		testastic.Equal(t, 0, remote.tagRefCalls)
-	})
+	// then: the provider answers once
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"v3.0.0", "v2.0.0"}, tags)
+	testastic.Equal(t, 1, remote.tagRefCalls)
 }
 
 func TestSourceGetFile(t *testing.T) {

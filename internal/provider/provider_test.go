@@ -268,56 +268,6 @@ func TestDetectType(t *testing.T) {
 func TestGitHubVersionLookup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns latest version ref from latest release", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository with a published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/latest":
-				writeJSON(t, w, map[string]any{
-					"tag_name": "v1.2.4",
-				})
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client := newGitHubTestClient(t, server)
-
-		gh := provider.NewGitHub(client, "o", "r")
-
-		// when: resolving the latest provider release
-		ref, err := gh.GetLatestReleaseRef(context.Background())
-
-		// then: the latest published release tag is preferred
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.4", ref)
-	})
-
-	t.Run("latest release lookup does not fall back to tags", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository without a published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/releases/latest" {
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-
-			http.NotFound(w, r)
-		}))
-		defer server.Close()
-
-		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
-
-		// when: resolving only the latest provider release
-		_, err := gh.GetLatestReleaseRef(context.Background())
-
-		// then: the missing-release sentinel is returned without listing tags
-		testastic.ErrorIs(t, err, provider.ErrNoRelease)
-	})
-
 	t.Run("returns release by exact tag", func(t *testing.T) {
 		t.Parallel()
 
@@ -399,71 +349,6 @@ func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 
 func TestGitLabVersionLookup(t *testing.T) {
 	t.Parallel()
-
-	t.Run("returns latest version ref from latest release", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab repository with a published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/releases":
-				testastic.Equal(t, "1", r.URL.Query().Get("per_page"))
-				writeJSON(t, w, []map[string]any{{
-					"tag_name": "v1.2.4",
-				}})
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
-
-		gl := provider.NewGitLab(client, "o/r")
-
-		// when: resolving the latest provider release
-		ref, err := gl.GetLatestReleaseRef(context.Background())
-
-		// then: the latest published release tag is preferred
-		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.2.4", ref)
-	})
-
-	t.Run("latest release lookup does not fall back to tags", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab repository without a published release
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/releases" {
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-
-			writeJSON(t, w, []map[string]any{})
-		}))
-		defer server.Close()
-
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
-
-		gl := provider.NewGitLab(client, "o/r")
-
-		// when: resolving only the latest provider release
-		_, err = gl.GetLatestReleaseRef(context.Background())
-
-		// then: the missing-release sentinel is returned without listing tags
-		testastic.ErrorIs(t, err, provider.ErrNoRelease)
-	})
 
 	t.Run("returns release by exact tag", func(t *testing.T) {
 		t.Parallel()
@@ -1911,19 +1796,6 @@ func TestGitLabListTagRefsPaginationLimit(t *testing.T) {
 	// then: pagination limit is enforced
 	testastic.Error(t, err)
 	testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
-}
-
-func TestAzureDevOpsLatestReleaseRef(t *testing.T) {
-	t.Parallel()
-
-	// given: an Azure DevOps provider, which represents releases as tags
-	az := provider.NewAzureDevOps(nil, "https://dev.azure.com", "", "org", "org", "proj", "repo")
-
-	// when: resolving only a provider release object
-	_, err := az.GetLatestReleaseRef(context.Background())
-
-	// then: no release is reported so the history source can use its tag snapshot
-	testastic.ErrorIs(t, err, provider.ErrNoRelease)
 }
 
 func TestMaxPRBodyLength(t *testing.T) {

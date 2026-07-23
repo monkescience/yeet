@@ -10,15 +10,6 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-func (g *GitLab) GetLatestReleaseRef(ctx context.Context) (string, error) {
-	release, err := g.latestRelease(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return release.TagName, nil
-}
-
 func (g *GitLab) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "gitlab: listing tags")
 
@@ -85,19 +76,4 @@ func (g *GitLab) GetBranchHead(ctx context.Context, branch string) (string, erro
 	}
 
 	return branchInfo.Commit.ID, nil
-}
-
-func (g *GitLab) latestRelease(ctx context.Context) (*gitlab.Release, error) {
-	releases, _, err := g.client.Releases.ListReleases(g.projectID, &gitlab.ListReleasesOptions{
-		ListOptions: gitlab.ListOptions{PerPage: 1},
-	}, gitlab.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("list releases: %w", err)
-	}
-
-	if len(releases) == 0 {
-		return nil, ErrNoRelease
-	}
-
-	return releases[0], nil
 }

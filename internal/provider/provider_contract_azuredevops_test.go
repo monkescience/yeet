@@ -209,8 +209,6 @@ func newAzureDevOpsScenarioHandler(
 	t.Helper()
 
 	switch scenario {
-	case providerContractLatestRelease:
-		return azureDevOpsLatestReleaseHandler(t)
 	case providerContractListTags:
 		return azureDevOpsListTagsHandler(t)
 	case providerContractBranchHead:
@@ -272,20 +270,6 @@ func isAzureDevOpsCommitsListRequest(r *http.Request) bool {
 
 func isAzureDevOpsPullRequestsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests")
-}
-
-func azureDevOpsLatestReleaseHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if isAzureDevOpsRefsRequest(r, "tags/") {
-			writeJSONFixture(t, w, azureDevOpsContractFixture("latest_release", "tags.json"))
-
-			return
-		}
-
-		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-	}
 }
 
 func azureDevOpsBranchHeadHandler(t *testing.T) http.HandlerFunc {

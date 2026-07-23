@@ -96,7 +96,6 @@ type TagRef struct {
 
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
-	GetLatestReleaseRef(ctx context.Context) (string, error)
 	ListTagRefs(ctx context.Context) ([]TagRef, error)
 	// GetBranchHead returns the commit SHA the branch currently points at,
 	// wrapping ErrRefNotFound when the branch does not exist. Release commit
@@ -149,7 +148,6 @@ var (
 	ErrUnknownRemote           = errors.New("unable to parse remote URL")
 	ErrUnsupportedHost         = errors.New("unsupported remote host")
 	ErrNoRelease               = errors.New("no release found")
-	ErrNoVersionRef            = errors.New("no version ref found")
 	ErrCommitBoundaryNotFound  = errors.New("commit boundary not found")
 	ErrNoPR                    = errors.New("no release PR found")
 	ErrFileNotFound            = errors.New("file not found")
