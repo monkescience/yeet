@@ -154,14 +154,14 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 	})
 }
 
-func TestReleaseUsesLatestVersionRef(t *testing.T) {
+func TestReleaseUsesLatestTag(t *testing.T) {
 	t.Parallel()
 
 	// given: a repository with tags but no provider release objects
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.latestVersionRef = "v1.2.3"
+	stub.tagList = []string{"v1.2.3"}
 	stub.commitsByRef = map[string][]provider.CommitEntry{
 		"v1.2.3": {{
 			Hash:    "abcdef1234567890",
@@ -195,10 +195,10 @@ func TestNewHistorySource(t *testing.T) {
 		}
 
 		deps := newProviderStub()
-		deps.latestVersionRef = "v9.9.9"
+		deps.tagList = []string{"v9.9.9"}
 
 		historySource := newProviderStub()
-		historySource.latestVersionRef = "v2.0.0"
+		historySource.tagList = []string{"v2.0.0"}
 		historySource.commitsByRef = map[string][]provider.CommitEntry{
 			"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
 		}
@@ -279,7 +279,6 @@ func TestPrereleaseChannels(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestVersionRef = "v1.3.0-beta.1"
 		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
 		stub.commitsByRef = map[string][]provider.CommitEntry{
 			"v1.2.3": {{
@@ -341,7 +340,6 @@ func TestPrereleaseChannels(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.latestVersionRef = "v1.2.3"
 		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
 		stub.commitsByRef = map[string][]provider.CommitEntry{
 			"v1.3.0-beta.1": {{
@@ -489,7 +487,6 @@ func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T)
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.latestVersionRef = "v2.0.0"
 	stub.tagList = []string{"v1.2.3", "v2.0.0"}
 	stub.commitsErrByRef["v2.0.0"] = &provider.CommitBoundaryNotFoundError{Ref: "v2.0.0", Branch: cfg.Branch}
 	stub.commitsByRef = map[string][]provider.CommitEntry{
@@ -520,7 +517,6 @@ func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) 
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.latestVersionRef = "v1.2.3"
 	stub.tagList = []string{"v1.2.4", "v1.2.3"}
 	stub.commitsByRef = map[string][]provider.CommitEntry{
 		"v1.2.4": {{

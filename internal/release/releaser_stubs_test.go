@@ -205,6 +205,10 @@ func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 	s.listTagsCalls++
 
 	if len(s.tagList) == 0 {
+		if s.publishing.latestRelease != nil {
+			return []string{s.publishing.latestRelease.TagName}, nil
+		}
+
 		return nil, nil
 	}
 

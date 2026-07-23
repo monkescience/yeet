@@ -155,7 +155,7 @@ func TestReleaseAnalyzerSharedMonorepoHistoryIndex(t *testing.T) {
 	// then: tags and branch history are fetched once for the whole release run
 	testastic.NoError(t, err)
 	testastic.Equal(t, targetCount, len(result.Plans))
-	testastic.Equal(t, 1, stub.getLatestVersionRefCalls)
+	testastic.Equal(t, 0, stub.getLatestVersionRefCalls)
 	testastic.Equal(t, 1, stub.listTagsCalls)
 	testastic.Equal(t, 1, stub.getCommitsSinceRefsCalls)
 	testastic.SliceEqual(t, []bool{true}, stub.getCommitsSinceIncludePath)

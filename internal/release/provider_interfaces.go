@@ -7,7 +7,6 @@ import (
 )
 
 type versionHistoryProvider interface {
-	GetLatestVersionRef(ctx context.Context) (string, error)
 	ListTags(ctx context.Context) ([]string, error)
 	GetCommitsSinceRefs(
 		ctx context.Context,

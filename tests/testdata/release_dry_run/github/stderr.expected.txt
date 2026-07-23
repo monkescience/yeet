@@ -3,9 +3,6 @@ DEBU config: loaded file path={{regex `.+[\\/]\.yeet\.yaml`}} bytes=176 targets=
 DEBU running release command config={{regex `.+[\\/]\.yeet\.yaml`}} dry_run=true provider_override_set=false remote_override_set=false host_override_set=false owner_override_set=false repo_override_set=false project_override_set=false channel="" channel_set=false targets=[]
 DEBU config: resolved target id=default type=path path=. versioning=semver
 DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/commits/heads/main status=200 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
-DEBU github: looking up latest release
-DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/releases/latest status=404 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
-DEBU github: no latest release status=404
 DEBU github: listing tags
 DEBU http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/tags status=200 duration_ms={{regex `\d+`}} attempt=1 request_id="" rate_limit_remaining="" rate_limit_reset="" retry_after="" transport_error=""
 DEBU github: listed tags count=1

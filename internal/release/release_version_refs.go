@@ -2,7 +2,6 @@ package release
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -14,9 +13,7 @@ import (
 )
 
 type releaseVersionRefs struct {
-	preferredRef string
-	hasPreferred bool
-	tags         []string
+	tags []string
 }
 
 func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
@@ -47,20 +44,12 @@ func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
 }
 
 func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context, target config.ResolvedTarget) ([]string, error) {
-	refs := make([]string, 0)
-
 	historyRefs, err := a.rawVersionHistoryRefs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if historyRefs.hasPreferred {
-		refs = append(refs, historyRefs.preferredRef)
-	}
-
-	refs = append(refs, historyRefs.tags...)
-
-	return a.orderedVersionRefs(target, refs, ""), nil
+	return a.orderedVersionRefs(target, historyRefs.tags, ""), nil
 }
 
 func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVersionRefs, error) {
@@ -68,24 +57,12 @@ func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVer
 		return *a.versionRefs, nil
 	}
 
-	refs := releaseVersionRefs{}
-
-	preferredRef, err := a.history.GetLatestVersionRef(ctx)
-	if err != nil && !errors.Is(err, provider.ErrNoVersionRef) {
-		return releaseVersionRefs{}, fmt.Errorf("get latest version ref: %w", err)
-	}
-
-	if err == nil {
-		refs.preferredRef = preferredRef
-		refs.hasPreferred = true
-	}
-
 	tags, err := a.history.ListTags(ctx)
 	if err != nil {
 		return releaseVersionRefs{}, fmt.Errorf("list tags: %w", err)
 	}
 
-	refs.tags = append([]string(nil), tags...)
+	refs := releaseVersionRefs{tags: append([]string(nil), tags...)}
 	a.versionRefs = &refs
 
 	return refs, nil
