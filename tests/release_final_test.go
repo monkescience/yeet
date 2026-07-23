@@ -509,3 +509,40 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 		)
 	})
 }
+
+func TestReleaseGitLabAutoMergeWaitsForAsynchronousAccept(t *testing.T) {
+	t.Parallel()
+
+	// given: GitLab accepts the release MR before its asynchronous merge has completed
+	repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+			{Message: "feat: add a thing"},
+		})
+
+	server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+		Project:           "group/service",
+		LatestTag:         "v1.0.0",
+		BoundarySHA:       shas[0],
+		BranchHeadSHA:     shas[1],
+		AsynchronousMerge: true,
+	})
+
+	configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+		Provider: "gitlab",
+		Branch:   "main",
+		Host:     "gitlab.com",
+		Project:  "group/service",
+	})
+
+	// when: invoking `yeet release --auto-merge`
+	result := binary.RunWithOptions(t,
+		[]string{"release", "--auto-merge", "--config", configPath},
+		testastic.WithRunWorkDir(repoDir),
+		testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+	)
+
+	// then: yeet waits for the merged MR before creating the release
+	testastic.Equal(t, 0, result.ExitCode)
+	testastic.Equal(t, "", result.Stdout)
+}

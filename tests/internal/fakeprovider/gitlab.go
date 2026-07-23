@@ -17,6 +17,7 @@ type GitLabOptions struct {
 	Commits                   []GitLabCommit
 	Files                     map[string]string
 	MergedPendingRelease      bool
+	AsynchronousMerge         bool
 	MultipleOpenPRs           bool
 	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
@@ -48,15 +49,16 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	prefix := "/api/v4/projects/" + pid
 
 	mux := http.NewServeMux()
+	mergeAccepted := &atomic.Bool{}
 	merged := &atomic.Bool{}
 
 	registerGitLabHistory(mux, prefix, opts)
 	registerGitLabMergeBase(mux, prefix, opts)
-	registerGitLabMerge(mux, prefix, opts, merged)
+	registerGitLabMerge(mux, prefix, opts, mergeAccepted, merged)
 	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
 	registerGitLabLabels(mux, prefix)
-	registerGitLabReleases(mux, prefix)
+	registerGitLabReleases(mux, prefix, opts, merged)
 	registerGitLabProject(mux, prefix)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -156,9 +158,56 @@ func registerGitLabMergeBase(mux *http.ServeMux, prefix string, opts GitLabOptio
 	mux.HandleFunc("GET "+prefix+"/repository/merge_base", gitlabMergeBaseHandler(opts))
 }
 
-func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions, merged *atomic.Bool) {
-	mux.HandleFunc("GET "+prefix+"/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+func registerGitLabMerge(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitLabOptions,
+	mergeAccepted, merged *atomic.Bool,
+) {
+	mux.HandleFunc(
+		"GET "+prefix+"/merge_requests",
+		gitlabMergeRequestListHandler(opts, mergeAccepted, merged),
+	)
+
+	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
+
+	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
+		mr := gitlabFakeMR()
+		if opts.MergeBlocked {
+			mr["draft"] = true
+		}
+
+		writeJSON(w, mr)
+	})
+
+	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, gitlabFakeMR())
+	})
+
+	mux.HandleFunc(
+		"PUT "+prefix+"/merge_requests/{iid}/merge",
+		gitlabMergeAcceptHandler(opts, mergeAccepted, merged),
+	)
+
+	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, gitlabCreatedBranch())
+	})
+
+	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{gitlabKeyID: "new-commit-sha"})
+	})
+}
+
+func gitlabMergeRequestListHandler(
+	opts GitLabOptions,
+	mergeAccepted, merged *atomic.Bool,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
+
+		if state == fakeStateMerged && opts.AsynchronousMerge && mergeAccepted.Load() {
+			merged.Store(true)
+		}
 
 		if state == fakeStateMerged && (opts.MergedPendingRelease || merged.Load()) {
 			writeJSON(w, []map[string]any{gitlabMergedPendingMR()})
@@ -187,35 +236,27 @@ func registerGitLabMerge(mux *http.ServeMux, prefix string, opts GitLabOptions, 
 		}
 
 		writeJSON(w, []any{})
-	})
+	}
+}
 
-	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
+func gitlabMergeAcceptHandler(
+	opts GitLabOptions,
+	mergeAccepted, merged *atomic.Bool,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		mergeAccepted.Store(true)
 
-	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
-		mr := gitlabFakeMR()
-		if opts.MergeBlocked {
-			mr["draft"] = true
+		if opts.AsynchronousMerge {
+			mr := gitlabFakeMR()
+			delete(mr, "merge_commit_sha")
+			writeJSON(w, mr)
+
+			return
 		}
 
-		writeJSON(w, mr)
-	})
-
-	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabFakeMR())
-	})
-
-	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}/merge", func(w http.ResponseWriter, _ *http.Request) {
 		merged.Store(true)
 		writeJSON(w, gitlabMergedPendingMR())
-	})
-
-	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabCreatedBranch())
-	})
-
-	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyID: "new-commit-sha"})
-	})
+	}
 }
 
 func gitlabCreatedBranch() map[string]any {
@@ -299,7 +340,12 @@ func registerGitLabLabels(mux *http.ServeMux, prefix string) {
 	})
 }
 
-func registerGitLabReleases(mux *http.ServeMux, prefix string) {
+func registerGitLabReleases(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitLabOptions,
+	merged *atomic.Bool,
+) {
 	mux.HandleFunc("GET "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, []any{})
 	})
@@ -309,6 +355,12 @@ func registerGitLabReleases(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+		if opts.AsynchronousMerge && !merged.Load() {
+			http.Error(w, "merge not completed", http.StatusConflict)
+
+			return
+		}
+
 		writeJSON(w, map[string]any{
 			gitlabKeyTagName: fakeNextTag,
 			"_links":         map[string]any{"self": "https://example.test/releases/v1.1.0"},
