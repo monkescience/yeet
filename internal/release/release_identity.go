@@ -34,13 +34,13 @@ var ErrInvalidReleaseManifest = errors.New("invalid release manifest")
 
 var releaseManifestMarkerOpenRE = regexp.MustCompile(`<!--\s*yeet-release-manifest\b\s*`)
 
-func releaseRefForPullRequest(pullRequest *provider.PullRequest, defaultRef string) string {
+func releaseRefForPullRequest(pullRequest *provider.PullRequest) (string, error) {
 	mergeCommitSHA := strings.TrimSpace(pullRequest.MergeCommitSHA)
-	if mergeCommitSHA != "" {
-		return mergeCommitSHA
+	if mergeCommitSHA == "" {
+		return "", fmt.Errorf("merged release pull request #%d: %w", pullRequest.Number, provider.ErrEmptyCommitSHA)
 	}
 
-	return strings.TrimSpace(defaultRef)
+	return mergeCommitSHA, nil
 }
 
 func stableReleaseBranch(targetBranch string) string {

@@ -209,7 +209,10 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 			return err
 		}
 
-		releaseRef = releaseRefForPullRequest(mergedPR, r.cfg.Branch)
+		releaseRef, err = releaseRefForPullRequest(mergedPR)
+		if err != nil {
+			return err
+		}
 	}
 
 	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, releaseRef)

@@ -47,6 +47,11 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 		return nil, err
 	}
 
+	releaseRef, err := releaseRefForPullRequest(mergedPR)
+	if err != nil {
+		return nil, err
+	}
+
 	prerelease := manifest.Prerelease
 
 	releases := make([]*provider.Release, 0, len(manifest.Targets))
@@ -55,7 +60,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 			ctx,
 			targetManifest.Tag,
 			targetManifest.ChangelogFile,
-			releaseRefForPullRequest(mergedPR, r.cfg.Branch),
+			releaseRef,
 			prerelease,
 		)
 		if releaseErr != nil {

@@ -802,10 +802,11 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
-			Number: 2,
-			URL:    "https://example.com/pr/2",
-			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         2,
+			URL:            "https://example.com/pr/2",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
 
@@ -831,10 +832,11 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
-			Number: 3,
-			URL:    "https://example.com/pr/3",
-			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         3,
+			URL:            "https://example.com/pr/3",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
 		stub.commitsByRef = map[string][]provider.CommitEntry{
@@ -867,10 +869,11 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
-			Number: 4,
-			URL:    "https://example.com/pr/4",
-			Body:   testManifestBody(t, "v0.1.0", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         4,
+			URL:            "https://example.com/pr/4",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
 		stub.commitsByRef = map[string][]provider.CommitEntry{
@@ -1657,6 +1660,38 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Parallel()
 
+	t.Run("rejects merged pull request without merge commit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR whose provider has not reported the final merge commit
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number: 42,
+			URL:    "https://example.com/pr/42",
+			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch: "yeet/release-main",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_release_from_latest_changelog_entry_and_marks_p_r_tagged/"+
+				"existing_changelog.input.md",
+		))
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing the merged release PR
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: finalization stops before resolving a mutable branch or publishing a release
+		testastic.ErrorIs(t, err, provider.ErrEmptyCommitSHA)
+		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
+
 	t.Run("reads a shared changelog once for multiple releases", func(t *testing.T) {
 		t.Parallel()
 
@@ -1688,10 +1723,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		deps := newProviderStub()
 		deps.mergedPR = &provider.PullRequest{
-			Number: 42,
-			URL:    "https://example.com/pr/42",
-			Body:   manifest,
-			Branch: "yeet/release-main",
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           manifest,
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		source := newProviderStub()
 		existingChangelog := strings.TrimSpace(readTestFile(
@@ -1735,10 +1771,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
-			Number: 42,
-			URL:    "https://example.com/pr/42",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -1760,7 +1797,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, stub.getReleaseByTagCalls)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
-		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
 		testastic.AssertFile(
@@ -1793,7 +1830,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
 				manualNotes +
 				"\n<!-- END_YEET_RELEASE_NOTES -->\n\n" + manifest,
-			Branch: "yeet/release-main",
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -1829,10 +1867,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
-			Number: 42,
-			URL:    "https://example.com/pr/42",
-			Body:   "## Release\n\n" + manifest,
-			Branch: "yeet/release-main",
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           "## Release\n\n" + manifest,
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -1872,7 +1911,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			URL:    "https://example.com/pr/42",
 			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
 				"### Upgrade notes\n\nRestart workers after deploying.\n\n" + manifest,
-			Branch: "yeet/release-main",
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -1905,10 +1945,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
-			Number: 33,
-			URL:    "https://example.com/pr/33",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-v1.2.3",
+			Number:         33,
+			URL:            "https://example.com/pr/33",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-v1.2.3",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -1938,10 +1979,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
 		stub.mergedPR = &provider.PullRequest{
-			Number: 9,
-			URL:    "https://example.com/pr/9",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         9,
+			URL:            "https://example.com/pr/9",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 
 		r := newTestReleaser(t, cfg, stub)
@@ -1972,10 +2014,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			URL:     "https://example.com/releases/v1.2.3",
 		}
 		stub.mergedPR = &provider.PullRequest{
-			Number: 10,
-			URL:    "https://example.com/pr/10",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         10,
+			URL:            "https://example.com/pr/10",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 
 		r := newTestReleaser(t, cfg, stub)
@@ -2002,10 +2045,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub := newProviderStub()
 		stub.tags["v1.2.3"] = true
 		stub.mergedPR = &provider.PullRequest{
-			Number: 11,
-			URL:    "https://example.com/pr/11",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         11,
+			URL:            "https://example.com/pr/11",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
@@ -2026,7 +2070,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
-		testastic.Equal(t, cfg.Branch, stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, stub.tagExistsCalls)
 	})
 
@@ -2113,10 +2157,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
-			Number: 12,
-			URL:    "https://example.com/pr/12",
-			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
-			Branch: "yeet/release-main",
+			Number:         12,
+			URL:            "https://example.com/pr/12",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.2 (2026-02-20)"
 
