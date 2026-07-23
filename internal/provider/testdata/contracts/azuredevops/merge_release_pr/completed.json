@@ -1,4 +1,7 @@
 {
   "pullRequestId": 42,
-  "status": "completed"
+  "status": "completed",
+  "lastMergeCommit": {
+    "commitId": "merge-sha"
+  }
 }

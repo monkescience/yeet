@@ -346,12 +346,16 @@ func gitLabMergedAt(mergeRequest *gitlab.BasicMergeRequest) time.Time {
 }
 
 func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
-	mergeCommitSHA := strings.TrimSpace(mergeRequest.MergeCommitSHA)
+	return gitLabCommitSHA(mergeRequest.MergeCommitSHA, mergeRequest.SquashCommitSHA)
+}
+
+func gitLabCommitSHA(mergeCommit, squashCommit string) string {
+	mergeCommitSHA := strings.TrimSpace(mergeCommit)
 	if mergeCommitSHA != "" {
 		return mergeCommitSHA
 	}
 
-	return strings.TrimSpace(mergeRequest.SquashCommitSHA)
+	return strings.TrimSpace(squashCommit)
 }
 
 func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) string {
@@ -366,34 +370,34 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 	return ""
 }
 
-func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
 	mr, _, err := g.client.MergeRequests.GetMergeRequest(g.projectID, int64(number), nil, gitlab.WithContext(ctx))
 	if err != nil {
-		return fmt.Errorf("get merge request !%d: %w", number, err)
+		return "", fmt.Errorf("get merge request !%d: %w", number, err)
 	}
 
 	if mr.State == gitlabMergeRequestMergedState {
-		return nil
+		return gitLabCommitSHA(mr.MergeCommitSHA, mr.SquashCommitSHA), nil
 	}
 
 	if !isTrustedGitLabReleasePR(mr.SourceBranch, mr.TargetBranch, mr.SourceProjectID, mr.TargetProjectID) {
-		return fmt.Errorf("%w: merge request !%d", ErrUntrustedReleasePR, number)
+		return "", fmt.Errorf("%w: merge request !%d", ErrUntrustedReleasePR, number)
 	}
 
 	if err := validateGitLabMergeRequestForMerge(number, mr, opts.BypassMergeChecks); err != nil {
-		return err
+		return "", err
 	}
 
 	project, err := g.projectMergeSettings(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	acceptOptions, err := gitLabAcceptMergeOptions(project, opts.Method)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	sha := strings.TrimSpace(mr.SHA)
@@ -401,14 +405,14 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		acceptOptions.SHA = new(sha)
 	}
 
-	_, _, err = g.client.MergeRequests.AcceptMergeRequest(
+	merged, _, err := g.client.MergeRequests.AcceptMergeRequest(
 		g.projectID,
 		int64(number),
 		acceptOptions,
 		gitlab.WithContext(ctx),
 	)
 	if err != nil {
-		return fmt.Errorf("accept merge request !%d: %w", number, err)
+		return "", fmt.Errorf("accept merge request !%d: %w", number, err)
 	}
 
 	slog.DebugContext(ctx, "gitlab: merged merge request",
@@ -416,7 +420,11 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		slog.String("sha", sha),
 	)
 
-	return nil
+	if merged == nil {
+		return "", nil
+	}
+
+	return gitLabCommitSHA(merged.MergeCommitSHA, merged.SquashCommitSHA), nil
 }
 
 func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {

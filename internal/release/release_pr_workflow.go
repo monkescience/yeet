@@ -191,7 +191,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		Method:            provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
-	err := w.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
+	mergeSHA, err := w.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.BypassMergeChecks {
 			return fmt.Errorf("force merge release PR: %w", err)
@@ -202,12 +202,15 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 
 	slog.InfoContext(ctx, "merged release PR", slog.String("url", result.PullRequest.URL))
 
-	mergedPR, err := w.waitForMergedPullRequest(ctx, result.PullRequest.Number)
-	if err != nil {
-		return err
-	}
+	releaseRef := strings.TrimSpace(mergeSHA)
+	if releaseRef == "" {
+		mergedPR, err := w.waitForMergedPullRequest(ctx, result.PullRequest.Number)
+		if err != nil {
+			return err
+		}
 
-	releaseRef := releaseRefForPullRequest(mergedPR, r.cfg.Branch)
+		releaseRef = releaseRefForPullRequest(mergedPR, r.cfg.Branch)
+	}
 
 	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, releaseRef)
 	if err != nil {

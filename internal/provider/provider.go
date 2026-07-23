@@ -111,7 +111,7 @@ type Provider interface {
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
 	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
-	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error
+	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error)
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MarkReleasePRTagged(ctx context.Context, number int) error
 	// MaxPRBodyLength returns zero when the provider has no known limit.

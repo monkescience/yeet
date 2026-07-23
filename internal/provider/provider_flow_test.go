@@ -129,7 +129,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MergeReleasePR is invoked without the force option
-		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
 
 		// then: ErrMergeBlocked is returned with the blocked mergeable state in the message
 		testastic.Error(t, err)
@@ -181,7 +181,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
-		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 			Method:            provider.MergeMethodAuto,
 		})
@@ -218,7 +218,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
 
 		// when: forcing the fork pull request merge
-		err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 		})
 
@@ -425,7 +425,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 			gl := newGitLabProvider(t, server)
 
 			// when: MergeReleasePR is invoked without force while readiness is recomputed
-			err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+			_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
 
 			// then: the transient status does not prevent the merge request
 			testastic.NoError(t, err)
@@ -460,7 +460,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MergeReleasePR is invoked without the force option
-		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
 
 		// then: ErrMergeBlocked is returned with the detailed merge status in the message
 		testastic.Error(t, err)
@@ -511,7 +511,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
-		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
+		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 			Method:            provider.MergeMethodSquash,
 		})
@@ -545,7 +545,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: forcing the cross-project merge request
-		err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
+		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
 			BypassMergeChecks: true,
 		})
 

@@ -31,7 +31,7 @@ type releasePRProvider interface {
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*provider.PullRequest, error)
 	CreateReleasePR(ctx context.Context, opts provider.ReleasePROptions) (*provider.PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts provider.ReleasePROptions) error
-	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) error
+	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) (string, error)
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MaxPRBodyLength() int
 }

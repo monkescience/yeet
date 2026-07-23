@@ -121,13 +121,18 @@ func (s *providerStub) MergeReleasePR(
 	ctx context.Context,
 	number int,
 	opts provider.MergeReleasePROptions,
-) error {
-	if err := s.releasePRWorkflowStub.MergeReleasePR(ctx, number, opts); err != nil {
-		return err
+) (string, error) {
+	mergeSHA, err := s.releasePRWorkflowStub.MergeReleasePR(ctx, number, opts)
+	if err != nil {
+		return "", err
+	}
+
+	if mergeSHA != "" {
+		return mergeSHA, nil
 	}
 
 	if s.mergedPR != nil || len(s.mergedPRResponses) > 0 {
-		return nil
+		return "", nil
 	}
 
 	for _, pullRequest := range s.pullRequests {
@@ -142,7 +147,7 @@ func (s *providerStub) MergeReleasePR(
 		break
 	}
 
-	return nil
+	return "", nil
 }
 
 type repoMetadataStub struct {
@@ -312,6 +317,7 @@ type releasePRWorkflowStub struct {
 	mergePRCalls   int
 	mergePRNumbers []int
 	mergePROptions []provider.MergeReleasePROptions
+	mergePRSHA     string
 	mergePRErr     error
 
 	createdBranches []string
@@ -363,16 +369,16 @@ func (s *releasePRWorkflowStub) MergeReleasePR(
 	_ context.Context,
 	number int,
 	opts provider.MergeReleasePROptions,
-) error {
+) (string, error) {
 	s.mergePRCalls++
 	s.mergePRNumbers = append(s.mergePRNumbers, number)
 	s.mergePROptions = append(s.mergePROptions, opts)
 
 	if s.mergePRErr != nil {
-		return s.mergePRErr
+		return "", s.mergePRErr
 	}
 
-	return nil
+	return s.mergePRSHA, nil
 }
 
 func (s *releasePRWorkflowStub) MarkReleasePRPending(_ context.Context, number int) error {

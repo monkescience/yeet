@@ -1256,7 +1256,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodAuto,
 		})
@@ -1302,7 +1302,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with squash method (which is disabled)
-		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodSquash,
 		})
@@ -1351,7 +1351,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodAuto,
 		})
@@ -1397,7 +1397,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodAuto,
 		})
@@ -1781,7 +1781,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with auto method
-		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodAuto,
 		})
@@ -1831,7 +1831,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with squash method
-		err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			BypassMergeChecks: false,
 			Method:            provider.MergeMethodSquash,
 		})

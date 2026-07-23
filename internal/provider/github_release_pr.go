@@ -260,29 +260,29 @@ func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabel
 	return nil
 }
 
-func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 
 	pr, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
 	if err != nil {
-		return fmt.Errorf("get pull request #%d: %w", number, err)
+		return "", fmt.Errorf("get pull request #%d: %w", number, err)
 	}
 
 	if pr.GetMerged() {
-		return nil
+		return strings.TrimSpace(pr.GetMergeCommitSHA()), nil
 	}
 
 	if !g.isTrustedReleasePR(pr, pr.GetBase().GetRef()) {
-		return fmt.Errorf("%w: pull request #%d", ErrUntrustedReleasePR, number)
+		return "", fmt.Errorf("%w: pull request #%d", ErrUntrustedReleasePR, number)
 	}
 
 	if err := validateGitHubPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
-		return err
+		return "", err
 	}
 
 	mergeMethod, err := g.resolveGitHubMergeMethod(ctx, opts.Method)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	mergeOptions := &github.PullRequestOptions{MergeMethod: string(mergeMethod)}
@@ -294,7 +294,7 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 
 	mergeResult, _, err := g.client.PullRequests.Merge(ctx, g.repo.Owner, g.repo.Name, number, "", mergeOptions)
 	if err != nil {
-		return fmt.Errorf("merge pull request #%d: %w", number, err)
+		return "", fmt.Errorf("merge pull request #%d: %w", number, err)
 	}
 
 	if !mergeResult.GetMerged() {
@@ -303,7 +303,7 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 			message = "merge not completed"
 		}
 
-		return fmt.Errorf("%w: pull request #%d: %s", ErrMergeBlocked, number, message)
+		return "", fmt.Errorf("%w: pull request #%d: %s", ErrMergeBlocked, number, message)
 	}
 
 	slog.DebugContext(ctx, "github: merged pull request",
@@ -312,7 +312,7 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		slog.String("merge_sha", mergeResult.GetSHA()),
 	)
 
-	return nil
+	return strings.TrimSpace(mergeResult.GetSHA()), nil
 }
 
 func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch string) bool {

@@ -293,35 +293,35 @@ func (a *AzureDevOps) listPullRequests(
 	return all, nil
 }
 
-func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) error {
+func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
 	pr, err := a.getPullRequest(ctx, number)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if derefString((*string)(pr.Status)) == string(git.PullRequestStatusValues.Completed) {
-		return nil
+		return azureDevOpsMergeCommit(pr), nil
 	}
 
 	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
 	if !isTrustedAzureDevOpsReleasePR(pr, baseBranch) {
-		return fmt.Errorf("%w: pull request !%d", ErrUntrustedReleasePR, number)
+		return "", fmt.Errorf("%w: pull request !%d", ErrUntrustedReleasePR, number)
 	}
 
 	if err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
-		return err
+		return "", err
 	}
 
 	strategy, err := azureDevOpsMergeStrategy(opts.Method)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	gitClient, err := a.client(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	completed := git.PullRequestStatusValues.Completed
@@ -337,14 +337,14 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		update.LastMergeSourceCommit = &git.GitCommitRef{CommitId: pr.LastMergeSourceCommit.CommitId}
 	}
 
-	_, err = gitClient.UpdatePullRequest(ctx, git.UpdatePullRequestArgs{
+	merged, err := gitClient.UpdatePullRequest(ctx, git.UpdatePullRequestArgs{
 		GitPullRequestToUpdate: &update,
 		RepositoryId:           &a.repo,
 		Project:                &a.project,
 		PullRequestId:          &number,
 	})
 	if err != nil {
-		return fmt.Errorf("complete pull request !%d: %w", number, err)
+		return "", fmt.Errorf("complete pull request !%d: %w", number, err)
 	}
 
 	slog.DebugContext(ctx, "azure devops: completed pull request",
@@ -352,7 +352,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		slog.String("strategy", string(strategy)),
 	)
 
-	return nil
+	return azureDevOpsMergeCommit(merged), nil
 }
 
 func isTrustedAzureDevOpsReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
@@ -541,6 +541,10 @@ func (a *AzureDevOps) pullRequestWebURL(id int) string {
 }
 
 func azureDevOpsMergeCommit(pr *git.GitPullRequest) string {
+	if pr == nil {
+		return ""
+	}
+
 	if pr.LastMergeCommit != nil && pr.LastMergeCommit.CommitId != nil && *pr.LastMergeCommit.CommitId != "" {
 		return *pr.LastMergeCommit.CommitId
 	}

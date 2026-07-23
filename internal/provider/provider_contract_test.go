@@ -322,12 +322,13 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
-				err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 					Method: provider.MergeMethodAuto,
 				})
 
-				// then: the merge completes without error
+				// then: the merge completes and returns the merge commit
 				testastic.NoError(t, err)
+				testastic.Equal(t, "merge-sha", mergeSHA)
 			})
 
 			t.Run("creates branch", func(t *testing.T) {
@@ -474,7 +475,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked without the force option on PR 42
-				err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+				_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
 
 				// then: ErrMergeBlocked is returned
 				testastic.Error(t, err)
@@ -491,7 +492,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with the unsupported "octopus" merge method
-				err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+				_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 					Method: provider.MergeMethod("octopus"),
 				})
 

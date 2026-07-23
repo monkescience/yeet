@@ -968,6 +968,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, result.PullRequest.Number, stub.markTaggedCalls[0])
+		testastic.Equal(t, 2, stub.findMergedPRCalls)
 	})
 
 	t.Run("creates release at merged commit", func(t *testing.T) {
@@ -983,16 +984,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
-		stub.mergedPRResponses = []*provider.PullRequest{
-			nil,
-			nil,
-			{
-				Number:         1,
-				URL:            "https://example.com/pr/1",
-				Branch:         "yeet/release-main",
-				MergeCommitSHA: "merged-sha",
-			},
-		}
+		stub.mergePRSHA = "merged-sha"
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1003,7 +995,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
-		testastic.Equal(t, 3, stub.findMergedPRCalls)
+		testastic.Equal(t, 1, stub.findMergedPRCalls)
 	})
 
 	t.Run("force mode forwards force option to provider merge", func(t *testing.T) {
