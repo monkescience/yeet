@@ -1151,6 +1151,7 @@ func TestReleasePRCarriesReviewers(t *testing.T) {
 	// then: the create options carry the configured reviewers
 	testastic.NoError(t, err)
 	testastic.Equal(t, 1, stub.createPRCalls)
+	testastic.Equal(t, 0, len(stub.createdBranches))
 	testastic.SliceEqual(t, []string{"alice", "bob"}, stub.createPROptions[0].Reviewers)
 }
 

@@ -34,7 +34,6 @@ type releasePRProvider interface {
 	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) error
 	MarkReleasePRPending(ctx context.Context, number int) error
 	MaxPRBodyLength() int
-	CreateBranch(ctx context.Context, name, base string) error
 }
 
 type releaseFileProvider interface {

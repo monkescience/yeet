@@ -33,6 +33,10 @@ func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error
 		return nil
 	}
 
+	return a.createBranchAtSHA(ctx, name, baseSHA)
+}
+
+func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA string) error {
 	gitClient, err := a.client(ctx)
 	if err != nil {
 		return err
@@ -235,9 +239,8 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 
 	branchTip, err := a.branchTipSHA(ctx, branch)
 	if errors.Is(err, errAzureDevOpsBranchMissing) {
-		createErr := a.CreateBranch(ctx, branch, base)
-		if createErr != nil {
-			return "", createErr
+		if err := a.createBranchAtSHA(ctx, branch, baseTip); err != nil {
+			return "", err
 		}
 
 		return baseTip, nil

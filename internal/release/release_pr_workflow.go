@@ -281,13 +281,6 @@ func (w *releasePRWorkflow) createNew(
 	prOpts provider.ReleasePROptions,
 	result *Result,
 ) (*provider.PullRequest, error) {
-	r := w.core
-
-	err := w.prs.CreateBranch(ctx, releaseBranch, r.cfg.Branch)
-	if err != nil {
-		return nil, fmt.Errorf("create release branch: %w", err)
-	}
-
 	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result); err != nil {
 		return nil, err
 	}

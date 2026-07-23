@@ -120,6 +120,52 @@ func TestAzureDevOpsFindOpenPendingReleasePRsAcceptsExactPaginationCapacity(t *t
 	testastic.Equal(t, int32(101), calls.Load())
 }
 
+func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *testing.T) {
+	t.Parallel()
+
+	var baseLookups atomic.Int32
+
+	var branchLookups atomic.Int32
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
+			baseLookups.Add(1)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
+		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
+			branchLookups.Add(1)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "empty_refs.json"))
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "push.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	err := p.UpdateFiles(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+		map[string]provider.FileUpdate{"VERSION.txt": {Content: "version=1.2.3\n"}},
+		"chore: release v1.2.3",
+	)
+
+	testastic.NoError(t, err)
+	testastic.Equal(t, int32(1), baseLookups.Load())
+	testastic.Equal(t, int32(1), branchLookups.Load())
+}
+
 // newAzureDevOpsContractHandler wraps every scenario with the bootstrap
 // (OPTIONS /_apis + resourceAreas) so the SDK's lazy lookups succeed.
 func newAzureDevOpsContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
