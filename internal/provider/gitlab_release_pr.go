@@ -346,16 +346,17 @@ func gitLabMergedAt(mergeRequest *gitlab.BasicMergeRequest) time.Time {
 }
 
 func gitLabMergeRequestCommitSHA(mergeRequest *gitlab.BasicMergeRequest) string {
-	return gitLabCommitSHA(mergeRequest.MergeCommitSHA, mergeRequest.SquashCommitSHA)
+	return gitLabCommitSHA(mergeRequest.MergeCommitSHA, mergeRequest.SquashCommitSHA, mergeRequest.SHA)
 }
 
-func gitLabCommitSHA(mergeCommit, squashCommit string) string {
-	mergeCommitSHA := strings.TrimSpace(mergeCommit)
-	if mergeCommitSHA != "" {
-		return mergeCommitSHA
+func gitLabCommitSHA(mergeCommit, squashCommit, sourceCommit string) string {
+	for _, candidate := range []string{mergeCommit, squashCommit, sourceCommit} {
+		if commitSHA := strings.TrimSpace(candidate); commitSHA != "" {
+			return commitSHA
+		}
 	}
 
-	return strings.TrimSpace(squashCommit)
+	return ""
 }
 
 func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) string {
@@ -364,7 +365,7 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 		return commitSHA
 	}
 
-	slog.WarnContext(ctx, "merge request has no merge or squash commit SHA, release will be tagged against branch tip",
+	slog.WarnContext(ctx, "gitlab: merged MR has no merge, squash, or source commit SHA",
 		slog.Int64("iid", mergeRequest.IID))
 
 	return ""
@@ -379,7 +380,7 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	}
 
 	if mr.State == gitlabMergeRequestMergedState {
-		return gitLabCommitSHA(mr.MergeCommitSHA, mr.SquashCommitSHA), nil
+		return gitLabMergeCommitSHA(ctx, &mr.BasicMergeRequest), nil
 	}
 
 	if !isTrustedGitLabReleasePR(mr.SourceBranch, mr.TargetBranch, mr.SourceProjectID, mr.TargetProjectID) {
@@ -424,7 +425,7 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		return "", nil
 	}
 
-	return gitLabCommitSHA(merged.MergeCommitSHA, merged.SquashCommitSHA), nil
+	return gitLabMergeCommitSHA(ctx, &merged.BasicMergeRequest), nil
 }
 
 func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {

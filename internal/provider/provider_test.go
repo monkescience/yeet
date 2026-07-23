@@ -1477,6 +1477,52 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, "abc123", pr.MergeCommitSHA)
 	})
 
+	t.Run("uses source tip for fast-forward merged MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab returns a fast-forward merged MR without merge or squash commit SHAs
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+				writeJSON(t, w, []map[string]any{
+					{
+						"iid":               6,
+						"title":             "chore: release v1.0.0",
+						"description":       "fast-forward merged mr",
+						"web_url":           "https://gitlab.com/o/r/-/merge_requests/6",
+						"source_branch":     "yeet/release-main",
+						"source_project_id": 10,
+						"target_project_id": 10,
+						"state":             "merged",
+						"sha":               "source-tip-sha",
+						"squash_on_merge":   false,
+					},
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: finding the fast-forward merged release MR
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+
+		// then: the source tip identifies the commit now on the target branch
+		testastic.NoError(t, err)
+		testastic.Equal(t, 6, pr.Number)
+		testastic.Equal(t, "source-tip-sha", pr.MergeCommitSHA)
+	})
+
 	t.Run("returns ErrNoPR when none found", func(t *testing.T) {
 		t.Parallel()
 
@@ -1673,6 +1719,63 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// then: no error
 		testastic.NoError(t, err)
+	})
+
+	t.Run("auto method returns source tip for fast-forward merge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project using fast-forward merges without squashing
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "source-tip-sha",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "ff",
+					"squash_option": "never",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				writeJSON(t, w, map[string]any{
+					"iid":             1,
+					"state":           "merged",
+					"sha":             "source-tip-sha",
+					"squash_on_merge": false,
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with the project's fast-forward method
+		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: the source tip is returned as the final commit on the target branch
+		testastic.NoError(t, err)
+		testastic.Equal(t, "source-tip-sha", mergeSHA)
 	})
 
 	t.Run("squash blocked by project settings", func(t *testing.T) {
