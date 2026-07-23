@@ -421,7 +421,7 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		slog.String("sha", sha),
 	)
 
-	if merged == nil {
+	if merged == nil || merged.State != gitlabMergeRequestMergedState {
 		return "", nil
 	}
 

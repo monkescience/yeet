@@ -1778,6 +1778,62 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		testastic.Equal(t, "source-tip-sha", mergeSHA)
 	})
 
+	t.Run("auto method waits for asynchronous accept response", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab accepts the MR into an asynchronous merge flow without merging it yet
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "source-tip-sha",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "ff",
+					"squash_option": "never",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				writeJSON(t, w, map[string]any{
+					"iid":   1,
+					"state": "opened",
+					"sha":   "source-tip-sha",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with the project's asynchronous fast-forward flow
+		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: no commit is trusted until GitLab reports the MR as merged
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", mergeSHA)
+	})
+
 	t.Run("squash blocked by project settings", func(t *testing.T) {
 		t.Parallel()
 
