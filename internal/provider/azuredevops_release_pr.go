@@ -226,7 +226,7 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 			Body:           derefString(full.Description),
 			URL:            a.pullRequestWebURL(number),
 			Branch:         branch,
-			MergeCommitSHA: azureDevOpsMergeCommit(full),
+			MergeCommitSHA: azureDevOpsCompletedMergeCommit(full),
 		}
 
 		slog.DebugContext(ctx, "azure devops: found merged release PR",
@@ -302,7 +302,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	}
 
 	if derefString((*string)(pr.Status)) == string(git.PullRequestStatusValues.Completed) {
-		return azureDevOpsMergeCommit(pr), nil
+		return azureDevOpsCompletedMergeCommit(pr), nil
 	}
 
 	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
@@ -550,6 +550,19 @@ func azureDevOpsMergeCommit(pr *git.GitPullRequest) string {
 	}
 
 	return ""
+}
+
+func azureDevOpsCompletedMergeCommit(pr *git.GitPullRequest) string {
+	if pr == nil || derefString((*string)(pr.Status)) != string(git.PullRequestStatusValues.Completed) {
+		return ""
+	}
+
+	if pr.MergeStatus != nil &&
+		derefString((*string)(pr.MergeStatus)) != string(git.PullRequestAsyncStatusValues.Succeeded) {
+		return ""
+	}
+
+	return azureDevOpsMergeCommit(pr)
 }
 
 func azureDevOpsCompletionResponseCommit(pr *git.GitPullRequest) string {
