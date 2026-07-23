@@ -388,6 +388,26 @@ func handleGitLabUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 
 	switch {
 	case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/commits":
+		var request struct {
+			Branch        string `json:"branch"`
+			CommitMessage string `json:"commit_message"`
+			StartBranch   string `json:"start_branch"`
+			Force         bool   `json:"force"`
+			Actions       []struct {
+				Action   string `json:"action"`
+				FilePath string `json:"file_path"`
+			} `json:"actions"`
+		}
+		decodeJSONRequest(t, r, &request)
+		testastic.Equal(t, providerContractReleaseBranch, request.Branch)
+		testastic.Equal(t, providerContractBaseBranch, request.StartBranch)
+		testastic.Equal(t, "chore: release v1.2.3", request.CommitMessage)
+		testastic.True(t, request.Force)
+		testastic.Equal(t, 2, len(request.Actions))
+		testastic.Equal(t, "CHANGELOG.md", request.Actions[0].FilePath)
+		testastic.Equal(t, "update", request.Actions[0].Action)
+		testastic.Equal(t, "VERSION.txt", request.Actions[1].FilePath)
+		testastic.Equal(t, "create", request.Actions[1].Action)
 		writeJSONFixture(t, w, "contracts/gitlab/update_files/push.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
