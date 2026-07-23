@@ -18,6 +18,7 @@ type GitLabOptions struct {
 	Files                     map[string]string
 	MergedPendingRelease      bool
 	AsynchronousMerge         bool
+	FastForwardMerge          bool
 	MultipleOpenPRs           bool
 	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
@@ -210,7 +211,7 @@ func gitlabMergeRequestListHandler(
 		}
 
 		if state == fakeStateMerged && (opts.MergedPendingRelease || merged.Load()) {
-			writeJSON(w, []map[string]any{gitlabMergedPendingMR()})
+			writeJSON(w, []map[string]any{gitlabMergedPendingMR(opts)})
 
 			return
 		}
@@ -255,7 +256,7 @@ func gitlabMergeAcceptHandler(
 		}
 
 		merged.Store(true)
-		writeJSON(w, gitlabMergedPendingMR())
+		writeJSON(w, gitlabMergedPendingMR(opts))
 	}
 }
 
@@ -354,11 +355,29 @@ func registerGitLabReleases(
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
-	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, r *http.Request) {
 		if opts.AsynchronousMerge && !merged.Load() {
 			http.Error(w, "merge not completed", http.StatusConflict)
 
 			return
+		}
+
+		if opts.FastForwardMerge {
+			var request struct {
+				Ref string `json:"ref"`
+			}
+
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, "invalid release request", http.StatusBadRequest)
+
+				return
+			}
+
+			if request.Ref != opts.BranchHeadSHA {
+				http.Error(w, "release ref is not the fast-forward commit", http.StatusConflict)
+
+				return
+			}
 		}
 
 		writeJSON(w, map[string]any{
@@ -388,12 +407,17 @@ const gitlabReleaseManifest = "<!-- yeet-release-manifest\n" +
 	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
 	"\n-->"
 
-func gitlabMergedPendingMR() map[string]any {
+func gitlabMergedPendingMR(opts GitLabOptions) map[string]any {
 	mr := gitlabFakeMR()
 	mr["state"] = "merged"
 	mr["merged_at"] = fakeMergedAtTimestamp
 	mr["description"] = "## ٩(^ᴗ^)۶ release created\n\n" + gitlabReleaseManifest + "\n"
 	mr["labels"] = []string{fakePendingReleaseTag}
+
+	if opts.FastForwardMerge {
+		delete(mr, "merge_commit_sha")
+		mr["sha"] = opts.BranchHeadSHA
+	}
 
 	return mr
 }

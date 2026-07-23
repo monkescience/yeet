@@ -546,3 +546,45 @@ func TestReleaseGitLabAutoMergeWaitsForAsynchronousAccept(t *testing.T) {
 	testastic.Equal(t, 0, result.ExitCode)
 	testastic.Equal(t, "", result.Stdout)
 }
+
+func TestReleaseGitLabFinalizesFastForwardMerge(t *testing.T) {
+	t.Parallel()
+
+	// given: a merged release MR whose only final commit SHA is its source tip
+	files := map[string]string{
+		"CHANGELOG.md": "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n",
+	}
+	repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+			{Message: "feat: add a thing", Files: files},
+		})
+
+	server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+		Project:              "group/service",
+		LatestTag:            "v1.0.0",
+		BoundarySHA:          shas[0],
+		BranchHeadSHA:        shas[1],
+		MergedPendingRelease: true,
+		FastForwardMerge:     true,
+		Files:                files,
+	})
+
+	configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+		Provider: "gitlab",
+		Branch:   "main",
+		Host:     "gitlab.com",
+		Project:  "group/service",
+	})
+
+	// when: invoking `yeet release`
+	result := binary.RunWithOptions(t,
+		[]string{"release", "--config", configPath},
+		testastic.WithRunWorkDir(repoDir),
+		testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+	)
+
+	// then: yeet creates the release at the fast-forwarded source commit
+	testastic.Equal(t, 0, result.ExitCode)
+	testastic.Equal(t, "", result.Stdout)
+}
