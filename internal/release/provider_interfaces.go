@@ -47,7 +47,6 @@ type releasePublishingProvider interface {
 	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
 	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
 	MarkReleasePRTagged(ctx context.Context, number int) error
-	GetFile(ctx context.Context, branch, path string) (string, error)
 }
 
 // releaserDependencies is the provider-side capability set. Version history

@@ -209,7 +209,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 }
 
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
-	return newReleasePublisher(r.core, r.publisher).finalizeMergedReleasePR(ctx)
+	return newReleasePublisher(r.core, r.publisher, r.source).finalizeMergedReleasePR(ctx)
 }
 
 func multiplePendingReleasePRError(pendingPRs []*provider.PullRequest) error {

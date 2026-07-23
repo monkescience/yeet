@@ -356,7 +356,12 @@ func TestReleaseAutoMerge(t *testing.T) {
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{
+					Message: "feat: add a thing",
+					Files: map[string]string{
+						"CHANGELOG.md": "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n",
+					},
+				},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -429,7 +434,12 @@ func TestReleaseAutoMerge(t *testing.T) {
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{
+					Message: "feat: add a thing",
+					Files: map[string]string{
+						"CHANGELOG.md": "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n",
+					},
+				},
 			})
 
 		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
@@ -545,7 +555,12 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
+				{
+					Message: "feat: add a thing",
+					Files: map[string]string{
+						"CHANGELOG.md": "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n",
+					},
+				},
 			})
 
 		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{

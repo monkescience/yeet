@@ -1694,22 +1694,24 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		})
 		testastic.NoError(t, err)
 
-		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		deps := newProviderStub()
+		deps.mergedPR = &provider.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
 			Body:   manifest,
 			Branch: "yeet/release-main",
 		}
+		source := newProviderStub()
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
 			"testdata/finalize_merged_release_p_r/"+
 				"reads_a_shared_changelog_once_for_multiple_releases/"+
 				"existing_changelog.input.md",
 		))
-		stub.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = existingChangelog
+		source.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = existingChangelog
 
-		r := newTestReleaser(t, cfg, stub)
+		r, err := New(t.Context(), cfg, deps, source)
+		testastic.NoError(t, err)
 
 		// when: finalizing both releases
 		releases, err := r.finalizeMergedReleasePRs(t.Context())
@@ -1729,7 +1731,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 				"reads_a_shared_changelog_once_for_multiple_releases/release_1_body.expected.md",
 			releases[1].Body,
 		)
-		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
+		testastic.Equal(t, 0, deps.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
+		testastic.Equal(t, 1, source.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
 	})
 
 	t.Run("creates release from latest changelog entry and marks PR tagged", func(t *testing.T) {

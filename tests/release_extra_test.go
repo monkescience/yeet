@@ -16,7 +16,10 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab fake with both merged-pending-release and version files
-		files := map[string]string{"VERSION.txt": "1.0.0 # x-yeet-version\n"}
+		files := map[string]string{
+			"CHANGELOG.md": "## Changelog\n\n## [v1.1.0]\n\n* feat: add a thing\n",
+			"VERSION.txt":  "1.0.0 # x-yeet-version\n",
+		}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},

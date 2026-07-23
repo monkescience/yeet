@@ -37,7 +37,7 @@ func newReleasePRWorkflow(
 		prs:           prs,
 		files:         files,
 		branchUpdater: newReleaseBranchUpdater(core, source, files),
-		publisher:     newReleasePublisher(core, publisher),
+		publisher:     newReleasePublisher(core, publisher, source),
 		changelogs:    newChangelogFileCache(),
 	}
 }
