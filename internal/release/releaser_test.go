@@ -1121,7 +1121,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Equal(t, "0.1.0", result.Plans[0].NextVersion)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
-	testastic.Equal(t, 1, len(stub.markPendingCalls))
+	testastic.Equal(t, 0, len(stub.markPendingCalls))
 	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
 	testastic.AssertFile(
 		t,

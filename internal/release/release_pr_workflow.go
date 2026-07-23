@@ -269,11 +269,6 @@ func (w *releasePRWorkflow) updateExisting(
 		return nil, err
 	}
 
-	err = w.prs.MarkReleasePRPending(ctx, existing.Number)
-	if err != nil {
-		return nil, fmt.Errorf("mark release PR pending: %w", err)
-	}
-
 	existing.Title = prOpts.Title
 	existing.Body = prOpts.Body
 
