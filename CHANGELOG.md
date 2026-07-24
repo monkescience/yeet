@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.11.3](https://github.com/monkescience/yeet/compare/v0.11.2...v0.11.3) (2026-07-24)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.51.0 (#193) ([89fc757](https://github.com/monkescience/yeet/commit/89fc757946e2c020e23cd8b508c0761aa5aab26f))
+- **release:** wait for merged GitLab accept response ([53cfa02](https://github.com/monkescience/yeet/commit/53cfa02f23a03e8072472f26757a642a5e4e7578))
+- **release:** handle GitLab fast-forward merge refs ([3321d72](https://github.com/monkescience/yeet/commit/3321d72030bbab268f594a8b57b30cc668f98101))
+- **release:** require merged commit for publishing ([280c8c1](https://github.com/monkescience/yeet/commit/280c8c1d27a8f433f51b7288a048e1c3baf3d39c))
+- **release:** reject provisional Azure merge commits ([a80152b](https://github.com/monkescience/yeet/commit/a80152bd9271994f24e95a97148dc083beceb31d))
+- **release:** wait for final Azure merge commit ([fbb41fe](https://github.com/monkescience/yeet/commit/fbb41fe1816e31030c196cfda31a80b0a8c769f6))
+### Performance Improvements
+
+- **release:** use merge response commit ([f830b35](https://github.com/monkescience/yeet/commit/f830b354e98be8c1e6d34e14edcfdb8a6414866f))
+- **release:** let file updates create branches ([4d44827](https://github.com/monkescience/yeet/commit/4d448273600a17fd3542e14e3ef506b67108a05d))
+- **release:** skip redundant pending relabel ([4b45f77](https://github.com/monkescience/yeet/commit/4b45f7741408971fd50661bd2f953beabf400247))
+- **release:** read finalized changelogs locally ([07916c3](https://github.com/monkescience/yeet/commit/07916c37d62d4614e0eca39f9e021126751b3784))
+- **release:** skip redundant latest release lookup ([7606f40](https://github.com/monkescience/yeet/commit/7606f404472b9e04c08e28e8ee2ca9923575c770))
+
 ## [v0.11.2](https://github.com/monkescience/yeet/compare/v0.11.1...v0.11.2) (2026-07-22)
 
 ### Bug Fixes
