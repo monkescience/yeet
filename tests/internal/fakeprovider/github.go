@@ -552,12 +552,6 @@ func githubRequestReviewersHandler(opts GitHubOptions, reviewersRequested *atomi
 			return
 		}
 
-		if len(request.Reviewers) != len(opts.Collaborators) {
-			http.Error(w, "reviewer request does not match collaborators", http.StatusUnprocessableEntity)
-
-			return
-		}
-
 		for _, reviewer := range request.Reviewers {
 			if !opts.Collaborators[reviewer] {
 				http.Error(w, "reviewer is not a collaborator", http.StatusUnprocessableEntity)

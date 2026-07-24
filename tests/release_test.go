@@ -282,7 +282,7 @@ func TestReleaseReviewers(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
 			BranchHeadSHA: shas[1],
-			Collaborators: map[string]bool{"alice": true},
+			Collaborators: map[string]bool{"alice": true, "bob": true},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
