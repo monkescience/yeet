@@ -266,6 +266,45 @@ func TestReleaseCreatesPR(t *testing.T) {
 func TestReleaseReviewers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("github validates and requests configured reviewers", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a fake GitHub repository where the configured reviewer is a collaborator
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Collaborators: map[string]bool{"alice": true},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:  "github",
+			Branch:    "main",
+			Host:      "github.com",
+			Owner:     "testorg",
+			Repo:      "testrepo",
+			Reviewers: []string{"alice"},
+		})
+
+		// when: invoking `yeet release` against the fake server
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet validates and requests the reviewer before labeling the PR
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
 	t.Run("gitlab requests configured reviewers on the release MR", func(t *testing.T) {
 		t.Parallel()
 

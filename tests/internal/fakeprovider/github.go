@@ -5,6 +5,7 @@ package fakeprovider
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -30,6 +31,7 @@ type GitHubOptions struct {
 	ExistingRelease           bool
 	PaginateCommits           bool
 	FailOnMutation            bool
+	Collaborators             map[string]bool
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -63,12 +65,13 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 
 	mux := http.NewServeMux()
 	merged := &atomic.Bool{}
+	reviewersRequested := &atomic.Bool{}
 
 	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubSearch(mux, opts, merged)
 	registerGitHubPullsRead(mux, prefix, opts)
-	registerGitHubWritePath(mux, prefix, opts, merged)
+	registerGitHubWritePath(mux, prefix, opts, merged, reviewersRequested)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -391,11 +394,17 @@ func githubFilesPayload(paths []string) []map[string]any {
 }
 
 // registerGitHubWritePath attaches the handlers used by non-dry-run releases.
-func registerGitHubWritePath(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
+func registerGitHubWritePath(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	merged, reviewersRequested *atomic.Bool,
+) {
 	registerGitHubGitData(mux, prefix)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(mux, prefix, opts, merged)
-	registerGitHubLabels(mux, prefix)
+	registerGitHubPullsWrite(mux, prefix, opts, merged, reviewersRequested)
+	registerGitHubLabels(mux, prefix, opts, reviewersRequested)
+	registerGitHubCollaborators(mux, prefix, opts)
 
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
@@ -487,7 +496,12 @@ func githubFileContent(path, raw string) map[string]any {
 	}
 }
 
-func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOptions, merged *atomic.Bool) {
+func registerGitHubPullsWrite(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	merged, reviewersRequested *atomic.Bool,
+) {
 	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, githubFakePR(opts))
 	})
@@ -519,9 +533,62 @@ func registerGitHubPullsWrite(mux *http.ServeMux, prefix string, opts GitHubOpti
 		merged.Store(true)
 		writeJSON(w, map[string]any{fakeStateMerged: true, githubKeySHA: fakeMergeSHA})
 	})
+
+	mux.HandleFunc(
+		"POST "+prefix+"/pulls/{number}/requested_reviewers",
+		githubRequestReviewersHandler(opts, reviewersRequested),
+	)
 }
 
-func registerGitHubLabels(mux *http.ServeMux, prefix string) {
+func githubRequestReviewersHandler(opts GitHubOptions, reviewersRequested *atomic.Bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Reviewers []string `json:"reviewers"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid reviewer request", http.StatusBadRequest)
+
+			return
+		}
+
+		if len(request.Reviewers) != len(opts.Collaborators) {
+			http.Error(w, "reviewer request does not match collaborators", http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		for _, reviewer := range request.Reviewers {
+			if !opts.Collaborators[reviewer] {
+				http.Error(w, "reviewer is not a collaborator", http.StatusUnprocessableEntity)
+
+				return
+			}
+		}
+
+		reviewersRequested.Store(true)
+		writeJSON(w, githubFakePR(opts))
+	}
+}
+
+func registerGitHubCollaborators(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+	mux.HandleFunc("GET "+prefix+"/collaborators/{username}", func(w http.ResponseWriter, r *http.Request) {
+		if !opts.Collaborators[r.PathValue("username")] {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func registerGitHubLabels(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	reviewersRequested *atomic.Bool,
+) {
 	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
@@ -531,6 +598,12 @@ func registerGitHubLabels(mux *http.ServeMux, prefix string) {
 	})
 
 	mux.HandleFunc("POST "+prefix+"/issues/{number}/labels", func(w http.ResponseWriter, _ *http.Request) {
+		if len(opts.Collaborators) > 0 && !reviewersRequested.Load() {
+			http.Error(w, "reviewers were not requested", http.StatusConflict)
+
+			return
+		}
+
 		writeJSON(w, []any{})
 	})
 
