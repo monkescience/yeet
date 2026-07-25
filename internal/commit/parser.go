@@ -103,10 +103,14 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 
 	c.Body = strings.TrimSpace(strings.Join(lines[:footerStart], "\n"))
 
+	var continuation strings.Builder
+
 	for _, line := range lines[footerStart:] {
 		trimmed := strings.TrimSpace(line)
 
 		if footer, ok := parseFooter(trimmed); ok {
+			flushContinuation(c.Footers, &continuation)
+
 			c.Footers = append(c.Footers, footer)
 
 			if footer.Key == "BREAKING CHANGE" || footer.Key == "BREAKING-CHANGE" {
@@ -120,9 +124,21 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 			continue
 		}
 
-		last := &c.Footers[len(c.Footers)-1]
-		last.Value += "\n" + line
+		continuation.WriteString("\n")
+		continuation.WriteString(line)
 	}
+
+	flushContinuation(c.Footers, &continuation)
+}
+
+func flushContinuation(footers []Footer, continuation *strings.Builder) {
+	if continuation.Len() == 0 {
+		return
+	}
+
+	footers[len(footers)-1].Value += continuation.String()
+
+	continuation.Reset()
 }
 
 func isToken(s string) bool {

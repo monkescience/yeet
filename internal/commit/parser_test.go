@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -256,6 +257,42 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, 1, len(c.Footers))
 		testastic.AssertFile(t, "testdata/blank_continuation/expected.txt", c.Footers[0].Value)
 	})
+}
+
+func TestParseFoldsLargeFooterBlockLinearly(t *testing.T) {
+	// given: a footer followed by many continuation lines, as a squash-merged pull request body can produce
+	const (
+		continuationLines  = 50_000
+		continuationLine   = "\ncontinuation line xyz"
+		allocBudgetPerByte = 32
+	)
+
+	var builder strings.Builder
+
+	builder.WriteString("fix: a\n\nRefs: #1")
+
+	for range continuationLines {
+		builder.WriteString(continuationLine)
+	}
+
+	raw := builder.String()
+
+	// when: parsing the commit while measuring how much the parse allocates
+	var before, after runtime.MemStats
+
+	runtime.ReadMemStats(&before)
+
+	c := commit.Parse(t.Context(), "big1234", raw)
+
+	runtime.ReadMemStats(&after)
+
+	// then: the folded footer value keeps every continuation line verbatim
+	testastic.Equal(t, 1, len(c.Footers))
+	testastic.Equal(t, "Refs", c.Footers[0].Key)
+	testastic.Equal(t, "#1"+strings.Repeat(continuationLine, continuationLines), c.Footers[0].Value)
+
+	// and: the parse allocates proportionally to the message size
+	testastic.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(allocBudgetPerByte*len(raw)))
 }
 
 func TestDetermineBump(t *testing.T) {
