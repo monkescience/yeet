@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.11.4](https://github.com/monkescience/yeet/compare/v0.11.3...v0.11.4) (2026-07-25)
+
+### Bug Fixes
+
+- **deps:** update module github.com/monkescience/testastic to v0.4.1 (#195) ([46ead83](https://github.com/monkescience/yeet/commit/46ead83eef5c0f075fdecbc528306d61a081d1ae))
+### Performance Improvements
+
+- **commit:** fold footer continuations in linear time ([8eaf127](https://github.com/monkescience/yeet/commit/8eaf1271adfecd7a249cff2b6e82249d59d2d31e))
+
 ## [v0.11.3](https://github.com/monkescience/yeet/compare/v0.11.2...v0.11.3) (2026-07-24)
 
 ### Bug Fixes
