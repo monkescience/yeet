@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.11.5](https://github.com/monkescience/yeet/compare/v0.11.4...v0.11.5) (2026-07-31)
+
+### Bug Fixes
+
+- **deps:** update module github.com/go-git/go-git/v6 to v6.0.0-alpha.5 (#201) ([810ea05](https://github.com/monkescience/yeet/commit/810ea0544203751291e62b0591c66b20707e352f))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.55.1 (#202) ([20bb36b](https://github.com/monkescience/yeet/commit/20bb36b86c91c305b99062f9c4225b94b23f6185))
+
 ## [v0.11.4](https://github.com/monkescience/yeet/compare/v0.11.3...v0.11.4) (2026-07-25)
 
 ### Bug Fixes
