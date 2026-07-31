@@ -638,8 +638,8 @@ func TestGetGitRemoteURL(t *testing.T) {
 		repositoryConfig, err := repository.Config()
 		testastic.NoError(t, err)
 
-		repositoryConfig.URLs = map[string]*gitconfig.URL{
-			"ssh://git@example.com/": {
+		repositoryConfig.URLs = []*gitconfig.URL{
+			{
 				Name:       "ssh://git@example.com/",
 				InsteadOfs: []string{"https://example.com/"},
 			},
