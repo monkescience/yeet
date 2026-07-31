@@ -13,7 +13,7 @@ release branches.
 
 This example uses a GitHub App installation token instead of the default `GITHUB_TOKEN`.
 The app needs `contents: write`, `pull-requests: write`, and `issues: write` repository permissions.
-Store the app ID as a repository variable and the private key as a repository secret.
+Store the app client ID as a repository variable and the private key as a repository secret.
 
 ```yaml
 name: Release
@@ -36,15 +36,15 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Generate GitHub App token
         id: generate-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          app-id: ${{ vars.YEET_APP_ID }}
+          client-id: ${{ vars.YEET_APP_CLIENT_ID }}
           private-key: ${{ secrets.YEET_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 

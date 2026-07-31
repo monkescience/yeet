@@ -120,7 +120,9 @@ bump_types:
     - deps
 ```
 
-Types not listed produce no version bump. Breaking changes always bump major regardless of this mapping.
+Types not listed produce no version bump unless they are breaking changes. Breaking changes override
+this mapping. For semver versions below `1.0.0`, `pre_major_breaking_bumps_minor` controls whether
+the resulting bump is minor or major.
 
 ## Version files
 
