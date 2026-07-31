@@ -194,14 +194,10 @@ func AddInsteadOfRewrite(t *testing.T, repoDir string, baseURL string, insteadOf
 	repositoryConfig, err := repository.Config()
 	testastic.NoError(t, err)
 
-	if repositoryConfig.URLs == nil {
-		repositoryConfig.URLs = make(map[string]*config.URL)
-	}
-
-	repositoryConfig.URLs[baseURL] = &config.URL{
+	repositoryConfig.URLs = append(repositoryConfig.URLs, &config.URL{
 		Name:       baseURL,
 		InsteadOfs: []string{insteadOf},
-	}
+	})
 
 	err = repository.SetConfig(repositoryConfig)
 	testastic.NoError(t, err)
