@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -135,7 +136,7 @@ func TestReleasePRLabelPreflightRejectsMissingExtraLabel(t *testing.T) {
 		})
 
 		// then: the missing extra label fails preflight before lifecycle labels are created
-		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
 	})
 
 	t.Run("gitlab", func(t *testing.T) {
@@ -163,8 +164,117 @@ func TestReleasePRLabelPreflightRejectsMissingExtraLabel(t *testing.T) {
 		})
 
 		// then: the missing extra label fails preflight before lifecycle labels are created
-		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
 	})
+}
+
+func TestReleasePRLabelPreflightSeparatesLookupFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository that fails the extra label lookup
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && decodedPathTail(t, r) == "flaky" {
+				http.Error(w, "server error", http.StatusInternalServerError)
+
+				return
+			}
+
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}))
+		defer server.Close()
+
+		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+		// when: preparing release labels
+		err := gh.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+			Pending: "pending",
+			Tagged:  "tagged",
+			Extra:   []string{"flaky"},
+		})
+
+		// then: an unreachable label is not reported as a label the operator must create
+		testastic.Error(t, err)
+		testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+		testastic.ErrorContains(t, err, `get label "flaky"`)
+	})
+
+	t.Run("gitlab", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project that fails the extra label lookup
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && decodedPathTail(t, r) == "flaky" {
+				http.Error(w, "server error", http.StatusInternalServerError)
+
+				return
+			}
+
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}))
+		defer server.Close()
+
+		gl := newGitLabProvider(t, server)
+
+		// when: preparing release labels
+		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+			Pending: "pending",
+			Tagged:  "tagged",
+			Extra:   []string{"flaky"},
+		})
+
+		// then: an unreachable label is not reported as a label the operator must create
+		testastic.Error(t, err)
+		testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+		testastic.ErrorContains(t, err, `get label "flaky"`)
+	})
+}
+
+func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release MR carrying a label that differs from the configured one only by case
+	guardSourceBranch := ""
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+
+			return
+		}
+
+		if r.URL.Query().Get("labels") != "" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+
+		guardSourceBranch = r.URL.Query().Get("source_branch")
+
+		writeJSON(t, w, []map[string]any{{
+			"iid":               10,
+			"title":             "chore: release v2.0.0",
+			"web_url":           "https://gitlab.com/o/r/-/merge_requests/10",
+			"source_branch":     "yeet/release-main",
+			"source_project_id": 10,
+			"target_project_id": 10,
+			"state":             "opened",
+			"labels":            []string{"Autorelease: Pending"},
+		}})
+	}))
+	defer server.Close()
+
+	gl := newGitLabProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
+
+	// then: the guard scans only release branches and reports what the label filter did not match
+	testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+	testastic.Equal(t, 0, len(prs))
+	testastic.Equal(t, "yeet/release-main", guardSourceBranch)
 }
 
 func TestGitLabReleasePRLabelPreflight(t *testing.T) {

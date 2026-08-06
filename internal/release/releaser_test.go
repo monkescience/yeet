@@ -893,6 +893,70 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
 	})
+
+	t.Run("finalizes a merged release the unfinalized window cannot analyze", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged release PR whose own override conflicts with a newer one after its tag
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number:         6,
+			URL:            "https://example.com/pr/6",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v0.0.9": {
+				{Hash: "abcdef1234567890", Message: "feat: released change\n\nRelease-As: 0.1.0"},
+				{Hash: "fedcba0987654321", Message: "fix: later patch\n\nRelease-As: 0.2.0"},
+			},
+			"v0.1.0": {
+				{Hash: "fedcba0987654321", Message: "fix: later patch\n\nRelease-As: 0.2.0"},
+			},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false)
+
+		// then: finalization clears the conflict instead of wedging every rerun
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Releases))
+		testastic.Equal(t, "v0.1.0", result.Releases[0].TagName)
+		testastic.Equal(t, "0.2.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, 1, stub.createPRCalls)
+	})
+
+	t.Run("reports the analysis failure when no merged release can clear it", func(t *testing.T) {
+		t.Parallel()
+
+		// given: conflicting overrides after the latest tag and no merged release PR
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.commits = []provider.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: change\n\nRelease-As: 0.1.0"},
+			{Hash: "fedcba0987654321", Message: "fix: patch\n\nRelease-As: 0.2.0"},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false)
+
+		// then: the conflict surfaces instead of being swallowed by the finalization probe
+		testastic.ErrorIs(t, err, ErrConflictingReleaseAs)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+	})
 }
 
 func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {

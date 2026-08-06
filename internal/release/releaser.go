@@ -162,22 +162,24 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return nil, err
 	}
 
-	result, err := analyzer.analyze(ctx, selection)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := r.validateRenderedReleaseTitles(result); err != nil {
-		return nil, err
+	result, analysisErr := analyzer.analyze(ctx, selection)
+	if analysisErr == nil {
+		if err := r.validateRenderedReleaseTitles(result); err != nil {
+			return nil, err
+		}
 	}
 
 	if dryRun {
+		if analysisErr != nil {
+			return nil, analysisErr
+		}
+
 		r.logReleaseAnalysis(ctx, result)
 
 		return result, nil
 	}
 
-	result, err = r.finalizeAndRefreshReleaseAnalysis(ctx, selection, result)
+	result, err = r.finalizeAndRefreshReleaseAnalysis(ctx, selection, result, analysisErr)
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +210,14 @@ func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
 	ctx context.Context,
 	selection releaseSelection,
 	result *Result,
+	analysisErr error,
 ) (*Result, error) {
 	finalizedReleases, err := r.finalizeMergedReleasePRs(ctx)
 	if errors.Is(err, provider.ErrNoPR) {
+		if analysisErr != nil {
+			return nil, analysisErr
+		}
+
 		return result, nil
 	}
 

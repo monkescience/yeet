@@ -394,12 +394,16 @@ func (g *GitHub) PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLab
 }
 
 func (g *GitHub) validateExistingLabel(ctx context.Context, name string) error {
-	_, _, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
-	if err != nil {
-		return fmt.Errorf("validate extra label %q: %w", name, err)
+	_, resp, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
+	if err == nil {
+		return nil
 	}
 
-	return nil
+	if resp == nil || resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("get label %q: %w", name, err)
+	}
+
+	return fmt.Errorf("%w: extra label %q", ErrReleasePRLabelMissing, name)
 }
 
 func (g *GitHub) ensureLabel(ctx context.Context, name, color, description string) error {

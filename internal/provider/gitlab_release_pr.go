@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -246,9 +247,11 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 	}
 
 	state := gitlabMergeRequestOpenedState
+	sourceBranch := releaseBranchName(baseBranch)
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
 		TargetBranch: new(baseBranch),
+		SourceBranch: new(sourceBranch),
 		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
 
@@ -273,7 +276,7 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 				baseBranch,
 				mr.SourceProjectID,
 				mr.TargetProjectID,
-			) || hasGitLabLabel(mr.Labels, pendingLabel) {
+			) || slices.Contains(mr.Labels, pendingLabel) {
 				return false, nil
 			}
 
@@ -286,16 +289,6 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 			)
 		},
 	)
-}
-
-func hasGitLabLabel(labels gitlab.Labels, target string) bool {
-	for _, label := range labels {
-		if strings.EqualFold(label, target) {
-			return true
-		}
-	}
-
-	return false
 }
 
 //nolint:funlen // Pagination closure layout inflates line count without adding complexity.
@@ -651,11 +644,15 @@ func gitLabLabelScope(name string) (string, bool) {
 
 func (g *GitLab) validateExistingLabel(ctx context.Context, name string) error {
 	_, _, err := g.client.Labels.GetLabel(g.projectID, name, gitlab.WithContext(ctx))
-	if err != nil {
-		return fmt.Errorf("validate extra label %q: %w", name, err)
+	if err == nil {
+		return nil
 	}
 
-	return nil
+	if !errors.Is(err, gitlab.ErrNotFound) {
+		return fmt.Errorf("get label %q: %w", name, err)
+	}
+
+	return fmt.Errorf("%w: extra label %q", ErrReleasePRLabelMissing, name)
 }
 
 func (g *GitLab) ensureLabel(ctx context.Context, name, color, description string) error {

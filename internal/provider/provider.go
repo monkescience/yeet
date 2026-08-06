@@ -162,6 +162,7 @@ var (
 	ErrUnsupportedHost         = errors.New("unsupported remote host")
 	ErrNoRelease               = errors.New("no release found")
 	ErrReleasePRLabelMismatch  = errors.New("release PR lifecycle label mismatch")
+	ErrReleasePRLabelMissing   = errors.New("release PR label does not exist")
 	ErrCommitBoundaryNotFound  = errors.New("commit boundary not found")
 	ErrNoPR                    = errors.New("no release PR found")
 	ErrFileNotFound            = errors.New("file not found")
