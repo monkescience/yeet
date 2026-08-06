@@ -150,6 +150,13 @@ func (s *providerStub) MergeReleasePR(
 	return "", nil
 }
 
+func (s *providerStub) PrepareReleasePRLabels(
+	ctx context.Context,
+	labels provider.ReleasePRLabels,
+) error {
+	return s.releasePRWorkflowStub.PrepareReleasePRLabels(ctx, labels)
+}
+
 type repoMetadataStub struct {
 	repoURL    string
 	pathPrefix string
@@ -290,8 +297,11 @@ type releasePRWorkflowStub struct {
 	createPRCalls   int
 	createPROptions []provider.ReleasePROptions
 	updatePRCalls   int
+	updatePROptions []provider.ReleasePROptions
 
-	markPendingCalls []int
+	markPendingCalls  []int
+	markPendingLabels []provider.ReleasePRLabels
+	prepareLabelCalls []provider.ReleasePRLabels
 
 	mergePRCalls   int
 	mergePRNumbers []int
@@ -324,13 +334,18 @@ func (s *releasePRWorkflowStub) CreateReleasePR(
 	return pr, nil
 }
 
-func (s *releasePRWorkflowStub) UpdateReleasePR(context.Context, int, provider.ReleasePROptions) error {
+func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts provider.ReleasePROptions) error {
 	s.updatePRCalls++
+	s.updatePROptions = append(s.updatePROptions, opts)
 
 	return nil
 }
 
-func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(context.Context, string) ([]*provider.PullRequest, error) {
+func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(
+	context.Context,
+	string,
+	string,
+) ([]*provider.PullRequest, error) {
 	if s.openPending != nil {
 		return s.openPending, nil
 	}
@@ -360,8 +375,22 @@ func (s *releasePRWorkflowStub) MergeReleasePR(
 	return s.mergePRSHA, nil
 }
 
-func (s *releasePRWorkflowStub) MarkReleasePRPending(_ context.Context, number int) error {
+func (s *releasePRWorkflowStub) PrepareReleasePRLabels(
+	_ context.Context,
+	labels provider.ReleasePRLabels,
+) error {
+	s.prepareLabelCalls = append(s.prepareLabelCalls, labels)
+
+	return nil
+}
+
+func (s *releasePRWorkflowStub) MarkReleasePRPending(
+	_ context.Context,
+	number int,
+	labels provider.ReleasePRLabels,
+) error {
 	s.markPendingCalls = append(s.markPendingCalls, number)
+	s.markPendingLabels = append(s.markPendingLabels, labels)
 
 	return nil
 }
@@ -445,7 +474,9 @@ type releasePublishingStub struct {
 	mergedPRResponses []*provider.PullRequest
 	findMergedPRCalls int
 
-	markTaggedCalls []int
+	markTaggedCalls   []int
+	markTaggedLabels  []provider.ReleasePRLabels
+	prepareLabelCalls []provider.ReleasePRLabels
 
 	latestRelease *provider.Release
 	releasesByTag map[string]*provider.Release
@@ -459,7 +490,11 @@ type releasePublishingStub struct {
 	history *versionHistoryStub
 }
 
-func (s *releasePublishingStub) FindMergedReleasePR(context.Context, string) (*provider.PullRequest, error) {
+func (s *releasePublishingStub) FindMergedReleasePR(
+	context.Context,
+	string,
+	string,
+) (*provider.PullRequest, error) {
 	s.findMergedPRCalls++
 	if len(s.mergedPRResponses) >= s.findMergedPRCalls {
 		mergedPR := s.mergedPRResponses[s.findMergedPRCalls-1]
@@ -540,8 +575,22 @@ func (s *releasePublishingStub) CreateRelease(
 	return release, nil
 }
 
-func (s *releasePublishingStub) MarkReleasePRTagged(_ context.Context, number int) error {
+func (s *releasePublishingStub) PrepareReleasePRLabels(
+	_ context.Context,
+	labels provider.ReleasePRLabels,
+) error {
+	s.prepareLabelCalls = append(s.prepareLabelCalls, labels)
+
+	return nil
+}
+
+func (s *releasePublishingStub) MarkReleasePRTagged(
+	_ context.Context,
+	number int,
+	labels provider.ReleasePRLabels,
+) error {
 	s.markTaggedCalls = append(s.markTaggedCalls, number)
+	s.markTaggedLabels = append(s.markTaggedLabels, labels)
 
 	return nil
 }

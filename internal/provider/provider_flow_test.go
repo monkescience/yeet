@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -48,12 +49,21 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MarkReleasePRPending is invoked for PR 42
-		err := gh.MarkReleasePRPending(context.Background(), 42)
+		err := gh.MarkReleasePRPending(context.Background(), 42, defaultReleasePRLabels())
 
-		// then: the pending label is added and the tagged label is removed
+		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.ReleaseLabelPending, strings.Join(addLabels, ","))
+		testastic.SliceEqual(t, []string{provider.ReleaseLabelPending, "yeet"}, addLabels)
 		testastic.Equal(t, provider.ReleaseLabelTagged, removedLabel)
+
+		// when: marking the same pull request pending with the managed label disabled
+		labels := defaultReleasePRLabels()
+		labels.Yeet = false
+		err = gh.MarkReleasePRPending(context.Background(), 42, labels)
+
+		// then: only the pending label is added
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{provider.ReleaseLabelPending}, addLabels)
 	})
 
 	t.Run("marks pull request tagged", func(t *testing.T) {
@@ -88,12 +98,165 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MarkReleasePRTagged is invoked for PR 7
-		err := gh.MarkReleasePRTagged(context.Background(), 7)
+		err := gh.MarkReleasePRTagged(context.Background(), 7, defaultReleasePRLabels())
 
 		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelTagged, strings.Join(addLabels, ","))
 		testastic.Equal(t, provider.ReleaseLabelPending, removedLabel)
+	})
+}
+
+func TestReleasePRLabelPreflightRejectsMissingExtraLabel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("github", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub repository without the configured extra label
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && decodedPathTail(t, r) == "missing" {
+				http.NotFound(w, r)
+
+				return
+			}
+
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}))
+		defer server.Close()
+
+		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+		// when: preparing release labels
+		err := gh.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+			Pending: "pending",
+			Tagged:  "tagged",
+			Extra:   []string{"missing"},
+		})
+
+		// then: the missing extra label fails preflight before lifecycle labels are created
+		testastic.Error(t, err)
+	})
+
+	t.Run("gitlab", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project without the configured extra label
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && decodedPathTail(t, r) == "missing" {
+				http.NotFound(w, r)
+
+				return
+			}
+
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}))
+		defer server.Close()
+
+		gl := newGitLabProvider(t, server)
+
+		// when: preparing release labels
+		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+			Pending: "pending",
+			Tagged:  "tagged",
+			Extra:   []string{"missing"},
+		})
+
+		// then: the missing extra label fails preflight before lifecycle labels are created
+		testastic.Error(t, err)
+	})
+}
+
+func TestGitLabReleasePRLabelPreflight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("allows lifecycle labels sharing a scope", func(t *testing.T) {
+		t.Parallel()
+
+		// given: sequential lifecycle labels in one GitLab exclusive scope
+		var calls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		}))
+		defer server.Close()
+
+		gl := newGitLabProvider(t, server)
+
+		// when: preparing the release labels
+		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+			Pending: "release::pending",
+			Tagged:  "release::tagged",
+		})
+
+		// then: both sequential lifecycle states are accepted and prepared
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(2), calls.Load())
+	})
+
+	t.Run("rejects an extra label sharing a lifecycle scope", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a permanent extra label sharing the pending lifecycle scope
+		var calls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		}))
+		defer server.Close()
+
+		gl := newGitLabProvider(t, server)
+		labels := provider.ReleasePRLabels{
+			Pending: "workflow::backend::pending",
+			Tagged:  "release::tagged",
+			Extra:   []string{"workflow::backend::automated"},
+		}
+
+		// when: preparing the release labels
+		err := gl.PrepareReleasePRLabels(context.Background(), labels)
+
+		// then: the permanent label conflict is rejected before a provider request
+		testastic.ErrorContains(t, err, "share GitLab scope workflow::backend")
+		testastic.Equal(t, int32(0), calls.Load())
+	})
+
+	t.Run("rejects reserved lifecycle labels", func(t *testing.T) {
+		t.Parallel()
+
+		for _, reserved := range []string{"Any", "nOnE"} {
+			t.Run(reserved, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a GitLab server and a reserved pending label name
+				var calls atomic.Int32
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+				}))
+				defer server.Close()
+
+				gl := newGitLabProvider(t, server)
+
+				// when: preparing the release labels
+				err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+					Pending: reserved,
+					Tagged:  "release::tagged",
+				})
+
+				// then: the reserved filter value is rejected before a provider request
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+
+				_, err = gl.FindOpenPendingReleasePRs(context.Background(), "main", reserved)
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+
+				_, err = gl.FindMergedReleasePR(context.Background(), "main", reserved)
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+				testastic.Equal(t, int32(0), calls.Load())
+			})
+		}
 	})
 }
 
@@ -339,12 +502,21 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MarkReleasePRPending is invoked for MR 12
-		err := gl.MarkReleasePRPending(context.Background(), 12)
+		err := gl.MarkReleasePRPending(context.Background(), 12, defaultReleasePRLabels())
 
-		// then: the pending label is added and the tagged label is removed
+		// then: the managed and pending labels are added and the tagged label is removed
+		testastic.NoError(t, err)
+		testastic.Equal(t, provider.ReleaseLabelPending+",yeet", updateRequest.AddLabels)
+		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.RemoveLabels)
+
+		// when: marking the same merge request pending with the managed label disabled
+		labels := defaultReleasePRLabels()
+		labels.Yeet = false
+		err = gl.MarkReleasePRPending(context.Background(), 12, labels)
+
+		// then: only the pending label is added
 		testastic.NoError(t, err)
 		testastic.Equal(t, provider.ReleaseLabelPending, updateRequest.AddLabels)
-		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.RemoveLabels)
 	})
 
 	t.Run("marks merge request tagged", func(t *testing.T) {
@@ -374,7 +546,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MarkReleasePRTagged is invoked for MR 5
-		err := gl.MarkReleasePRTagged(context.Background(), 5)
+		err := gl.MarkReleasePRTagged(context.Background(), 5, defaultReleasePRLabels())
 
 		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)

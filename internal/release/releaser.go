@@ -82,8 +82,13 @@ func New(
 		return nil, err
 	}
 
+	titles, err := newReleaseTitleTemplates(cfg.Release)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Releaser{
-		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps},
+		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps, titles: titles},
 		source:    source,
 		prs:       deps,
 		files:     deps,
@@ -157,38 +162,29 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 		return nil, err
 	}
 
-	var finalizedReleases []*provider.Release
-
-	if !dryRun {
-		finalizedReleases, err = r.finalizeMergedReleasePRs(ctx)
-		if err != nil && !errors.Is(err, provider.ErrNoPR) {
-			return nil, err
-		}
-	}
-
-	for _, finalizedRelease := range finalizedReleases {
-		slog.InfoContext(ctx, "finalized release",
-			slog.String("tag", finalizedRelease.TagName),
-			slog.String("url", finalizedRelease.URL),
-		)
-	}
-
 	result, err := analyzer.analyze(ctx, selection)
 	if err != nil {
 		return nil, err
 	}
 
-	result.Releases = finalizedReleases
+	if err := r.validateRenderedReleaseTitles(result); err != nil {
+		return nil, err
+	}
 
-	if len(result.Plans) == 0 {
-		slog.InfoContext(ctx, "no releasable commits found")
+	if dryRun {
+		r.logReleaseAnalysis(ctx, result)
 
 		return result, nil
 	}
 
-	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(result.Plans)))
+	result, err = r.finalizeAndRefreshReleaseAnalysis(ctx, selection, result)
+	if err != nil {
+		return nil, err
+	}
 
-	if dryRun {
+	r.logReleaseAnalysis(ctx, result)
+
+	if len(result.Plans) == 0 {
 		return result, nil
 	}
 
@@ -206,6 +202,67 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	}
 
 	return result, nil
+}
+
+func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
+	ctx context.Context,
+	selection releaseSelection,
+	result *Result,
+) (*Result, error) {
+	finalizedReleases, err := r.finalizeMergedReleasePRs(ctx)
+	if errors.Is(err, provider.ErrNoPR) {
+		return result, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	result, err = newReleaseAnalyzer(r.core, r.source).analyze(ctx, selection)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.validateRenderedReleaseTitles(result); err != nil {
+		return nil, err
+	}
+
+	for _, finalizedRelease := range finalizedReleases {
+		slog.InfoContext(ctx, "finalized release",
+			slog.String("tag", finalizedRelease.TagName),
+			slog.String("url", finalizedRelease.URL),
+		)
+	}
+
+	result.Releases = finalizedReleases
+
+	return result, nil
+}
+
+func (r *Releaser) validateRenderedReleaseTitles(result *Result) error {
+	if len(result.Plans) == 0 {
+		return nil
+	}
+
+	if _, err := r.core.releasePRTitle(result); err != nil {
+		return err
+	}
+
+	if _, err := r.core.releaseCommitSubject(result); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Releaser) logReleaseAnalysis(ctx context.Context, result *Result) {
+	if len(result.Plans) == 0 {
+		slog.InfoContext(ctx, "no releasable commits found")
+
+		return
+	}
+
+	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(result.Plans)))
 }
 
 func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {

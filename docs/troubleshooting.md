@@ -13,7 +13,20 @@ category so you can pick the next fix quickly:
 - `release execution failed: merge blocked`: the release PR/MR is still draft, has conflicts,
   lacks required approvals/checks, or requests a merge method the provider settings do not allow.
 - `release execution failed: multiple pending release PRs/MRs found`: close or relabel stale
-  `autorelease: pending` entries until only one open release PR/MR remains for the base branch.
+  entries carrying the configured `release.labels.pending` value until only one remains for the
+  base branch. The default value is `autorelease: pending`.
+
+## Release labels
+
+If an extra label is missing, create every `release.labels.extra` entry in the GitHub repository or
+GitLab project, then check its spelling and case before rerunning. Azure DevOps labels do not need
+to be created in advance.
+
+A lifecycle-label mismatch means a trusted yeet release branch does not carry the configured
+pending label. Restore the previous lifecycle names first. Finish or close an open release PR/MR
+before changing them. For a merged but unfinalized PR/MR, restore the old names and finalize it
+before changing the configuration. Yeet cannot fall back automatically because it stores no label
+history.
 
 ## Logging
 

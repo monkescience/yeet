@@ -42,11 +42,15 @@ func Default() *Config {
 			Remote: "origin",
 		},
 		Release: ReleaseConfig{
-			SubjectIncludeBranch: false,
-			AutoMerge:            false,
-			AutoMergeForce:       false,
-			AutoMergeMethod:      AutoMergeMethodAuto,
-			PRBodyHeader:         "## ٩(^ᴗ^)۶ release created",
+			Labels: ReleaseLabelsConfig{
+				Pending: "autorelease: pending",
+				Tagged:  "autorelease: tagged",
+				Yeet:    true,
+			},
+			AutoMerge:       false,
+			AutoMergeForce:  false,
+			AutoMergeMethod: AutoMergeMethodAuto,
+			PRBodyHeader:    "## ٩(^ᴗ^)۶ release created",
 			PRBodyFooter: "_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n" +
 				"_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
 		},

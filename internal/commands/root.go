@@ -33,9 +33,9 @@ func NewRoot() *cobra.Command {
 version, generate changelogs, and create release PRs/MRs on GitHub, GitLab, or
 Azure DevOps.
 
-On the default branch it also finalizes merged release PRs/MRs labeled
-autorelease: pending by creating the provider release and relabeling them as
-autorelease: tagged.`,
+On the default branch it also finalizes merged release PRs/MRs carrying the
+configured pending lifecycle label by creating the provider release and applying
+the configured tagged lifecycle label.`,
 		Example: `  yeet init
   yeet release --dry-run
   yeet release --auto-merge`,

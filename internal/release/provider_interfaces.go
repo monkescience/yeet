@@ -28,11 +28,15 @@ type repoMetadataProvider interface {
 }
 
 type releasePRProvider interface {
-	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*provider.PullRequest, error)
+	PrepareReleasePRLabels(ctx context.Context, labels provider.ReleasePRLabels) error
+	FindOpenPendingReleasePRs(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+	) ([]*provider.PullRequest, error)
 	CreateReleasePR(ctx context.Context, opts provider.ReleasePROptions) (*provider.PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts provider.ReleasePROptions) error
 	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) (string, error)
-	MarkReleasePRPending(ctx context.Context, number int) error
+	MarkReleasePRPending(ctx context.Context, number int, labels provider.ReleasePRLabels) error
 	MaxPRBodyLength() int
 }
 
@@ -42,10 +46,11 @@ type releaseFileProvider interface {
 }
 
 type releasePublishingProvider interface {
-	FindMergedReleasePR(ctx context.Context, baseBranch string) (*provider.PullRequest, error)
+	PrepareReleasePRLabels(ctx context.Context, labels provider.ReleasePRLabels) error
+	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*provider.PullRequest, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
 	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
-	MarkReleasePRTagged(ctx context.Context, number int) error
+	MarkReleasePRTagged(ctx context.Context, number int, labels provider.ReleasePRLabels) error
 }
 
 // releaserDependencies is the provider-side capability set. Version history

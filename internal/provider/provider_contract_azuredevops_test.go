@@ -112,7 +112,11 @@ func TestAzureDevOpsFindOpenPendingReleasePRsAcceptsExactPaginationCapacity(t *t
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: all pull requests at the page capacity are listed
-	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch)
+	prs, err := p.FindOpenPendingReleasePRs(
+		context.Background(),
+		providerContractBaseBranch,
+		provider.ReleaseLabelPending,
+	)
 
 	// then: the empty exhaustion probe proves the complete result fits
 	testastic.NoError(t, err)
@@ -301,7 +305,11 @@ func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: the completed release pull request is found during the merge polling window
-	pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch)
+	pr, err := p.FindMergedReleasePR(
+		context.Background(),
+		providerContractBaseBranch,
+		provider.ReleaseLabelPending,
+	)
 
 	// then: the queued preview commit is not exposed as the final merge commit
 	testastic.NoError(t, err)
@@ -350,11 +358,168 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: the completed release pull request is found
-	pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch)
+	pr, err := p.FindMergedReleasePR(
+		context.Background(),
+		providerContractBaseBranch,
+		provider.ReleaseLabelPending,
+	)
 
 	// then: its source commit is not exposed as the final merge commit
 	testastic.NoError(t, err)
 	testastic.Equal(t, "", pr.MergeCommitSHA)
+}
+
+func TestAzureDevOpsMarkReleasePRPendingKeepsPartialFailureRetryable(t *testing.T) {
+	t.Parallel()
+
+	var pendingAttached atomic.Bool
+
+	// given: Azure accepts the pending label but rejects a configured extra label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if r.Method != http.MethodPost || r.URL.Path != azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		var request struct {
+			Name string `json:"name"`
+		}
+		decodeJSONRequest(t, r, &request)
+
+		if request.Name == providerContractPendingLabel {
+			pendingAttached.Store(true)
+			writeJSON(t, w, map[string]any{"name": request.Name})
+
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(t, w, map[string]any{"message": "label rejected"})
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: marking a release pull request pending with the rejected extra label
+	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+		Pending: providerContractPendingLabel,
+		Tagged:  providerContractTaggedLabel,
+		Extra:   []string{"rejected"},
+	})
+
+	// then: the failure is returned after attaching the pending marker for retry discovery
+	testastic.Error(t, err)
+	testastic.True(t, pendingAttached.Load())
+}
+
+func TestAzureDevOpsMarkReleasePRPendingKeepsManagedFailureRetryable(t *testing.T) {
+	t.Parallel()
+
+	var pendingAttached atomic.Bool
+
+	// given: Azure rejects the managed label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			writeJSON(t, w, map[string]any{"value": []any{}})
+
+			return
+		}
+
+		if r.Method != http.MethodPost || r.URL.Path != azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		var request struct {
+			Name string `json:"name"`
+		}
+		decodeJSONRequest(t, r, &request)
+
+		if request.Name == providerContractPendingLabel {
+			pendingAttached.Store(true)
+			writeJSON(t, w, map[string]any{"name": request.Name})
+
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(t, w, map[string]any{"message": "label rejected"})
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: marking a release pull request pending with the managed label enabled
+	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+		Pending: providerContractPendingLabel,
+		Tagged:  providerContractTaggedLabel,
+		Yeet:    true,
+	})
+
+	// then: the failure is returned after attaching the pending marker for retry discovery
+	testastic.Error(t, err)
+	testastic.True(t, pendingAttached.Load())
+
+	// when: marking the release pull request pending with the managed label disabled
+	err = p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+		Pending: providerContractPendingLabel,
+		Tagged:  providerContractTaggedLabel,
+	})
+
+	// then: Azure attaches the pending marker without requesting the managed label
+	testastic.NoError(t, err)
+	testastic.True(t, pendingAttached.Load())
+}
+
+func TestAzureDevOpsLifecycleLabelRemovalPreservesCaseVariant(t *testing.T) {
+	t.Parallel()
+
+	var deleted atomic.Bool
+
+	// given: a pull request with a tag that differs only by case from the pending label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
+			writeJSON(t, w, map[string]any{"name": providerContractTaggedLabel})
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
+			writeJSON(t, w, map[string]any{"value": []map[string]any{{
+				"id":   "00000000-0000-0000-0000-000000000043",
+				"name": "Release Pending",
+			}}})
+		case r.Method == http.MethodDelete:
+			deleted.Store(true)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: transitioning a differently cased configured label to tagged
+	err := p.MarkReleasePRTagged(context.Background(), 42, provider.ReleasePRLabels{
+		Pending: "release pending",
+		Tagged:  providerContractTaggedLabel,
+	})
+
+	// then: the unrelated case-variant tag is preserved
+	testastic.NoError(t, err)
+	testastic.False(t, deleted.Load())
 }
 
 // newAzureDevOpsContractHandler wraps every scenario with the bootstrap
@@ -721,10 +886,25 @@ func azureDevOpsMarkReleasePRHandler(t *testing.T) http.HandlerFunc {
 				Name string `json:"name"`
 			}
 			decodeJSONRequest(t, r, &request)
-			testastic.NotEqual(t, "", request.Name)
+			testastic.True(t,
+				request.Name == providerContractPendingLabel ||
+					request.Name == providerContractTaggedLabel ||
+					request.Name == "release" ||
+					request.Name == "automated" ||
+					request.Name == "yeet",
+			)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "label.json"))
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
-			writeJSONFixture(t, w, azureDevOpsContractFixture("mark_release_pr", "labels.json"))
+			writeJSON(t, w, map[string]any{"value": []map[string]any{
+				{
+					"id":   "00000000-0000-0000-0000-000000000043",
+					"name": providerContractPendingLabel,
+				},
+				{
+					"id":   "00000000-0000-0000-0000-000000000044",
+					"name": providerContractTaggedLabel,
+				},
+			}})
 		case r.Method == http.MethodDelete &&
 			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000043"):
 			w.WriteHeader(http.StatusNoContent)

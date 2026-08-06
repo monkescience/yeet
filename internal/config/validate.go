@@ -217,6 +217,10 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {
+	if err := validateReleaseLabels(release.Labels); err != nil {
+		return err
+	}
+
 	if release.AutoMergeMethod != AutoMergeMethodAuto &&
 		release.AutoMergeMethod != AutoMergeMethodSquash &&
 		release.AutoMergeMethod != AutoMergeMethodRebase &&
@@ -246,6 +250,101 @@ func validateReleaseConfig(release ReleaseConfig) error {
 
 	if err := validateReleaseChannels(release.Channels); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateReleaseLabels(labels ReleaseLabelsConfig) error {
+	lifecycle := []struct {
+		path string
+		name string
+	}{
+		{path: "release.labels.pending", name: labels.Pending},
+		{path: "release.labels.tagged", name: labels.Tagged},
+	}
+
+	for _, label := range lifecycle {
+		if strings.TrimSpace(label.name) == "" {
+			return fmt.Errorf("%w: %s must not be blank", ErrInvalidConfig, label.path)
+		}
+
+		if label.name != strings.TrimSpace(label.name) {
+			return fmt.Errorf(
+				"%w: %s %q must not have leading or trailing whitespace",
+				ErrInvalidConfig,
+				label.path,
+				label.name,
+			)
+		}
+	}
+
+	if strings.EqualFold(labels.Pending, labels.Tagged) {
+		return fmt.Errorf(
+			"%w: release.labels.pending and release.labels.tagged must differ",
+			ErrInvalidConfig,
+		)
+	}
+
+	if labels.Yeet {
+		for _, lifecycle := range lifecycle {
+			if strings.EqualFold(lifecycle.name, "yeet") {
+				return fmt.Errorf(
+					"%w: %s must differ from the managed yeet label",
+					ErrInvalidConfig,
+					lifecycle.path,
+				)
+			}
+		}
+	}
+
+	return validateReleaseExtraLabels(labels)
+}
+
+func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
+	seen := []struct {
+		name string
+		path string
+	}{
+		{name: labels.Pending, path: "release.labels.pending"},
+		{name: labels.Tagged, path: "release.labels.tagged"},
+	}
+
+	if labels.Yeet {
+		seen = append(seen, struct {
+			name string
+			path string
+		}{name: "yeet", path: "the managed yeet label"})
+	}
+
+	for _, extra := range labels.Extra {
+		if strings.TrimSpace(extra) == "" {
+			return fmt.Errorf("%w: release.labels.extra must not contain blank labels", ErrInvalidConfig)
+		}
+
+		if extra != strings.TrimSpace(extra) {
+			return fmt.Errorf(
+				"%w: release.labels.extra entry %q must not have leading or trailing whitespace",
+				ErrInvalidConfig,
+				extra,
+			)
+		}
+
+		for _, existing := range seen {
+			if strings.EqualFold(extra, existing.name) {
+				return fmt.Errorf(
+					"%w: release.labels.extra entry %q duplicates %s",
+					ErrInvalidConfig,
+					extra,
+					existing.path,
+				)
+			}
+		}
+
+		seen = append(seen, struct {
+			name string
+			path string
+		}{name: extra, path: "release.labels.extra"})
 	}
 
 	return nil

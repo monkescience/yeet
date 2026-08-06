@@ -10,7 +10,7 @@
       "status": "completed",
       "labels": [
         {
-          "name": "autorelease: pending",
+          "name": "release: waiting",
           "active": true
         }
       ]

@@ -105,7 +105,11 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	return nil
 }
 
-func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
+func (g *GitHub) FindOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
 		Base:      baseBranch,
@@ -118,7 +122,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 	slog.DebugContext(ctx, "github: listing open pending release PRs",
 		slog.String("base", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	pendingPRs := make([]*PullRequest, 0)
@@ -141,8 +145,14 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 			branch := pr.GetHead().GetRef()
 
-			if !hasGitHubLabel(pr.Labels, ReleaseLabelPending) {
-				return false, nil
+			if !hasGitHubLabel(pr.Labels, pendingLabel) {
+				return false, fmt.Errorf(
+					"%w: trusted pull request #%d on branch %q is missing configured pending label %q",
+					ErrReleasePRLabelMismatch,
+					pr.GetNumber(),
+					branch,
+					pendingLabel,
+				)
 			}
 
 			pendingPRs = append(pendingPRs, &PullRequest{
@@ -166,9 +176,12 @@ func (g *GitHub) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 }
 
 //nolint:funlen // Pagination closures keep the search and candidate handling together.
-func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+func (g *GitHub) FindMergedReleasePR(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) (*PullRequest, error) {
 	query := fmt.Sprintf("repo:%s/%s is:pr is:merged base:%s label:%q",
-		g.repo.Owner, g.repo.Name, baseBranch, ReleaseLabelPending)
+		g.repo.Owner, g.repo.Name, baseBranch, pendingLabel)
 	options := &github.SearchOptions{
 		Sort:  "updated",
 		Order: sortDirectionDesc,
@@ -179,7 +192,7 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 
 	slog.DebugContext(ctx, "github: searching merged release PRs",
 		slog.String("base", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	var found *PullRequest
@@ -236,20 +249,21 @@ func (g *GitHub) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 	return found, nil
 }
 
-func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int) error {
-	return g.updateReleasePRLabels(ctx, number, ReleaseLabelPending, ReleaseLabelTagged)
-}
-
-func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int) error {
-	return g.updateReleasePRLabels(ctx, number, ReleaseLabelTagged, ReleaseLabelPending)
-}
-
-func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabel, removeLabel string) error {
-	if err := g.ensureReleaseLabels(ctx); err != nil {
-		return err
+func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error {
+	addLabels := append([]string{labels.Pending}, labels.Extra...)
+	if labels.Yeet {
+		addLabels = append(addLabels, ReleaseLabelYeet)
 	}
 
-	if err := g.addIssueLabels(ctx, number, []string{addLabel}); err != nil {
+	return g.updateReleasePRLabels(ctx, number, addLabels, labels.Tagged)
+}
+
+func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error {
+	return g.updateReleasePRLabels(ctx, number, []string{labels.Tagged}, labels.Pending)
+}
+
+func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabels []string, removeLabel string) error {
+	if err := g.addIssueLabels(ctx, number, addLabels); err != nil {
 		return err
 	}
 
@@ -352,15 +366,37 @@ func validateGitHubPullRequestForMerge(
 	return nil
 }
 
-func (g *GitHub) ensureReleaseLabels(ctx context.Context) error {
-	err := g.ensureLabel(ctx, ReleaseLabelPending, releaseLabelPendingColor, releaseLabelPendingDescription)
+func (g *GitHub) PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error {
+	for _, label := range labels.Extra {
+		if err := g.validateExistingLabel(ctx, label); err != nil {
+			return err
+		}
+	}
+
+	if labels.Yeet {
+		err := g.ensureLabel(ctx, ReleaseLabelYeet, releaseLabelYeetColor, releaseLabelYeetDescription)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := g.ensureLabel(ctx, labels.Pending, releaseLabelPendingColor, releaseLabelPendingDescription)
 	if err != nil {
 		return err
 	}
 
-	err = g.ensureLabel(ctx, ReleaseLabelTagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
+	err = g.ensureLabel(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (g *GitHub) validateExistingLabel(ctx context.Context, name string) error {
+	_, _, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
+	if err != nil {
+		return fmt.Errorf("validate extra label %q: %w", name, err)
 	}
 
 	return nil
@@ -412,7 +448,7 @@ func (g *GitHub) removeIssueLabel(ctx context.Context, number int, label string)
 
 func hasGitHubLabel(labels []*github.Label, target string) bool {
 	for _, label := range labels {
-		if label.GetName() == target {
+		if strings.EqualFold(label.GetName(), target) {
 			return true
 		}
 	}

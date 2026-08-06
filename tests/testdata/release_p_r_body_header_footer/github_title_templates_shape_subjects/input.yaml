@@ -6,7 +6,8 @@ repository:
     owner: testorg
     repo: testrepo
 release:
-  subject_include_branch: true
+  pr_title: 'chore({{ .Branch }}): release {{ .Version }}'
+  commit_subject: 'chore({{ .Branch }}): release {{ .Version }}'
 targets:
   default:
     type: path

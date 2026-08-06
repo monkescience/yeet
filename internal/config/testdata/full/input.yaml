@@ -20,7 +20,10 @@ changelog:
 calver:
   format: YYYY.0M.MICRO
 release:
-  subject_include_branch: true
+  pr_title: 'release {{ .Tag }}'
+  pr_title_group: 'release {{ .TargetCount }} targets'
+  commit_subject: 'commit {{ .Tag }}'
+  commit_subject_group: 'commit {{ .TargetCount }} targets'
   auto_merge: true
   auto_merge_force: true
   auto_merge_method: rebase

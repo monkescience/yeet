@@ -24,6 +24,7 @@ type releaseCore struct {
 	cfg      *config.Config
 	targets  map[string]config.ResolvedTarget
 	metadata repoMetadataProvider
+	titles   *releaseTitleTemplates
 }
 
 func (c *releaseCore) activePrereleaseIdentifier() string {
@@ -70,13 +71,35 @@ func (c *releaseCore) releasePROptions(
 		)
 	}
 
+	title, err := c.releasePRTitle(result)
+	if err != nil {
+		return provider.ReleasePROptions{}, err
+	}
+
 	return provider.ReleasePROptions{
-		Title:         c.releaseSubject(result),
+		Title:         title,
 		Body:          body,
 		BaseBranch:    c.cfg.Branch,
 		ReleaseBranch: releaseBranch,
 		Reviewers:     c.cfg.Release.Reviewers,
+		Labels:        c.releasePRLabels(),
 	}, nil
+}
+
+func (c *releaseCore) releasePRLabels() provider.ReleasePRLabels {
+	return provider.ReleasePRLabels{
+		Pending: c.cfg.Release.Labels.Pending,
+		Tagged:  c.cfg.Release.Labels.Tagged,
+		Yeet:    c.cfg.Release.Labels.Yeet,
+		Extra:   append([]string(nil), c.cfg.Release.Labels.Extra...),
+	}
+}
+
+func (c *releaseCore) releasePRLifecycleLabels() provider.ReleasePRLabels {
+	return provider.ReleasePRLabels{
+		Pending: c.cfg.Release.Labels.Pending,
+		Tagged:  c.cfg.Release.Labels.Tagged,
+	}
 }
 
 func (c *releaseCore) effectivePRBodyLimit(providerLimit int) int {
@@ -95,17 +118,7 @@ func (c *releaseCore) effectivePRBodyLimit(providerLimit int) int {
 func (c *releaseCore) releaseSubject(result *Result) string {
 	plans := result.Plans
 	if len(plans) == 1 {
-		version := plans[0].NextVersion
-
-		if c.cfg.Release.SubjectIncludeBranch {
-			return fmt.Sprintf("chore(%s): release %s", c.cfg.Branch, version)
-		}
-
-		return "chore: release " + version
-	}
-
-	if c.cfg.Release.SubjectIncludeBranch {
-		return fmt.Sprintf("chore(%s): release wave", c.cfg.Branch)
+		return "chore: release " + plans[0].NextVersion
 	}
 
 	return "chore: release wave"

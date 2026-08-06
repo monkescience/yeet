@@ -27,6 +27,14 @@ type providerContractHarness struct {
 
 type providerContractScenario string
 
+func defaultReleasePRLabels() provider.ReleasePRLabels {
+	return provider.ReleasePRLabels{
+		Pending: provider.ReleaseLabelPending,
+		Tagged:  provider.ReleaseLabelTagged,
+		Yeet:    true,
+	}
+}
+
 const (
 	providerContractListTags                 providerContractScenario = "list tags"
 	providerContractBranchHead               providerContractScenario = "branch head"
@@ -53,6 +61,8 @@ const (
 	providerContractReleaseBody                                       = "release body"
 	providerContractReleaseBranch                                     = "release-main"
 	providerContractPendingBranch                                     = "yeet/release-main"
+	providerContractPendingLabel                                      = "release: waiting"
+	providerContractTaggedLabel                                       = "release: complete"
 	providerContractBaseBranch                                        = "main"
 	providerContractTag                                               = "v1.2.3"
 	providerContractTagCommitSHA                                      = "tag-commit-123"
@@ -263,7 +273,11 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: FindOpenPendingReleasePRs is invoked for the base branch
-				prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch)
+				prs, err := p.FindOpenPendingReleasePRs(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
 
 				// then: a single PR is returned with the expected number and pending branch
 				testastic.NoError(t, err)
@@ -282,7 +296,11 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: FindMergedReleasePR is invoked for the base branch
-				pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch)
+				pr, err := p.FindMergedReleasePR(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
 
 				// then: the merged PR is returned with the expected number, branch, merge SHA, and body
 				testastic.NoError(t, err)
@@ -301,11 +319,21 @@ func TestProviderContract(t *testing.T) {
 
 				p := harness.newProvider(t, server)
 
-				// when: MarkReleasePRPending and MarkReleasePRTagged are invoked in sequence on PR 42
-				err := p.MarkReleasePRPending(context.Background(), 42)
+				labels := provider.ReleasePRLabels{
+					Pending: providerContractPendingLabel,
+					Tagged:  providerContractTaggedLabel,
+					Yeet:    true,
+					Extra:   []string{"release", "automated"},
+				}
+
+				// when: custom labels are prepared and transitioned in sequence on PR 42
+				err := p.PrepareReleasePRLabels(context.Background(), labels)
 				testastic.NoError(t, err)
 
-				err = p.MarkReleasePRTagged(context.Background(), 42)
+				err = p.MarkReleasePRPending(context.Background(), 42, labels)
+				testastic.NoError(t, err)
+
+				err = p.MarkReleasePRTagged(context.Background(), 42, labels)
 
 				// then: both label transitions succeed
 				testastic.NoError(t, err)
@@ -457,7 +485,11 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: FindMergedReleasePR is invoked for the base branch
-				_, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch)
+				_, err := p.FindMergedReleasePR(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
 
 				// then: ErrNoPR is returned
 				testastic.Error(t, err)

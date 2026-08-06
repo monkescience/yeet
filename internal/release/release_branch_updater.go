@@ -28,7 +28,12 @@ func newReleaseBranchUpdater(
 	return &releaseBranchUpdater{core: core, source: source, files: files}
 }
 
-func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, result *Result) error {
+func (u *releaseBranchUpdater) updateFiles(
+	ctx context.Context,
+	branch string,
+	result *Result,
+	commitSubject string,
+) error {
 	r := u.core
 	files := map[string]provider.FileUpdate{}
 
@@ -50,7 +55,7 @@ func (u *releaseBranchUpdater) updateFiles(ctx context.Context, branch string, r
 		}
 	}
 
-	err := u.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, r.releaseSubject(result))
+	err := u.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, commitSubject)
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
 	}

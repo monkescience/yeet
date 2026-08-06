@@ -215,7 +215,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
 			writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response_dropped.json")
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-			writeGitLabLabelFixture(t, w, decodedPathTail(t, r))
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 			pendingMarked = true
 
@@ -235,6 +235,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 		BaseBranch:    providerContractBaseBranch,
 		ReleaseBranch: providerContractReleaseBranch,
 		Reviewers:     []string{providerContractReviewerAlice, providerContractReviewerBob},
+		Labels:        defaultReleasePRLabels(),
 	})
 
 	// then: the run fails naming the reviewer GitLab silently dropped
@@ -302,13 +303,25 @@ func handleGitLabMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *h
 
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-		writeGitLabLabelFixture(t, w, decodedPathTail(t, r))
+		writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 		var request struct {
 			AddLabels    string `json:"add_labels"`
 			RemoveLabels string `json:"remove_labels"`
 		}
 		decodeJSONRequest(t, r, &request)
+
+		if request.AddLabels == providerContractTaggedLabel {
+			testastic.Equal(t, providerContractPendingLabel, request.RemoveLabels)
+		} else {
+			testastic.Equal(
+				t,
+				providerContractPendingLabel+",release,automated,yeet",
+				request.AddLabels,
+			)
+			testastic.Equal(t, providerContractTaggedLabel, request.RemoveLabels)
+		}
+
 		writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/update.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
@@ -480,17 +493,4 @@ func handleGitLabUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 
 func providerContractEscapedTag() string {
 	return strings.ReplaceAll(providerContractTag, ".", "%2E")
-}
-
-func writeGitLabLabelFixture(t *testing.T, w http.ResponseWriter, label string) {
-	t.Helper()
-
-	switch label {
-	case provider.ReleaseLabelPending:
-		writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/label_pending.json")
-	case provider.ReleaseLabelTagged:
-		writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/label_tagged.json")
-	default:
-		t.Fatalf("unexpected GitLab label: %s", label)
-	}
 }

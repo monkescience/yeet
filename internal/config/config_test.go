@@ -22,12 +22,19 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
-	testastic.False(t, cfg.Release.SubjectIncludeBranch)
 	testastic.False(t, cfg.Release.AutoMerge)
 	testastic.False(t, cfg.Release.AutoMergeForce)
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
 	testastic.Equal(t, 0, len(cfg.Release.Channels))
 	testastic.Equal(t, 0, cfg.Release.PRBodyMaxLength)
+	testastic.Equal(t, "autorelease: pending", cfg.Release.Labels.Pending)
+	testastic.Equal(t, "autorelease: tagged", cfg.Release.Labels.Tagged)
+	testastic.True(t, cfg.Release.Labels.Yeet)
+	testastic.Equal(t, 0, len(cfg.Release.Labels.Extra))
+	testastic.Equal(t, "", cfg.Release.PRTitle)
+	testastic.Equal(t, "", cfg.Release.PRTitleGroup)
+	testastic.Equal(t, "", cfg.Release.CommitSubject)
+	testastic.Equal(t, "", cfg.Release.CommitSubjectGroup)
 	testastic.Equal(t, "## ٩(^ᴗ^)۶ release created", cfg.Release.PRBodyHeader)
 	testastic.AssertFile(t, "testdata/default/pr_body_footer.expected.md", cfg.Release.PRBodyFooter)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
@@ -38,6 +45,86 @@ func TestDefault(t *testing.T) {
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
 	testastic.SliceEqual(t, []string{"feat"}, cfg.BumpTypes.Minor)
 	testastic.SliceEqual(t, []string{"fix", "perf"}, cfg.BumpTypes.Patch)
+}
+
+func TestReleaseLabelsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		labels config.ReleaseLabelsConfig
+	}{
+		{
+			name: "blank pending label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: " ",
+				Tagged:  "tagged",
+			},
+		},
+		{
+			name: "padded tagged label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "tagged ",
+			},
+		},
+		{
+			name: "matching lifecycle labels",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "Release",
+				Tagged:  "release",
+			},
+		},
+		{
+			name: "duplicate extra labels",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "tagged",
+				Extra:   []string{"Automated", "automated"},
+			},
+		},
+		{
+			name: "extra label collides with lifecycle label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "Pending",
+				Tagged:  "tagged",
+				Extra:   []string{"pending"},
+			},
+		},
+		{
+			name: "pending label collides with managed label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "Yeet",
+				Tagged:  "tagged",
+				Yeet:    true,
+			},
+		},
+		{
+			name: "extra label collides with managed label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "tagged",
+				Yeet:    true,
+				Extra:   []string{"YEET"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: release labels that violate a provider-neutral rule
+			cfg := config.Default()
+			cfg.Release.Labels = tt.labels
+
+			// when: validating the config
+			err := cfg.Validate()
+
+			// then: validation rejects the labels
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		})
+	}
 }
 
 func TestParse(t *testing.T) {
@@ -75,6 +162,55 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "beta", cfg.Release.Channels["beta"].Prerelease)
 	})
 
+	t.Run("partial release labels preserve defaults", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config overriding only the pending lifecycle label
+		data := []byte("release:\n  labels:\n    pending: 'release: waiting'\n" +
+			"targets:\n  app:\n    type: path\n    path: .\n    tag_prefix: v\n")
+
+		// when: parsing the config over defaults
+		cfg, err := config.Parse(data)
+
+		// then: the partial object retains the tagged default
+		testastic.NoError(t, err)
+		testastic.Equal(t, "release: waiting", cfg.Release.Labels.Pending)
+		testastic.Equal(t, "autorelease: tagged", cfg.Release.Labels.Tagged)
+		testastic.True(t, cfg.Release.Labels.Yeet)
+	})
+
+	t.Run("managed yeet label can be disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config opting out of the managed yeet label
+		data := []byte("release:\n  labels:\n    yeet: false\n" +
+			"targets:\n  app:\n    type: path\n    path: .\n    tag_prefix: v\n")
+
+		// when: parsing the config over defaults
+		cfg, err := config.Parse(data)
+
+		// then: the managed label is disabled without changing lifecycle defaults
+		testastic.NoError(t, err)
+		testastic.False(t, cfg.Release.Labels.Yeet)
+		testastic.Equal(t, "autorelease: pending", cfg.Release.Labels.Pending)
+		testastic.Equal(t, "autorelease: tagged", cfg.Release.Labels.Tagged)
+	})
+
+	t.Run("rejects removed subject include branch setting", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config using the removed title toggle
+		data := []byte("release:\n  subject_include_branch: true\n" +
+			"targets:\n  app:\n    type: path\n    path: .\n    tag_prefix: v\n")
+
+		// when: parsing the config
+		_, err := config.Parse(data)
+
+		// then: strict parsing directs users away from the obsolete setting
+		testastic.Error(t, err)
+		testastic.ErrorContains(t, err, "subject_include_branch")
+	})
+
 	t.Run("valid full config", func(t *testing.T) {
 		t.Parallel()
 
@@ -94,7 +230,10 @@ func TestParse(t *testing.T) {
 		testastic.NotNil(t, cfg.Repository.GitLab)
 		testastic.Equal(t, "gitlab.company.com", cfg.Repository.GitLab.Host)
 		testastic.Equal(t, "group/subgroup/service", cfg.Repository.GitLab.Project)
-		testastic.True(t, cfg.Release.SubjectIncludeBranch)
+		testastic.Equal(t, "release {{ .Tag }}", cfg.Release.PRTitle)
+		testastic.Equal(t, "release {{ .TargetCount }} targets", cfg.Release.PRTitleGroup)
+		testastic.Equal(t, "commit {{ .Tag }}", cfg.Release.CommitSubject)
+		testastic.Equal(t, "commit {{ .TargetCount }} targets", cfg.Release.CommitSubjectGroup)
 		testastic.True(t, cfg.Release.AutoMerge)
 		testastic.True(t, cfg.Release.AutoMergeForce)
 		testastic.Equal(t, config.AutoMergeMethodRebase, cfg.Release.AutoMergeMethod)

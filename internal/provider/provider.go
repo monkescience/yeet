@@ -29,13 +29,17 @@ const ReleaseLabelPending = "autorelease: pending"
 
 const ReleaseLabelTagged = "autorelease: tagged"
 
+const ReleaseLabelYeet = "yeet"
+
 // Label colors are stored without a leading "#" so callers can prepend it when
 // the provider's API requires the prefix (GitLab) or omit it (GitHub).
 const (
 	releaseLabelPendingColor       = "FBCA04"
 	releaseLabelTaggedColor        = "0E8A16"
+	releaseLabelYeetColor          = "1D76DB"
 	releaseLabelPendingDescription = "release PR is pending tagging"
 	releaseLabelTaggedDescription  = "release PR already tagged"
+	releaseLabelYeetDescription    = "release PR managed by yeet"
 )
 
 type ReleasePROptions struct {
@@ -44,6 +48,14 @@ type ReleasePROptions struct {
 	BaseBranch    string
 	ReleaseBranch string
 	Reviewers     []string
+	Labels        ReleasePRLabels
+}
+
+type ReleasePRLabels struct {
+	Pending string
+	Tagged  string
+	Yeet    bool
+	Extra   []string
 }
 
 type ReleaseOptions struct {
@@ -108,11 +120,12 @@ type Provider interface {
 
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
-	FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error)
-	FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error)
+	PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error
+	FindOpenPendingReleasePRs(ctx context.Context, baseBranch, pendingLabel string) ([]*PullRequest, error)
+	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*PullRequest, error)
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error)
-	MarkReleasePRPending(ctx context.Context, number int) error
-	MarkReleasePRTagged(ctx context.Context, number int) error
+	MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error
+	MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error
 	// MaxPRBodyLength returns zero when the provider has no known limit.
 	MaxPRBodyLength() int
 
@@ -148,6 +161,7 @@ var (
 	ErrUnknownRemote           = errors.New("unable to parse remote URL")
 	ErrUnsupportedHost         = errors.New("unsupported remote host")
 	ErrNoRelease               = errors.New("no release found")
+	ErrReleasePRLabelMismatch  = errors.New("release PR lifecycle label mismatch")
 	ErrCommitBoundaryNotFound  = errors.New("commit boundary not found")
 	ErrNoPR                    = errors.New("no release PR found")
 	ErrFileNotFound            = errors.New("file not found")

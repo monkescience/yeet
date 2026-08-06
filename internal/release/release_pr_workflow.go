@@ -45,13 +45,18 @@ func newReleasePRWorkflow(
 func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) (*provider.PullRequest, error) {
 	r := w.core
 
-	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch)
+	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
 	if err != nil {
 		return nil, fmt.Errorf("find pending release PRs: %w", err)
 	}
 
 	if len(pendingPRs) > 1 {
 		return nil, multiplePendingReleasePRError(pendingPRs)
+	}
+
+	commitSubject, err := r.releaseCommitSubject(result)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(pendingPRs) == 1 {
@@ -66,7 +71,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 			return nil, prErr
 		}
 
-		return w.updateExisting(ctx, existing, existing.Branch, prOpts, result)
+		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, result)
 	}
 
 	releaseBranch := stableReleaseBranch(r.cfg.Branch)
@@ -76,7 +81,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 		return nil, err
 	}
 
-	return w.createNew(ctx, releaseBranch, prOpts, result)
+	return w.createNew(ctx, releaseBranch, prOpts, commitSubject, result)
 }
 
 func (w *releasePRWorkflow) preserveExistingChangelogEdits(
@@ -191,6 +196,10 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		Method:            provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
+	if err := w.prs.PrepareReleasePRLabels(ctx, r.releasePRLifecycleLabels()); err != nil {
+		return fmt.Errorf("prepare release PR labels: %w", err)
+	}
+
 	mergeSHA, err := w.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.BypassMergeChecks {
@@ -240,7 +249,11 @@ func (w *releasePRWorkflow) waitForMergedPullRequest(
 	defer ticker.Stop()
 
 	for {
-		mergedPR, err := w.publisher.publisher.FindMergedReleasePR(waitCtx, w.core.cfg.Branch)
+		mergedPR, err := w.publisher.publisher.FindMergedReleasePR(
+			waitCtx,
+			w.core.cfg.Branch,
+			w.core.cfg.Release.Labels.Pending,
+		)
 		if err == nil && mergedPR.Number == number && strings.TrimSpace(mergedPR.MergeCommitSHA) != "" {
 			return mergedPR, nil
 		}
@@ -262,6 +275,7 @@ func (w *releasePRWorkflow) updateExisting(
 	existing *provider.PullRequest,
 	releaseBranch string,
 	prOpts provider.ReleasePROptions,
+	commitSubject string,
 	result *Result,
 ) (*provider.PullRequest, error) {
 	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
@@ -271,7 +285,7 @@ func (w *releasePRWorkflow) updateExisting(
 		return nil, fmt.Errorf("update release PR: %w", err)
 	}
 
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result); err != nil {
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result, commitSubject); err != nil {
 		return nil, err
 	}
 
@@ -285,9 +299,14 @@ func (w *releasePRWorkflow) createNew(
 	ctx context.Context,
 	releaseBranch string,
 	prOpts provider.ReleasePROptions,
+	commitSubject string,
 	result *Result,
 ) (*provider.PullRequest, error) {
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result); err != nil {
+	if err := w.prs.PrepareReleasePRLabels(ctx, w.core.releasePRLabels()); err != nil {
+		return nil, fmt.Errorf("prepare release PR labels: %w", err)
+	}
+
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result, commitSubject); err != nil {
 		return nil, err
 	}
 
@@ -296,7 +315,7 @@ func (w *releasePRWorkflow) createNew(
 		return nil, fmt.Errorf("create release PR: %w", err)
 	}
 
-	err = w.prs.MarkReleasePRPending(ctx, pr.Number)
+	err = w.prs.MarkReleasePRPending(ctx, pr.Number, w.core.releasePRLabels())
 	if err != nil {
 		return nil, fmt.Errorf("mark release PR pending: %w", err)
 	}

@@ -2,11 +2,21 @@
 
 Settings under `release:` apply to the combined release PR/MR, not to individual targets.
 
-## PR/MR body and merge settings
+## PR/MR settings
 
 ```yaml
 release:
-  subject_include_branch: true       # include target branch in PR/MR subject
+  labels:
+    pending: 'autorelease: pending'
+    tagged: 'autorelease: tagged'
+    yeet: true                         # set false to disable the managed yeet label
+    extra:                            # applied when the PR/MR is created
+      - release
+      - automated
+  pr_title: 'chore({{ .Target }}): release {{ .Tag }}'
+  pr_title_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
+  commit_subject: 'chore({{ .Target }}): release {{ .Tag }}'
+  commit_subject_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
   auto_merge: true                   # equivalent to --auto-merge
   auto_merge_force: false            # equivalent to --auto-merge-force
   auto_merge_method: squash          # auto|squash|rebase|merge (default: auto)
@@ -16,6 +26,41 @@ release:
   reviewers:                         # reviewers requested when the PR/MR is created
     - alice
 ```
+
+### Labels
+
+When yeet creates a release PR/MR, it adds `release.labels.pending`, the permanent `yeet` label,
+and every `release.labels.extra` entry, then removes `release.labels.tagged` if present. Set
+`release.labels.yeet` to `false` to disable the managed label. Refreshing an open release keeps its
+current labels. It does not restore the managed or extra labels when a maintainer removes them, and
+it does not remove manually added labels. Finalization adds the tagged label, removes the pending
+label, and leaves every other label unchanged.
+
+GitHub and GitLab create missing lifecycle labels and the managed `yeet` label with yeet's colors
+and descriptions. Extra labels must already exist in the repository or project. Azure DevOps
+attaches all configured labels directly to the PR. A missing or rejected label fails the run rather
+than being silently dropped.
+
+Do not change lifecycle label names while a release PR/MR is open, or after merge but before
+finalization. Finish or close the in-flight release first. Yeet stores no lifecycle label history,
+so a new pending name cannot safely identify the old release state.
+
+### Subject templates
+
+`pr_title` uses Go `text/template` for a one-target release. It can access `.Branch`, `.Channel`,
+`.Target`, `.Version`, and `.Tag`. `.Version` excludes the tag prefix, while `.Tag` is the complete
+planned tag. `pr_title_group` applies to multi-target waves and can access `.Branch`, `.Channel`,
+and `.TargetCount`. Target-specific fields are unavailable to group templates.
+
+`commit_subject` and `commit_subject_group` customize the corresponding release branch commit
+subjects with the same single-target and group data. PR/MR titles and commit subjects are
+independent, so changing one does not silently change the other. Include `{{ .Branch }}` explicitly
+where either output needs the branch.
+
+Templates have no custom functions. They are parsed and checked during release setup. Rendered
+values are trimmed and must be nonempty and single-line. Empty templates preserve the built-in
+unscoped title or commit subject. Existing PR/MR titles are regenerated on the next release run.
+Titles are never used to discover release PRs/MRs.
 
 `auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults. `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
 

@@ -150,10 +150,13 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts Rele
 	return nil
 }
 
-func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+func (a *AzureDevOps) FindOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*PullRequest, error) {
 	slog.DebugContext(ctx, "azure devops: listing open pending release PRs",
 		slog.String("target_branch", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Active, baseBranch)
@@ -169,8 +172,14 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch 
 			continue
 		}
 
-		if !azureDevOpsHasLabel(pr.Labels, ReleaseLabelPending) {
-			continue
+		if !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
+			return nil, fmt.Errorf(
+				"%w: trusted pull request !%d on branch %q is missing configured pending label %q",
+				ErrReleasePRLabelMismatch,
+				derefInt(pr.PullRequestId),
+				branch,
+				pendingLabel,
+			)
 		}
 
 		pending = append(pending, &PullRequest{
@@ -187,10 +196,13 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(ctx context.Context, baseBranch 
 	return pending, nil
 }
 
-func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+func (a *AzureDevOps) FindMergedReleasePR(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) (*PullRequest, error) {
 	slog.DebugContext(ctx, "azure devops: searching merged release PRs",
 		slog.String("target_branch", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Completed, baseBranch)
@@ -203,7 +215,7 @@ func (a *AzureDevOps) FindMergedReleasePR(ctx context.Context, baseBranch string
 			continue
 		}
 
-		if !azureDevOpsHasLabel(pr.Labels, ReleaseLabelPending) {
+		if !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
 			continue
 		}
 
@@ -387,20 +399,36 @@ func validateAzureDevOpsPullRequestForMerge(
 	return nil
 }
 
-func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int) error {
-	if err := a.attachPullRequestLabel(ctx, number, ReleaseLabelPending); err != nil {
-		return err
-	}
-
-	return a.detachPullRequestLabel(ctx, number, ReleaseLabelTagged)
+func (a *AzureDevOps) PrepareReleasePRLabels(context.Context, ReleasePRLabels) error {
+	return nil
 }
 
-func (a *AzureDevOps) MarkReleasePRTagged(ctx context.Context, number int) error {
-	if err := a.attachPullRequestLabel(ctx, number, ReleaseLabelTagged); err != nil {
+func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error {
+	if err := a.attachPullRequestLabel(ctx, number, labels.Pending); err != nil {
 		return err
 	}
 
-	return a.detachPullRequestLabel(ctx, number, ReleaseLabelPending)
+	for _, label := range labels.Extra {
+		if err := a.attachPullRequestLabel(ctx, number, label); err != nil {
+			return err
+		}
+	}
+
+	if labels.Yeet {
+		if err := a.attachPullRequestLabel(ctx, number, ReleaseLabelYeet); err != nil {
+			return err
+		}
+	}
+
+	return a.detachPullRequestLabel(ctx, number, labels.Tagged)
+}
+
+func (a *AzureDevOps) MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error {
+	if err := a.attachPullRequestLabel(ctx, number, labels.Tagged); err != nil {
+		return err
+	}
+
+	return a.detachPullRequestLabel(ctx, number, labels.Pending)
 }
 
 func (a *AzureDevOps) attachPullRequestLabel(ctx context.Context, number int, label string) error {

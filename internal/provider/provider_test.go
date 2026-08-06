@@ -339,7 +339,7 @@ func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: finding the merged pending release PR
-	pullRequest, err := gh.FindMergedReleasePR(context.Background(), "main")
+	pullRequest, err := gh.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
 
 	// then: the merged commit SHA is populated for stale-release finalization
 	testastic.NoError(t, err)
@@ -991,7 +991,7 @@ func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: finding open pending release PRs
-		prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main")
+		prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main", provider.ReleaseLabelPending)
 
 		// then: only the release PR with pending label is returned
 		testastic.NoError(t, err)
@@ -1060,43 +1060,64 @@ func TestGitHubGetFile(t *testing.T) {
 func TestGitHubEnsureLabel(t *testing.T) {
 	t.Parallel()
 
-	t.Run("creates label when not found", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name     string
+		yeet     bool
+		expected []string
+	}{
+		{
+			name:     "creates managed and lifecycle labels when not found",
+			yeet:     true,
+			expected: []string{provider.ReleaseLabelYeet, provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+		},
+		{
+			name:     "does not create managed label when disabled",
+			yeet:     false,
+			expected: []string{provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+		},
+	}
 
-		// given: a GitHub API where the label does not exist
-		var created atomic.Bool
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/labels/"):
-				w.WriteHeader(http.StatusNotFound)
-				writeJSON(t, w, map[string]any{"message": "Not Found"})
-			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/labels":
-				created.Store(true)
-				w.WriteHeader(http.StatusCreated)
-				writeJSON(t, w, map[string]any{"name": provider.ReleaseLabelPending})
-			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/1/labels":
-				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelPending}})
-			case r.Method == http.MethodDelete:
-				w.WriteHeader(http.StatusNotFound)
-				writeJSON(t, w, map[string]any{"message": "Not Found"})
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
+			// given: a GitHub API where the labels do not exist
+			var created []string
 
-		client := newGitHubTestClient(t, server)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/labels/"):
+					w.WriteHeader(http.StatusNotFound)
+					writeJSON(t, w, map[string]any{"message": "Not Found"})
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/labels":
+					var request struct {
+						Name string `json:"name"`
+					}
+					decodeJSONRequest(t, r, &request)
+					created = append(created, request.Name)
 
-		gh := provider.NewGitHub(client, "o", "r")
+					w.WriteHeader(http.StatusCreated)
+					writeJSON(t, w, map[string]any{"name": request.Name})
+				default:
+					t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
 
-		// when: marking a PR as pending (triggers ensureReleaseLabels)
-		err := gh.MarkReleasePRPending(context.Background(), 1)
+			client := newGitHubTestClient(t, server)
 
-		// then: labels are created and no error is returned
-		testastic.NoError(t, err)
-		testastic.True(t, created.Load())
-	})
+			gh := provider.NewGitHub(client, "o", "r")
+			labels := defaultReleasePRLabels()
+			labels.Yeet = test.yeet
+
+			// when: preparing release PR labels
+			err := gh.PrepareReleasePRLabels(context.Background(), labels)
+
+			// then: only the enabled managed and lifecycle labels are created
+			testastic.NoError(t, err)
+			testastic.SliceEqual(t, test.expected, created)
+		})
+	}
 }
 
 func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
@@ -1420,7 +1441,7 @@ func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
 	gl := provider.NewGitLab(client, "o/r")
 
 	// when: finding open pending release MRs
-	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main")
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", provider.ReleaseLabelPending)
 
 	// then: only the release MR is returned
 	testastic.NoError(t, err)
@@ -1469,7 +1490,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
 
 		// then: the merged MR is returned with merge commit SHA
 		testastic.NoError(t, err)
@@ -1515,7 +1536,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding the fast-forward merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
 
 		// then: the source tip identifies the commit now on the target branch
 		testastic.NoError(t, err)
@@ -1548,7 +1569,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		_, err = gl.FindMergedReleasePR(context.Background(), "main")
+		_, err = gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
 
 		// then: ErrNoPR is returned
 		testastic.Error(t, err)
@@ -1608,7 +1629,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main")
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
 
 		// then: the most recently merged MR is returned, not the most recently updated
 		testastic.NoError(t, err)
@@ -1620,46 +1641,70 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 func TestGitLabEnsureLabel(t *testing.T) {
 	t.Parallel()
 
-	t.Run("creates label when not found", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name     string
+		yeet     bool
+		expected []string
+	}{
+		{
+			name:     "creates managed and lifecycle labels when not found",
+			yeet:     true,
+			expected: []string{provider.ReleaseLabelYeet, provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+		},
+		{
+			name:     "does not create managed label when disabled",
+			yeet:     false,
+			expected: []string{provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+		},
+	}
 
-		// given: a GitLab API where the label does not exist
-		var created atomic.Bool
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && strings.Contains(r.URL.EscapedPath(), "/labels/"):
-				w.WriteHeader(http.StatusNotFound)
-				writeJSON(t, w, map[string]any{"message": "404 Not Found"})
-			case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/labels":
-				created.Store(true)
-				w.WriteHeader(http.StatusCreated)
-				writeJSON(t, w, map[string]any{"name": provider.ReleaseLabelPending})
-			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge_requests/"):
-				writeJSON(t, w, map[string]any{"iid": 1})
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
+			// given: a GitLab API where the labels do not exist
+			var created []string
 
-		client, err := gitlabapi.NewClient(
-			"",
-			gitlabapi.WithBaseURL(server.URL),
-			gitlabapi.WithHTTPClient(server.Client()),
-			gitlabapi.WithoutRetries(),
-		)
-		testastic.NoError(t, err)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && strings.Contains(r.URL.EscapedPath(), "/labels/"):
+					w.WriteHeader(http.StatusNotFound)
+					writeJSON(t, w, map[string]any{"message": "404 Not Found"})
+				case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/labels":
+					var request struct {
+						Name string `json:"name"`
+					}
+					decodeJSONRequest(t, r, &request)
+					created = append(created, request.Name)
 
-		gl := provider.NewGitLab(client, "o/r")
+					w.WriteHeader(http.StatusCreated)
+					writeJSON(t, w, map[string]any{"name": request.Name})
+				default:
+					t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
 
-		// when: marking an MR as pending (triggers ensureReleaseLabels)
-		err = gl.MarkReleasePRPending(context.Background(), 1)
+			client, err := gitlabapi.NewClient(
+				"",
+				gitlabapi.WithBaseURL(server.URL),
+				gitlabapi.WithHTTPClient(server.Client()),
+				gitlabapi.WithoutRetries(),
+			)
+			testastic.NoError(t, err)
 
-		// then: labels are created and no error is returned
-		testastic.NoError(t, err)
-		testastic.True(t, created.Load())
-	})
+			gl := provider.NewGitLab(client, "o/r")
+			labels := defaultReleasePRLabels()
+			labels.Yeet = test.yeet
+
+			// when: preparing release MR labels
+			err = gl.PrepareReleasePRLabels(context.Background(), labels)
+
+			// then: only the enabled managed and lifecycle labels are created
+			testastic.NoError(t, err)
+			testastic.SliceEqual(t, test.expected, created)
+		})
+	}
 }
 
 func TestGitLabMergeReleasePRMethods(t *testing.T) {

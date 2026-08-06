@@ -856,8 +856,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
-		testastic.Equal(t, 1, len(stub.singleRefProbes()))
-		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[0])
+		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
 	})
 
 	t.Run("creates PR when commits exist after finalized tag", func(t *testing.T) {
@@ -892,8 +891,74 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
-		testastic.Equal(t, 1, len(stub.singleRefProbes()))
-		testastic.Equal(t, "v0.1.0", stub.singleRefProbes()[0])
+		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
+	})
+}
+
+func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dry run rejects an empty title for actual release data", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a stable release whose title template only renders for a channel
+		cfg := config.Default()
+		cfg.Release.PRTitle = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: analyzing the release without mutations
+		result, err := r.Release(context.Background(), true)
+
+		// then: actual template output is validated during the dry run
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.findMergedPRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+	})
+
+	t.Run("merged release is not finalized before an invalid title fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unfinalized merged release and a template that is empty for the stable channel
+		cfg := config.Default()
+		cfg.Release.PRTitle = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
+		changelogBody := readTestFile(t, "testdata/release_after_finalize_merged_release/changelog.input.md")
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number:         5,
+			URL:            "https://example.com/pr/5",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v0.0.9": {{Hash: "abcdef1234567890", Message: "fix: release patch"}},
+			"v0.1.0": {{Hash: "fedcba0987654321", Message: "fix: later patch"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running the release with invalid actual template output
+		result, err := r.Release(context.Background(), false)
+
+		// then: validation fails before the merged release is published or relabeled
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.findMergedPRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+		testastic.Equal(t, 0, stub.createPRCalls)
 	})
 }
 
@@ -1093,6 +1158,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 
 	// given: one open pending PR on a legacy release branch
 	cfg := config.Default()
+	cfg.Release.PRTitle = "release {{ .Tag }}"
 
 	stub := newProviderStub()
 	stub.openPending = []*provider.PullRequest{{
@@ -1116,6 +1182,8 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.Equal(t, 0, len(stub.markPendingCalls))
+	testastic.Equal(t, 0, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, "release v0.1.0", stub.updatePROptions[0].Title)
 	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
 	testastic.AssertFile(
 		t,
@@ -1147,6 +1215,43 @@ func TestReleasePRCarriesReviewers(t *testing.T) {
 	testastic.Equal(t, 1, stub.createPRCalls)
 	testastic.Equal(t, 0, len(stub.createdBranches))
 	testastic.SliceEqual(t, []string{"alice", "bob"}, stub.createPROptions[0].Reviewers)
+}
+
+func TestReleasePRCarriesConfiguredLabels(t *testing.T) {
+	t.Parallel()
+
+	// given: custom lifecycle and create-only labels
+	cfg := config.Default()
+	cfg.Release.Labels = config.ReleaseLabelsConfig{
+		Pending: "release: waiting",
+		Tagged:  "release: complete",
+		Yeet:    true,
+		Extra:   []string{"release", "automated"},
+	}
+
+	stub := newProviderStub()
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "fix: add labels",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: creating a release PR
+	_, err := r.Release(context.Background(), false)
+
+	// then: labels are prepared before creation and passed to the provider transition
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, cfg.Release.Labels.Pending, stub.createPROptions[0].Labels.Pending)
+	testastic.Equal(t, cfg.Release.Labels.Tagged, stub.createPROptions[0].Labels.Tagged)
+	testastic.True(t, stub.createPROptions[0].Labels.Yeet)
+	testastic.SliceEqual(t, cfg.Release.Labels.Extra, stub.createPROptions[0].Labels.Extra)
+	testastic.Equal(t, 1, len(stub.markPendingLabels))
+	testastic.Equal(t, cfg.Release.Labels.Pending, stub.markPendingLabels[0].Pending)
+	testastic.Equal(t, cfg.Release.Labels.Tagged, stub.markPendingLabels[0].Tagged)
+	testastic.True(t, stub.markPendingLabels[0].Yeet)
+	testastic.SliceEqual(t, cfg.Release.Labels.Extra, stub.markPendingLabels[0].Extra)
 }
 
 func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
@@ -1223,6 +1328,86 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
 		testastic.Equal(t, prependChangelogEntry("", result.Plans[0].Changelog), updatedChangelog)
+	})
+
+	t.Run("custom PR and commit subjects are independent", func(t *testing.T) {
+		t.Parallel()
+
+		// given: distinct templates and one releasable commit
+		cfg := config.Default()
+		cfg.Release.PRTitle = "PR {{ .Tag }}"
+		cfg.Release.CommitSubject = "commit {{ .Branch }} {{ .Version }}"
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: creating a release PR
+		result, err := r.Release(context.Background(), false)
+
+		// then: provider title and branch commit use their respective templates
+		testastic.NoError(t, err)
+		testastic.Equal(t, "PR "+result.Plans[0].NextTag, result.PullRequest.Title)
+		testastic.Equal(t, "commit main "+result.Plans[0].NextVersion, stub.updateFilesMessages[0])
+	})
+
+	t.Run("rejects an empty commit subject before creating a pull request", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a commit subject template that is empty for the stable channel
+		cfg := config.Default()
+		cfg.Release.CommitSubject = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
+
+		stub := newProviderStub()
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: creating a release pull request
+		_, err := r.Release(context.Background(), false)
+
+		// then: rendered subject validation fails before any provider mutation
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, 0, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+		testastic.Equal(t, 0, stub.updateFilesCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+		testastic.Equal(t, 0, len(stub.markPendingCalls))
+	})
+
+	t.Run("rejects an empty commit subject before updating a pull request", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing release pull request and a template that renders empty
+		cfg := config.Default()
+		cfg.Release.CommitSubject = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{{
+			Number: 7,
+			URL:    "https://example.com/pr/7",
+			Branch: "yeet/release-main",
+		}}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: refreshing the existing release pull request
+		_, err := r.Release(context.Background(), false)
+
+		// then: rendered subject validation fails before remote content changes
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, 0, stub.updatePRCalls)
+		testastic.Equal(t, 0, stub.updateFilesCalls)
 	})
 
 	t.Run("custom header and footer wrap PR body only", func(t *testing.T) {
@@ -1768,6 +1953,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// given: a merged pending release PR and changelog entry on main
 		cfg := config.Default()
+		cfg.Release.Labels = config.ReleaseLabelsConfig{
+			Pending: "release: waiting",
+			Tagged:  "release: complete",
+			Extra:   []string{"automated"},
+		}
 
 		stub := newProviderStub()
 		stub.mergedPR = &provider.PullRequest{
@@ -1800,6 +1990,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
+		testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+		testastic.Equal(t, 1, len(stub.markTaggedLabels))
+		testastic.Equal(t, cfg.Release.Labels.Pending, stub.markTaggedLabels[0].Pending)
+		testastic.Equal(t, cfg.Release.Labels.Tagged, stub.markTaggedLabels[0].Tagged)
+		testastic.SliceEqual(t, cfg.Release.Labels.Extra, stub.markTaggedLabels[0].Extra)
 		testastic.AssertFile(
 			t,
 			"testdata/finalize_merged_release_p_r/"+
@@ -2204,7 +2399,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: changelog is created with the release-please style header
 		testastic.NoError(t, err)
@@ -2242,7 +2439,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: changelog and version file are updated
 		testastic.NoError(t, err)
@@ -2280,6 +2479,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 			t.Context(),
 			"yeet/release-v1.2.4",
 			result,
+			"commit subject",
 		)
 
 		// then: local blobs are read and the provider only receives one batched write
@@ -2326,7 +2526,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: changelog and JSON version file are updated
 		expected := strings.Join([]string{
@@ -2369,7 +2571,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: changelog and JSON version file are updated with the calver string
 		testastic.NoError(t, err)
@@ -2400,7 +2604,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: missing markers abort the release and no provider updates are dispatched
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
@@ -2440,7 +2646,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: new entry is prepended and the changelog gains a top-level header
 		testastic.NoError(t, err)
@@ -2496,7 +2704,9 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		}
 
 		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(context.Background(), branch, result)
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
 
 		// then: the shared changelog contains both new entries instead of conflicting
 		testastic.NoError(t, err)
@@ -2529,6 +2739,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 			context.Background(),
 			"yeet/release-v1.2.4",
 			result,
+			"commit subject",
 		)
 
 		// then: missing file error is returned

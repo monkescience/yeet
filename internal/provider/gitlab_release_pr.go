@@ -15,6 +15,8 @@ const gitlabMergeRequestOpenedState = "opened"
 
 const gitlabMergeRequestMergedState = "merged"
 
+var errGitLabReleasePRLabelsInvalid = errors.New("invalid GitLab release PR labels")
+
 func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
 	slog.DebugContext(ctx, "gitlab: creating merge request",
 		slog.String("source_branch", opts.ReleaseBranch),
@@ -42,7 +44,7 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	}
 
 	if err := verifyGitLabReviewers(opts.Reviewers, reviewerIDs, mr.Reviewers); err != nil {
-		if markErr := g.MarkReleasePRPending(ctx, int(mr.IID)); markErr != nil {
+		if markErr := g.MarkReleasePRPending(ctx, int(mr.IID), opts.Labels); markErr != nil {
 			return nil, errors.Join(err, markErr)
 		}
 
@@ -158,11 +160,19 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 	return nil
 }
 
-func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch string) ([]*PullRequest, error) {
+//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
+func (g *GitLab) FindOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*PullRequest, error) {
+	if err := validateGitLabLifecycleLabel(pendingLabel); err != nil {
+		return nil, err
+	}
+
 	state := gitlabMergeRequestOpenedState
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
-	labels := gitlab.LabelOptions{ReleaseLabelPending}
+	labels := gitlab.LabelOptions{pendingLabel}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
@@ -175,7 +185,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 
 	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
 		slog.String("target_branch", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	pendingMRs := make([]*PullRequest, 0)
@@ -216,17 +226,91 @@ func (g *GitLab) FindOpenPendingReleasePRs(ctx context.Context, baseBranch strin
 		return nil, err
 	}
 
+	if err := g.validateOpenReleasePRLabelMismatches(ctx, baseBranch, pendingLabel, pendingMRs); err != nil {
+		return nil, err
+	}
+
 	slog.DebugContext(ctx, "gitlab: listed open pending release MRs", slog.Int("count", len(pendingMRs)))
 
 	return pendingMRs, nil
 }
 
+func (g *GitLab) validateOpenReleasePRLabelMismatches(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+	pendingMRs []*PullRequest,
+) error {
+	knownPending := make(map[int]struct{}, len(pendingMRs))
+	for _, pending := range pendingMRs {
+		knownPending[pending.Number] = struct{}{}
+	}
+
+	state := gitlabMergeRequestOpenedState
+	options := &gitlab.ListProjectMergeRequestsOptions{
+		State:        new(state),
+		TargetBranch: new(baseBranch),
+		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
+	}
+
+	return paginate(ctx, "checking open release MR labels",
+		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
+			options.Page = int64(page)
+
+			mrs, resp, err := g.client.MergeRequests.ListProjectMergeRequests(g.projectID, options, gitlab.WithContext(ctx))
+			if err != nil {
+				return nil, 0, fmt.Errorf("list merge requests without label filter: %w", err)
+			}
+
+			return mrs, gitLabNextPage(resp), nil
+		},
+		func(mr *gitlab.BasicMergeRequest) (bool, error) {
+			if _, ok := knownPending[int(mr.IID)]; ok {
+				return false, nil
+			}
+
+			if !isTrustedGitLabReleasePR(
+				mr.SourceBranch,
+				baseBranch,
+				mr.SourceProjectID,
+				mr.TargetProjectID,
+			) || hasGitLabLabel(mr.Labels, pendingLabel) {
+				return false, nil
+			}
+
+			return false, fmt.Errorf(
+				"%w: trusted merge request !%d on branch %q is missing configured pending label %q",
+				ErrReleasePRLabelMismatch,
+				mr.IID,
+				mr.SourceBranch,
+				pendingLabel,
+			)
+		},
+	)
+}
+
+func hasGitLabLabel(labels gitlab.Labels, target string) bool {
+	for _, label := range labels {
+		if strings.EqualFold(label, target) {
+			return true
+		}
+	}
+
+	return false
+}
+
 //nolint:funlen // Pagination closure layout inflates line count without adding complexity.
-func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*PullRequest, error) {
+func (g *GitLab) FindMergedReleasePR(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) (*PullRequest, error) {
+	if err := validateGitLabLifecycleLabel(pendingLabel); err != nil {
+		return nil, err
+	}
+
 	state := gitlabMergeRequestMergedState
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
-	labels := gitlab.LabelOptions{ReleaseLabelPending}
+	labels := gitlab.LabelOptions{pendingLabel}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
@@ -239,7 +323,7 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 
 	slog.DebugContext(ctx, "gitlab: searching merged release MRs",
 		slog.String("target_branch", baseBranch),
-		slog.String("label", ReleaseLabelPending),
+		slog.String("label", pendingLabel),
 	)
 
 	var (
@@ -305,28 +389,35 @@ func (g *GitLab) FindMergedReleasePR(ctx context.Context, baseBranch string) (*P
 	return found, nil
 }
 
-func (g *GitLab) MarkReleasePRPending(ctx context.Context, number int) error {
-	return g.updateReleasePRLabels(ctx, number, ReleaseLabelPending, ReleaseLabelTagged, "pending")
+func (g *GitLab) MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error {
+	addLabels := append([]string{labels.Pending}, labels.Extra...)
+	if labels.Yeet {
+		addLabels = append(addLabels, ReleaseLabelYeet)
+	}
+
+	return g.updateReleasePRLabels(
+		ctx,
+		number,
+		addLabels,
+		[]string{labels.Tagged},
+		"pending",
+	)
 }
 
-func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int) error {
-	return g.updateReleasePRLabels(ctx, number, ReleaseLabelTagged, ReleaseLabelPending, "tagged")
+func (g *GitLab) MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error {
+	return g.updateReleasePRLabels(ctx, number, []string{labels.Tagged}, []string{labels.Pending}, "tagged")
 }
 
 func (g *GitLab) updateReleasePRLabels(
 	ctx context.Context,
 	number int,
-	addLabel, removeLabel, state string,
+	addLabelNames, removeLabelNames []string,
+	state string,
 ) error {
-	err := g.ensureReleaseLabels(ctx)
-	if err != nil {
-		return err
-	}
+	addLabels := gitlab.LabelOptions(addLabelNames)
+	removeLabels := gitlab.LabelOptions(removeLabelNames)
 
-	addLabels := gitlab.LabelOptions{addLabel}
-	removeLabels := gitlab.LabelOptions{removeLabel}
-
-	_, _, err = g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
+	_, _, err := g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
 		AddLabels:    &addLabels,
 		RemoveLabels: &removeLabels,
 	}, gitlab.WithContext(ctx))
@@ -459,15 +550,109 @@ func validateGitLabMergeRequestForMerge(
 	return nil
 }
 
-func (g *GitLab) ensureReleaseLabels(ctx context.Context) error {
-	err := g.ensureLabel(ctx, ReleaseLabelPending, "#"+releaseLabelPendingColor, releaseLabelPendingDescription)
+func (g *GitLab) PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error {
+	if err := validateGitLabReleasePRLabels(labels); err != nil {
+		return err
+	}
+
+	for _, label := range labels.Extra {
+		if err := g.validateExistingLabel(ctx, label); err != nil {
+			return err
+		}
+	}
+
+	if labels.Yeet {
+		err := g.ensureLabel(ctx, ReleaseLabelYeet, "#"+releaseLabelYeetColor, releaseLabelYeetDescription)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := g.ensureLabel(ctx, labels.Pending, "#"+releaseLabelPendingColor, releaseLabelPendingDescription)
 	if err != nil {
 		return err
 	}
 
-	err = g.ensureLabel(ctx, ReleaseLabelTagged, "#"+releaseLabelTaggedColor, releaseLabelTaggedDescription)
+	err = g.ensureLabel(ctx, labels.Tagged, "#"+releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateGitLabReleasePRLabels(labels ReleasePRLabels) error {
+	for _, lifecycle := range []string{labels.Pending, labels.Tagged} {
+		if err := validateGitLabLifecycleLabel(lifecycle); err != nil {
+			return err
+		}
+	}
+
+	type scopedLabel struct {
+		name  string
+		scope string
+	}
+
+	var scoped []scopedLabel
+
+	for _, name := range []string{labels.Pending, labels.Tagged} {
+		scope, ok := gitLabLabelScope(name)
+		if !ok {
+			continue
+		}
+
+		scoped = append(scoped, scopedLabel{name: name, scope: scope})
+	}
+
+	for _, name := range labels.Extra {
+		scope, ok := gitLabLabelScope(name)
+		if !ok {
+			continue
+		}
+
+		for _, existing := range scoped {
+			if strings.EqualFold(existing.scope, scope) {
+				return fmt.Errorf(
+					"%w: labels %q and %q share GitLab scope %s",
+					errGitLabReleasePRLabelsInvalid,
+					existing.name,
+					name,
+					scope,
+				)
+			}
+		}
+
+		scoped = append(scoped, scopedLabel{name: name, scope: scope})
+	}
+
+	return nil
+}
+
+func validateGitLabLifecycleLabel(name string) error {
+	if strings.EqualFold(name, "any") || strings.EqualFold(name, "none") {
+		return fmt.Errorf(
+			"%w: %q is a reserved GitLab label filter value",
+			errGitLabReleasePRLabelsInvalid,
+			name,
+		)
+	}
+
+	return nil
+}
+
+func gitLabLabelScope(name string) (string, bool) {
+	separator := strings.LastIndex(name, "::")
+	if separator <= 0 || separator+2 == len(name) {
+		return "", false
+	}
+
+	return name[:separator], true
+}
+
+func (g *GitLab) validateExistingLabel(ctx context.Context, name string) error {
+	_, _, err := g.client.Labels.GetLabel(g.projectID, name, gitlab.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("validate extra label %q: %w", name, err)
 	}
 
 	return nil

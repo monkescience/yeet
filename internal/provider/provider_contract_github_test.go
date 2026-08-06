@@ -283,7 +283,7 @@ func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/search/issues":
 		testastic.Equal(t,
-			`repo:o/r is:pr is:merged base:main label:"autorelease: pending"`,
+			`repo:o/r is:pr is:merged base:main label:"release: waiting"`,
 			r.URL.Query().Get("q"),
 		)
 		writeJSONFixture(t, w, "contracts/github/find_merged_pr/prs.json")
@@ -299,12 +299,25 @@ func handleGitHubMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *h
 
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-		writeGitHubLabelFixture(t, w, decodedPathTail(t, r))
+		writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
 		var labels []string
 		decodeJSONRequest(t, r, &labels)
-		writeGitHubLabelsFixture(t, w, strings.Join(labels, ","))
+
+		if len(labels) == 1 {
+			testastic.SliceEqual(t, []string{providerContractTaggedLabel}, labels)
+		} else {
+			testastic.SliceEqual(
+				t,
+				[]string{providerContractPendingLabel, "release", "automated", "yeet"},
+				labels,
+			)
+		}
+
+		writeJSON(t, w, []map[string]any{{"name": labels[0]}})
 	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+		removed := decodedPathTail(t, r)
+		testastic.True(t, removed == providerContractPendingLabel || removed == providerContractTaggedLabel)
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
@@ -492,31 +505,5 @@ func handleGitHubUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 		writeJSONFixture(t, w, "contracts/github/unsupported_merge/repo.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func writeGitHubLabelFixture(t *testing.T, w http.ResponseWriter, label string) {
-	t.Helper()
-
-	switch label {
-	case provider.ReleaseLabelPending:
-		writeJSONFixture(t, w, "contracts/github/mark_release_pr/label_pending.json")
-	case provider.ReleaseLabelTagged:
-		writeJSONFixture(t, w, "contracts/github/mark_release_pr/label_tagged.json")
-	default:
-		t.Fatalf("unexpected GitHub label: %s", label)
-	}
-}
-
-func writeGitHubLabelsFixture(t *testing.T, w http.ResponseWriter, labels string) {
-	t.Helper()
-
-	switch labels {
-	case provider.ReleaseLabelPending:
-		writeJSONFixture(t, w, "contracts/github/mark_release_pr/add_pending.json")
-	case provider.ReleaseLabelTagged:
-		writeJSONFixture(t, w, "contracts/github/mark_release_pr/add_tagged.json")
-	default:
-		t.Fatalf("unexpected GitHub labels: %s", labels)
 	}
 }

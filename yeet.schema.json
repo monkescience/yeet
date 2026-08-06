@@ -171,14 +171,68 @@
         }
       }
     },
+    "release_labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pending": {
+          "type": "string",
+          "description": "Lifecycle label identifying a release PR/MR waiting for tagging.",
+          "minLength": 1,
+          "pattern": "^\\S(.*\\S)?$",
+          "default": "autorelease: pending"
+        },
+        "tagged": {
+          "type": "string",
+          "description": "Lifecycle label identifying a finalized release PR/MR.",
+          "minLength": 1,
+          "pattern": "^\\S(.*\\S)?$",
+          "default": "autorelease: tagged"
+        },
+        "yeet": {
+          "type": "boolean",
+          "description": "Create and attach the permanent yeet label to new release PRs/MRs.",
+          "default": true
+        },
+        "extra": {
+          "type": "array",
+          "description": "Additional labels applied only when the release PR/MR is created. GitHub and GitLab labels must already exist.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$"
+          },
+          "uniqueItems": true,
+          "default": []
+        }
+      }
+    },
     "release": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "subject_include_branch": {
-          "type": "boolean",
-          "description": "Include target branch in generated release subjects.",
-          "default": false
+        "labels": {
+          "$ref": "#/$defs/release_labels"
+        },
+        "pr_title": {
+          "type": "string",
+          "description": "Go text/template for one-target release PR/MR titles. Available data: .Branch, .Channel, .Target, .Version, and .Tag. Empty preserves the built-in title.",
+          "default": ""
+        },
+        "pr_title_group": {
+          "type": "string",
+          "description": "Go text/template for multi-target release PR/MR titles. Available data: .Branch, .Channel, and .TargetCount. Empty preserves the built-in wave title.",
+          "default": ""
+        },
+        "commit_subject": {
+          "type": "string",
+          "description": "Go text/template for one-target release branch commit subjects. Available data: .Branch, .Channel, .Target, .Version, and .Tag. Empty preserves the built-in subject.",
+          "default": ""
+        },
+        "commit_subject_group": {
+          "type": "string",
+          "description": "Go text/template for multi-target release branch commit subjects. Available data: .Branch, .Channel, and .TargetCount. Empty preserves the built-in wave subject.",
+          "default": ""
         },
         "auto_merge": {
           "type": "boolean",

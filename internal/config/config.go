@@ -182,15 +182,26 @@ type AzureDevOpsRepositoryConfig struct {
 }
 
 type ReleaseConfig struct {
-	SubjectIncludeBranch bool                            `yaml:"subject_include_branch"`
-	AutoMerge            bool                            `yaml:"auto_merge"`
-	AutoMergeForce       bool                            `yaml:"auto_merge_force"`
-	AutoMergeMethod      AutoMergeMethod                 `yaml:"auto_merge_method"`
-	PRBodyHeader         string                          `yaml:"pr_body_header"`
-	PRBodyFooter         string                          `yaml:"pr_body_footer"`
-	PRBodyMaxLength      int                             `yaml:"pr_body_max_length"`
-	Reviewers            []string                        `yaml:"reviewers,omitempty"`
-	Channels             map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
+	Labels             ReleaseLabelsConfig             `yaml:"labels"`
+	PRTitle            string                          `yaml:"pr_title"`
+	PRTitleGroup       string                          `yaml:"pr_title_group"`
+	CommitSubject      string                          `yaml:"commit_subject"`
+	CommitSubjectGroup string                          `yaml:"commit_subject_group"`
+	AutoMerge          bool                            `yaml:"auto_merge"`
+	AutoMergeForce     bool                            `yaml:"auto_merge_force"`
+	AutoMergeMethod    AutoMergeMethod                 `yaml:"auto_merge_method"`
+	PRBodyHeader       string                          `yaml:"pr_body_header"`
+	PRBodyFooter       string                          `yaml:"pr_body_footer"`
+	PRBodyMaxLength    int                             `yaml:"pr_body_max_length"`
+	Reviewers          []string                        `yaml:"reviewers,omitempty"`
+	Channels           map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
+}
+
+type ReleaseLabelsConfig struct {
+	Pending string   `yaml:"pending"`
+	Tagged  string   `yaml:"tagged"`
+	Yeet    bool     `yaml:"yeet"`
+	Extra   []string `yaml:"extra,omitempty"`
 }
 
 type ReleaseChannelConfig struct {

@@ -185,10 +185,10 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 
-	t.Run("github subject_include_branch shapes PR title", func(t *testing.T) {
+	t.Run("github title templates shape PR and commit subjects", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a release config that opts into branch-included PR subjects
+		// given: a release config with branch-included PR and commit templates
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -205,7 +205,7 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_p_r_body_header_footer/github_subject_include_branch_shapes_p_r_title/"+
+			"testdata/release_p_r_body_header_footer/github_title_templates_shape_subjects/"+
 				"input.yaml",
 		)
 
@@ -216,7 +216,7 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: yeet opens the PR with the branch-included subject and exits 0
+		// then: yeet opens the PR with configured subjects and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 }
