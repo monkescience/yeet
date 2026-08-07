@@ -31,9 +31,9 @@ const ReleaseLabelYeet = "yeet"
 // Label colors are stored without a leading "#" so callers can prepend it when
 // the provider's API requires the prefix (GitLab) or omit it (GitHub).
 const (
-	releaseLabelPendingColor       = "FBCA04"
-	releaseLabelTaggedColor        = "0E8A16"
-	releaseLabelYeetColor          = "1D76DB"
+	releaseLabelPendingColor       = "FFD866"
+	releaseLabelTaggedColor        = "A9DC76"
+	releaseLabelYeetColor          = "FF6188"
 	releaseLabelPendingDescription = "release PR is pending tagging"
 	releaseLabelTaggedDescription  = "release PR already tagged"
 	releaseLabelYeetDescription    = "release PR managed by yeet"
