@@ -682,6 +682,8 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsMarkReleasePRHandler(t)
 	case providerContractMergeReleasePR:
 		return azureDevOpsMergeReleasePRHandler(t)
+	case providerContractAsyncMergeReleasePR:
+		return azureDevOpsAsyncMergeReleasePRHandler(t)
 	case providerContractCreateBranch:
 		return azureDevOpsCreateBranchHandler(t)
 	case providerContractCreateRelease:
@@ -1042,6 +1044,46 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, "completed", request.Status)
 			testastic.Equal(t, "squash", request.CompletionOptions.MergeStrategy)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "completed.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}
+}
+
+// azureDevOpsAsyncMergeReleasePRHandler models a completion Azure DevOps queues,
+// returning a provisional commit before the merge is applied.
+func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	var completed atomic.Bool
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			if completed.Load() {
+				writeJSON(t, w, map[string]any{
+					"pullRequestId":   42,
+					"status":          "completed",
+					"mergeStatus":     "succeeded",
+					"lastMergeCommit": map[string]any{"commitId": providerContractMergeSHA},
+				})
+
+				return
+			}
+
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
+		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			completed.Store(true)
+			writeJSON(t, w, map[string]any{
+				"pullRequestId":   42,
+				"status":          "completed",
+				"mergeStatus":     "queued",
+				"lastMergeCommit": map[string]any{"commitId": "preview-sha"},
+			})
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -12,7 +13,11 @@ import (
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-func newGitLabContractProvider(t *testing.T, server *httptest.Server) provider.Provider {
+func newGitLabContractProvider(
+	t *testing.T,
+	server *httptest.Server,
+	options ...provider.MergePollingOption,
+) provider.Provider {
 	t.Helper()
 
 	client, err := gitlabapi.NewClient(
@@ -23,11 +28,13 @@ func newGitLabContractProvider(t *testing.T, server *httptest.Server) provider.P
 	)
 	testastic.NoError(t, err)
 
-	return provider.NewGitLab(client, "o/r")
+	return provider.NewGitLab(client, "o/r", options...)
 }
 
 func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
+
+	var mergeAccepted atomic.Bool
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch scenario {
@@ -59,6 +66,8 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitLabMergeReleasePRContract(t, w, r)
+		case providerContractAsyncMergeReleasePR:
+			handleGitLabAsyncMergeReleasePRContract(t, w, r, &mergeAccepted)
 		case providerContractCreateBranch:
 			handleGitLabCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
@@ -366,6 +375,39 @@ func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, providerContractHeadSHA, request.SHA)
 		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/result.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+	}
+}
+
+// handleGitLabAsyncMergeReleasePRContract models an accept GitLab queues, leaving
+// the merge request open until the merge is applied.
+func handleGitLabAsyncMergeReleasePRContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	mergeAccepted *atomic.Bool,
+) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+		if mergeAccepted.Load() {
+			writeJSON(t, w, map[string]any{
+				"iid":              42,
+				"state":            "merged",
+				"merge_commit_sha": providerContractMergeSHA,
+			})
+
+			return
+		}
+
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/pr.json")
+	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/project.json")
+	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42/merge":
+		mergeAccepted.Store(true)
+		writeJSON(t, w, map[string]any{"iid": 42, "state": "opened"})
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}

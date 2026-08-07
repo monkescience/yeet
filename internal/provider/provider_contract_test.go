@@ -9,14 +9,21 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
+type providerContractProviderFactory func(
+	t *testing.T,
+	server *httptest.Server,
+	options ...provider.MergePollingOption,
+) provider.Provider
+
 type providerContractHarness struct {
 	name                  string
-	newProvider           func(t *testing.T, server *httptest.Server) provider.Provider
+	newProvider           providerContractProviderFactory
 	handler               func(t *testing.T, scenario providerContractScenario) http.Handler
 	expectedRepoURL       func(serverURL string) string
 	expectedReleasePRURL  func(serverURL string) string
@@ -50,6 +57,7 @@ const (
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
 	providerContractMarkReleasePR            providerContractScenario = "mark release pr"
 	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
+	providerContractAsyncMergeReleasePR      providerContractScenario = "async merge release pr"
 	providerContractCreateBranch             providerContractScenario = "create branch"
 	providerContractCreateRelease            providerContractScenario = "create release"
 	providerContractGetFile                  providerContractScenario = "get file"
@@ -405,6 +413,25 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, "merge-sha", mergeSHA)
 			})
 
+			t.Run("finalizes an asynchronous merge", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider accepting the merge before the commit is applied
+				server := httptest.NewServer(harness.handler(t, providerContractAsyncMergeReleasePR))
+				defer server.Close()
+
+				p := harness.newProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
+
+				// when: MergeReleasePR is invoked with the auto merge method on PR 42
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+					Method: provider.MergeMethodAuto,
+				})
+
+				// then: no provisional commit is returned before the merge is applied
+				testastic.NoError(t, err)
+				testastic.Equal(t, providerContractMergeSHA, mergeSHA)
+			})
+
 			t.Run("creates branch", func(t *testing.T) {
 				t.Parallel()
 
@@ -605,12 +632,8 @@ func providerContractHarnesses() []providerContractHarness {
 			expectedPathPrefix:    "/-",
 		},
 		{
-			name: "azuredevops",
-			newProvider: func(t *testing.T, server *httptest.Server) provider.Provider {
-				t.Helper()
-
-				return newAzureDevOpsContractProvider(t, server)
-			},
+			name:                 "azuredevops",
+			newProvider:          newAzureDevOpsContractProvider,
 			handler:              newAzureDevOpsContractHandler,
 			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
 			expectedReleasePRURL: func(s string) string { return azureDevOpsContractExpectedRepoURL(s) + "/pullrequest/42" },

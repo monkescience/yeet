@@ -12,18 +12,24 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-func newGitHubContractProvider(t *testing.T, server *httptest.Server) provider.Provider {
+func newGitHubContractProvider(
+	t *testing.T,
+	server *httptest.Server,
+	options ...provider.MergePollingOption,
+) provider.Provider {
 	t.Helper()
 
 	client := newGitHubTestClient(t, server)
 
-	return provider.NewGitHub(client, "o", "r")
+	return provider.NewGitHub(client, "o", "r", options...)
 }
 
 func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
 
 	var reviewersRequested atomic.Bool
+
+	var mergeAccepted atomic.Bool
 
 	if scenario == providerContractCreateReleasePRReviewers {
 		t.Cleanup(func() {
@@ -63,6 +69,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitHubMergeReleasePRContract(t, w, r)
+		case providerContractAsyncMergeReleasePR:
+			handleGitHubAsyncMergeReleasePRContract(t, w, r, &mergeAccepted)
 		case providerContractCreateBranch:
 			handleGitHubCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
@@ -357,6 +365,40 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 		testastic.Equal(t, string(provider.MergeMethodSquash), request.MergeMethod)
 		testastic.Equal(t, providerContractHeadSHA, request.SHA)
 		writeJSONFixture(t, w, "contracts/github/merge_release_pr/result.json")
+	default:
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	}
+}
+
+// handleGitHubAsyncMergeReleasePRContract models a merge GitHub accepts without
+// reporting a merge commit SHA on the merge response itself.
+func handleGitHubAsyncMergeReleasePRContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	mergeAccepted *atomic.Bool,
+) {
+	t.Helper()
+
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+		if mergeAccepted.Load() {
+			writeJSON(t, w, map[string]any{
+				"number":           42,
+				"state":            "closed",
+				"merged":           true,
+				"merge_commit_sha": providerContractMergeSHA,
+			})
+
+			return
+		}
+
+		writeJSONFixture(t, w, "contracts/github/merge_release_pr/pr.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+		writeJSONFixture(t, w, "contracts/github/merge_release_pr/repo.json")
+	case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
+		mergeAccepted.Store(true)
+		writeJSON(t, w, map[string]any{"merged": true, "sha": ""})
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
