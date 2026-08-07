@@ -18,7 +18,7 @@ import (
 // checkout.
 type testReleaserDeps interface {
 	releaserDependencies
-	versionHistoryProvider
+	releaseSource
 }
 
 func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *Releaser {
@@ -138,6 +138,9 @@ func (s *repoMetadataStub) CompareURL(fromRef, toRef string) string {
 type versionHistoryStub struct {
 	tagList []string
 
+	tagSnapshot    []string
+	tagSnapshotSet bool
+
 	listTagsCalls            int
 	getCommitsSinceRefsCalls int
 
@@ -153,21 +156,22 @@ type versionHistoryStub struct {
 	publishing *releasePublishingStub
 }
 
+// ListTags mirrors the real history source, which snapshots the provider tag
+// list on first use and reuses it until the snapshot is invalidated.
 func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 	s.listTagsCalls++
 
-	if len(s.tagList) == 0 {
-		if s.publishing.latestRelease != nil {
-			return []string{s.publishing.latestRelease.TagName}, nil
-		}
-
-		return nil, nil
+	if !s.tagSnapshotSet {
+		s.tagSnapshot = s.remoteTags()
+		s.tagSnapshotSet = true
 	}
 
-	refs := make([]string, len(s.tagList))
-	copy(refs, s.tagList)
+	return slices.Clone(s.tagSnapshot), nil
+}
 
-	return refs, nil
+func (s *versionHistoryStub) InvalidateTags() {
+	s.tagSnapshot = nil
+	s.tagSnapshotSet = false
 }
 
 func (s *versionHistoryStub) GetCommitsSinceRefs(
@@ -209,6 +213,18 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 	}
 
 	return history, nil
+}
+
+func (s *versionHistoryStub) remoteTags() []string {
+	if len(s.tagList) > 0 {
+		return slices.Clone(s.tagList)
+	}
+
+	if s.publishing.latestRelease != nil {
+		return []string{s.publishing.latestRelease.TagName}
+	}
+
+	return nil
 }
 
 // singleRefProbes returns the flat sequence of refs probed via single-ref

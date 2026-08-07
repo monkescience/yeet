@@ -76,6 +76,13 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+// InvalidateTags drops the cached remote tag snapshot so the next lookup
+// observes tags published after the snapshot was taken.
+func (s *Source) InvalidateTags() {
+	s.remoteTags = nil
+	s.remoteTagCommits = nil
+}
+
 // GetFile reads a blob from the validated local HEAD commit. Working-tree
 // changes are intentionally ignored so release inputs match the remote branch.
 func (s *Source) GetFile(ctx context.Context, branch, path string) (string, error) {

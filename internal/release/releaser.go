@@ -225,6 +225,8 @@ func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
 		return nil, errors.Join(analysisErr, err)
 	}
 
+	r.source.InvalidateTags()
+
 	result, err = newReleaseAnalyzer(r.core, r.source).analyze(ctx, selection)
 	if err != nil {
 		return nil, err

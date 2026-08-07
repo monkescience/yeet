@@ -799,6 +799,37 @@ func TestSourceDelegation(t *testing.T) {
 	testastic.Equal(t, 1, remote.tagRefCalls)
 }
 
+func TestSourceInvalidateTags(t *testing.T) {
+	t.Parallel()
+
+	// given: a source that already cached the provider tag snapshot
+	fx := newRepoFixture(t)
+	fx.commit("feat: one", map[string]string{"a.txt": "one"})
+
+	source, remote := fx.source()
+	remote.tagRefs = []provider.TagRef{
+		{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
+	}
+
+	_, err := source.ListTags(t.Context())
+	testastic.NoError(t, err)
+
+	remote.tagRefs = append(remote.tagRefs, provider.TagRef{
+		Name:      "v3.0.0",
+		CommitSHA: "3333333333333333333333333333333333333333",
+	})
+
+	// when: the snapshot is invalidated and tags are requested again
+	source.InvalidateTags()
+
+	tags, err := source.ListTags(t.Context())
+
+	// then: the tag published after the first lookup is visible
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"v2.0.0", "v3.0.0"}, tags)
+	testastic.Equal(t, 2, remote.tagRefCalls)
+}
+
 func TestSourceGetFile(t *testing.T) {
 	t.Parallel()
 

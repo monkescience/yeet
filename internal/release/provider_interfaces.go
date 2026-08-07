@@ -16,9 +16,12 @@ type versionHistoryProvider interface {
 	) (provider.CommitHistory, error)
 }
 
+// releaseSource may snapshot remote tag state, so InvalidateTags has to be
+// called after the run publishes a tag for later reads to observe it.
 type releaseSource interface {
 	versionHistoryProvider
 	GetFile(ctx context.Context, branch, path string) (string, error)
+	InvalidateTags()
 }
 
 type repoMetadataProvider interface {
