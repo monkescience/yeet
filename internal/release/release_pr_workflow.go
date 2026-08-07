@@ -281,7 +281,7 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 		return err
 	}
 
-	result.Releases = releaseInfos
+	result.Releases = append(result.Releases, releaseInfos...)
 
 	return nil
 }

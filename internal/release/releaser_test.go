@@ -894,6 +894,44 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
 	})
 
+	t.Run("reports the finalized release and the auto-merged wave from one run", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release PR, fresh commits after its tag, and auto-merge enabled
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.mergePRSHA = "second-merged-sha"
+		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number:         4,
+			URL:            "https://example.com/pr/4",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]provider.CommitEntry{
+			"v0.1.0": {{Hash: "abcdef1234567890", Message: "fix: patch after release"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false)
+
+		// then: neither release is dropped from the result
+		testastic.NoError(t, err)
+
+		tags := make([]string, 0, len(result.Releases))
+		for _, release := range result.Releases {
+			tags = append(tags, release.TagName)
+		}
+
+		testastic.SliceEqual(t, []string{"v0.1.0", "v0.1.1"}, tags)
+	})
+
 	t.Run("finalizes a merged release the unfinalized window cannot analyze", func(t *testing.T) {
 		t.Parallel()
 
