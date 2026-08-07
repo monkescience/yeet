@@ -1625,6 +1625,55 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(existing.Branch, "CHANGELOG.md")])
 	})
 
+	t.Run("preserves manual edits written before the changelog path changed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release branch written when the changelog lived at a different path
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"default": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{File: "docs/CHANGELOG.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		existing := &provider.PullRequest{
+			Branch: "yeet/release-main",
+			Body:   testManifestBody(t, "v1.2.3", "CHANGELOG.md"),
+		}
+		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = strings.TrimSpace(`
+# Changelog
+
+## v1.2.3 (2026-03-01)
+
+### Features
+
+- add a feature (abc1234)
+
+### Upgrade notes
+
+- rotate the signing key by hand
+`)
+
+		r := newTestReleaser(t, cfg, stub)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		result := &Result{Plans: []TargetPlan{{
+			ID:        "default",
+			NextTag:   "v1.2.3",
+			Changelog: "## v1.2.3 (2026-03-01)\n\n### Features\n\n- add a feature (abc1234)",
+		}}}
+
+		// when: preserving edits after the configured changelog path moved
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+
+		// then: the manual section recorded at the manifest path survives
+		testastic.NoError(t, err)
+		testastic.True(t, strings.Contains(result.Plans[0].Changelog, "rotate the signing key by hand"))
+	})
+
 	t.Run("new release PR includes changelog guidance without editable notes markers", func(t *testing.T) {
 		t.Parallel()
 

@@ -122,6 +122,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 
 	r := w.core
 	previousTags := make(map[string]string)
+	previousChangelogFiles := make(map[string]string)
 
 	manifest, hasManifest, err := releaseManifestFromBody(existing.Body)
 	if err != nil {
@@ -131,6 +132,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	if hasManifest {
 		for _, targetManifest := range manifest.Targets {
 			previousTags[targetManifest.ID] = targetManifest.Tag
+			previousChangelogFiles[targetManifest.ID] = targetManifest.ChangelogFile
 		}
 	}
 
@@ -142,32 +144,51 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		existingChangelog, err := w.releaseBranchChangelog(ctx, existing.Branch, target.Changelog.File)
-		if err != nil {
-			if errors.Is(err, provider.ErrFileNotFound) {
-				continue
-			}
-
-			return err
+		changelogFile := target.Changelog.File
+		if previous := strings.TrimSpace(previousChangelogFiles[plan.ID]); previous != "" {
+			changelogFile = previous
 		}
 
-		existingEntry, found, err := changelogEntryForRefresh(
-			existingChangelog,
-			plan.NextTag,
+		if err := w.preserveTargetChangelogEdits(
+			ctx,
+			existing.Branch,
+			changelogFile,
 			previousTags[plan.ID],
-		)
-		if err != nil {
+			plan,
+		); err != nil {
 			return err
 		}
+	}
 
-		if !found {
-			continue
+	return nil
+}
+
+func (w *releasePRWorkflow) preserveTargetChangelogEdits(
+	ctx context.Context,
+	branch, changelogFile, previousTag string,
+	plan *TargetPlan,
+) error {
+	existingChangelog, err := w.releaseBranchChangelog(ctx, branch, changelogFile)
+	if err != nil {
+		if errors.Is(err, provider.ErrFileNotFound) {
+			return nil
 		}
 
-		plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry)
-		if plan.PRChangelog != "" {
-			plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry)
-		}
+		return err
+	}
+
+	existingEntry, found, err := changelogEntryForRefresh(existingChangelog, plan.NextTag, previousTag)
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		return nil
+	}
+
+	plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry)
+	if plan.PRChangelog != "" {
+		plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry)
 	}
 
 	return nil
