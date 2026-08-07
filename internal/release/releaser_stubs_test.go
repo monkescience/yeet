@@ -118,13 +118,6 @@ func providerFileKey(branch, path string) string {
 	return branch + ":" + path
 }
 
-func (s *providerStub) PrepareReleasePRLabels(
-	ctx context.Context,
-	labels provider.ReleasePRLabels,
-) error {
-	return s.releasePRWorkflowStub.PrepareReleasePRLabels(ctx, labels)
-}
-
 type repoMetadataStub struct {
 	repoURL    string
 	pathPrefix string
@@ -276,8 +269,6 @@ type releasePRWorkflowStub struct {
 	mergePROptions []provider.MergeReleasePROptions
 	mergePRSHA     string
 	mergePRErr     error
-
-	createdBranches []string
 }
 
 func (s *releasePRWorkflowStub) CreateReleasePR(
@@ -367,12 +358,6 @@ func (s *releasePRWorkflowStub) MaxPRBodyLength() int {
 	return s.maxPRBodyLength
 }
 
-func (s *releasePRWorkflowStub) CreateBranch(_ context.Context, branch, _ string) error {
-	s.createdBranches = append(s.createdBranches, branch)
-
-	return nil
-}
-
 type releaseFileStub struct {
 	files   map[string]string
 	updates []fileUpdate
@@ -442,16 +427,14 @@ type releasePublishingStub struct {
 	mergedPRResponses []*provider.PullRequest
 	findMergedPRCalls int
 
-	markTaggedCalls   []int
-	markTaggedLabels  []provider.ReleasePRLabels
-	prepareLabelCalls []provider.ReleasePRLabels
+	markTaggedCalls  []int
+	markTaggedLabels []provider.ReleasePRLabels
 
 	latestRelease *provider.Release
 	releasesByTag map[string]*provider.Release
 	tags          map[string]bool
 
 	getReleaseByTagCalls int
-	tagExistsCalls       int
 	createReleaseCalls   int
 	createReleaseOpts    []provider.ReleaseOptions
 
@@ -494,36 +477,12 @@ func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (
 	return nil, provider.ErrNoRelease
 }
 
-func (s *releasePublishingStub) TagExists(_ context.Context, tag string) (bool, error) {
-	s.tagExistsCalls++
-
-	if s.tags[tag] {
-		return true, nil
-	}
-
-	if _, exists := s.releasesByTag[tag]; exists {
-		return true, nil
-	}
-
-	if s.latestRelease != nil && s.latestRelease.TagName == tag {
-		return true, nil
-	}
-
-	return false, nil
-}
-
 func (s *releasePublishingStub) CreateRelease(
-	ctx context.Context,
+	_ context.Context,
 	opts provider.ReleaseOptions,
 ) (*provider.Release, error) {
 	s.createReleaseCalls++
 	s.createReleaseOpts = append(s.createReleaseOpts, opts)
-
-	if strings.TrimSpace(opts.Ref) != "" {
-		if _, err := s.TagExists(ctx, opts.TagName); err != nil {
-			return nil, err
-		}
-	}
 
 	release := &provider.Release{
 		TagName: opts.TagName,
@@ -541,15 +500,6 @@ func (s *releasePublishingStub) CreateRelease(
 	}
 
 	return release, nil
-}
-
-func (s *releasePublishingStub) PrepareReleasePRLabels(
-	_ context.Context,
-	labels provider.ReleasePRLabels,
-) error {
-	s.prepareLabelCalls = append(s.prepareLabelCalls, labels)
-
-	return nil
 }
 
 func (s *releasePublishingStub) MarkReleasePRTagged(

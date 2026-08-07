@@ -1284,7 +1284,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.Equal(t, 0, len(stub.markPendingCalls))
-	testastic.Equal(t, 0, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, 0, len(stub.prepareLabelCalls))
 	testastic.Equal(t, "release v0.1.0", stub.updatePROptions[0].Title)
 	testastic.Equal(t, "yeet/release-v0.0.1", result.PullRequest.Branch)
 	testastic.AssertFile(
@@ -1322,7 +1322,7 @@ func TestReleaseAdoptsUnlabelledPendingPR(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.SliceEqual(t, []int{7}, stub.markPendingCalls)
-	testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, 1, len(stub.prepareLabelCalls))
 	testastic.Equal(t, "yeet/release-main", result.PullRequest.Branch)
 	testastic.False(t, result.PullRequest.NeedsPendingLabel)
 }
@@ -1348,7 +1348,6 @@ func TestReleasePRCarriesReviewers(t *testing.T) {
 	// then: the create options carry the configured reviewers
 	testastic.NoError(t, err)
 	testastic.Equal(t, 1, stub.createPRCalls)
-	testastic.Equal(t, 0, len(stub.createdBranches))
 	testastic.SliceEqual(t, []string{"alice", "bob"}, stub.createPROptions[0].Reviewers)
 }
 
@@ -1377,7 +1376,7 @@ func TestReleasePRCarriesConfiguredLabels(t *testing.T) {
 
 	// then: labels are prepared before creation and passed to the provider transition
 	testastic.NoError(t, err)
-	testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, 1, len(stub.prepareLabelCalls))
 	testastic.Equal(t, cfg.Release.Labels.Pending, stub.createPROptions[0].Labels.Pending)
 	testastic.Equal(t, cfg.Release.Labels.Tagged, stub.createPROptions[0].Labels.Tagged)
 	testastic.True(t, stub.createPROptions[0].Labels.Yeet)
@@ -1510,7 +1509,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 
 		// then: rendered subject validation fails before any provider mutation
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.Equal(t, 0, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+		testastic.Equal(t, 0, len(stub.prepareLabelCalls))
 		testastic.Equal(t, 0, stub.updateFilesCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 		testastic.Equal(t, 0, len(stub.markPendingCalls))
@@ -2174,7 +2173,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
-		testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+		testastic.Equal(t, 1, len(stub.prepareLabelCalls))
 		testastic.Equal(t, 1, len(stub.markTaggedLabels))
 		testastic.Equal(t, cfg.Release.Labels.Pending, stub.markTaggedLabels[0].Pending)
 		testastic.Equal(t, cfg.Release.Labels.Tagged, stub.markTaggedLabels[0].Tagged)
@@ -2375,7 +2374,6 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, len(releases))
 		testastic.Equal(t, "v1.2.3", releases[0].TagName)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
-		testastic.Equal(t, 0, stub.tagExistsCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 9, stub.markTaggedCalls[0])
 	})
@@ -2450,7 +2448,6 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
-		testastic.Equal(t, 1, stub.tagExistsCalls)
 	})
 
 	t.Run("creates missing tag from merged commit ref", func(t *testing.T) {
@@ -2486,7 +2483,6 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
-		testastic.Equal(t, 1, stub.tagExistsCalls)
 	})
 
 	t.Run("returns no-pr error when no merged pending release PR exists", func(t *testing.T) {
