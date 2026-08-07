@@ -442,7 +442,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&mergeRequest)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, map[string]any{"merged": true})
+				writeJSON(t, w, map[string]any{"merged": true, "sha": "merge-sha"})
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
 			}
@@ -697,7 +697,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
 					merged = true
 
-					writeJSON(t, w, map[string]any{"iid": 8})
+					writeJSON(t, w, map[string]any{"iid": 8, "state": "merged", "merge_commit_sha": "merge-sha"})
 				default:
 					t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 				}
@@ -783,7 +783,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&mergeRequest)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, map[string]any{"iid": 8})
+				writeJSON(t, w, map[string]any{"iid": 8, "state": "merged", "merge_commit_sha": "merge-sha"})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 			}

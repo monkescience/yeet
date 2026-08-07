@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	githubapi "github.com/google/go-github/v89/github"
 	"github.com/monkescience/testastic"
@@ -1954,10 +1955,75 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		testastic.Equal(t, "source-tip-sha", mergeSHA)
 	})
 
-	t.Run("auto method waits for asynchronous accept response", func(t *testing.T) {
+	t.Run("auto method waits for the asynchronous accept to finalize", func(t *testing.T) {
 		t.Parallel()
 
-		// given: GitLab accepts the MR into an asynchronous merge flow without merging it yet
+		// given: GitLab accepts the MR asynchronously and reports it merged shortly after
+		var accepted atomic.Bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				state := "opened"
+				if accepted.Load() {
+					state = "merged"
+				}
+
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 state,
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "source-tip-sha",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "ff",
+					"squash_option": "never",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				accepted.Store(true)
+
+				writeJSON(t, w, map[string]any{
+					"iid":   1,
+					"state": "opened",
+					"sha":   "source-tip-sha",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r", provider.WithMergePolling(time.Millisecond, 5*time.Second))
+
+		// when: merging with the project's asynchronous fast-forward flow
+		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: the source tip is returned once GitLab reports the MR merged
+		testastic.NoError(t, err)
+		testastic.Equal(t, "source-tip-sha", mergeSHA)
+	})
+
+	t.Run("auto method reports an accept that never finalizes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab accepts the MR but never reports it merged
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
@@ -1998,16 +2064,15 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		)
 		testastic.NoError(t, err)
 
-		gl := provider.NewGitLab(client, "o/r")
+		gl := provider.NewGitLab(client, "o/r", provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 		// when: merging with the project's asynchronous fast-forward flow
-		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
 			Method: provider.MergeMethodAuto,
 		})
 
-		// then: no commit is trusted until GitLab reports the MR as merged
-		testastic.NoError(t, err)
-		testastic.Equal(t, "", mergeSHA)
+		// then: the unfinalized merge is reported instead of an empty commit
+		testastic.ErrorIs(t, err, provider.ErrMergeNotFinalized)
 	})
 
 	t.Run("squash blocked by project settings", func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
@@ -58,7 +59,11 @@ func azureDevOpsContractExpectedRepoURL(serverURL string) string {
 	)
 }
 
-func newAzureDevOpsContractProvider(t *testing.T, server *httptest.Server) provider.Provider {
+func newAzureDevOpsContractProvider(
+	t *testing.T,
+	server *httptest.Server,
+	options ...provider.MergePollingOption,
+) provider.Provider {
 	t.Helper()
 
 	return provider.NewAzureDevOps(
@@ -69,6 +74,7 @@ func newAzureDevOpsContractProvider(t *testing.T, server *httptest.Server) provi
 		azureDevOpsContractOrg,
 		azureDevOpsContractProject,
 		azureDevOpsContractRepo,
+		options...,
 	)
 }
 
@@ -175,6 +181,8 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	t.Parallel()
 
 	// given: Azure queues completion while returning preview and source commits
+	var completed atomic.Bool
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if handleAzureDevOpsBootstrap(t, w, r) {
 			return
@@ -182,6 +190,19 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			if completed.Load() {
+				writeJSON(t, w, map[string]any{
+					"pullRequestId": 42,
+					"status":        "completed",
+					"mergeStatus":   "succeeded",
+					"lastMergeCommit": map[string]any{
+						"commitId": "final-sha",
+					},
+				})
+
+				return
+			}
+
 			writeJSON(t, w, map[string]any{
 				"pullRequestId": 42,
 				"status":        "active",
@@ -194,6 +215,8 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 				},
 			})
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			completed.Store(true)
+
 			writeJSON(t, w, map[string]any{
 				"pullRequestId": 42,
 				"status":        "completed",
@@ -213,16 +236,16 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server)
+	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
 
 	// when: the release pull request is submitted for completion
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
 		Method: provider.MergeMethodSquash,
 	})
 
-	// then: no provisional commit is returned as the final release ref
+	// then: the provisional commit is skipped and the applied merge commit is returned
 	testastic.NoError(t, err)
-	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, "final-sha", mergeSHA)
 }
 
 func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t *testing.T) {
@@ -253,14 +276,13 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server)
+	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 	// when: completion is retried for the already completed pull request
-	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+	_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
 
-	// then: the queued preview commit is not exposed as the final merge commit
-	testastic.NoError(t, err)
-	testastic.Equal(t, "", mergeSHA)
+	// then: the queued preview commit is never exposed as the final merge commit
+	testastic.ErrorIs(t, err, provider.ErrMergeNotFinalized)
 }
 
 func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {

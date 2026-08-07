@@ -16,6 +16,8 @@ const gitlabMergeRequestOpenedState = "opened"
 
 const gitlabMergeRequestMergedState = "merged"
 
+const gitlabMergeRequestClosedState = "closed"
+
 var errGitLabReleasePRLabelsInvalid = errors.New("invalid GitLab release PR labels")
 
 func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
@@ -505,7 +507,11 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	}
 
 	if mr.State == gitlabMergeRequestMergedState {
-		return gitLabMergeCommitSHA(ctx, &mr.BasicMergeRequest), nil
+		if mergeSHA := gitLabMergeRequestCommitSHA(&mr.BasicMergeRequest); mergeSHA != "" {
+			return mergeSHA, nil
+		}
+
+		return g.awaitMergeCommit(ctx, number)
 	}
 
 	if !isTrustedGitLabReleasePR(mr.SourceBranch, mr.TargetBranch, mr.SourceProjectID, mr.TargetProjectID) {
@@ -546,11 +552,46 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		slog.String("sha", sha),
 	)
 
-	if merged == nil || merged.State != gitlabMergeRequestMergedState {
-		return "", nil
+	if merged != nil && merged.State == gitlabMergeRequestMergedState {
+		if mergeSHA := gitLabMergeRequestCommitSHA(&merged.BasicMergeRequest); mergeSHA != "" {
+			return mergeSHA, nil
+		}
 	}
 
-	return gitLabMergeCommitSHA(ctx, &merged.BasicMergeRequest), nil
+	return g.awaitMergeCommit(ctx, number)
+}
+
+// awaitMergeCommit waits for an accepted merge request to reach the merged
+// state. Fast-forward projects populate no merge or squash commit, so the
+// source tip only becomes the release ref once GitLab reports the MR merged.
+func (g *GitLab) awaitMergeCommit(ctx context.Context, number int) (string, error) {
+	reference := fmt.Sprintf("merge request !%d", number)
+
+	return g.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
+		current, _, err := g.client.MergeRequests.GetMergeRequest(
+			g.projectID,
+			int64(number),
+			nil,
+			gitlab.WithContext(pollCtx),
+		)
+		if err != nil {
+			return "", fmt.Errorf("get merge request !%d: %w", number, err)
+		}
+
+		if current == nil {
+			return "", nil
+		}
+
+		if current.State == gitlabMergeRequestClosedState {
+			return "", fmt.Errorf("%w: %s was closed", ErrMergeBlocked, reference)
+		}
+
+		if current.State != gitlabMergeRequestMergedState {
+			return "", nil
+		}
+
+		return gitLabMergeRequestCommitSHA(&current.BasicMergeRequest), nil
+	})
 }
 
 func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {

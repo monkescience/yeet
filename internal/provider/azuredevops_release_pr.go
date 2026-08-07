@@ -322,7 +322,11 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	}
 
 	if derefString((*string)(pr.Status)) == string(git.PullRequestStatusValues.Completed) {
-		return azureDevOpsCompletedMergeCommit(pr), nil
+		if mergeSHA := azureDevOpsCompletedMergeCommit(pr); mergeSHA != "" {
+			return mergeSHA, nil
+		}
+
+		return a.awaitMergeCommit(ctx, number)
 	}
 
 	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
@@ -334,14 +338,32 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		return "", err
 	}
 
-	strategy, err := azureDevOpsMergeStrategy(opts.Method)
+	merged, err := a.completePullRequest(ctx, number, pr, opts.Method)
 	if err != nil {
 		return "", err
 	}
 
+	if mergeSHA := azureDevOpsCompletionResponseCommit(merged); mergeSHA != "" {
+		return mergeSHA, nil
+	}
+
+	return a.awaitMergeCommit(ctx, number)
+}
+
+func (a *AzureDevOps) completePullRequest(
+	ctx context.Context,
+	number int,
+	pr *git.GitPullRequest,
+	method MergeMethod,
+) (*git.GitPullRequest, error) {
+	strategy, err := azureDevOpsMergeStrategy(method)
+	if err != nil {
+		return nil, err
+	}
+
 	gitClient, err := a.client(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	completed := git.PullRequestStatusValues.Completed
@@ -364,7 +386,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		PullRequestId:          &number,
 	})
 	if err != nil {
-		return "", fmt.Errorf("complete pull request !%d: %w", number, err)
+		return nil, fmt.Errorf("complete pull request !%d: %w", number, err)
 	}
 
 	slog.DebugContext(ctx, "azure devops: completed pull request",
@@ -372,7 +394,32 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 		slog.String("strategy", string(strategy)),
 	)
 
-	return azureDevOpsCompletionResponseCommit(merged), nil
+	return merged, nil
+}
+
+// awaitMergeCommit waits for a completion Azure DevOps has queued but not yet
+// applied. The completion response can carry a provisional commit while the
+// merge status is still queued, so only a succeeded merge status is trusted.
+func (a *AzureDevOps) awaitMergeCommit(ctx context.Context, number int) (string, error) {
+	reference := fmt.Sprintf("pull request !%d", number)
+
+	return a.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
+		current, err := a.getPullRequest(pollCtx, number)
+		if err != nil {
+			return "", err
+		}
+
+		if derefString((*string)(current.Status)) == string(git.PullRequestStatusValues.Abandoned) {
+			return "", fmt.Errorf("%w: %s was abandoned", ErrMergeBlocked, reference)
+		}
+
+		mergeStatus := derefString((*string)(current.MergeStatus))
+		if azureDevOpsMergeStatusBlocked(mergeStatus) {
+			return "", fmt.Errorf("%w: %s merge status is %s", ErrMergeBlocked, reference, mergeStatus)
+		}
+
+		return azureDevOpsCompletedMergeCommit(current), nil
+	})
 }
 
 func isTrustedAzureDevOpsReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {

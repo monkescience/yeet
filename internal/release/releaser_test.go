@@ -1137,7 +1137,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, result.PullRequest.Number, stub.markTaggedCalls[0])
-		testastic.Equal(t, 2, stub.findMergedPRCalls)
+		testastic.Equal(t, 1, stub.findMergedPRCalls)
 	})
 
 	t.Run("creates release at merged commit", func(t *testing.T) {

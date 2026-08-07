@@ -96,6 +96,7 @@ func newProviderStub() *providerStub {
 		versionHistoryStub: history,
 		releasePRWorkflowStub: &releasePRWorkflowStub{
 			pullRequests: make(map[string]*provider.PullRequest),
+			mergePRSHA:   "merged-sha",
 		},
 		releaseFileStub: &releaseFileStub{
 			files:             make(map[string]string),
@@ -115,39 +116,6 @@ func newProviderStub() *providerStub {
 
 func providerFileKey(branch, path string) string {
 	return branch + ":" + path
-}
-
-func (s *providerStub) MergeReleasePR(
-	ctx context.Context,
-	number int,
-	opts provider.MergeReleasePROptions,
-) (string, error) {
-	mergeSHA, err := s.releasePRWorkflowStub.MergeReleasePR(ctx, number, opts)
-	if err != nil {
-		return "", err
-	}
-
-	if mergeSHA != "" {
-		return mergeSHA, nil
-	}
-
-	if s.mergedPR != nil || len(s.mergedPRResponses) > 0 {
-		return "", nil
-	}
-
-	for _, pullRequest := range s.pullRequests {
-		if pullRequest.Number != number {
-			continue
-		}
-
-		mergedPR := *pullRequest
-		mergedPR.MergeCommitSHA = "merged-sha"
-		s.mergedPR = &mergedPR
-
-		break
-	}
-
-	return "", nil
 }
 
 func (s *providerStub) PrepareReleasePRLabels(

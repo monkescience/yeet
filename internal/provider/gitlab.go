@@ -15,15 +15,17 @@ type GitLab struct {
 	client    *gitlab.Client
 	projectID string
 	repoURL   string
+	polling   mergePolling
 }
 
-func NewGitLab(client *gitlab.Client, project string) *GitLab {
+func NewGitLab(client *gitlab.Client, project string, options ...MergePollingOption) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
 
 	return &GitLab{
 		client:    client,
 		projectID: project,
 		repoURL:   baseURL + "/" + project,
+		polling:   newMergePolling(options...),
 	}
 }
 

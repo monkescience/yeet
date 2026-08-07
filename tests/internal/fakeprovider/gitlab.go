@@ -173,6 +173,14 @@ func registerGitLabMerge(
 	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
 
 	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
+		if opts.AsynchronousMerge && mergeAccepted.Load() {
+			merged.Store(true)
+
+			writeJSON(w, gitlabMergedPendingMR(opts))
+
+			return
+		}
+
 		mr := gitlabFakeMR()
 		if opts.MergeBlocked {
 			mr["draft"] = true

@@ -605,8 +605,12 @@ func providerContractHarnesses() []providerContractHarness {
 			expectedPathPrefix:    "/-",
 		},
 		{
-			name:                 "azuredevops",
-			newProvider:          newAzureDevOpsContractProvider,
+			name: "azuredevops",
+			newProvider: func(t *testing.T, server *httptest.Server) provider.Provider {
+				t.Helper()
+
+				return newAzureDevOpsContractProvider(t, server)
+			},
 			handler:              newAzureDevOpsContractHandler,
 			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
 			expectedReleasePRURL: func(s string) string { return azureDevOpsContractExpectedRepoURL(s) + "/pullrequest/42" },

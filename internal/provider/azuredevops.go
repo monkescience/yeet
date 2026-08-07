@@ -23,6 +23,7 @@ type AzureDevOps struct {
 	collection   string
 	project      string
 	repo         string
+	polling      mergePolling
 
 	clientOnce sync.Once
 	gitClient  git.Client
@@ -38,16 +39,19 @@ type AzureDevOps struct {
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
+	options ...MergePollingOption,
 ) *AzureDevOps {
-	return newAzureDevOps(httpClient, baseURL, patConnection, pat, organization, collection, project, repo)
+	return newAzureDevOps(
+		httpClient, baseURL, patConnection, pat, organization, collection, project, repo, options...)
 }
 
 func NewAzureDevOpsWithSystemAccessToken(
 	httpClient *http.Client,
 	baseURL, token, organization, collection, project, repo string,
+	options ...MergePollingOption,
 ) *AzureDevOps {
 	return newAzureDevOps(
-		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo)
+		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo, options...)
 }
 
 func newAzureDevOps(
@@ -55,6 +59,7 @@ func newAzureDevOps(
 	baseURL string,
 	connectionFactory func(string, string) *azuredevops.Connection,
 	token, organization, collection, project, repo string,
+	options ...MergePollingOption,
 ) *AzureDevOps {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 
@@ -77,6 +82,7 @@ func newAzureDevOps(
 		collection:   collection,
 		project:      project,
 		repo:         repo,
+		polling:      newMergePolling(options...),
 	}
 }
 

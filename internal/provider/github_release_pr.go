@@ -290,7 +290,11 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 	}
 
 	if pr.GetMerged() {
-		return strings.TrimSpace(pr.GetMergeCommitSHA()), nil
+		if mergeSHA := strings.TrimSpace(pr.GetMergeCommitSHA()); mergeSHA != "" {
+			return mergeSHA, nil
+		}
+
+		return g.awaitMergeCommit(ctx, number)
 	}
 
 	if !g.isTrustedReleasePR(pr, pr.GetBase().GetRef()) {
@@ -333,7 +337,35 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeRelea
 		slog.String("merge_sha", mergeResult.GetSHA()),
 	)
 
-	return strings.TrimSpace(mergeResult.GetSHA()), nil
+	if mergeSHA := strings.TrimSpace(mergeResult.GetSHA()); mergeSHA != "" {
+		return mergeSHA, nil
+	}
+
+	return g.awaitMergeCommit(ctx, number)
+}
+
+// awaitMergeCommit covers the rare case where GitHub reports a merge without a
+// merge commit SHA, most often when reading a pull request that merged moments
+// earlier.
+func (g *GitHub) awaitMergeCommit(ctx context.Context, number int) (string, error) {
+	reference := fmt.Sprintf("pull request #%d", number)
+
+	return g.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
+		current, _, err := g.client.PullRequests.Get(pollCtx, g.repo.Owner, g.repo.Name, number)
+		if err != nil {
+			return "", fmt.Errorf("get pull request #%d: %w", number, err)
+		}
+
+		if current.GetState() == "closed" && !current.GetMerged() {
+			return "", fmt.Errorf("%w: %s was closed", ErrMergeBlocked, reference)
+		}
+
+		if !current.GetMerged() {
+			return "", nil
+		}
+
+		return strings.TrimSpace(current.GetMergeCommitSHA()), nil
+	})
 }
 
 func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch string) bool {
