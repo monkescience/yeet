@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.12.0](https://github.com/monkescience/yeet/compare/v0.11.5...v0.12.0) (2026-08-07)
+
+### ⚠ BREAKING CHANGES
+
+- **gitlab:** prefer squash for the auto merge method ([00d7c0e](https://github.com/monkescience/yeet/commit/00d7c0ee85f91bf8e62bd55975f747aee0652b2f))
+- configure release PR labels, titles, and commit subjects ([7f19b2c](https://github.com/monkescience/yeet/commit/7f19b2cac4a7d7f2042352975ced7c7b83d7e99c))
+### Features
+
+- configure release PR labels, titles, and commit subjects ([7f19b2c](https://github.com/monkescience/yeet/commit/7f19b2cac4a7d7f2042352975ced7c7b83d7e99c))
+### Bug Fixes
+
+- **provider:** recolor release labels with the Monokai Pro palette ([6ccc6c7](https://github.com/monkescience/yeet/commit/6ccc6c77287e11225b6a7a1d96ba6248010bdb89))
+- **provider:** wait for the forge to finalize an accepted merge ([f4bfe05](https://github.com/monkescience/yeet/commit/f4bfe05a417ad21a5b59cb715a7573bc5014def2))
+- **release:** keep finalized releases when auto-merge publishes a wave ([d8aceb4](https://github.com/monkescience/yeet/commit/d8aceb46a753ec07ed06528a337aca5548ca0427))
+- **release:** reject a changelog colliding with a version file ([e431a06](https://github.com/monkescience/yeet/commit/e431a068a8b78d2968c48c24ba6d7005af936bb5))
+- **release:** read preserved changelog edits from the manifest path ([413f05f](https://github.com/monkescience/yeet/commit/413f05fcee46679bdc46b711de6b68ba1e1f899c))
+- **gitlab:** prefer squash for the auto merge method ([00d7c0e](https://github.com/monkescience/yeet/commit/00d7c0ee85f91bf8e62bd55975f747aee0652b2f))
+- adopt unlabelled release PRs and harden release label handling ([aa1564e](https://github.com/monkescience/yeet/commit/aa1564ebb571b44e749172713d6d74b5a0f9a1f8))
+- recover release runs from analysis and label lookup failures ([b0162b5](https://github.com/monkescience/yeet/commit/b0162b50bcac28eca7cb378613727998a5ae284a))
+
 ## [v0.11.5](https://github.com/monkescience/yeet/compare/v0.11.4...v0.11.5) (2026-07-31)
 
 ### Bug Fixes
