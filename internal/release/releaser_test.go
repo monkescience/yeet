@@ -2595,6 +2595,47 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		testastic.Equal(t, "version=1.2.4 # x-yeet-version", stub.files[providerFileKey(branch, "VERSION.txt")])
 	})
 
+	t.Run("rejects a changelog that collides with another target's version file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: one target's version file sharing a path with another target's changelog
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:         config.TargetTypePath,
+				Path:         "services/api",
+				TagPrefix:    "api-v",
+				Changelog:    config.ChangelogConfig{File: "api/CHANGELOG.md"},
+				VersionFiles: []config.VersionFile{{Path: "shared.md"}},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "apps/web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "shared.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		branch := "yeet/release-main"
+		stub.files[providerFileKey(cfg.Branch, "shared.md")] = "version=1.2.3 # x-yeet-version"
+		stub.files[providerFileKey(cfg.Branch, "api/CHANGELOG.md")] = "# Changelog\n"
+
+		r := newTestReleaser(t, cfg, stub)
+		result := &Result{Plans: []TargetPlan{
+			{ID: "api", NextVersion: "1.2.4", NextTag: "api-v1.2.4", Changelog: "## api-v1.2.4 (2026-03-01)\n"},
+			{ID: "web", NextVersion: "2.3.4", NextTag: "web-v2.3.4", Changelog: "## web-v2.3.4 (2026-03-01)\n"},
+		}}
+
+		// when: updating release branch files
+		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
+			context.Background(), branch, result, "commit subject",
+		)
+
+		// then: the collision is reported instead of prepending markdown into the version file
+		testastic.ErrorIs(t, err, ErrConflictingFileUpdate)
+	})
+
 	t.Run("reads base files only from the local release source", func(t *testing.T) {
 		t.Parallel()
 

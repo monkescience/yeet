@@ -36,6 +36,7 @@ func (u *releaseBranchUpdater) updateFiles(
 ) error {
 	r := u.core
 	files := map[string]provider.FileUpdate{}
+	changelogFiles := map[string]struct{}{}
 
 	for _, plan := range result.Plans {
 		target, exists := r.targets[plan.ID]
@@ -43,12 +44,13 @@ func (u *releaseBranchUpdater) updateFiles(
 			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
 		}
 
-		changelogContent, err := u.releaseChangelogFileContent(ctx, files, target, plan.Changelog)
+		changelogContent, err := u.releaseChangelogFileContent(ctx, files, changelogFiles, target, plan.Changelog)
 		if err != nil {
 			return err
 		}
 
 		files[target.Changelog.File] = changelogContent
+		changelogFiles[target.Changelog.File] = struct{}{}
 
 		if err := u.updateVersionFiles(ctx, files, target, plan.ID, plan.NextVersion); err != nil {
 			return err
@@ -135,12 +137,17 @@ func applyVersionFile(
 func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	ctx context.Context,
 	pendingFiles map[string]provider.FileUpdate,
+	changelogFiles map[string]struct{},
 	target config.ResolvedTarget,
 	changelogEntry string,
 ) (provider.FileUpdate, error) {
 	r := u.core
 
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
+		if _, isChangelog := changelogFiles[target.Changelog.File]; !isChangelog {
+			return provider.FileUpdate{}, fmt.Errorf("%w: %s", ErrConflictingFileUpdate, target.Changelog.File)
+		}
+
 		existing.Content = prependChangelogEntry(existing.Content, changelogEntry)
 
 		return existing, nil
