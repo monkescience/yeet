@@ -3,6 +3,7 @@
 ### ⚠ BREAKING CHANGES
 
 - **auth:** existing session cookies are invalid after upgrade (abcdef1)
+
 ### Features
 
 - **auth:** replace session cookie format (abcdef1)

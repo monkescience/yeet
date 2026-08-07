@@ -13,6 +13,7 @@ Dry Run
 ### Features
 
 - overridden first commit ([d5c3c26](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/d5c3c26edd551074851e4110a9a0ba6e9ac06ee4))
+
 ### Bug Fixes
 
 - overridden second commit ([d5c3c26](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/d5c3c26edd551074851e4110a9a0ba6e9ac06ee4))

@@ -3,6 +3,7 @@
 ### Features
 
 - **auth:** add OAuth token refresh (abcdef1)
+
 ### Bug Fixes
 
 - **api:** return 401 for expired sessions (abcdef1)

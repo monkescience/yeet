@@ -5,6 +5,7 @@
 ### ⚠ BREAKING CHANGES
 
 - introduce breaking release flow (abcdef1)
+
 ### Features
 
 - introduce breaking release flow (abcdef1)

@@ -220,6 +220,10 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 }
 
 func writeSectionHeader(sb *strings.Builder, name string) {
+	if sb.Len() > 0 {
+		sb.WriteString("\n")
+	}
+
 	fmt.Fprintf(sb, "### %s\n\n", name)
 }
 
