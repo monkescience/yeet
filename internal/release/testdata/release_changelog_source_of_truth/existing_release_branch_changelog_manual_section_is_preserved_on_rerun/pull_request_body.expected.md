@@ -6,6 +6,10 @@
 
 - patch bug (abcdef1)
 
+### Migration Notes
+
+Run database migrations before deploying workers.
+
 <!-- yeet-release-manifest
 {"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.2.4","changelog_file":"CHANGELOG.md"}]}
 -->

@@ -6,4 +6,6 @@
 
 - add feature (abc1234)
 
-` + manualNotes + `
+### Migration Notes
+
+Run database migrations before deploying workers.

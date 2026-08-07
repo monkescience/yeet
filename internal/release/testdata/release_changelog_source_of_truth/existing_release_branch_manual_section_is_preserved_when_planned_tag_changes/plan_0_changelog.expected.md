@@ -4,8 +4,6 @@
 
 - add release automation (abcdef1)
 
-### Bug Fixes
+### Migration Notes
 
-- patch bug (1234567)
-
-` + manualNotes + `
+Run database migrations before deploying workers.

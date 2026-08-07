@@ -5,3 +5,7 @@
 ### Bug Fixes
 
 - patch bug (abcdef1)
+
+### Migration Notes
+
+Run database migrations before deploying workers.

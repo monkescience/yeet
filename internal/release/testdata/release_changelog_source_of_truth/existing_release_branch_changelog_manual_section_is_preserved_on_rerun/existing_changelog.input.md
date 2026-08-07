@@ -6,4 +6,6 @@
 
 - patch bug (abcdef1)
 
-` + manualNotes + `
+### Migration Notes
+
+Run database migrations before deploying workers.

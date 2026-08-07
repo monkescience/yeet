@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 )
 
@@ -432,6 +433,12 @@ func TestChangelogEntryByTag(t *testing.T) {
 	})
 }
 
+func defaultOwnedHeadings() map[string]struct{} {
+	cfg := config.Default()
+
+	return changelog.SectionHeadings(cfg.Changelog.Sections, cfg.Changelog.Include)
+}
+
 func TestPreserveManualChangelogSections(t *testing.T) {
 	t.Parallel()
 
@@ -451,7 +458,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
 
 		// then: all manual sections are appended in their original order
 		testastic.AssertFile(
@@ -479,7 +486,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
 
 		// then: each manual section remains before its following generated section
 		testastic.AssertFile(
@@ -508,7 +515,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
 
 		// then: regenerated sections remain authoritative on rerun
 		testastic.AssertFile(
@@ -536,7 +543,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
 
 		// then: the level-3 manual section survives but freeform text under ## is dropped
 		testastic.AssertFile(t, "testdata/preserve_manual_drops_non_level3.expected.md", updatedEntry)

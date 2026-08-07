@@ -1969,6 +1969,46 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "BREAKING CHANGES"))
 		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "Features"))
 	})
+
+	t.Run("generated section headings are not preserved as manual edits", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release branch entry for the planned tag carrying sections this release does not produce
+		cfg := config.Default()
+		existingPR := &provider.PullRequest{
+			Number: 42,
+			Title:  "chore: release 1.2.5",
+			Body:   testManifestBody(t, "v1.2.5", cfg.Changelog.File),
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-main",
+		}
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{existingPR}
+		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"generated_section_headings_are_not_preserved_as_manual_edits/"+
+				"existing_changelog.input.md",
+		))
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: refreshing the existing release PR
+		result, err := r.Release(context.Background(), false)
+
+		// then: only headings the generator cannot produce survive
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.5", result.Plans[0].NextTag)
+		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "BREAKING CHANGES"))
+		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "### Features"))
+		testastic.True(t, strings.Contains(result.Plans[0].Changelog, "### Upgrade Notes"))
+	})
 }
 
 func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {

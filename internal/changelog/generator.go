@@ -14,6 +14,8 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
+const breakingChangesHeading = "⚠ BREAKING CHANGES"
+
 type Generator struct {
 	sections   map[string]string
 	include    []string
@@ -200,7 +202,7 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 		return
 	}
 
-	writeSectionHeader(sb, "\u26a0 BREAKING CHANGES")
+	writeSectionHeader(sb, breakingChangesHeading)
 
 	for _, c := range breaking {
 		desc := c.Description
@@ -219,6 +221,28 @@ func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.C
 
 func writeSectionHeader(sb *strings.Builder, name string) {
 	fmt.Fprintf(sb, "### %s\n\n", name)
+}
+
+// SectionHeadings returns every level-3 heading a generator with this
+// configuration can emit, including sections an individual entry omits. Callers
+// refreshing an existing entry need the full set to tell a heading they own
+// from one a human added.
+func SectionHeadings(sections map[string]string, include []string) map[string]struct{} {
+	headings := map[string]struct{}{"### " + breakingChangesHeading: {}}
+
+	for _, name := range sections {
+		headings["### "+name] = struct{}{}
+	}
+
+	for _, commitType := range include {
+		if _, mapped := sections[commitType]; mapped {
+			continue
+		}
+
+		headings["### "+capitalizeFirst(commitType)] = struct{}{}
+	}
+
+	return headings
 }
 
 func (g *Generator) writeCommitLine(sb *strings.Builder, c commit.Commit) {

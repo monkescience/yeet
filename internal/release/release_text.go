@@ -309,8 +309,10 @@ type changelogSection struct {
 // into generatedEntry when a release PR is refreshed. Only level-3 (### )
 // sections are preserved: freeform text directly under the ## version heading,
 // or headings deeper than ###, are not considered and will be dropped. Manual
-// sections retain their position relative to the next generated section.
-func preserveManualChangelogSections(generatedEntry, existingEntry string) string {
+// sections retain their position relative to the next generated section. A
+// heading in ownedHeadings is one the generator can emit, so an entry that omits
+// it this time dropped it on purpose and must not inherit it back.
+func preserveManualChangelogSections(generatedEntry, existingEntry string, ownedHeadings map[string]struct{}) string {
 	generatedSections := changelogLevel3Sections(generatedEntry)
 
 	generatedHeadings := make(map[string]struct{}, len(generatedSections))
@@ -318,34 +320,14 @@ func preserveManualChangelogSections(generatedEntry, existingEntry string) strin
 		generatedHeadings[section.heading] = struct{}{}
 	}
 
-	existingSections := changelogLevel3Sections(existingEntry)
-	manualSectionsBefore := make(map[string][]string)
-	manualSectionCount := 0
+	manualSectionsBefore := manualSectionsByFollowingHeading(
+		generatedEntry,
+		generatedHeadings,
+		ownedHeadings,
+		changelogLevel3Sections(existingEntry),
+	)
 
-	for idx, section := range existingSections {
-		if _, generated := generatedHeadings[section.heading]; generated {
-			continue
-		}
-
-		if strings.Contains(generatedEntry, section.body) {
-			continue
-		}
-
-		followingHeading := ""
-
-		for _, followingSection := range existingSections[idx+1:] {
-			if _, generated := generatedHeadings[followingSection.heading]; generated {
-				followingHeading = followingSection.heading
-
-				break
-			}
-		}
-
-		manualSectionsBefore[followingHeading] = append(manualSectionsBefore[followingHeading], section.body)
-		manualSectionCount++
-	}
-
-	if manualSectionCount == 0 {
+	if len(manualSectionsBefore) == 0 {
 		return generatedEntry
 	}
 
@@ -368,6 +350,42 @@ func preserveManualChangelogSections(generatedEntry, existingEntry string) strin
 	}
 
 	return updatedEntry
+}
+
+func manualSectionsByFollowingHeading(
+	generatedEntry string,
+	generatedHeadings, ownedHeadings map[string]struct{},
+	existingSections []changelogSection,
+) map[string][]string {
+	manualSectionsBefore := make(map[string][]string)
+
+	for idx, section := range existingSections {
+		if _, generated := generatedHeadings[section.heading]; generated {
+			continue
+		}
+
+		if _, owned := ownedHeadings[section.heading]; owned {
+			continue
+		}
+
+		if strings.Contains(generatedEntry, section.body) {
+			continue
+		}
+
+		followingHeading := ""
+
+		for _, followingSection := range existingSections[idx+1:] {
+			if _, generated := generatedHeadings[followingSection.heading]; generated {
+				followingHeading = followingSection.heading
+
+				break
+			}
+		}
+
+		manualSectionsBefore[followingHeading] = append(manualSectionsBefore[followingHeading], section.body)
+	}
+
+	return manualSectionsBefore
 }
 
 func changelogLevel3Sections(markdown string) []changelogSection {

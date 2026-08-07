@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -143,12 +144,15 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			changelogFile = previous
 		}
 
+		ownedHeadings := changelog.SectionHeadings(target.Changelog.Sections, target.Changelog.Include)
+
 		if err := w.preserveTargetChangelogEdits(
 			ctx,
 			existing.Branch,
 			changelogFile,
 			previousTags[plan.ID],
 			plan,
+			ownedHeadings,
 		); err != nil {
 			return err
 		}
@@ -161,6 +165,7 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 	ctx context.Context,
 	branch, changelogFile, previousTag string,
 	plan *TargetPlan,
+	ownedHeadings map[string]struct{},
 ) error {
 	existingChangelog, err := w.releaseBranchChangelog(ctx, branch, changelogFile)
 	if err != nil {
@@ -180,9 +185,9 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 		return nil
 	}
 
-	plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry)
+	plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry, ownedHeadings)
 	if plan.PRChangelog != "" {
-		plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry)
+		plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry, ownedHeadings)
 	}
 
 	return nil
