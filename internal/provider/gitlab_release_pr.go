@@ -752,6 +752,10 @@ func gitLabAcceptMergeOptions(
 
 	switch requested {
 	case MergeMethodAuto:
+		if project.SquashOption != gitlab.SquashOptionNever {
+			options.Squash = new(true)
+		}
+
 		return options, nil
 	case MergeMethodSquash:
 		if project.SquashOption == gitlab.SquashOptionNever {

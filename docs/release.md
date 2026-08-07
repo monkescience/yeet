@@ -77,7 +77,7 @@ values are trimmed and must be nonempty and single-line. Empty templates preserv
 unscoped title or commit subject. Existing PR/MR titles are regenerated on the next release run.
 Titles are never used to discover release PRs/MRs.
 
-`auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` defers to provider defaults. `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
+`auto_merge_method` (or `--auto-merge-method`) selects the merge strategy yeet asks the provider to use. `auto` prefers squash, then rebase, then a merge commit, taking the first strategy the provider permits. What each provider permits differs. GitHub picks the first method enabled in repository settings and fails when none are enabled. GitLab requests a squash unless the project sets `squash_option: never`, and otherwise leaves the project's own merge method in force. Azure DevOps requests a squash, since it exposes no merge-strategy capability yeet can inspect. `squash`, `rebase`, and `merge` request that strategy explicitly. The flag overrides the config value for a single run.
 
 `reviewers` requests reviews from the listed users when the release PR/MR is created. Reviewers are applied on create only, so later `yeet release` runs never overwrite manual reviewer changes on an open release PR/MR. A reviewer that cannot be resolved or assigned fails the release run before the PR/MR is created. Per provider:
 

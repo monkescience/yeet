@@ -1771,6 +1771,132 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		testastic.NoError(t, err)
 	})
 
+	t.Run("auto method prefers squash when the project permits it", func(t *testing.T) {
+		t.Parallel()
+
+		var accepted struct {
+			Squash *bool `json:"squash"`
+		}
+
+		// given: a GitLab project that allows squashing but does not force it
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "abc123",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "merge",
+					"squash_option": "default_off",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				err := json.NewDecoder(r.Body).Decode(&accepted)
+				testastic.NoError(t, err)
+
+				writeJSON(t, w, map[string]any{
+					"iid":              1,
+					"state":            "merged",
+					"merge_commit_sha": "def456",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with auto method
+		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: squash is requested
+		testastic.NoError(t, err)
+		testastic.Equal(t, true, accepted.Squash != nil && *accepted.Squash)
+	})
+
+	t.Run("auto method does not squash when the project forbids it", func(t *testing.T) {
+		t.Parallel()
+
+		var accepted struct {
+			Squash *bool `json:"squash"`
+		}
+
+		// given: a GitLab project that forbids squashing
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSON(t, w, map[string]any{
+					"iid":                   1,
+					"state":                 "opened",
+					"draft":                 false,
+					"has_conflicts":         false,
+					"detailed_merge_status": "mergeable",
+					"sha":                   "abc123",
+					"source_branch":         "yeet/release-main",
+					"target_branch":         "main",
+					"source_project_id":     10,
+					"target_project_id":     10,
+				})
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSON(t, w, map[string]any{
+					"merge_method":  "rebase_merge",
+					"squash_option": "never",
+				})
+			case r.Method == http.MethodPut && strings.Contains(r.URL.EscapedPath(), "/merge"):
+				err := json.NewDecoder(r.Body).Decode(&accepted)
+				testastic.NoError(t, err)
+
+				writeJSON(t, w, map[string]any{
+					"iid":              1,
+					"state":            "merged",
+					"merge_commit_sha": "def456",
+				})
+			default:
+				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}
+		}))
+		defer server.Close()
+
+		client, err := gitlabapi.NewClient(
+			"",
+			gitlabapi.WithBaseURL(server.URL),
+			gitlabapi.WithHTTPClient(server.Client()),
+			gitlabapi.WithoutRetries(),
+		)
+		testastic.NoError(t, err)
+
+		gl := provider.NewGitLab(client, "o/r")
+
+		// when: merging with auto method
+		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+			Method: provider.MergeMethodAuto,
+		})
+
+		// then: the project's own merge method is left untouched
+		testastic.NoError(t, err)
+		testastic.Nil(t, accepted.Squash)
+	})
+
 	t.Run("auto method returns source tip for fast-forward merge", func(t *testing.T) {
 		t.Parallel()
 
