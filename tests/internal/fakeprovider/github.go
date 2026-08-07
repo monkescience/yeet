@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/monkescience/testastic"
 )
 
 type GitHubOptions struct {
@@ -32,6 +34,10 @@ type GitHubOptions struct {
 	PaginateCommits           bool
 	FailOnMutation            bool
 	Collaborators             map[string]bool
+	ExistingLabels            []string
+	ExpectPRTitle             string
+	ExpectPRBodyFile          string
+	ExpectCommitSubject       string
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -71,7 +77,7 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubSearch(mux, opts, merged)
 	registerGitHubPullsRead(mux, prefix, opts)
-	registerGitHubWritePath(mux, prefix, opts, merged, reviewersRequested)
+	registerGitHubWritePath(t, mux, prefix, opts, merged, reviewersRequested)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -395,15 +401,18 @@ func githubFilesPayload(paths []string) []map[string]any {
 
 // registerGitHubWritePath attaches the handlers used by non-dry-run releases.
 func registerGitHubWritePath(
+	t *testing.T,
 	mux *http.ServeMux,
 	prefix string,
 	opts GitHubOptions,
 	merged, reviewersRequested *atomic.Bool,
 ) {
-	registerGitHubGitData(mux, prefix)
+	t.Helper()
+
+	registerGitHubGitData(t, mux, prefix, opts)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(mux, prefix, opts, merged, reviewersRequested)
-	registerGitHubLabels(mux, prefix, opts, reviewersRequested)
+	registerGitHubPullsWrite(t, mux, prefix, opts, merged, reviewersRequested)
+	registerGitHubLabels(t, mux, prefix, opts, reviewersRequested)
 	registerGitHubCollaborators(mux, prefix, opts)
 
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
@@ -415,7 +424,9 @@ func registerGitHubWritePath(
 	})
 }
 
-func registerGitHubGitData(mux *http.ServeMux, prefix string) {
+func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts GitHubOptions) {
+	t.Helper()
+
 	const fakeCommitSHA = "new-commit-sha"
 
 	const fakeTreeSHA = "tree-sha"
@@ -457,7 +468,13 @@ func registerGitHubGitData(mux *http.ServeMux, prefix string) {
 		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
 	})
 
-	mux.HandleFunc("POST "+prefix+"/git/commits", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("POST "+prefix+"/git/commits", func(w http.ResponseWriter, r *http.Request) {
+		if !expectGitHubFields(t, r, map[string]string{githubKeyMessage: opts.ExpectCommitSubject}) {
+			http.Error(w, "unexpected commit message", http.StatusUnprocessableEntity)
+
+			return
+		}
+
 		writeJSON(w, map[string]any{
 			githubKeySHA: fakeCommitSHA,
 			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
@@ -497,16 +514,31 @@ func githubFileContent(path, raw string) map[string]any {
 }
 
 func registerGitHubPullsWrite(
+	t *testing.T,
 	mux *http.ServeMux,
 	prefix string,
 	opts GitHubOptions,
 	merged, reviewersRequested *atomic.Bool,
 ) {
-	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, _ *http.Request) {
+	t.Helper()
+
+	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if !expectGitHubPullRequest(t, r, opts) {
+			http.Error(w, "unexpected pull request", http.StatusUnprocessableEntity)
+
+			return
+		}
+
 		writeJSON(w, githubFakePR(opts))
 	})
 
-	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, r *http.Request) {
+		if !expectGitHubPullRequest(t, r, opts) {
+			http.Error(w, "unexpected pull request", http.StatusUnprocessableEntity)
+
+			return
+		}
+
 		writeJSON(w, githubFakePR(opts))
 	})
 
@@ -565,6 +597,73 @@ func githubRequestReviewersHandler(opts GitHubOptions, reviewersRequested *atomi
 	}
 }
 
+func expectGitHubPullRequest(t *testing.T, r *http.Request, opts GitHubOptions) bool {
+	t.Helper()
+
+	if opts.ExpectPRTitle == "" && opts.ExpectPRBodyFile == "" {
+		return true
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		t.Errorf("fakeprovider/github: decode %s %s: %v", r.Method, r.URL.Path, err)
+
+		return false
+	}
+
+	matched := true
+
+	if opts.ExpectPRTitle != "" {
+		if title, _ := payload["title"].(string); title != opts.ExpectPRTitle {
+			t.Errorf("fakeprovider/github: title = %q, want %q", title, opts.ExpectPRTitle)
+
+			matched = false
+		}
+	}
+
+	if opts.ExpectPRBodyFile != "" {
+		body, _ := payload["body"].(string)
+		testastic.AssertFile(t, opts.ExpectPRBodyFile, body)
+	}
+
+	return matched
+}
+
+func expectGitHubFields(t *testing.T, r *http.Request, expected map[string]string) bool {
+	t.Helper()
+
+	wanted := map[string]string{}
+
+	for field, value := range expected {
+		if value != "" {
+			wanted[field] = value
+		}
+	}
+
+	if len(wanted) == 0 {
+		return true
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		t.Errorf("fakeprovider/github: decode %s %s: %v", r.Method, r.URL.Path, err)
+
+		return false
+	}
+
+	matched := true
+
+	for field, want := range wanted {
+		if actual, _ := payload[field].(string); actual != want {
+			t.Errorf("fakeprovider/github: %s = %q, want %q", field, actual, want)
+
+			matched = false
+		}
+	}
+
+	return matched
+}
+
 func registerGitHubCollaborators(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/collaborators/{username}", func(w http.ResponseWriter, r *http.Request) {
 		if !opts.Collaborators[r.PathValue("username")] {
@@ -578,16 +677,34 @@ func registerGitHubCollaborators(mux *http.ServeMux, prefix string, opts GitHubO
 }
 
 func registerGitHubLabels(
+	t *testing.T,
 	mux *http.ServeMux,
 	prefix string,
 	opts GitHubOptions,
 	reviewersRequested *atomic.Bool,
 ) {
-	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "not found", http.StatusNotFound)
+	t.Helper()
+
+	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue(githubKeyName)
+
+		if !slices.Contains(opts.ExistingLabels, name) {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		writeJSON(w, map[string]any{githubKeyName: name})
 	})
 
-	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, r *http.Request) {
+		if name := readJSONString(t, r, githubKeyName); slices.Contains(opts.ExistingLabels, name) {
+			t.Errorf("fakeprovider/github: recreated existing label %q", name)
+			http.Error(w, "label already exists", http.StatusUnprocessableEntity)
+
+			return
+		}
+
 		writeJSON(w, map[string]any{githubKeyName: "label"})
 	})
 

@@ -28,6 +28,17 @@ type ConfigOptions struct {
 	ReferencePatterns []ReferencePatternOptions
 	ReferenceFooters  map[string]string
 	Reviewers         []string
+	Labels            *LabelsOptions
+	PRTitle           string
+	PRTitleGroup      string
+	CommitSubject     string
+}
+
+// LabelsOptions describes the release.labels block.
+type LabelsOptions struct {
+	Pending string
+	Tagged  string
+	Extra   []string
 }
 
 // ReferencePatternOptions configures one entry under changelog.references.patterns.
@@ -88,11 +99,22 @@ func renderConfig(opts ConfigOptions) string {
 }
 
 func writeRelease(b *strings.Builder, opts ConfigOptions) {
-	if len(opts.Reviewers) == 0 && len(opts.Channels) == 0 {
+	hasReleaseField := len(opts.Reviewers) > 0 ||
+		len(opts.Channels) > 0 ||
+		opts.Labels != nil ||
+		opts.PRTitle != "" ||
+		opts.PRTitleGroup != "" ||
+		opts.CommitSubject != ""
+
+	if !hasReleaseField {
 		return
 	}
 
 	b.WriteString("release:\n")
+
+	writeQuotedScalar(b, "  pr_title: ", opts.PRTitle)
+	writeQuotedScalar(b, "  pr_title_group: ", opts.PRTitleGroup)
+	writeQuotedScalar(b, "  commit_subject: ", opts.CommitSubject)
 
 	if len(opts.Reviewers) > 0 {
 		b.WriteString("  reviewers:\n")
@@ -104,7 +126,30 @@ func writeRelease(b *strings.Builder, opts ConfigOptions) {
 		}
 	}
 
+	writeLabels(b, opts.Labels)
 	writeChannels(b, opts.Channels)
+}
+
+func writeLabels(b *strings.Builder, labels *LabelsOptions) {
+	if labels == nil {
+		return
+	}
+
+	b.WriteString("  labels:\n")
+	writeQuotedScalar(b, "    pending: ", labels.Pending)
+	writeQuotedScalar(b, "    tagged: ", labels.Tagged)
+
+	if len(labels.Extra) == 0 {
+		return
+	}
+
+	b.WriteString("    extra:\n")
+
+	for _, extra := range labels.Extra {
+		b.WriteString("      - ")
+		b.WriteString(quoteYAML(extra))
+		b.WriteString("\n")
+	}
 }
 
 func writeChangelog(b *strings.Builder, opts ConfigOptions) {
@@ -296,4 +341,21 @@ func writeScalar(b *strings.Builder, prefix, value string) {
 	b.WriteString(prefix)
 	b.WriteString(value)
 	b.WriteString("\n")
+}
+
+func writeQuotedScalar(b *strings.Builder, prefix, value string) {
+	if value == "" {
+		return
+	}
+
+	b.WriteString(prefix)
+	b.WriteString(quoteYAML(value))
+	b.WriteString("\n")
+}
+
+func quoteYAML(value string) string {
+	escaped := strings.ReplaceAll(value, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+
+	return `"` + escaped + `"`
 }

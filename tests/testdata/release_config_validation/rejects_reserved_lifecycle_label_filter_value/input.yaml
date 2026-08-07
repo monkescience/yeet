@@ -1,0 +1,16 @@
+provider: github
+branch: main
+release:
+  labels:
+    pending: "none"
+
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

@@ -1,0 +1,17 @@
+provider: github
+branch: main
+release:
+  labels:
+    pending: "autorelease: pending"
+    tagged: "autorelease: pending"
+
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

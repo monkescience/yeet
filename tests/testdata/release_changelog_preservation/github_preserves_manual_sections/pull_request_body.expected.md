@@ -1,0 +1,23 @@
+## ٩(^ᴗ^)۶ release created
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...79b3c2e174a56d70cd8937686492372d87a0d066) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+### Upgrade notes
+
+Run the database migration before deploying.
+
+### Features
+
+- add a thing ([79b3c2e](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/79b3c2e174a56d70cd8937686492372d87a0d066))
+
+### Credits
+
+Thanks to the reviewers.
+
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

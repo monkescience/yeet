@@ -1,0 +1,1 @@
+release execution failed: invalid config: rendered release.pr_title must be one line

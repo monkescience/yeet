@@ -1,0 +1,2 @@
+INFO release analysis complete targets=1
+release execution failed: prepare release PR labels: invalid GitLab release PR labels: labels "release::pending" and "release::extra" share GitLab scope release

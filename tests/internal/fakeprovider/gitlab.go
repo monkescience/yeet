@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -23,6 +25,9 @@ type GitLabOptions struct {
 	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
 	Users                     map[string]int64
+	ExistingLabels            []string
+	UnlabeledOpenReleaseMR    bool
+	ForeignLabelOpenReleaseMR bool
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
@@ -58,7 +63,7 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	registerGitLabMerge(mux, prefix, opts, mergeAccepted, merged)
 	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
-	registerGitLabLabels(mux, prefix)
+	registerGitLabLabels(t, mux, prefix, opts)
 	registerGitLabReleases(mux, prefix, opts, merged)
 	registerGitLabProject(mux, prefix)
 
@@ -239,6 +244,20 @@ func gitlabMergeRequestListHandler(
 			mr := gitlabFakeMR()
 			mr["description"] = opts.ExistingOpenReleasePRBody
 
+			if opts.UnlabeledOpenReleaseMR {
+				mr["labels"] = []string{}
+			}
+
+			if opts.ForeignLabelOpenReleaseMR {
+				mr["labels"] = []string{"needs-triage"}
+			}
+
+			if !gitlabMRMatchesLabelFilter(mr, r.URL.Query().Get("labels")) {
+				writeJSON(w, []any{})
+
+				return
+			}
+
 			writeJSON(w, []map[string]any{mr})
 
 			return
@@ -246,6 +265,22 @@ func gitlabMergeRequestListHandler(
 
 		writeJSON(w, []any{})
 	}
+}
+
+func gitlabMRMatchesLabelFilter(mr map[string]any, filter string) bool {
+	if filter == "" {
+		return true
+	}
+
+	labels, _ := mr["labels"].([]string)
+
+	for wanted := range strings.SplitSeq(filter, ",") {
+		if !slices.Contains(labels, wanted) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func gitlabMergeAcceptHandler(
@@ -339,12 +374,29 @@ func registerGitLabContent(mux *http.ServeMux, prefix string, opts GitLabOptions
 	)
 }
 
-func registerGitLabLabels(mux *http.ServeMux, prefix string) {
-	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "not found", http.StatusNotFound)
+func registerGitLabLabels(t *testing.T, mux *http.ServeMux, prefix string, opts GitLabOptions) {
+	t.Helper()
+
+	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue(gitlabKeyName)
+
+		if !slices.Contains(opts.ExistingLabels, name) {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		writeJSON(w, map[string]any{gitlabKeyName: name})
 	})
 
-	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, r *http.Request) {
+		if name := readJSONString(t, r, gitlabKeyName); slices.Contains(opts.ExistingLabels, name) {
+			t.Errorf("fakeprovider/gitlab: recreated existing label %q", name)
+			http.Error(w, "label already exists", http.StatusUnprocessableEntity)
+
+			return
+		}
+
 		writeJSON(w, map[string]any{gitlabKeyName: "label"})
 	})
 }

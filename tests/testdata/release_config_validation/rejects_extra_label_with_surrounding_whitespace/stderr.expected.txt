@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.labels.extra entry " needs-review" must not have leading or trailing whitespace
