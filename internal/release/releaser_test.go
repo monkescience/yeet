@@ -1930,6 +1930,45 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 			stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)],
 		)
 	})
+
+	t.Run("released manifest tag does not seed the next entry with published sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a pending release PR whose manifest tag was already published
+		cfg := config.Default()
+		existingPR := &provider.PullRequest{
+			Number: 42,
+			Title:  "chore: release 1.2.4",
+			Body:   testManifestBody(t, "v1.2.4", cfg.Changelog.File),
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-main",
+		}
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{existingPR}
+		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
+		stub.commits = []provider.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(readTestFile(
+			t,
+			"testdata/release_changelog_source_of_truth/"+
+				"released_manifest_tag_does_not_seed_the_next_entry_with_published_sections/"+
+				"existing_changelog.input.md",
+		))
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: refreshing the existing release PR
+		result, err := r.Release(context.Background(), false)
+
+		// then: sections belonging to the published entry stay out of the new one
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v1.2.5", result.Plans[0].NextTag)
+		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "BREAKING CHANGES"))
+		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "Features"))
+	})
 }
 
 func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {

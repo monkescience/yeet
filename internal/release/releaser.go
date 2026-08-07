@@ -45,6 +45,7 @@ type TargetPlan struct {
 	ChangelogFile   string
 	IncludedTargets []string
 	commitHashes    []string
+	previousRef     string
 }
 
 type Releaser struct {

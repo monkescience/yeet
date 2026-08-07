@@ -486,6 +486,7 @@ func (a *releaseAnalyzer) newTargetPlan(
 		BumpType:       bumpType,
 		ChangelogFile:  target.Changelog.File,
 		commitHashes:   uniqueEntryHashes(entries),
+		previousRef:    strings.TrimSpace(ref),
 	}
 
 	plan.CommitCount = len(plan.commitHashes)

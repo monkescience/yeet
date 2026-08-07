@@ -171,7 +171,7 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 		return err
 	}
 
-	existingEntry, found, err := changelogEntryForRefresh(existingChangelog, plan.NextTag, previousTag)
+	existingEntry, found, err := changelogEntryForRefresh(existingChangelog, plan.NextTag, previousTag, plan.previousRef)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,10 @@ func (w *releasePRWorkflow) releaseBranchChangelog(ctx context.Context, branch, 
 	})
 }
 
-func changelogEntryForRefresh(changelogBody, nextTag, previousTag string) (string, bool, error) {
+// changelogEntryForRefresh falls back to the manifest tag only while that tag
+// is still an unpublished draft. Once it matches the released boundary its
+// entry belongs to a shipped release and must not seed the next one.
+func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef string) (string, bool, error) {
 	entry, err := changelogEntryByTag(changelogBody, nextTag)
 	if err == nil {
 		return entry, true, nil
@@ -209,7 +212,8 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag string) (strin
 		return "", false, err
 	}
 
-	if previousTag == "" || previousTag == nextTag {
+	previousTag = strings.TrimSpace(previousTag)
+	if previousTag == "" || previousTag == nextTag || previousTag == strings.TrimSpace(releasedRef) {
 		return "", false, nil
 	}
 
