@@ -45,6 +45,21 @@ Do not change lifecycle label names while a release PR/MR is open, or after merg
 finalization. Finish or close the in-flight release first. Yeet stores no lifecycle label history,
 so a new pending name cannot safely identify the old release state.
 
+Lifecycle label names are matched case-insensitively on GitHub and Azure DevOps. GitLab matches
+them exactly, because GitLab treats labels differing only by case as distinct and filters them
+server-side, so a case-insensitive client-side match would disagree with the server and let yeet
+open a second release MR on the same branch.
+
+Label names cannot contain a comma, and cannot be `any` or `none`, because GitLab uses all three in
+its label filter syntax. Both rules are enforced by config validation, so `yeet release --dry-run`
+reports them.
+
+If a run is interrupted between creating the release PR/MR and labelling it, the next run adopts
+the unlabelled PR/MR: it reapplies the lifecycle labels and reuses it. Adoption only applies when
+the PR/MR carries no labels at all. One that carries some other label is treated as a lifecycle
+mismatch and fails the run, since that indicates renamed configuration rather than an interrupted
+run.
+
 ### Subject templates
 
 `pr_title` uses Go `text/template` for a one-target release. It can access `.Branch`, `.Channel`,

@@ -49,6 +49,10 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabUpdateReleasePRContract(t, w, r)
 		case providerContractFindOpenPRs:
 			handleGitLabFindOpenPRsContract(t, w, r)
+		case providerContractFindOpenPRsUnlabeled:
+			handleGitLabFindOpenPRsFixtureContract(t, w, r, "find_open_prs_unlabeled")
+		case providerContractFindOpenPRsAdoptable:
+			handleGitLabFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
 		case providerContractFindMergedPR:
 			handleGitLabFindMergedPRContract(t, w, r)
 		case providerContractMarkReleasePR:
@@ -277,6 +281,25 @@ func handleGitLabFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 		testastic.Equal(t, "opened", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("target_branch"))
 		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs/prs.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func handleGitLabFindOpenPRsFixtureContract(t *testing.T, w http.ResponseWriter, r *http.Request, dir string) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
+		if r.URL.Query().Get("labels") != "" {
+			writeJSONFixture(t, w, "contracts/gitlab/"+dir+"/labeled.json")
+
+			return
+		}
+
+		testastic.Equal(t, providerContractPendingBranch, r.URL.Query().Get("source_branch"))
+		writeJSONFixture(t, w, "contracts/gitlab/"+dir+"/prs.json")
 
 		return
 	}

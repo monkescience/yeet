@@ -145,22 +145,29 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 
 			branch := pr.GetHead().GetRef()
 
+			needsPendingLabel := false
+
 			if !hasGitHubLabel(pr.Labels, pendingLabel) {
-				return false, fmt.Errorf(
-					"%w: trusted pull request #%d on branch %q is missing configured pending label %q",
-					ErrReleasePRLabelMismatch,
-					pr.GetNumber(),
-					branch,
-					pendingLabel,
-				)
+				if len(pr.Labels) > 0 {
+					return false, fmt.Errorf(
+						"%w: trusted pull request #%d on branch %q is missing configured pending label %q",
+						ErrReleasePRLabelMismatch,
+						pr.GetNumber(),
+						branch,
+						pendingLabel,
+					)
+				}
+
+				needsPendingLabel = true
 			}
 
 			pendingPRs = append(pendingPRs, &PullRequest{
-				Number: pr.GetNumber(),
-				Title:  pr.GetTitle(),
-				Body:   pr.GetBody(),
-				URL:    pr.GetHTMLURL(),
-				Branch: branch,
+				Number:            pr.GetNumber(),
+				Title:             pr.GetTitle(),
+				Body:              pr.GetBody(),
+				URL:               pr.GetHTMLURL(),
+				Branch:            branch,
+				NeedsPendingLabel: needsPendingLabel,
 			})
 
 			return false, nil

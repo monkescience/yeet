@@ -227,9 +227,12 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	if err := g.validateOpenReleasePRLabelMismatches(ctx, baseBranch, pendingLabel, pendingMRs); err != nil {
+	adoptable, err := g.validateOpenReleasePRLabelMismatches(ctx, baseBranch, pendingLabel, pendingMRs)
+	if err != nil {
 		return nil, err
 	}
+
+	pendingMRs = append(pendingMRs, adoptable...)
 
 	slog.DebugContext(ctx, "gitlab: listed open pending release MRs", slog.Int("count", len(pendingMRs)))
 
@@ -240,7 +243,7 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
 	pendingMRs []*PullRequest,
-) error {
+) ([]*PullRequest, error) {
 	knownPending := make(map[int]struct{}, len(pendingMRs))
 	for _, pending := range pendingMRs {
 		knownPending[pending.Number] = struct{}{}
@@ -255,7 +258,9 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
 
-	return paginate(ctx, "checking open release MR labels",
+	adoptable := make([]*PullRequest, 0)
+
+	err := paginate(ctx, "checking open release MR labels",
 		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
 			options.Page = int64(page)
 
@@ -271,24 +276,60 @@ func (g *GitLab) validateOpenReleasePRLabelMismatches(
 				return false, nil
 			}
 
-			if !isTrustedGitLabReleasePR(
-				mr.SourceBranch,
-				baseBranch,
-				mr.SourceProjectID,
-				mr.TargetProjectID,
-			) || slices.Contains(mr.Labels, pendingLabel) {
-				return false, nil
+			candidate, err := classifyUnlabeledGitLabReleaseMR(mr, baseBranch, pendingLabel)
+			if err != nil {
+				return false, err
 			}
 
-			return false, fmt.Errorf(
-				"%w: trusted merge request !%d on branch %q is missing configured pending label %q",
-				ErrReleasePRLabelMismatch,
-				mr.IID,
-				mr.SourceBranch,
-				pendingLabel,
-			)
+			if candidate != nil {
+				adoptable = append(adoptable, candidate)
+			}
+
+			return false, nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return adoptable, nil
+}
+
+// classifyUnlabeledGitLabReleaseMR returns an adoptable MR when a trusted
+// release MR carries no labels at all, which means an earlier run was
+// interrupted before labelling it. Any other label set is treated as renamed
+// lifecycle configuration and rejected.
+func classifyUnlabeledGitLabReleaseMR(
+	mr *gitlab.BasicMergeRequest,
+	baseBranch, pendingLabel string,
+) (*PullRequest, error) {
+	if !isTrustedGitLabReleasePR(
+		mr.SourceBranch,
+		baseBranch,
+		mr.SourceProjectID,
+		mr.TargetProjectID,
+	) || slices.Contains(mr.Labels, pendingLabel) {
+		return nil, nil //nolint:nilnil // no candidate and no failure
+	}
+
+	if len(mr.Labels) > 0 {
+		return nil, fmt.Errorf(
+			"%w: trusted merge request !%d on branch %q is missing configured pending label %q",
+			ErrReleasePRLabelMismatch,
+			mr.IID,
+			mr.SourceBranch,
+			pendingLabel,
+		)
+	}
+
+	return &PullRequest{
+		Number:            int(mr.IID),
+		Title:             mr.Title,
+		Body:              mr.Description,
+		URL:               mr.WebURL,
+		Branch:            mr.SourceBranch,
+		NeedsPendingLabel: true,
+	}, nil
 }
 
 //nolint:funlen // Pagination closure layout inflates line count without adding complexity.

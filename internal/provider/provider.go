@@ -17,17 +17,14 @@ type Release struct {
 }
 
 type PullRequest struct {
-	Number         int
-	Title          string
-	Body           string
-	URL            string
-	Branch         string
-	MergeCommitSHA string
+	Number            int
+	Title             string
+	Body              string
+	URL               string
+	Branch            string
+	MergeCommitSHA    string
+	NeedsPendingLabel bool
 }
-
-const ReleaseLabelPending = "autorelease: pending"
-
-const ReleaseLabelTagged = "autorelease: tagged"
 
 const ReleaseLabelYeet = "yeet"
 

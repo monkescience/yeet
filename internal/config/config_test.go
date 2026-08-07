@@ -108,6 +108,42 @@ func TestReleaseLabelsValidation(t *testing.T) {
 				Extra:   []string{"YEET"},
 			},
 		},
+		{
+			name: "comma in pending label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "release, waiting",
+				Tagged:  "tagged",
+			},
+		},
+		{
+			name: "comma in tagged label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "release,done",
+			},
+		},
+		{
+			name: "comma in extra label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "tagged",
+				Extra:   []string{"automated,release"},
+			},
+		},
+		{
+			name: "reserved filter value as pending label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "Any",
+				Tagged:  "tagged",
+			},
+		},
+		{
+			name: "reserved filter value as tagged label",
+			labels: config.ReleaseLabelsConfig{
+				Pending: "pending",
+				Tagged:  "none",
+			},
+		},
 	}
 
 	for _, tt := range tests {

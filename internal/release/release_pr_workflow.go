@@ -62,6 +62,10 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
 
+		if err := w.adoptUnlabeledReleasePR(ctx, existing); err != nil {
+			return nil, err
+		}
+
 		if err := w.preserveExistingChangelogEdits(ctx, existing, result); err != nil {
 			return nil, err
 		}
@@ -82,6 +86,29 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 	}
 
 	return w.createNew(ctx, releaseBranch, prOpts, commitSubject, result)
+}
+
+// adoptUnlabeledReleasePR recovers a release PR that was created but never
+// labelled, which happens when a run is interrupted between CreateReleasePR and
+// MarkReleasePRPending.
+func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existing *provider.PullRequest) error {
+	if !existing.NeedsPendingLabel {
+		return nil
+	}
+
+	slog.InfoContext(ctx, "adopting unlabelled release PR", slog.String("url", existing.URL))
+
+	if err := w.prs.PrepareReleasePRLabels(ctx, w.core.releasePRLabels()); err != nil {
+		return fmt.Errorf("prepare release PR labels: %w", err)
+	}
+
+	if err := w.prs.MarkReleasePRPending(ctx, existing.Number, w.core.releasePRLabels()); err != nil {
+		return fmt.Errorf("mark release PR pending: %w", err)
+	}
+
+	existing.NeedsPendingLabel = false
+
+	return nil
 }
 
 func (w *releasePRWorkflow) preserveExistingChangelogEdits(

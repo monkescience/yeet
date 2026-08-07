@@ -29,8 +29,8 @@ type providerContractScenario string
 
 func defaultReleasePRLabels() provider.ReleasePRLabels {
 	return provider.ReleasePRLabels{
-		Pending: provider.ReleaseLabelPending,
-		Tagged:  provider.ReleaseLabelTagged,
+		Pending: testReleaseLabelPending,
+		Tagged:  testReleaseLabelTagged,
 		Yeet:    true,
 	}
 }
@@ -45,6 +45,8 @@ const (
 	providerContractUnknownReviewer          providerContractScenario = "unknown reviewer"
 	providerContractUpdateReleasePR          providerContractScenario = "update release pr"
 	providerContractFindOpenPRs              providerContractScenario = "find open prs"
+	providerContractFindOpenPRsUnlabeled     providerContractScenario = "find open prs unlabeled"
+	providerContractFindOpenPRsAdoptable     providerContractScenario = "find open prs adoptable"
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
 	providerContractMarkReleasePR            providerContractScenario = "mark release pr"
 	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
@@ -284,6 +286,51 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, 1, len(prs))
 				testastic.Equal(t, 42, prs[0].Number)
 				testastic.Equal(t, providerContractPendingBranch, prs[0].Branch)
+			})
+
+			t.Run("rejects a trusted release pull request labelled with a different lifecycle label", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a trusted release PR carrying a stale lifecycle label
+				server := httptest.NewServer(harness.handler(t, providerContractFindOpenPRsUnlabeled))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: FindOpenPendingReleasePRs is invoked for the base branch
+				prs, err := p.FindOpenPendingReleasePRs(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the run aborts with the lifecycle mismatch sentinel instead of skipping the PR
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+				testastic.Equal(t, 0, len(prs))
+			})
+
+			t.Run("adopts a trusted release pull request that carries no labels at all", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a trusted release PR left unlabelled by an interrupted run
+				server := httptest.NewServer(harness.handler(t, providerContractFindOpenPRsAdoptable))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: FindOpenPendingReleasePRs is invoked for the base branch
+				prs, err := p.FindOpenPendingReleasePRs(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the PR is returned for adoption rather than aborting the run
+				testastic.NoError(t, err)
+				testastic.Equal(t, 1, len(prs))
+				testastic.Equal(t, 42, prs[0].Number)
+				testastic.True(t, prs[0].NeedsPendingLabel)
 			})
 
 			t.Run("finds merged release pull request", func(t *testing.T) {

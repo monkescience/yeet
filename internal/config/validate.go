@@ -255,6 +255,36 @@ func validateReleaseConfig(release ReleaseConfig) error {
 	return nil
 }
 
+func validateLifecycleLabelName(path, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("%w: %s must not be blank", ErrInvalidConfig, path)
+	}
+
+	if name != strings.TrimSpace(name) {
+		return fmt.Errorf(
+			"%w: %s %q must not have leading or trailing whitespace",
+			ErrInvalidConfig,
+			path,
+			name,
+		)
+	}
+
+	if strings.Contains(name, ",") {
+		return fmt.Errorf("%w: %s %q must not contain a comma", ErrInvalidConfig, path, name)
+	}
+
+	if strings.EqualFold(name, "any") || strings.EqualFold(name, "none") {
+		return fmt.Errorf(
+			"%w: %s %q is a reserved label filter value",
+			ErrInvalidConfig,
+			path,
+			name,
+		)
+	}
+
+	return nil
+}
+
 func validateReleaseLabels(labels ReleaseLabelsConfig) error {
 	lifecycle := []struct {
 		path string
@@ -265,17 +295,8 @@ func validateReleaseLabels(labels ReleaseLabelsConfig) error {
 	}
 
 	for _, label := range lifecycle {
-		if strings.TrimSpace(label.name) == "" {
-			return fmt.Errorf("%w: %s must not be blank", ErrInvalidConfig, label.path)
-		}
-
-		if label.name != strings.TrimSpace(label.name) {
-			return fmt.Errorf(
-				"%w: %s %q must not have leading or trailing whitespace",
-				ErrInvalidConfig,
-				label.path,
-				label.name,
-			)
+		if err := validateLifecycleLabelName(label.path, label.name); err != nil {
+			return err
 		}
 	}
 
@@ -325,6 +346,14 @@ func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
 		if extra != strings.TrimSpace(extra) {
 			return fmt.Errorf(
 				"%w: release.labels.extra entry %q must not have leading or trailing whitespace",
+				ErrInvalidConfig,
+				extra,
+			)
+		}
+
+		if strings.Contains(extra, ",") {
+			return fmt.Errorf(
+				"%w: release.labels.extra entry %q must not contain a comma",
 				ErrInvalidConfig,
 				extra,
 			)

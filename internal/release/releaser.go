@@ -222,7 +222,7 @@ func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(analysisErr, err)
 	}
 
 	result, err = newReleaseAnalyzer(r.core, r.source).analyze(ctx, selection)

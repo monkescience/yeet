@@ -1256,6 +1256,39 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	)
 }
 
+func TestReleaseAdoptsUnlabelledPendingPR(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release PR that a previous run created but never labelled
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.openPending = []*provider.PullRequest{{
+		Number:            7,
+		URL:               "https://example.com/pr/7",
+		Branch:            "yeet/release-main",
+		NeedsPendingLabel: true,
+	}}
+	stub.commits = []provider.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "feat: add feature",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: releasing while that unlabelled PR is open
+	result, err := r.Release(context.Background(), false)
+
+	// then: the PR is relabelled and reused instead of wedging or creating a second one
+	testastic.NoError(t, err)
+	testastic.Equal(t, 0, stub.createPRCalls)
+	testastic.Equal(t, 1, stub.updatePRCalls)
+	testastic.SliceEqual(t, []int{7}, stub.markPendingCalls)
+	testastic.Equal(t, 1, len(stub.releasePRWorkflowStub.prepareLabelCalls))
+	testastic.Equal(t, "yeet/release-main", result.PullRequest.Branch)
+	testastic.False(t, result.PullRequest.NeedsPendingLabel)
+}
+
 func TestReleasePRCarriesReviewers(t *testing.T) {
 	t.Parallel()
 

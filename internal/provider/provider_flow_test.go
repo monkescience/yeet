@@ -35,7 +35,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&addLabels)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelPending}})
+				writeJSON(t, w, []map[string]any{{"name": testReleaseLabelPending}})
 			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
 				removedLabel = decodedPathTail(t, r)
 				http.NotFound(w, r)
@@ -54,8 +54,8 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
-		testastic.SliceEqual(t, []string{provider.ReleaseLabelPending, "yeet"}, addLabels)
-		testastic.Equal(t, provider.ReleaseLabelTagged, removedLabel)
+		testastic.SliceEqual(t, []string{testReleaseLabelPending, "yeet"}, addLabels)
+		testastic.Equal(t, testReleaseLabelTagged, removedLabel)
 
 		// when: marking the same pull request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
@@ -64,7 +64,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)
-		testastic.SliceEqual(t, []string{provider.ReleaseLabelPending}, addLabels)
+		testastic.SliceEqual(t, []string{testReleaseLabelPending}, addLabels)
 	})
 
 	t.Run("marks pull request tagged", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&addLabels)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, []map[string]any{{"name": provider.ReleaseLabelTagged}})
+				writeJSON(t, w, []map[string]any{{"name": testReleaseLabelTagged}})
 			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/7/labels/"):
 				removedLabel = decodedPathTail(t, r)
 
@@ -103,8 +103,8 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.ReleaseLabelTagged, strings.Join(addLabels, ","))
-		testastic.Equal(t, provider.ReleaseLabelPending, removedLabel)
+		testastic.Equal(t, testReleaseLabelTagged, strings.Join(addLabels, ","))
+		testastic.Equal(t, testReleaseLabelPending, removedLabel)
 	})
 }
 
@@ -616,8 +616,8 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.ReleaseLabelPending+",yeet", updateRequest.AddLabels)
-		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.RemoveLabels)
+		testastic.Equal(t, testReleaseLabelPending+",yeet", updateRequest.AddLabels)
+		testastic.Equal(t, testReleaseLabelTagged, updateRequest.RemoveLabels)
 
 		// when: marking the same merge request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
@@ -626,7 +626,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.ReleaseLabelPending, updateRequest.AddLabels)
+		testastic.Equal(t, testReleaseLabelPending, updateRequest.AddLabels)
 	})
 
 	t.Run("marks merge request tagged", func(t *testing.T) {
@@ -660,8 +660,8 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		// then: the tagged label is added and the pending label is removed
 		testastic.NoError(t, err)
-		testastic.Equal(t, provider.ReleaseLabelTagged, updateRequest.AddLabels)
-		testastic.Equal(t, provider.ReleaseLabelPending, updateRequest.RemoveLabels)
+		testastic.Equal(t, testReleaseLabelTagged, updateRequest.AddLabels)
+		testastic.Equal(t, testReleaseLabelPending, updateRequest.RemoveLabels)
 	})
 }
 

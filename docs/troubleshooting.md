@@ -22,11 +22,15 @@ If an extra label is missing, create every `release.labels.extra` entry in the G
 GitLab project, then check its spelling and case before rerunning. Azure DevOps labels do not need
 to be created in advance.
 
-A lifecycle-label mismatch means a trusted yeet release branch does not carry the configured
-pending label. Restore the previous lifecycle names first. Finish or close an open release PR/MR
-before changing them. For a merged but unfinalized PR/MR, restore the old names and finalize it
-before changing the configuration. Yeet cannot fall back automatically because it stores no label
-history.
+A lifecycle-label mismatch means a trusted yeet release branch carries some other label instead of
+the configured pending label, which points at renamed lifecycle configuration. Restore the previous
+lifecycle names first. Finish or close an open release PR/MR before changing them. For a merged but
+unfinalized PR/MR, restore the old names and finalize it before changing the configuration. Yeet
+cannot fall back automatically because it stores no label history.
+
+A release PR/MR left with no labels at all is handled automatically. It means a previous run was
+interrupted between creating the PR/MR and labelling it, so the next run reapplies the lifecycle
+labels and reuses it. No manual relabelling is needed.
 
 ## Logging
 

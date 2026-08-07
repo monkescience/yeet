@@ -53,6 +53,10 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubUpdateReleasePRContract(t, w, r)
 		case providerContractFindOpenPRs:
 			handleGitHubFindOpenPRsContract(t, w, r)
+		case providerContractFindOpenPRsUnlabeled:
+			handleGitHubFindOpenPRsFixtureContract(t, w, r, "find_open_prs_unlabeled")
+		case providerContractFindOpenPRsAdoptable:
+			handleGitHubFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
 		case providerContractFindMergedPR:
 			handleGitHubFindMergedPRContract(t, w, r)
 		case providerContractMarkReleasePR:
@@ -270,6 +274,18 @@ func handleGitHubFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 		testastic.Equal(t, "open", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("base"))
 		writeJSONFixture(t, w, "contracts/github/find_open_prs/prs.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubFindOpenPRsFixtureContract(t *testing.T, w http.ResponseWriter, r *http.Request, dir string) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls" {
+		writeJSONFixture(t, w, "contracts/github/"+dir+"/prs.json")
 
 		return
 	}

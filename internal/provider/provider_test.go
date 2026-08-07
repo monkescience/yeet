@@ -18,6 +18,11 @@ import (
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
+const (
+	testReleaseLabelPending = "autorelease: pending"
+	testReleaseLabelTagged  = "autorelease: tagged"
+)
+
 func TestParseRemote(t *testing.T) {
 	t.Parallel()
 
@@ -339,7 +344,7 @@ func TestGitHubFindMergedReleasePRIncludesMergeCommitSHA(t *testing.T) {
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: finding the merged pending release PR
-	pullRequest, err := gh.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
+	pullRequest, err := gh.FindMergedReleasePR(context.Background(), "main", testReleaseLabelPending)
 
 	// then: the merged commit SHA is populated for stale-release finalization
 	testastic.NoError(t, err)
@@ -968,7 +973,7 @@ func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
 							"repo": map[string]any{"full_name": "o/r"},
 						},
 						"labels": []map[string]any{
-							{"name": provider.ReleaseLabelPending},
+							{"name": testReleaseLabelPending},
 						},
 					},
 					{
@@ -991,7 +996,7 @@ func TestGitHubFindOpenPendingReleasePRs(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: finding open pending release PRs
-		prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main", provider.ReleaseLabelPending)
+		prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main", testReleaseLabelPending)
 
 		// then: only the release PR with pending label is returned
 		testastic.NoError(t, err)
@@ -1068,12 +1073,12 @@ func TestGitHubEnsureLabel(t *testing.T) {
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
-			expected: []string{provider.ReleaseLabelYeet, provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
-			expected: []string{provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
 		},
 	}
 
@@ -1441,7 +1446,7 @@ func TestGitLabFindOpenPendingReleasePRs(t *testing.T) {
 	gl := provider.NewGitLab(client, "o/r")
 
 	// when: finding open pending release MRs
-	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", provider.ReleaseLabelPending)
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", testReleaseLabelPending)
 
 	// then: only the release MR is returned
 	testastic.NoError(t, err)
@@ -1490,7 +1495,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", testReleaseLabelPending)
 
 		// then: the merged MR is returned with merge commit SHA
 		testastic.NoError(t, err)
@@ -1536,7 +1541,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding the fast-forward merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", testReleaseLabelPending)
 
 		// then: the source tip identifies the commit now on the target branch
 		testastic.NoError(t, err)
@@ -1569,7 +1574,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		_, err = gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
+		_, err = gl.FindMergedReleasePR(context.Background(), "main", testReleaseLabelPending)
 
 		// then: ErrNoPR is returned
 		testastic.Error(t, err)
@@ -1629,7 +1634,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: finding merged release MR
-		pr, err := gl.FindMergedReleasePR(context.Background(), "main", provider.ReleaseLabelPending)
+		pr, err := gl.FindMergedReleasePR(context.Background(), "main", testReleaseLabelPending)
 
 		// then: the most recently merged MR is returned, not the most recently updated
 		testastic.NoError(t, err)
@@ -1649,12 +1654,12 @@ func TestGitLabEnsureLabel(t *testing.T) {
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
-			expected: []string{provider.ReleaseLabelYeet, provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
-			expected: []string{provider.ReleaseLabelPending, provider.ReleaseLabelTagged},
+			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
 		},
 	}
 

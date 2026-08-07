@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -115,7 +116,7 @@ func TestAzureDevOpsFindOpenPendingReleasePRsAcceptsExactPaginationCapacity(t *t
 	prs, err := p.FindOpenPendingReleasePRs(
 		context.Background(),
 		providerContractBaseBranch,
-		provider.ReleaseLabelPending,
+		testReleaseLabelPending,
 	)
 
 	// then: the empty exhaustion probe proves the complete result fits
@@ -275,7 +276,7 @@ func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 			"commitId": "preview-sha",
 		},
 		"labels": []map[string]any{{
-			"name":   provider.ReleaseLabelPending,
+			"name":   testReleaseLabelPending,
 			"active": true,
 		}},
 	}
@@ -308,7 +309,7 @@ func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 	pr, err := p.FindMergedReleasePR(
 		context.Background(),
 		providerContractBaseBranch,
-		provider.ReleaseLabelPending,
+		testReleaseLabelPending,
 	)
 
 	// then: the queued preview commit is not exposed as the final merge commit
@@ -328,7 +329,7 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 			"commitId": "source-sha",
 		},
 		"labels": []map[string]any{{
-			"name":   provider.ReleaseLabelPending,
+			"name":   testReleaseLabelPending,
 			"active": true,
 		}},
 	}
@@ -361,7 +362,7 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 	pr, err := p.FindMergedReleasePR(
 		context.Background(),
 		providerContractBaseBranch,
-		provider.ReleaseLabelPending,
+		testReleaseLabelPending,
 	)
 
 	// then: its source commit is not exposed as the final merge commit
@@ -377,6 +378,12 @@ func TestAzureDevOpsMarkReleasePRPendingKeepsPartialFailureRetryable(t *testing.
 	// given: Azure accepts the pending label but rejects a configured extra label
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			writeJSON(t, w, map[string]any{"value": []any{}})
+
 			return
 		}
 
@@ -415,6 +422,66 @@ func TestAzureDevOpsMarkReleasePRPendingKeepsPartialFailureRetryable(t *testing.
 	// then: the failure is returned after attaching the pending marker for retry discovery
 	testastic.Error(t, err)
 	testastic.True(t, pendingAttached.Load())
+}
+
+func TestAzureDevOpsMarkReleasePRPendingAttachesLabelsAfterARejectedOne(t *testing.T) {
+	t.Parallel()
+
+	var attached sync.Map
+
+	// given: Azure rejects one configured extra label but accepts every other
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			writeJSON(t, w, map[string]any{"value": []any{}})
+
+			return
+		}
+
+		if r.Method != http.MethodPost || r.URL.Path != azureDevOpsContractRepoAPI("pullRequests/42/labels") {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		var request struct {
+			Name string `json:"name"`
+		}
+		decodeJSONRequest(t, r, &request)
+
+		if request.Name == "rejected" {
+			w.WriteHeader(http.StatusBadRequest)
+			writeJSON(t, w, map[string]any{"message": "label rejected"})
+
+			return
+		}
+
+		attached.Store(request.Name, true)
+		writeJSON(t, w, map[string]any{"name": request.Name})
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: marking pending with a rejected label positioned before other labels
+	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+		Pending: providerContractPendingLabel,
+		Tagged:  providerContractTaggedLabel,
+		Extra:   []string{"rejected", "kept"},
+		Yeet:    true,
+	})
+
+	// then: the rejection surfaces but the labels queued behind it are still attached
+	testastic.Error(t, err)
+
+	for _, label := range []string{providerContractPendingLabel, "kept", provider.ReleaseLabelYeet} {
+		if _, ok := attached.Load(label); !ok {
+			t.Errorf("label %q was not attached", label)
+		}
+	}
 }
 
 func TestAzureDevOpsMarkReleasePRPendingKeepsManagedFailureRetryable(t *testing.T) {
@@ -481,7 +548,7 @@ func TestAzureDevOpsMarkReleasePRPendingKeepsManagedFailureRetryable(t *testing.
 	testastic.True(t, pendingAttached.Load())
 }
 
-func TestAzureDevOpsLifecycleLabelRemovalPreservesCaseVariant(t *testing.T) {
+func TestAzureDevOpsLifecycleLabelRemovalMatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
 	var deleted atomic.Bool
@@ -517,9 +584,9 @@ func TestAzureDevOpsLifecycleLabelRemovalPreservesCaseVariant(t *testing.T) {
 		Tagged:  providerContractTaggedLabel,
 	})
 
-	// then: the unrelated case-variant tag is preserved
+	// then: the case-variant tag is recognised as the configured label and removed
 	testastic.NoError(t, err)
-	testastic.False(t, deleted.Load())
+	testastic.True(t, deleted.Load())
 }
 
 // newAzureDevOpsContractHandler wraps every scenario with the bootstrap
@@ -583,6 +650,10 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsUpdateReleasePRHandler(t)
 	case providerContractFindOpenPRs:
 		return azureDevOpsFindOpenPRsHandler(t)
+	case providerContractFindOpenPRsUnlabeled:
+		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_unlabeled")
+	case providerContractFindOpenPRsAdoptable:
+		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_adoptable")
 	case providerContractFindMergedPR:
 		return azureDevOpsFindMergedPRHandler(t)
 	case providerContractMarkReleasePR:
@@ -857,6 +928,20 @@ func azureDevOpsFindOpenPRsHandler(t *testing.T) http.HandlerFunc {
 		testastic.Equal(t, "active", r.URL.Query().Get("searchCriteria.status"))
 		testastic.Equal(t, "refs/heads/"+providerContractBaseBranch, r.URL.Query().Get("searchCriteria.targetRefName"))
 		writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_requests.json"))
+	}
+}
+
+func azureDevOpsFindOpenPRsFixtureHandler(t *testing.T, dir string) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isAzureDevOpsPullRequestsListRequest(r) {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		writeJSONFixture(t, w, azureDevOpsContractFixture(dir, "pull_requests.json"))
 	}
 }
 
