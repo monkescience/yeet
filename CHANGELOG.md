@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.12.1](https://github.com/monkescience/yeet/compare/v0.12.0...v0.12.1) (2026-08-07)
+
+### Bug Fixes
+
+- **changelog:** separate section headings from the preceding section ([603c95f](https://github.com/monkescience/yeet/commit/603c95f808b3787c5856f9a6753157ce8bb24e4a))
+- **release:** never inherit generator-owned changelog sections on refresh ([f353173](https://github.com/monkescience/yeet/commit/f3531739cb0a68f2b4c0926d41fdee2b55bc26a6))
+- **release:** stop published changelog sections seeding the next entry ([04bc254](https://github.com/monkescience/yeet/commit/04bc25416aee6206bbe805af7b08c8718db374de))
+- **release:** refresh remote tags before the post-finalize analysis ([ef05b26](https://github.com/monkescience/yeet/commit/ef05b266f0ad91bdec75571d10450bf418fc5605))
+
 ## [v0.12.0](https://github.com/monkescience/yeet/compare/v0.11.5...v0.12.0) (2026-08-07)
 
 ### ⚠ BREAKING CHANGES
