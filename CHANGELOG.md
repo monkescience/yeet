@@ -1,5 +1,46 @@
 # Changelog
 
+## [v0.13.0](https://github.com/monkescience/yeet/compare/v0.12.1...v0.13.0) (2026-08-08)
+
+yeet now validates `.yeet.yaml` against
+[`yeet.schema.json`](https://github.com/monkescience/yeet/blob/main/yeet.schema.json) before release
+planning. Configurations that do not match the schema must be corrected before upgrading.
+
+Object-form `version_files` entries must now set `format` explicitly. Use `markers` for files
+containing yeet comment markers, or `json` with a `json_pointer` for JSON files.
+
+```yaml
+# Before
+version_files:
+  - path: VERSION
+
+# v0.13.0
+version_files:
+  - path: VERSION
+    format: markers
+```
+
+### ⚠ BREAKING CHANGES
+
+- **config:** enforce the JSON schema as the config shape contract at load time ([b0c292d](https://github.com/monkescience/yeet/commit/b0c292d45c8411c26546e0478e61150e43670424))
+
+### Features
+
+- **config:** enforce the JSON schema as the config shape contract at load time ([b0c292d](https://github.com/monkescience/yeet/commit/b0c292d45c8411c26546e0478e61150e43670424))
+
+### Bug Fixes
+
+- **changelog:** preserve freeform release notes ([27efb95](https://github.com/monkescience/yeet/commit/27efb95c93406ec6c01965662ef938b38ba8a9b1))
+- **provider:** stop polling terminal Azure merge refusals ([bf5bd8f](https://github.com/monkescience/yeet/commit/bf5bd8f98935ba7eca5d05c2f80998b576999a32))
+- **release:** validate remote mutation prerequisites ([2878057](https://github.com/monkescience/yeet/commit/287805787d64ebad25397e98d1c5fe75c0fb7f2d))
+- **provider:** share one merge driver and report why a merge is blocked ([fc2f3a4](https://github.com/monkescience/yeet/commit/fc2f3a478021dbfc3ea328855a46d1dfbb88c722))
+- **release:** stop re-planning a published version from a stale forge tag list ([9d6e4d7](https://github.com/monkescience/yeet/commit/9d6e4d7a25b93da191c0fca02e7bb7a0a7b23afb))
+- **changelog:** stop inheriting child target sections absent from the release wave ([c9c8166](https://github.com/monkescience/yeet/commit/c9c8166c6544e80135efe9d1ef49fc36bce45792))
+- **provider:** page GitLab project member lookups for reviewer validation ([a6b665e](https://github.com/monkescience/yeet/commit/a6b665e4c41722c738091f6362bc377983dfa9e2))
+- **provider:** page Azure DevOps ref lookups instead of scanning one page ([97357d0](https://github.com/monkescience/yeet/commit/97357d0765afd5e8a857d0dc5822dd70714cf828))
+- **provider:** assert Azure DevOps release PRs belong to the configured repository ([07d62dc](https://github.com/monkescience/yeet/commit/07d62dcf92392f3029caf5c486b5cffb23100ab2))
+- **provider:** trust only the host of the provider URL environment variable ([6bd891d](https://github.com/monkescience/yeet/commit/6bd891dadc3b7b4afc73b1b0acc32ed48d3adf1a))
+
 ## [v0.12.1](https://github.com/monkescience/yeet/compare/v0.12.0...v0.12.1) (2026-08-07)
 
 ### Bug Fixes
