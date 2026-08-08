@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
@@ -284,5 +285,5 @@ func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintf(w, "  %s\n", ui.Faint.Render(ui.Separator))
 	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, plan.Changelog)
+	_, _ = fmt.Fprintln(w, changelog.Render(plan.Entry))
 }

@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -18,7 +19,6 @@ var (
 	errNilHistorySource          = errors.New("history source is required")
 	errInvalidReleaseAs          = errors.New("invalid release-as footer")
 	errConflictingReleaseAs      = errors.New("conflicting release-as footers")
-	errChangelogEntryNotFound    = errors.New("changelog entry not found")
 	ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
 	errUnknownTarget             = errors.New("unknown target")
 	errConflictingFileUpdate     = errors.New("conflicting file update")
@@ -39,8 +39,8 @@ type TargetPlan struct {
 	NextTag         string
 	BumpType        commit.BumpType
 	CommitCount     int
-	Changelog       string
-	PRChangelog     string
+	Entry           changelog.Entry
+	PREntry         changelog.Entry
 	PRCompareRef    string
 	ChangelogFile   string
 	IncludedTargets []string

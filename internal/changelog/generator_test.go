@@ -6,7 +6,6 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
-	"github.com/monkescience/yeet/internal/config"
 )
 
 func TestGenerate(t *testing.T) {
@@ -38,7 +37,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/generates_changelog_with_sections/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -65,7 +64,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/includes_breaking_changes_section/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -89,7 +88,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/short_hash_in_output/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -117,7 +116,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/includes_revert_section/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -141,7 +140,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/uses_capitalize_first_fallback_for_unmapped_commit_type/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -158,7 +157,7 @@ func TestGenerate(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v1.0.0", "", nil)
 
 		// then: body is empty
-		testastic.Equal(t, "", entry.Body)
+		testastic.Empty(t, entry.Sections)
 	})
 
 	t.Run("linked commit hashes with repo URL", func(t *testing.T) {
@@ -183,7 +182,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/linked_commit_hashes_with_repo_u_r_l/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -209,7 +208,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/linked_commit_hashes_with_gitlab_path_prefix/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -302,7 +301,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/unlinked_hashes_without_repo_u_r_l/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -313,8 +312,8 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
-				Patterns: []config.ReferencePattern{
+			changelog.WithReferences(changelog.References{
+				Patterns: []changelog.ReferencePattern{
 					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
 				},
 			}),
@@ -331,7 +330,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/inline_pattern_replaces_reference_with_link/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -342,8 +341,8 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
-				Patterns: []config.ReferencePattern{
+			changelog.WithReferences(changelog.References{
+				Patterns: []changelog.ReferencePattern{
 					{Pattern: `#\d+`, URL: ""},
 				},
 			}),
@@ -360,7 +359,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/inline_pattern_with_empty_u_r_l_leaves_text_as_is/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -371,7 +370,7 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
+			changelog.WithReferences(changelog.References{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
@@ -392,7 +391,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/footer_reference_appended_after_hash/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -403,7 +402,7 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
 			changelog.WithInclude([]string{"fix"}),
-			changelog.WithReferences(config.ReferencesConfig{
+			changelog.WithReferences(changelog.References{
 				Footers: map[string]string{
 					"Closes": "",
 				},
@@ -424,7 +423,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/footer_reference_with_empty_u_r_l_renders_plain_text/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -435,7 +434,7 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
+			changelog.WithReferences(changelog.References{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
@@ -459,7 +458,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/multiple_footers_on_one_commit/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -486,7 +485,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/no_references_configured_leaves_output_unchanged/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -497,7 +496,7 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
+			changelog.WithReferences(changelog.References{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
@@ -518,7 +517,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/non_matching_footer_key_is_ignored/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -529,7 +528,7 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
+			changelog.WithReferences(changelog.References{
 				Footers: map[string]string{
 					"Refs": "https://jira.example.com/browse/{value}",
 				},
@@ -553,7 +552,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/references_in_breaking_changes_section/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -564,8 +563,8 @@ func TestGenerate(t *testing.T) {
 		gen := changelog.New(
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
-			changelog.WithReferences(config.ReferencesConfig{
-				Patterns: []config.ReferencePattern{
+			changelog.WithReferences(changelog.References{
+				Patterns: []changelog.ReferencePattern{
 					{Pattern: `[invalid`, URL: "https://example.com/{value}"},
 				},
 			}),
@@ -582,7 +581,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/invalid_regex_pattern_is_skipped/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -594,8 +593,8 @@ func TestGenerate(t *testing.T) {
 			changelog.WithSections(map[string]string{"feat": "Features"}),
 			changelog.WithInclude([]string{"feat"}),
 			changelog.WithRepoURL("https://github.com/owner/repo"),
-			changelog.WithReferences(config.ReferencesConfig{
-				Patterns: []config.ReferencePattern{
+			changelog.WithReferences(changelog.References{
+				Patterns: []changelog.ReferencePattern{
 					{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
 				},
 				Footers: map[string]string{
@@ -618,7 +617,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/both_inline_patterns_and_footer_references/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 }
@@ -630,10 +629,8 @@ func TestRender(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog entry without compare URL
-		entry := changelog.Entry{
-			Version: "v1.2.0",
-			Body:    readTestFile(t, "testdata/render/renders_entry_as_markdown/body.input.md"),
-		}
+		entry := changelog.ParseEntry(readTestFile(t, "testdata/render/renders_entry_as_markdown/body.input.md"))
+		entry.Version = "v1.2.0"
 
 		// when: rendering
 		output := changelog.Render(entry)
@@ -650,11 +647,11 @@ func TestRender(t *testing.T) {
 		t.Parallel()
 
 		// given: a changelog entry with compare URL
-		entry := changelog.Entry{
-			Version:    "v1.2.0",
-			Body:       readTestFile(t, "testdata/render/renders_linked_version_header_with_compare_u_r_l/body.input.md"),
-			CompareURL: "https://github.com/owner/repo/compare/v1.1.0...v1.2.0",
-		}
+		entry := changelog.ParseEntry(
+			readTestFile(t, "testdata/render/renders_linked_version_header_with_compare_u_r_l/body.input.md"),
+		)
+		entry.Version = "v1.2.0"
+		entry.CompareURL = "https://github.com/owner/repo/compare/v1.1.0...v1.2.0"
 
 		// when: rendering
 		output := changelog.Render(entry)
@@ -824,7 +821,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/preserves_word_boundaries_in_multiline_footer_values/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -852,7 +849,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 			t,
 			"testdata/generate_sanitizes_commit_text/"+
 				"neutralizes_a_forged_manifest_marker_in_a_commit_description/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -881,7 +878,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/neutralizes_a_marker_reassembled_from_control_split_bytes/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 
@@ -905,7 +902,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/strips_control_characters_from_commit_text/body.expected.md",
-			entry.Body,
+			changelog.RenderSections(entry.Sections),
 		)
 	})
 }

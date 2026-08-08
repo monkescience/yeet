@@ -44,7 +44,13 @@ func (u *releaseBranchUpdater) updateFiles(
 			return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
 		}
 
-		changelogContent, err := u.releaseChangelogFileContent(ctx, files, changelogFiles, target, plan.Changelog)
+		changelogContent, err := u.releaseChangelogFileContent(
+			ctx,
+			files,
+			changelogFiles,
+			target,
+			changelog.Render(plan.Entry),
+		)
 		if err != nil {
 			return err
 		}

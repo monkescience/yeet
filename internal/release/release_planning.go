@@ -429,7 +429,7 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
 	}
 
-	plan.Changelog = renderDerivedChangelog(
+	plan.Entry = derivedChangelogEntry(
 		ctx,
 		target,
 		plan.NextTag,
@@ -440,7 +440,7 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		derivedChangelogRelease,
 		a.core.metadata,
 	)
-	plan.PRChangelog = renderDerivedChangelog(
+	plan.PREntry = derivedChangelogEntry(
 		ctx,
 		target,
 		plan.NextTag,
@@ -497,12 +497,12 @@ func (a *releaseAnalyzer) newTargetPlan(
 	setPlanVersions(&plan, strategy, baseVersion)
 
 	entry := newTargetChangelogEntry(ctx, target, plan.NextTag, ref, commits, a.core.metadata)
-	plan.Changelog = renderChangelogEntry(entry, ref, plan.NextTag, a.core.metadata)
-	plan.PRChangelog = plan.Changelog
+	plan.Entry = changelogEntryWithCompare(entry, ref, plan.NextTag, a.core.metadata)
+	plan.PREntry = plan.Entry
 
 	if ref != "" && len(entries) > 0 {
 		plan.PRCompareRef = strings.TrimSpace(entries[0].Hash)
-		plan.PRChangelog = renderChangelogEntry(entry, ref, entries[0].Hash, a.core.metadata)
+		plan.PREntry = changelogEntryWithCompare(entry, ref, entries[0].Hash, a.core.metadata)
 	}
 
 	return plan

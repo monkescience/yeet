@@ -144,15 +144,12 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			changelogFile = previous
 		}
 
-		ownedHeadings := changelog.SectionHeadings(target.Changelog.Sections, target.Changelog.Include)
-
 		if err := w.preserveTargetChangelogEdits(
 			ctx,
 			existing.Branch,
 			changelogFile,
 			previousTags[plan.ID],
 			plan,
-			ownedHeadings,
 		); err != nil {
 			return err
 		}
@@ -165,7 +162,6 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 	ctx context.Context,
 	branch, changelogFile, previousTag string,
 	plan *TargetPlan,
-	ownedHeadings map[string]struct{},
 ) error {
 	existingChangelog, err := w.releaseBranchChangelog(ctx, branch, changelogFile)
 	if err != nil {
@@ -185,10 +181,10 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 		return nil
 	}
 
-	plan.Changelog = preserveManualChangelogSections(plan.Changelog, existingEntry, ownedHeadings)
-	if plan.PRChangelog != "" {
-		plan.PRChangelog = preserveManualChangelogSections(plan.PRChangelog, existingEntry, ownedHeadings)
-	}
+	foreign := changelog.ParseEntry(existingEntry)
+
+	plan.Entry = changelog.Merge(plan.Entry, foreign)
+	plan.PREntry = changelog.Merge(plan.PREntry, foreign)
 
 	return nil
 }
@@ -208,13 +204,13 @@ func (w *releasePRWorkflow) releaseBranchChangelog(ctx context.Context, branch, 
 // is still an unpublished draft. Once it matches the released boundary its
 // entry belongs to a shipped release and must not seed the next one.
 func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef string) (string, bool, error) {
-	entry, err := changelogEntryByTag(changelogBody, nextTag)
+	entry, err := changelog.EntryByTag(changelogBody, nextTag)
 	if err == nil {
 		return entry, true, nil
 	}
 
-	if !errors.Is(err, errChangelogEntryNotFound) {
-		return "", false, err
+	if !errors.Is(err, changelog.ErrEntryNotFound) {
+		return "", false, fmt.Errorf("read changelog entry for %s: %w", nextTag, err)
 	}
 
 	previousTag = strings.TrimSpace(previousTag)
@@ -222,16 +218,16 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef s
 		return "", false, nil
 	}
 
-	entry, err = changelogEntryByTag(changelogBody, previousTag)
+	entry, err = changelog.EntryByTag(changelogBody, previousTag)
 	if err == nil {
 		return entry, true, nil
 	}
 
-	if errors.Is(err, errChangelogEntryNotFound) {
+	if errors.Is(err, changelog.ErrEntryNotFound) {
 		return "", false, nil
 	}
 
-	return "", false, err
+	return "", false, fmt.Errorf("read changelog entry for %s: %w", previousTag, err)
 }
 
 func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {

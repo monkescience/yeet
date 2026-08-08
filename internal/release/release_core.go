@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
@@ -131,11 +132,7 @@ func (c *releaseCore) combinedPRChangelog(result *Result) string {
 	}
 
 	if len(plans) == 1 {
-		if plans[0].PRChangelog != "" {
-			return plans[0].PRChangelog
-		}
-
-		return plans[0].Changelog
+		return changelog.Render(preferredPREntry(plans[0]))
 	}
 
 	sections := buildPRSections(plans)
@@ -155,11 +152,11 @@ func (c *releaseCore) combinedPRChangelog(result *Result) string {
 
 func (c *releaseCore) releasePRBody(changelogBody, manifestMarker string, limit int) (string, bool) {
 	header := strings.TrimSpace(c.cfg.Release.PRBodyHeader)
-	changelog := strings.TrimSpace(changelogBody)
+	notes := strings.TrimSpace(changelogBody)
 	marker := strings.TrimSpace(manifestMarker)
 	footer := strings.TrimSpace(c.cfg.Release.PRBodyFooter)
 
-	body := joinPRBodyParts(header, changelog, marker, footer)
+	body := joinPRBodyParts(header, notes, marker, footer)
 	if limit <= 0 || len(body) <= limit {
 		return body, false
 	}

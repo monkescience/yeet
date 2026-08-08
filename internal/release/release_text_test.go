@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
-	"github.com/monkescience/yeet/internal/changelog"
+	changelogpkg "github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 )
 
@@ -235,9 +235,9 @@ func TestCombinedPRChangelog(t *testing.T) {
 		result := &Result{
 			BaseBranch: "main",
 			Plans: []TargetPlan{{
-				ID:          "default",
-				Type:        "path",
-				PRChangelog: prChangelog,
+				ID:      "default",
+				Type:    "path",
+				PREntry: changelogpkg.ParseEntry(prChangelog),
 			}},
 		}
 
@@ -263,7 +263,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "1.3.0",
 					NextTag:        "api-v1.3.0",
 					BumpType:       "minor",
-					PRChangelog: strings.TrimSpace(readTestFile(
+					PREntry: changelogpkg.ParseEntry(readTestFile(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
@@ -277,7 +277,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "2.1.4",
 					NextTag:        "web-v2.1.4",
 					BumpType:       "patch",
-					PRChangelog: strings.TrimSpace(readTestFile(
+					PREntry: changelogpkg.ParseEntry(readTestFile(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
@@ -292,7 +292,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PRChangelog: strings.TrimSpace(readTestFile(
+					PREntry: changelogpkg.ParseEntry(readTestFile(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
@@ -324,7 +324,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextVersion:    "1.3.0",
 					NextTag:        "api-v1.3.0",
 					BumpType:       "minor",
-					PRChangelog: strings.TrimSpace(readTestFile(
+					PREntry: changelogpkg.ParseEntry(readTestFile(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"derived_target_preserves_embedded_child_sections_when_some_child_plans_are_omitted/"+
@@ -339,7 +339,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PRChangelog: strings.TrimSpace(readTestFile(
+					PREntry: changelogpkg.ParseEntry(readTestFile(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"derived_target_preserves_embedded_child_sections_when_some_child_plans_are_omitted/"+
@@ -371,7 +371,7 @@ func TestChangelogEntryByTag(t *testing.T) {
 		))
 
 		// when: extracting entry for v1.2.3
-		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+		entry, err := changelogpkg.EntryByTag(changelog, "v1.2.3")
 
 		// then: only matching section is returned
 		testastic.NoError(t, err)
@@ -389,7 +389,7 @@ func TestChangelogEntryByTag(t *testing.T) {
 		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/extracts_plain_heading_entry/changelog.input.md")
 
 		// when: extracting entry for v1.2.3
-		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+		entry, err := changelogpkg.EntryByTag(changelog, "v1.2.3")
 
 		// then: plain heading entry is returned
 		testastic.NoError(t, err)
@@ -407,7 +407,7 @@ func TestChangelogEntryByTag(t *testing.T) {
 		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/extracts_indented_heading_entry/changelog.input.md")
 
 		// when: extracting entry for the indented heading
-		entry, err := changelogEntryByTag(changelog, "v1.2.3")
+		entry, err := changelogpkg.EntryByTag(changelog, "v1.2.3")
 
 		// then: the indented entry is found and bounded at the next heading
 		testastic.NoError(t, err)
@@ -425,18 +425,29 @@ func TestChangelogEntryByTag(t *testing.T) {
 		changelog := readTestFile(t, "testdata/changelog_entry_by_tag/returns_error_for_missing_tag/changelog.input.md")
 
 		// when: extracting entry for missing tag
-		_, err := changelogEntryByTag(changelog, "v1.2.3")
+		_, err := changelogpkg.EntryByTag(changelog, "v1.2.3")
 
 		// then: not found error is returned
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, errChangelogEntryNotFound)
+		testastic.ErrorIs(t, err, changelogpkg.ErrEntryNotFound)
 	})
 }
 
-func defaultOwnedHeadings() map[string]struct{} {
+// preserveManualChangelogSections drives the merge the way a release PR refresh
+// does, over entry text rather than structure, so the fixtures below pin what a
+// refreshed entry actually looks like.
+func preserveManualChangelogSections(generatedEntry, existingEntry string) string {
 	cfg := config.Default()
 
-	return changelog.SectionHeadings(cfg.Changelog.Sections, cfg.Changelog.Include)
+	generated := changelogpkg.ParseEntry(generatedEntry)
+	generated.OwnedHeadings = changelogpkg.New(
+		changelogpkg.WithSections(cfg.Changelog.Sections),
+		changelogpkg.WithInclude(cfg.Changelog.Include),
+	).OwnedHeadings()
+
+	merged := changelogpkg.Merge(generated, changelogpkg.ParseEntry(existingEntry))
+
+	return strings.TrimSpace(changelogpkg.Render(merged))
 }
 
 func TestPreserveManualChangelogSections(t *testing.T) {
@@ -458,7 +469,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: all manual sections are appended in their original order
 		testastic.AssertFile(
@@ -486,7 +497,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: each manual section remains before its following generated section
 		testastic.AssertFile(
@@ -515,7 +526,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: regenerated sections remain authoritative on rerun
 		testastic.AssertFile(
@@ -543,7 +554,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		))
 
 		// when: preserving manual sections from the existing changelog entry
-		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry, defaultOwnedHeadings())
+		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
 		// then: the level-3 manual section survives but freeform text under ## is dropped
 		testastic.AssertFile(t, "testdata/preserve_manual_drops_non_level3.expected.md", updatedEntry)

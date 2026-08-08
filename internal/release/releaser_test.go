@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -1456,12 +1457,12 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/release_subject_formatting/default_subject_omits_branch_and_tag_prefix/plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", result.Plans[0].Changelog), updatedChangelog)
+		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
 	})
 
 	t.Run("custom PR and commit subjects are independent", func(t *testing.T) {
@@ -1573,7 +1574,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/release_subject_formatting/custom_header_and_footer_wrap_p_r_body_only/plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 	})
 }
@@ -1613,8 +1614,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 		result := &Result{Plans: []TargetPlan{
-			{ID: "api", NextTag: "api-v1.2.3", Changelog: "## api-v1.2.3 (2026-03-01)"},
-			{ID: "web", NextTag: "web-v2.3.4", Changelog: "## web-v2.3.4 (2026-03-01)"},
+			{ID: "api", NextTag: "api-v1.2.3", Entry: changelog.ParseEntry("## api-v1.2.3 (2026-03-01)")},
+			{ID: "web", NextTag: "web-v2.3.4", Entry: changelog.ParseEntry("## web-v2.3.4 (2026-03-01)")},
 		}}
 
 		// when: preserving edits for both release plans
@@ -1698,9 +1699,9 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 		result := &Result{Plans: []TargetPlan{{
-			ID:        "default",
-			NextTag:   "v1.2.3",
-			Changelog: "## v1.2.3 (2026-03-01)\n\n### Features\n\n- add a feature (abc1234)",
+			ID:      "default",
+			NextTag: "v1.2.3",
+			Entry:   changelog.ParseEntry("## v1.2.3 (2026-03-01)\n\n### Features\n\n- add a feature (abc1234)"),
 		}}}
 
 		// when: preserving edits after the configured changelog path moved
@@ -1708,7 +1709,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// then: the manual section recorded at the manifest path survives
 		testastic.NoError(t, err)
-		testastic.True(t, strings.Contains(result.Plans[0].Changelog, "rotate the signing key by hand"))
+		testastic.True(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "rotate the signing key by hand"))
 	})
 
 	t.Run("new release PR includes changelog guidance without editable notes markers", func(t *testing.T) {
@@ -1742,7 +1743,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 			"testdata/release_changelog_source_of_truth/"+
 				"new_release_p_r_includes_changelog_guidance_without_editable_notes_markers/"+
 				"plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
@@ -1806,7 +1807,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 			"testdata/release_changelog_source_of_truth/"+
 				"existing_release_p_r_body_notes_are_ignored_when_updating_changelog/"+
 				"plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
@@ -1859,7 +1860,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 			"testdata/release_changelog_source_of_truth/"+
 				"existing_release_branch_changelog_manual_section_is_preserved_on_rerun/"+
 				"plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 
 		updatedChangelog := stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)]
@@ -1920,7 +1921,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 			"testdata/release_changelog_source_of_truth/"+
 				"existing_release_branch_manual_section_is_preserved_when_planned_tag_changes/"+
 				"plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 		testastic.AssertFile(
 			t,
@@ -1966,8 +1967,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		// then: sections belonging to the published entry stay out of the new one
 		testastic.NoError(t, err)
 		testastic.Equal(t, "v1.2.5", result.Plans[0].NextTag)
-		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "BREAKING CHANGES"))
-		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "Features"))
+		testastic.False(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "BREAKING CHANGES"))
+		testastic.False(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "Features"))
 	})
 
 	t.Run("generated section headings are not preserved as manual edits", func(t *testing.T) {
@@ -2005,9 +2006,9 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		// then: only headings the generator cannot produce survive
 		testastic.NoError(t, err)
 		testastic.Equal(t, "v1.2.5", result.Plans[0].NextTag)
-		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "BREAKING CHANGES"))
-		testastic.False(t, strings.Contains(result.Plans[0].Changelog, "### Features"))
-		testastic.True(t, strings.Contains(result.Plans[0].Changelog, "### Upgrade Notes"))
+		testastic.False(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "BREAKING CHANGES"))
+		testastic.False(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "### Features"))
+		testastic.True(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "### Upgrade Notes"))
 	})
 }
 
@@ -2044,7 +2045,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 			t,
 			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
 				"github_compare_link_uses_latest_commit_sha_in_p_r_body/plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 		testastic.AssertFile(
 			t,
@@ -2055,7 +2056,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", result.Plans[0].Changelog), updatedChangelog)
+		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
 	})
 
 	t.Run("gitlab compare link uses latest commit sha in PR body", func(t *testing.T) {
@@ -2089,7 +2090,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 			t,
 			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
 				"gitlab_compare_link_uses_latest_commit_sha_in_p_r_body/plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 		testastic.AssertFile(
 			t,
@@ -2100,7 +2101,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", result.Plans[0].Changelog), updatedChangelog)
+		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
 	})
 }
 
@@ -2626,7 +2627,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// then: missing entry is reported
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, errChangelogEntryNotFound)
+		testastic.ErrorIs(t, err, changelog.ErrEntryNotFound)
 	})
 }
 
@@ -2649,7 +2650,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "0.1.0",
 				NextTag:     "v0.1.0",
-				Changelog: strings.TrimSpace(readTestFile(
+				Entry: changelog.ParseEntry(readTestFile(
 					t,
 					"testdata/update_release_branch_files/"+
 						"creates_missing_changelog_with_top_level_header/changelog.input.md",
@@ -2693,7 +2694,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "1.2.4",
 				NextTag:     "v1.2.4",
-				Changelog:   "## v1.2.4 (2026-03-01)\n",
+				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
 			}},
 		}
 
@@ -2736,8 +2737,18 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 		result := &Result{Plans: []TargetPlan{
-			{ID: "api", NextVersion: "1.2.4", NextTag: "api-v1.2.4", Changelog: "## api-v1.2.4 (2026-03-01)\n"},
-			{ID: "web", NextVersion: "2.3.4", NextTag: "web-v2.3.4", Changelog: "## web-v2.3.4 (2026-03-01)\n"},
+			{
+				ID:          "api",
+				NextVersion: "1.2.4",
+				NextTag:     "api-v1.2.4",
+				Entry:       changelog.ParseEntry("## api-v1.2.4 (2026-03-01)\n"),
+			},
+			{
+				ID:          "web",
+				NextVersion: "2.3.4",
+				NextTag:     "web-v2.3.4",
+				Entry:       changelog.ParseEntry("## web-v2.3.4 (2026-03-01)\n"),
+			},
 		}}
 
 		// when: updating release branch files
@@ -2771,7 +2782,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 			ID:          "default",
 			NextVersion: "1.2.4",
 			NextTag:     "v1.2.4",
-			Changelog:   "## v1.2.4 (2026-03-01)\n",
+			Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
 		}}}
 
 		// when: release branch files are prepared and written
@@ -2821,7 +2832,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "1.2.4",
 				NextTag:     "v1.2.4",
-				Changelog:   "## v1.2.4 (2026-03-01)\n",
+				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
 			}},
 		}
 
@@ -2866,7 +2877,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "2026.03.1",
 				NextTag:     "v2026.03.1",
-				Changelog:   "## v2026.03.1 (2026-03-01)\n",
+				Entry:       changelog.ParseEntry("## v2026.03.1 (2026-03-01)\n"),
 			}},
 		}
 
@@ -2899,7 +2910,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "1.2.4",
 				NextTag:     "v1.2.4",
-				Changelog:   "## v1.2.4 (2026-03-01)\n",
+				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
 			}},
 		}
 
@@ -2936,7 +2947,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "0.1.1",
 				NextTag:     "v0.1.1",
-				Changelog: strings.TrimSpace(readTestFile(
+				Entry: changelog.ParseEntry(readTestFile(
 					t,
 					"testdata/update_release_branch_files/"+
 						"prepends_changelog_entry_and_normalizes_headerless_history/"+
@@ -2984,7 +2995,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 			Plans: []TargetPlan{
 				{
 					ID: "api",
-					Changelog: strings.TrimSpace(readTestFile(
+					Entry: changelog.ParseEntry(readTestFile(
 						t,
 						"testdata/update_release_branch_files/"+
 							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
@@ -2993,7 +3004,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				},
 				{
 					ID: "web",
-					Changelog: strings.TrimSpace(readTestFile(
+					Entry: changelog.ParseEntry(readTestFile(
 						t,
 						"testdata/update_release_branch_files/"+
 							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
@@ -3030,7 +3041,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				ID:          "default",
 				NextVersion: "1.2.4",
 				NextTag:     "v1.2.4",
-				Changelog:   "## v1.2.4 (2026-03-01)\n",
+				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
 			}},
 		}
 
@@ -3143,7 +3154,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			"testdata/release_targets_monorepo/"+
 				"selected_child_targets_still_compute_derived_targets_without_unselected_direct_commits/"+
 				"plan_1_changelog.expected.md",
-			result.Plans[1].Changelog,
+			changelog.Render(result.Plans[1].Entry),
 		)
 	})
 
@@ -3195,7 +3206,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			"testdata/release_targets_monorepo/"+
 				"selected_derived_target_analyzes_included_child_targets_without_emitting_them/"+
 				"plan_0_changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 	})
 
@@ -3263,7 +3274,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			"testdata/release_targets_monorepo/"+
 				"selected_derived_target_p_r_compare_link_uses_newest_child_sha/"+
 				"plan_0_pr_changelog.expected.md",
-			result.Plans[0].PRChangelog,
+			changelog.Render(result.Plans[0].PREntry),
 		)
 		testastic.AssertFile(
 			t,
@@ -3332,7 +3343,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			"testdata/release_targets_monorepo/"+
 				"selected_derived_target_p_r_compare_link_prefers_newer_child_sha_over_older_direct_sha/"+
 				"plan_0_pr_changelog.expected.md",
-			result.Plans[0].PRChangelog,
+			changelog.Render(result.Plans[0].PREntry),
 		)
 		testastic.AssertFile(
 			t,
@@ -3391,7 +3402,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			"testdata/release_targets_monorepo/"+
 				"selected_derived_and_child_targets_emit_only_explicitly_selected_path_targets/"+
 				"plan_1_changelog.expected.md",
-			result.Plans[1].Changelog,
+			changelog.Render(result.Plans[1].Entry),
 		)
 	})
 }

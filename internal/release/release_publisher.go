@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -89,7 +90,7 @@ func (p *releasePublisher) ensureReleasesForResult(
 	releases := make([]*provider.Release, 0, len(result.Plans))
 
 	for _, plan := range result.Plans {
-		releaseBody := plan.Changelog
+		releaseBody := changelog.Render(plan.Entry)
 
 		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody, p.core.isPrerelease())
 		if err != nil {
@@ -225,9 +226,9 @@ func (p *releasePublisher) releaseNotesFromChangelog(
 		return "", err
 	}
 
-	entry, err := changelogEntryByTag(changelogBody, tag)
+	entry, err := changelog.EntryByTag(changelogBody, tag)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read changelog entry for %s: %w", tag, err)
 	}
 
 	return entry, nil

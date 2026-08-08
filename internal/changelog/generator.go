@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/commit"
-	"github.com/monkescience/yeet/internal/config"
 )
 
 const breakingChangesHeading = "⚠ BREAKING CHANGES"
@@ -22,13 +22,31 @@ type Generator struct {
 	repoURL    string
 	pathPrefix string
 	compareURL func(fromRef, toRef string) string
-	references config.ReferencesConfig
+	references References
 
 	compiledPatterns []compiledPattern
 }
 
 // Option configures a Generator.
 type Option func(*Generator)
+
+// References configures how commit text is linked to an issue tracker.
+type References struct {
+	Patterns []ReferencePattern
+	Footers  map[string]string
+}
+
+// ReferencePattern links every match of Pattern to URL, with "{value}" in URL
+// replaced by the matched text.
+type ReferencePattern struct {
+	Pattern string
+	URL     string
+}
+
+type compiledPattern struct {
+	re  *regexp.Regexp
+	url string
+}
 
 // New builds a changelog Generator from the given options.
 func New(opts ...Option) *Generator {
@@ -66,20 +84,8 @@ func WithCompareURL(compareURL func(fromRef, toRef string) string) Option {
 }
 
 // WithReferences sets the reference linking configuration.
-func WithReferences(references config.ReferencesConfig) Option {
+func WithReferences(references References) Option {
 	return func(g *Generator) { g.references = references }
-}
-
-type compiledPattern struct {
-	re  *regexp.Regexp
-	url string
-}
-
-type Entry struct {
-	Version    string
-	Date       time.Time
-	Body       string
-	CompareURL string
 }
 
 func (g *Generator) Generate(ctx context.Context, version string, previousTag string, commits []commit.Commit) Entry {
@@ -87,11 +93,66 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 
 	relevant := commit.FilterByTypes(commits, g.include)
 
-	grouped := g.groupBySection(relevant)
+	sections := g.buildSections(relevant)
 
-	var sb strings.Builder
+	entry := Entry{
+		Version:       version,
+		Date:          time.Now(),
+		Sections:      sections,
+		OwnedHeadings: g.OwnedHeadings(),
+	}
 
-	g.writeBreakingChanges(&sb, relevant)
+	if g.compareURL != nil && previousTag != "" {
+		entry.CompareURL = g.compareURL(previousTag, version)
+	}
+
+	slog.DebugContext(ctx, "changelog: generated entry",
+		slog.String("version", version),
+		slog.String("previous_tag", previousTag),
+		slog.Int("commits_in", len(commits)),
+		slog.Int("commits_included", len(relevant)),
+		slog.Int("sections", len(sections)),
+		slog.Int("bytes", len(renderSections(sections))),
+	)
+
+	return entry
+}
+
+// OwnedHeadings returns every heading this generator could emit, which is a
+// larger set than the headings any single entry does emit. A heading the
+// generator owns but left out was dropped on purpose, while an unknown heading
+// was added by a human.
+func (g *Generator) OwnedHeadings() []string {
+	headings := make([]string, 0, len(g.sections)+len(g.include)+1)
+	headings = append(headings, breakingChangesHeading)
+
+	mapped := make([]string, 0, len(g.sections))
+	for _, name := range g.sections {
+		mapped = append(mapped, name)
+	}
+
+	slices.Sort(mapped)
+	headings = append(headings, mapped...)
+
+	for _, commitType := range g.include {
+		if _, isMapped := g.sections[commitType]; isMapped {
+			continue
+		}
+
+		headings = append(headings, capitalizeFirst(commitType))
+	}
+
+	return dedupe(headings)
+}
+
+func (g *Generator) buildSections(relevant []commit.Commit) []Section {
+	grouped := groupBySection(relevant)
+
+	sections := make([]Section, 0, len(g.include)+1)
+
+	if breaking, ok := g.breakingSection(relevant); ok {
+		sections = append(sections, breaking)
+	}
 
 	for _, commitType := range g.include {
 		sectionName, ok := g.sections[commitType]
@@ -104,156 +165,36 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 			continue
 		}
 
-		writeSectionHeader(&sb, sectionName)
-
+		lines := make([]string, 0, len(sectionCommits))
 		for _, c := range sectionCommits {
-			g.writeCommitLine(&sb, c)
-		}
-	}
-
-	entry := Entry{
-		Version: version,
-		Date:    time.Now(),
-		Body:    sb.String(),
-	}
-
-	if g.compareURL != nil && previousTag != "" {
-		entry.CompareURL = g.compareURL(previousTag, version)
-	}
-
-	slog.DebugContext(ctx, "changelog: generated entry",
-		slog.String("version", version),
-		slog.String("previous_tag", previousTag),
-		slog.Int("commits_in", len(commits)),
-		slog.Int("commits_included", len(relevant)),
-		slog.Int("sections", len(grouped)),
-		slog.Int("bytes", len(entry.Body)),
-	)
-
-	return entry
-}
-
-func Render(entry Entry) string {
-	var sb strings.Builder
-
-	if entry.CompareURL != "" {
-		fmt.Fprintf(&sb, "## [%s](%s) (%s)\n\n", entry.Version, entry.CompareURL, entry.Date.Format("2006-01-02"))
-	} else {
-		fmt.Fprintf(&sb, "## %s (%s)\n\n", entry.Version, entry.Date.Format("2006-01-02"))
-	}
-
-	sb.WriteString(entry.Body)
-
-	return sb.String()
-}
-
-func Prepend(existing, newEntry string) string {
-	const header = "# Changelog\n\n"
-
-	entry := strings.TrimRight(newEntry, "\n")
-
-	if existing == "" {
-		return header + entry + "\n"
-	}
-
-	releaseStart := strings.Index(existing, "\n## ")
-	if releaseStart >= 0 {
-		releaseStart++
-	}
-
-	if strings.HasPrefix(existing, "# ") {
-		if releaseStart >= 0 {
-			preamble := strings.TrimRight(existing[:releaseStart], "\n")
-			releases := strings.TrimLeft(existing[releaseStart:], "\n")
-
-			return preamble + "\n\n" + entry + "\n\n" + releases
+			lines = append(lines, g.formattedLine(c, c.Description))
 		}
 
-		return strings.TrimRight(existing, "\n") + "\n\n" + entry + "\n"
+		sections = append(sections, Section{Heading: sectionName, Lines: lines})
 	}
 
-	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")
+	return sections
 }
 
-func (g *Generator) groupBySection(commits []commit.Commit) map[string][]commit.Commit {
-	grouped := make(map[string][]commit.Commit)
+func (g *Generator) breakingSection(commits []commit.Commit) (Section, bool) {
+	lines := make([]string, 0, len(commits))
 
 	for _, c := range commits {
-		if c.Type == "" {
+		if !c.Breaking {
 			continue
 		}
 
-		grouped[c.Type] = append(grouped[c.Type], c)
+		lines = append(lines, g.formattedLine(c, breakingDescription(c)))
 	}
 
-	return grouped
+	if len(lines) == 0 {
+		return Section{}, false
+	}
+
+	return Section{Heading: breakingChangesHeading, Lines: lines}, true
 }
 
-func (g *Generator) writeBreakingChanges(sb *strings.Builder, commits []commit.Commit) {
-	var breaking []commit.Commit
-
-	for _, c := range commits {
-		if c.Breaking {
-			breaking = append(breaking, c)
-		}
-	}
-
-	if len(breaking) == 0 {
-		return
-	}
-
-	writeSectionHeader(sb, breakingChangesHeading)
-
-	for _, c := range breaking {
-		desc := c.Description
-
-		for _, f := range c.Footers {
-			if f.Key == "BREAKING CHANGE" || f.Key == "BREAKING-CHANGE" {
-				desc = f.Value
-
-				break
-			}
-		}
-
-		g.writeFormattedLine(sb, c, desc)
-	}
-}
-
-func writeSectionHeader(sb *strings.Builder, name string) {
-	if sb.Len() > 0 {
-		sb.WriteString("\n")
-	}
-
-	fmt.Fprintf(sb, "### %s\n\n", name)
-}
-
-// SectionHeadings returns every level-3 heading a generator with this
-// configuration can emit, including sections an individual entry omits. Callers
-// refreshing an existing entry need the full set to tell a heading they own
-// from one a human added.
-func SectionHeadings(sections map[string]string, include []string) map[string]struct{} {
-	headings := map[string]struct{}{"### " + breakingChangesHeading: {}}
-
-	for _, name := range sections {
-		headings["### "+name] = struct{}{}
-	}
-
-	for _, commitType := range include {
-		if _, mapped := sections[commitType]; mapped {
-			continue
-		}
-
-		headings["### "+capitalizeFirst(commitType)] = struct{}{}
-	}
-
-	return headings
-}
-
-func (g *Generator) writeCommitLine(sb *strings.Builder, c commit.Commit) {
-	g.writeFormattedLine(sb, c, c.Description)
-}
-
-func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, description string) {
+func (g *Generator) formattedLine(c commit.Commit, description string) string {
 	shortHash := c.Hash
 	if len(shortHash) > 7 { //nolint:mnd // standard short hash length
 		shortHash = shortHash[:7]
@@ -268,17 +209,19 @@ func (g *Generator) writeFormattedLine(sb *strings.Builder, c commit.Commit, des
 	linked := g.linkDescription(sanitizeCommitText(description))
 	scope := sanitizeCommitText(c.Scope)
 
+	var sb strings.Builder
+
 	if scope != "" {
-		fmt.Fprintf(sb, "- **%s:** %s (%s)", scope, linked, hashRef)
+		fmt.Fprintf(&sb, "- **%s:** %s (%s)", scope, linked, hashRef)
 	} else {
-		fmt.Fprintf(sb, "- %s (%s)", linked, hashRef)
+		fmt.Fprintf(&sb, "- %s (%s)", linked, hashRef)
 	}
 
 	if refs := g.footerReferences(c); refs != "" {
-		fmt.Fprintf(sb, " (%s)", refs)
+		fmt.Fprintf(&sb, " (%s)", refs)
 	}
 
-	sb.WriteString("\n")
+	return sb.String()
 }
 
 func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
@@ -358,6 +301,30 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	return strings.Join(refs, ", ")
 }
 
+func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
+	grouped := make(map[string][]commit.Commit)
+
+	for _, c := range commits {
+		if c.Type == "" {
+			continue
+		}
+
+		grouped[c.Type] = append(grouped[c.Type], c)
+	}
+
+	return grouped
+}
+
+func breakingDescription(c commit.Commit) string {
+	for _, f := range c.Footers {
+		if f.Key == "BREAKING CHANGE" || f.Key == "BREAKING-CHANGE" {
+			return f.Value
+		}
+	}
+
+	return c.Description
+}
+
 // Order is load-bearing: strip control chars before escaping, else a control byte
 // splitting "<!--" evades the escaper and the strip reassembles the manifest marker.
 func sanitizeCommitText(s string) string {
@@ -388,4 +355,20 @@ func capitalizeFirst(s string) string {
 	r, size := utf8.DecodeRuneInString(s)
 
 	return string(unicode.ToUpper(r)) + s[size:]
+}
+
+func dedupe(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	unique := make([]string, 0, len(values))
+
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+
+	return unique
 }

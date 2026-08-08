@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
@@ -137,7 +138,7 @@ END_COMMIT_OVERRIDE`,
 		testastic.AssertFile(
 			t,
 			"testdata/release_commit_overrides/override_changes_bump_and_changelog/changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 	})
 
@@ -172,7 +173,7 @@ END_COMMIT_OVERRIDE`,
 		testastic.AssertFile(
 			t,
 			"testdata/release_commit_overrides/override_can_introduce_breaking_change/changelog.expected.md",
-			result.Plans[0].Changelog,
+			changelog.Render(result.Plans[0].Entry),
 		)
 	})
 }

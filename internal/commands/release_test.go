@@ -13,6 +13,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
@@ -248,7 +249,7 @@ func TestHandleReleaseResult(t *testing.T) {
 					NextTag:        "v1.1.0",
 					BumpType:       commit.BumpMinor,
 					CommitCount:    3,
-					Changelog:      "### Features\n\n- something new\n",
+					Entry:          changelog.ParseEntry("## v1.1.0 (2026-03-01)\n\n### Features\n\n- something new\n"),
 				},
 			},
 		}
@@ -389,7 +390,7 @@ func TestPrintDryRun(t *testing.T) {
 					NextTag:        "v1.1.0",
 					BumpType:       commit.BumpMinor,
 					CommitCount:    3,
-					Changelog:      "### Features\n\n- something new\n",
+					Entry:          changelog.ParseEntry("## v1.1.0 (2026-03-01)\n\n### Features\n\n- something new\n"),
 				},
 			},
 		}
