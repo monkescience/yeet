@@ -625,6 +625,29 @@ func TestGenerate(t *testing.T) {
 func TestRender(t *testing.T) {
 	t.Parallel()
 
+	t.Run("normalizes only freeform block edges", func(t *testing.T) {
+		t.Parallel()
+
+		entry := changelog.Entry{
+			Intro: []string{"", "First intro paragraph.", "", "", "Second intro paragraph.", ""},
+			Sections: []changelog.Section{{
+				Heading: "Bug Fixes",
+				Lines:   []string{"- patch issue (abc1234)"},
+			}},
+			Outro: []string{"", "First outro paragraph.", "", "Second outro paragraph.", ""},
+		}
+
+		output := changelog.RenderBody(entry)
+
+		testastic.Equal(
+			t,
+			"First intro paragraph.\n\n\nSecond intro paragraph.\n\n"+
+				"### Bug Fixes\n\n- patch issue (abc1234)\n\n"+
+				"First outro paragraph.\n\nSecond outro paragraph.\n",
+			output,
+		)
+	})
+
 	t.Run("renders entry as markdown", func(t *testing.T) {
 		t.Parallel()
 

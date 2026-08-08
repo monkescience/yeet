@@ -1982,6 +1982,46 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		)
 	})
 
+	t.Run("existing release branch freeform blocks are preserved on rerun", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		existingPR := &provider.PullRequest{
+			Number: 42,
+			Title:  "chore: release 1.2.4",
+			Body:   "## Release\n\nPreview only.",
+			URL:    "https://example.com/pr/42",
+			Branch: "yeet/release-main",
+		}
+
+		stub := newProviderStub()
+		stub.openPending = []*provider.PullRequest{existingPR}
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		fixtureDir := "testdata/release_changelog_source_of_truth/" +
+			"existing_release_branch_freeform_blocks_are_preserved_on_rerun/"
+		stub.files[providerFileKey(existingPR.Branch, cfg.Changelog.File)] = strings.TrimSpace(
+			readTestFile(t, fixtureDir+"existing_changelog.input.md"),
+		)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result, err := r.Release(context.Background(), false)
+
+		testastic.NoError(t, err)
+		testastic.AssertFile(t, fixtureDir+"plan_0_changelog.expected.md", changelog.Render(result.Plans[0].Entry))
+		testastic.AssertFile(t, fixtureDir+"pull_request_body.expected.md", result.PullRequest.Body)
+		testastic.AssertFile(
+			t,
+			fixtureDir+"updated_changelog.expected.md",
+			stub.files[providerFileKey("yeet/release-main", cfg.Changelog.File)],
+		)
+	})
+
 	t.Run("existing release branch manual section is preserved when planned tag changes", func(t *testing.T) {
 		t.Parallel()
 

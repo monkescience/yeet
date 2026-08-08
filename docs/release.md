@@ -104,8 +104,11 @@ Run database migrations before deploying workers.
 ````
 
 When `yeet release` updates an existing release PR/MR, yeet preserves manual `###` sections
-that are not part of the regenerated conventional-commit sections. Only `###` sections survive
-regeneration: text placed directly under the version heading without a `###` heading is dropped.
+that are not part of the regenerated conventional-commit sections. It also preserves freeform
+intro text between the version heading and first `###` section. Freeform text after the final
+generated section is preserved as an outro when a blank line separates it from the generated
+lines. The outro remains last when later runs add sections. Text inside or between generated
+sections is regenerated.
 
 ## Prerelease channels
 

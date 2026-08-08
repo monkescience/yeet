@@ -313,6 +313,39 @@ func TestCombinedPRChangelog(t *testing.T) {
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_multi_target.expected.md", body)
 	})
 
+	t.Run("multi target keeps freeform blocks with their target", func(t *testing.T) {
+		t.Parallel()
+
+		plans := []TargetPlan{
+			{
+				ID:   "api",
+				Type: "path",
+				PREntry: changelogpkg.Entry{
+					Version:  "api-v1.3.0",
+					Intro:    []string{"API intro."},
+					Sections: []changelogpkg.Section{{Heading: "Features", Lines: []string{"- add tokens"}}},
+					Outro:    []string{"API outro."},
+				},
+			},
+			{
+				ID:   "web",
+				Type: "path",
+				PREntry: changelogpkg.Entry{
+					Version:  "web-v2.1.4",
+					Intro:    []string{"Web intro."},
+					Sections: []changelogpkg.Section{{Heading: "Bug Fixes", Lines: []string{"- patch filters"}}},
+					Outro:    []string{"Web outro."},
+				},
+			},
+		}
+
+		sections := buildPRSections(plans)
+
+		testastic.Equal(t, 2, len(sections))
+		testastic.Equal(t, "API intro.\n\n### Features\n\n- add tokens\n\nAPI outro.\n", sections[0].body)
+		testastic.Equal(t, "Web intro.\n\n### Bug Fixes\n\n- patch filters\n\nWeb outro.\n", sections[1].body)
+	})
+
 	t.Run("derived target preserves embedded child sections when some child plans are omitted", func(t *testing.T) {
 		t.Parallel()
 
@@ -541,11 +574,9 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 		)
 	})
 
-	t.Run("drops manual content outside level-3 sections", func(t *testing.T) {
+	t.Run("preserves manual content outside level-3 sections", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an existing entry with a manual ### section plus freeform text written
-		// directly under the ## version heading, which is not a level-3 section
 		generatedEntry := strings.TrimSpace(readTestFile(
 			t,
 			"testdata/preserve_manual_changelog_sections/"+
@@ -557,10 +588,8 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 				"drops_manual_content_outside_level_3_sections/existing_entry.input.md",
 		))
 
-		// when: preserving manual sections from the existing changelog entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
-		// then: the level-3 manual section survives but freeform text under ## is dropped
 		testastic.AssertFile(t, "testdata/preserve_manual_drops_non_level3.expected.md", updatedEntry)
 	})
 }

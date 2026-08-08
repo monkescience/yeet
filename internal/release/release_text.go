@@ -25,11 +25,12 @@ func buildPRSections(plans []TargetPlan) []prSection {
 		}
 
 		entry := preferredPREntry(plan)
+		entry.Sections = directSections(entry.Sections, plan.IncludedTargets)
 
 		sections = append(sections, prSection{
 			id:   plan.ID,
 			plan: plan,
-			body: changelog.RenderSections(directSections(entry.Sections, plan.IncludedTargets)),
+			body: changelog.RenderBody(entry),
 		})
 	}
 
@@ -38,10 +39,11 @@ func buildPRSections(plans []TargetPlan) []prSection {
 			continue
 		}
 
+		entry := preferredPREntry(plan)
 		sections = append(sections, prSection{
 			id:   plan.ID,
 			plan: plan,
-			body: changelog.RenderSections(preferredPREntry(plan).Sections),
+			body: changelog.RenderBody(entry),
 		})
 	}
 

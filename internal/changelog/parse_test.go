@@ -90,18 +90,30 @@ func TestParseEntry(t *testing.T) {
 		testastic.SliceEqual(t, []string{"Run migrations.", "", "Then restart workers."}, entry.Sections[0].Lines)
 	})
 
-	t.Run("drops freeform text under the version heading", func(t *testing.T) {
+	t.Run("round-trips a freeform intro containing fenced headings", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an entry with a note written directly under the version heading
-		text := "## v1.2.3 (2026-03-21)\n\nA heads-up note.\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
+		text := "## v1.2.3 (2026-03-21)\n\nA heads-up note.\n\n" +
+			"```markdown\n### This is sample text\n```\n\n" +
+			"~~~markdown\n### This is another sample\n~~~~\n\n" +
+			"### Bug Fixes\n\n- patch issue (abc1234)\n"
 
-		// when: parsing the entry
 		entry := changelog.ParseEntry(text)
+		rendered := changelog.Render(entry)
 
-		// then: only level-3 sections are recovered
+		testastic.Equal(t, text, rendered)
 		testastic.Equal(t, 1, len(entry.Sections))
 		testastic.Equal(t, "Bug Fixes", entry.Sections[0].Heading)
+	})
+
+	t.Run("round-trips headingless content when no sections exist", func(t *testing.T) {
+		t.Parallel()
+
+		text := "## v1.2.3 (2026-03-21)\n\nA short release summary.\n"
+
+		rendered := changelog.Render(changelog.ParseEntry(text))
+
+		testastic.Equal(t, text, rendered)
 	})
 
 	t.Run("reads sections from text with no version heading", func(t *testing.T) {

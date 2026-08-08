@@ -8,13 +8,14 @@ import (
 
 const dateLayout = "2006-01-02"
 
-// Entry is one release's worth of changelog: version, date, compare URL and
-// sections, structured until the moment it is rendered.
+// Entry is one release's worth of changelog, structured until it is rendered.
 type Entry struct {
 	Version       string
 	Date          time.Time
 	CompareURL    string
+	Intro         []string
 	Sections      []Section
+	Outro         []string
 	OwnedHeadings []string
 }
 
@@ -36,15 +37,45 @@ func Render(entry Entry) string {
 		fmt.Fprintf(&sb, "## %s (%s)\n\n", entry.Version, entry.Date.Format(dateLayout))
 	}
 
-	sb.WriteString(renderSections(entry.Sections))
+	sb.WriteString(RenderBody(entry))
 
 	return sb.String()
+}
+
+// RenderBody writes an entry without its release heading.
+func RenderBody(entry Entry) string {
+	if len(entry.Intro) == 0 && len(entry.Outro) == 0 {
+		return renderSections(entry.Sections)
+	}
+
+	var blocks []string
+	if intro := renderFreeform(entry.Intro); intro != "" {
+		blocks = append(blocks, intro)
+	}
+
+	if sections := strings.TrimRight(renderSections(entry.Sections), "\n"); sections != "" {
+		blocks = append(blocks, sections)
+	}
+
+	if outro := renderFreeform(entry.Outro); outro != "" {
+		blocks = append(blocks, outro)
+	}
+
+	if len(blocks) == 0 {
+		return ""
+	}
+
+	return strings.Join(blocks, "\n\n") + "\n"
 }
 
 // RenderSections writes a run of sections without an entry heading, for callers
 // that frame them in something other than a changelog entry.
 func RenderSections(sections []Section) string {
 	return renderSections(sections)
+}
+
+func renderFreeform(lines []string) string {
+	return strings.Join(trimBlankEdges(lines), "\n")
 }
 
 // Prepend splices a rendered entry into an existing changelog at the first

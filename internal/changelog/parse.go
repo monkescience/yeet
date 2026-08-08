@@ -5,17 +5,28 @@ import (
 	"time"
 )
 
+const markdownFenceSize = 3
+
 // ParseEntry reads a rendered changelog entry back into structure. It is the
 // one seam foreign text enters: an entry read off a release branch, written by
 // an older version of yeet, hand-edited, or imported from another tool.
 //
-// Only level-3 sections are recovered. Freeform text directly under the version
-// heading, and headings deeper than level 3, are dropped.
+// Freeform text before the first level-3 section is recovered as the intro.
+// Level-3 headings inside fenced code blocks remain part of that freeform text.
 func ParseEntry(text string) Entry {
 	lines := splitLines(text)
 
 	entry, bodyStart := parseEntryHeading(lines)
-	entry.Sections = parseSections(lines[bodyStart:])
+	body := lines[bodyStart:]
+	sectionStarts := findSectionStarts(body)
+
+	introEnd := len(body)
+	if len(sectionStarts) > 0 {
+		introEnd = sectionStarts[0]
+	}
+
+	entry.Intro = trimBlankEdges(body[:introEnd])
+	entry.Sections = parseSections(body, sectionStarts)
 
 	return entry
 }
@@ -87,15 +98,58 @@ func parseLinkedHeading(heading string) (string, string, string, bool) {
 	return version, compareURL, strings.TrimSpace(remaining), true
 }
 
-func parseSections(lines []string) []Section {
+func findSectionStarts(lines []string) []int {
 	starts := make([]int, 0)
+	fenceMarker := byte(0)
+	fenceSize := 0
 
 	for idx, line := range lines {
+		marker, size, rest, isFence := markdownFence(line)
+		if fenceMarker != 0 {
+			if isFence && marker == fenceMarker && size >= fenceSize && strings.TrimSpace(rest) == "" {
+				fenceMarker = 0
+				fenceSize = 0
+			}
+
+			continue
+		}
+
+		if isFence {
+			fenceMarker = marker
+			fenceSize = size
+
+			continue
+		}
+
 		if strings.HasPrefix(strings.TrimSpace(line), "### ") {
 			starts = append(starts, idx)
 		}
 	}
 
+	return starts
+}
+
+func markdownFence(line string) (byte, int, string, bool) {
+	trimmed := strings.TrimLeft(line, " \t")
+	if trimmed == "" || (trimmed[0] != '`' && trimmed[0] != '~') {
+		return 0, 0, "", false
+	}
+
+	marker := trimmed[0]
+
+	size := 0
+	for size < len(trimmed) && trimmed[size] == marker {
+		size++
+	}
+
+	if size < markdownFenceSize {
+		return 0, 0, "", false
+	}
+
+	return marker, size, trimmed[size:], true
+}
+
+func parseSections(lines []string, starts []int) []Section {
 	sections := make([]Section, 0, len(starts))
 
 	for idx, start := range starts {

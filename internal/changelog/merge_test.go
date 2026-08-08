@@ -136,6 +136,84 @@ func TestMerge(t *testing.T) {
 		)
 	})
 
+	t.Run("preserves intro and moves a blank-line-delimited outro to the end", func(t *testing.T) {
+		t.Parallel()
+
+		generated := generatedEntry(
+			changelog.Section{Heading: "Features", Lines: []string{"- add token refresh (def5678)"}},
+			changelog.Section{Heading: "Bug Fixes", Lines: []string{"- patch expiry handling (fed4321)"}},
+		)
+		foreign := changelog.ParseEntry("## v1.2.4 (2026-03-01)\n\n" +
+			"Validate configuration before upgrading.\n\n" +
+			"### Features\n\n- add token refresh (def5678)\n\n" +
+			"Existing configurations that violate the schema stop before release planning.\n")
+
+		merged := changelog.Merge(generated, foreign)
+
+		testastic.Equal(
+			t,
+			"Validate configuration before upgrading.\n\n"+
+				"### Features\n\n- add token refresh (def5678)\n\n"+
+				"### Bug Fixes\n\n- patch expiry handling (fed4321)\n\n"+
+				"Existing configurations that violate the schema stop before release planning.\n",
+			changelog.RenderBody(merged),
+		)
+	})
+
+	t.Run("preserves an outro after a stale owned section", func(t *testing.T) {
+		t.Parallel()
+
+		generated := generatedEntry(changelog.Section{
+			Heading: "Bug Fixes",
+			Lines:   []string{"- patch issue (abc1234)"},
+		})
+		foreign := changelog.ParseEntry("## v1.2.4 (2026-03-01)\n\n" +
+			"### Features\n\n- stale feature (def5678)\n\n" +
+			"Review the new configuration before upgrading.\n")
+
+		merged := changelog.Merge(generated, foreign)
+
+		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(merged.Sections))
+		testastic.SliceEqual(t, []string{"Review the new configuration before upgrading."}, merged.Outro)
+	})
+
+	t.Run("keeps multiple paragraphs in a final manual section", func(t *testing.T) {
+		t.Parallel()
+
+		generated := generatedEntry(changelog.Section{
+			Heading: "Bug Fixes",
+			Lines:   []string{"- patch issue (abc1234)"},
+		})
+		foreign := changelog.ParseEntry("## v1.2.4 (2026-03-01)\n\n" +
+			"### Bug Fixes\n\n- patch issue (abc1234)\n\n" +
+			"### Migration Notes\n\nRun database migrations.\n\nThen restart workers.\n")
+
+		merged := changelog.Merge(generated, foreign)
+
+		testastic.SliceEqual(t, []string{"Bug Fixes", "Migration Notes"}, sectionHeadings(merged.Sections))
+		testastic.SliceEqual(
+			t,
+			[]string{"Run database migrations.", "", "Then restart workers."},
+			merged.Sections[1].Lines,
+		)
+		testastic.Equal(t, 0, len(merged.Outro))
+	})
+
+	t.Run("drops trailing prose without a blank-line boundary", func(t *testing.T) {
+		t.Parallel()
+
+		generated := generatedEntry(changelog.Section{
+			Heading: "Bug Fixes",
+			Lines:   []string{"- patch issue (abc1234)"},
+		})
+		foreign := changelog.ParseEntry("## v1.2.4 (2026-03-01)\n\n" +
+			"### Bug Fixes\n\n- patch issue (abc1234)\nThis has no separating blank line.\n")
+
+		merged := changelog.Merge(generated, foreign)
+
+		testastic.NotContains(t, changelog.Render(merged), "This has no separating blank line")
+	})
+
 	t.Run("returns the generated entry untouched when nothing is preserved", func(t *testing.T) {
 		t.Parallel()
 

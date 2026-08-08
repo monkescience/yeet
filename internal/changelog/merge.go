@@ -8,14 +8,20 @@ import "strings"
 // generated entry. Survivors keep their position relative to the next
 // generated section.
 func Merge(generated, foreign Entry) Entry {
+	foreign = extractOutro(generated, foreign)
+
+	merged := generated
+
+	merged.Intro = append([]string(nil), foreign.Intro...)
+	merged.Outro = append([]string(nil), foreign.Outro...)
+
 	sections := flattenSections(generated.Sections)
 
 	manual := manualSectionsByAnchor(sections, generated.OwnedHeadings, foreign.Sections)
 	if len(manual) == 0 {
-		return generated
+		return merged
 	}
 
-	merged := generated
 	merged.Sections = make([]Section, 0, len(sections)+len(foreign.Sections))
 
 	for _, section := range sections {
@@ -26,6 +32,56 @@ func Merge(generated, foreign Entry) Entry {
 	merged.Sections = append(merged.Sections, manual[""]...)
 
 	return merged
+}
+
+func extractOutro(generated, foreign Entry) Entry {
+	if len(foreign.Outro) > 0 || len(foreign.Sections) == 0 {
+		return foreign
+	}
+
+	lastIdx := len(foreign.Sections) - 1
+	last := foreign.Sections[lastIdx]
+	generatedHeadings := headingSet(flattenSections(generated.Sections))
+	ownedHeadings := stringSet(generated.OwnedHeadings)
+
+	_, isGenerated := generatedHeadings[last.Heading]
+
+	_, isOwned := ownedHeadings[last.Heading]
+	if !isGenerated && !isOwned {
+		return foreign
+	}
+
+	sectionLines, outro, found := splitOutro(last.Lines)
+	if !found {
+		return foreign
+	}
+
+	sections := append([]Section(nil), foreign.Sections...)
+	last.Lines = sectionLines
+	sections[lastIdx] = last
+	foreign.Sections = sections
+	foreign.Outro = outro
+
+	return foreign
+}
+
+func splitOutro(lines []string) ([]string, []string, bool) {
+	for idx, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			continue
+		}
+
+		sectionLines := trimBlankEdges(lines[:idx])
+
+		outro := trimBlankEdges(lines[idx+1:])
+		if len(sectionLines) == 0 || len(outro) == 0 {
+			continue
+		}
+
+		return sectionLines, outro, true
+	}
+
+	return nil, nil, false
 }
 
 // flattenSections projects nested child targets onto one level. A child target
