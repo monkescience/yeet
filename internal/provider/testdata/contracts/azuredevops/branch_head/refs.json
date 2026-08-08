@@ -3,11 +3,11 @@
   "value": [
     {
       "name": "refs/heads/main2",
-      "objectId": "other-sha"
+      "objectId": "6f74686572736861000000000000000000000000"
     },
     {
       "name": "refs/heads/main",
-      "objectId": "head-sha"
+      "objectId": "6865616473686100000000000000000000000000"
     }
   ]
 }

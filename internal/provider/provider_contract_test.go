@@ -232,15 +232,15 @@ const (
 	providerContractTaggedLabel                                       = "release: complete"
 	providerContractBaseBranch                                        = "main"
 	providerContractTag                                               = "v1.2.3"
-	providerContractTagCommitSHA                                      = "tag-commit-123"
+	providerContractTagCommitSHA                                      = "746167636f6d6d69743132330000000000000000"
 	providerContractPreviousTag                                       = "v1.2.2"
-	providerContractPreviousTagCommitSHA                              = "tag-commit-122"
+	providerContractPreviousTagCommitSHA                              = "746167636f6d6d69743132320000000000000000"
 	providerContractOlderTag                                          = "v1.1.0"
-	providerContractOlderTagCommitSHA                                 = "tag-commit-110"
+	providerContractOlderTagCommitSHA                                 = "746167636f6d6d69743131300000000000000000"
 	providerContractOldestTag                                         = "v1.0.0"
-	providerContractOldestTagCommitSHA                                = "tag-commit-100"
-	providerContractHeadSHA                                           = "head-sha"
-	providerContractMergeSHA                                          = "merge-sha"
+	providerContractOldestTagCommitSHA                                = "746167636f6d6d69743130300000000000000000"
+	providerContractHeadSHA                                           = "6865616473686100000000000000000000000000"
+	providerContractMergeSHA                                          = "6d65726765736861000000000000000000000000"
 	providerContractReviewerAlice                                     = "alice"
 	providerContractReviewerBob                                       = "bob"
 	providerContractUnknownReviewerName                               = "ghost"
@@ -609,7 +609,7 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the merge completes and returns the merge commit
 				testastic.NoError(t, err)
-				testastic.Equal(t, "merge-sha", mergeSHA)
+				testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
 			})
 
 			t.Run("finalizes an asynchronous merge", func(t *testing.T) {

@@ -78,7 +78,7 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 			LatestTag:            "v1.0.0",
 			BoundarySHA:          shas[0],
 			BranchHeadSHA:        shas[1],
-			ReleaseBranchHeadSHA: "stale-release-branch-sha",
+			ReleaseBranchHeadSHA: "7374616c6572656c656173656272616e63687368",
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -211,7 +211,7 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 			LatestTag:            "v1.0.0",
 			BoundarySHA:          shas[0],
 			BranchHeadSHA:        shas[1],
-			ReleaseBranchHeadSHA: "stale-release-branch-sha",
+			ReleaseBranchHeadSHA: "7374616c6572656c656173656272616e63687368",
 			RefUpdateFailure:     "branch policy rejected the update",
 		})
 

@@ -64,10 +64,10 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 			Owner:       "testorg",
 			Repo:        "testrepo",
 			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
+			BoundarySHA: "626f756e64617279736861000000000000000000",
 			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+				{SHA: "6865616473686100000000000000000000000000", Message: "feat: add a thing"},
+				{SHA: "626f756e64617279736861000000000000000000", Message: "chore: release v1.0.0"},
 			},
 		})
 
@@ -137,10 +137,10 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 			Owner:       "testorg",
 			Repo:        "testrepo",
 			LatestTag:   "v1.0.0",
-			BoundarySHA: "boundary-sha",
+			BoundarySHA: "626f756e64617279736861000000000000000000",
 			Commits: []fakeprovider.GitHubCommit{
-				{SHA: "head-sha", Message: "feat: add a thing"},
-				{SHA: "boundary-sha", Message: "chore: release v1.0.0"},
+				{SHA: "6865616473686100000000000000000000000000", Message: "feat: add a thing"},
+				{SHA: "626f756e64617279736861000000000000000000", Message: "chore: release v1.0.0"},
 			},
 		})
 

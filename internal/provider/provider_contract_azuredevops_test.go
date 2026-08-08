@@ -188,7 +188,11 @@ func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
-			writeAzureDevOpsTruncatedRefs(t, w, r, "refs/heads/"+providerContractReleaseBranch, "release-sha")
+			writeAzureDevOpsTruncatedRefs(
+				t, w, r,
+				"refs/heads/"+providerContractReleaseBranch,
+				"72656c6561736573686100000000000000000000",
+			)
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
 			refUpdates.Add(1)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
@@ -301,7 +305,7 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 					"status":        "completed",
 					"mergeStatus":   "succeeded",
 					"lastMergeCommit": map[string]any{
-						"commitId": "final-sha",
+						"commitId": "66696e616c736861000000000000000000000000",
 					},
 				})
 
@@ -317,7 +321,7 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 				"targetRefName": "refs/heads/main",
 				"repository":    map[string]any{"name": azureDevOpsContractRepo},
 				"lastMergeSourceCommit": map[string]any{
-					"commitId": "source-sha",
+					"commitId": "736f757263657368610000000000000000000000",
 				},
 			})
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
@@ -328,10 +332,10 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 				"status":        "completed",
 				"mergeStatus":   "queued",
 				"lastMergeCommit": map[string]any{
-					"commitId": "preview-sha",
+					"commitId": "7072657669657773686100000000000000000000",
 				},
 				"lastMergeSourceCommit": map[string]any{
-					"commitId": "source-sha",
+					"commitId": "736f757263657368610000000000000000000000",
 				},
 			})
 		default:
@@ -351,7 +355,7 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 
 	// then: the provisional commit is skipped and the applied merge commit is returned
 	testastic.NoError(t, err)
-	testastic.Equal(t, "final-sha", mergeSHA)
+	testastic.Equal(t, "66696e616c736861000000000000000000000000", mergeSHA)
 }
 
 func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t *testing.T) {
@@ -374,7 +378,7 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 			"status":        "completed",
 			"mergeStatus":   "queued",
 			"lastMergeCommit": map[string]any{
-				"commitId": "preview-sha",
+				"commitId": "7072657669657773686100000000000000000000",
 			},
 		})
 	})
@@ -405,7 +409,7 @@ func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *tes
 			"id":   "00000000-0000-0000-0000-0000000000ff",
 			"name": "attacker-repo",
 		},
-		"lastMergeSourceCommit": map[string]any{"commitId": "attacker-source-sha"},
+		"lastMergeSourceCommit": map[string]any{"commitId": "61747461636b6572736f75726365736861000000"},
 	}
 
 	var completionAttempts atomic.Int32
@@ -426,7 +430,7 @@ func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *tes
 				"pullRequestId":   42,
 				"status":          "completed",
 				"mergeStatus":     "succeeded",
-				"lastMergeCommit": map[string]any{"commitId": "attacker-sha"},
+				"lastMergeCommit": map[string]any{"commitId": "61747461636b6572736861000000000000000000"},
 			})
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
@@ -460,7 +464,7 @@ func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 		"targetRefName": "refs/heads/main",
 		"repository":    map[string]any{"name": azureDevOpsContractRepo},
 		"lastMergeCommit": map[string]any{
-			"commitId": "preview-sha",
+			"commitId": "7072657669657773686100000000000000000000",
 		},
 		"labels": []map[string]any{{
 			"name":   testReleaseLabelPending,
@@ -514,7 +518,7 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 		"targetRefName": "refs/heads/main",
 		"repository":    map[string]any{"name": azureDevOpsContractRepo},
 		"lastMergeSourceCommit": map[string]any{
-			"commitId": "source-sha",
+			"commitId": "736f757263657368610000000000000000000000",
 		},
 		"labels": []map[string]any{{
 			"name":   testReleaseLabelPending,
@@ -1273,7 +1277,7 @@ func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 				"pullRequestId":   42,
 				"status":          "completed",
 				"mergeStatus":     "queued",
-				"lastMergeCommit": map[string]any{"commitId": "preview-sha"},
+				"lastMergeCommit": map[string]any{"commitId": "7072657669657773686100000000000000000000"},
 			})
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
@@ -1300,7 +1304,7 @@ func azureDevOpsCreateBranchHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, 1, len(request))
 			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
 			testastic.Equal(t, "0000000000000000000000000000000000000000", request[0].OldObjectID)
-			testastic.Equal(t, "base-sha", request[0].NewObjectID)
+			testastic.Equal(t, "6261736573686100000000000000000000000000", request[0].NewObjectID)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
@@ -1380,7 +1384,7 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, 1, len(request))
 			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
 			testastic.Equal(t, "release-tip", request[0].OldObjectID)
-			testastic.Equal(t, "base-sha", request[0].NewObjectID)
+			testastic.Equal(t, "6261736573686100000000000000000000000000", request[0].NewObjectID)
 
 			resetCalled = true
 
@@ -1397,7 +1401,7 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 			decodeJSONRequest(t, r, &push)
 			testastic.Equal(t, 1, len(push.RefUpdates))
 			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, push.RefUpdates[0].Name)
-			testastic.Equal(t, "base-sha", push.RefUpdates[0].OldObjectID)
+			testastic.Equal(t, "6261736573686100000000000000000000000000", push.RefUpdates[0].OldObjectID)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "push.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)

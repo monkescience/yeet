@@ -4,12 +4,12 @@
     {
       "name": "refs/tags/v1.2.3",
       "objectId": "tag-object-123",
-      "peeledObjectId": "tag-commit-123"
+      "peeledObjectId": "746167636f6d6d69743132330000000000000000"
     },
     {
       "name": "refs/tags/v1.2.2",
       "objectId": "tag-object-122",
-      "peeledObjectId": "tag-commit-122"
+      "peeledObjectId": "746167636f6d6d69743132320000000000000000"
     }
   ]
 }

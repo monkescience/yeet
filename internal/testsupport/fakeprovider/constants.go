@@ -6,8 +6,8 @@ const (
 	fakeNextTag       = "v1.1.0"
 	fakeReleaseBranch = "yeet/release-main"
 	fakeBaseBranch    = "main"
-	fakeMergeSHA      = "merge-sha"
-	fakeBaseSHA       = "base-sha"
+	fakeMergeSHA      = "6d65726765736861000000000000000000000000"
+	fakeBaseSHA       = "6261736573686100000000000000000000000000"
 )
 
 // Common JSON keys repeated across provider payloads.

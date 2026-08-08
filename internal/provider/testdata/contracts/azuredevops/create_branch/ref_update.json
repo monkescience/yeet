@@ -4,7 +4,7 @@
     {
       "name": "refs/heads/release-main",
       "oldObjectId": "0000000000000000000000000000000000000000",
-      "newObjectId": "base-sha",
+      "newObjectId": "6261736573686100000000000000000000000000",
       "success": true,
       "updateStatus": "succeeded"
     }

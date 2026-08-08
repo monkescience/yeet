@@ -122,7 +122,7 @@ func gitLabContentCommit(t *testing.T, w http.ResponseWriter, r *http.Request, c
 	}
 
 	content.commit(request.Branch, request.StartBranch, request.CommitMessage, changes)
-	writeJSON(w, map[string]any{"id": "new-commit-sha"})
+	writeJSON(w, map[string]any{"id": "6e6577636f6d6d69747368610000000000000000"})
 }
 
 func gitLabContentExistence(wanted bool) string {

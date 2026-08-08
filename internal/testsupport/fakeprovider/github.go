@@ -189,7 +189,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOption
 	})
 
 	mux.HandleFunc("POST "+prefix+"/git/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{githubKeySHA: "tag-object-sha", "tag": fakeNextTag})
+		writeJSON(w, map[string]any{githubKeySHA: "7461676f626a6563747368610000000000000000", "tag": fakeNextTag})
 	})
 }
 
@@ -465,9 +465,9 @@ func registerGitHubWritePath(
 func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	t.Helper()
 
-	const fakeCommitSHA = "new-commit-sha"
+	const fakeCommitSHA = "6e6577636f6d6d69747368610000000000000000"
 
-	const fakeTreeSHA = "tree-sha"
+	const fakeTreeSHA = "7472656573686100000000000000000000000000"
 
 	mux.HandleFunc("GET "+prefix+"/git/ref/heads/{branch...}", githubBranchRefHandler(opts))
 
@@ -557,7 +557,7 @@ func githubFileContent(path, raw string) map[string]any {
 		githubKeyType: "file",
 		"encoding":    "base64",
 		"content":     base64.StdEncoding.EncodeToString([]byte(raw)),
-		githubKeySHA:  "blob-sha",
+		githubKeySHA:  "626c6f6273686100000000000000000000000000",
 	}
 }
 
@@ -812,7 +812,7 @@ func githubPendingPR(opts GitHubOptions, number int) map[string]any {
 		githubKeyHTMLURL:  "https://example.test/pulls/42",
 		"head": map[string]any{
 			githubKeyRef: fakeReleaseBranch,
-			githubKeySHA: "head-sha",
+			githubKeySHA: "6865616473686100000000000000000000000000",
 			"repo": map[string]any{
 				"full_name": opts.Owner + "/" + opts.Repo,
 			},

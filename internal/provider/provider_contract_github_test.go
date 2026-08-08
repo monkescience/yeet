@@ -526,7 +526,7 @@ func handleGitHubUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
 		writeJSONFixture(t, w, "contracts/github/update_files/base_ref.json")
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/base-ref-sha":
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/6261736572656673686100000000000000000000":
 		writeJSONFixture(t, w, "contracts/github/update_files/base_commit.json")
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
 		writeJSONFixture(t, w, "contracts/github/update_files/tree.json")

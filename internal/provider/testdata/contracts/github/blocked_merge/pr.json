@@ -5,7 +5,7 @@
   "draft": false,
   "mergeable_state": "blocked",
   "head": {
-    "sha": "head-sha",
+    "sha": "6865616473686100000000000000000000000000",
     "ref": "yeet/release-main",
     "repo": {
       "full_name": "o/r"

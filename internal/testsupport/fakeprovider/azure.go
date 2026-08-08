@@ -248,7 +248,7 @@ func azureExistingReleaseTagRefsPayload(filter string) map[string]any {
 		azureKeyCount: 1,
 		azureKeyValue: []map[string]any{{
 			gitlabKeyName:    "refs/" + filter,
-			azureKeyObjectID: "existing-tag-object-sha",
+			azureKeyObjectID: "6578697374696e677461676f626a656374736861",
 		}},
 	}
 }
@@ -473,7 +473,7 @@ func registerAzureWrite(
 
 	mux.HandleFunc("POST "+repoAPI+"/annotatedTags", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
-			azureKeyObjectID: "tag-object-sha",
+			azureKeyObjectID: "7461676f626a6563747368610000000000000000",
 			gitlabKeyName:    fakeNextTag,
 			"taggedObject":   map[string]any{azureKeyObjectID: fakeMergeSHA},
 		})

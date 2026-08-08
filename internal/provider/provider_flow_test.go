@@ -398,7 +398,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 					"mergeable_state": "blocked",
 					"draft":           false,
 					"head": map[string]any{
-						"sha":  "head-sha",
+						"sha":  "6865616473686100000000000000000000000000",
 						"ref":  "yeet/release-main",
 						"repo": map[string]any{"full_name": "o/r"},
 					},
@@ -412,7 +412,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&mergeRequest)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, map[string]any{"merged": true, "sha": "merge-sha"})
+				writeJSON(t, w, map[string]any{"merged": true, "sha": "6d65726765736861000000000000000000000000"})
 			default:
 				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
 			}
@@ -432,7 +432,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		// then: the squash merge method is chosen and the head SHA is sent in the merge request
 		testastic.NoError(t, err)
 		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
-		testastic.Equal(t, "head-sha", mergeRequest.SHA)
+		testastic.Equal(t, "6865616473686100000000000000000000000000", mergeRequest.SHA)
 	})
 }
 
@@ -465,23 +465,23 @@ func TestGitHubUpdateFiles(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
 			writeJSON(t, w, map[string]any{
 				"ref":    "refs/heads/main",
-				"object": map[string]any{"sha": "base-ref-sha"},
+				"object": map[string]any{"sha": "6261736572656673686100000000000000000000"},
 			})
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/base-ref-sha":
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/6261736572656673686100000000000000000000":
 			writeJSON(t, w, map[string]any{
-				"sha":  "base-ref-sha",
-				"tree": map[string]any{"sha": "base-tree-sha"},
+				"sha":  "6261736572656673686100000000000000000000",
+				"tree": map[string]any{"sha": "6261736574726565736861000000000000000000"},
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
 			err := json.NewDecoder(r.Body).Decode(&treeRequest)
 			testastic.NoError(t, err)
 
-			writeJSON(t, w, map[string]any{"sha": "new-tree-sha"})
+			writeJSON(t, w, map[string]any{"sha": "6e65777472656573686100000000000000000000"})
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/commits":
 			err := json.NewDecoder(r.Body).Decode(&commitRequest)
 			testastic.NoError(t, err)
 
-			writeJSON(t, w, map[string]any{"sha": "new-commit-sha"})
+			writeJSON(t, w, map[string]any{"sha": "6e6577636f6d6d69747368610000000000000000"})
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/release-main":
 			http.NotFound(w, r)
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
@@ -505,17 +505,17 @@ func TestGitHubUpdateFiles(t *testing.T) {
 	}, "chore: release 1.2.3")
 
 	testastic.NoError(t, err)
-	testastic.Equal(t, "base-tree-sha", treeRequest.BaseTree)
+	testastic.Equal(t, "6261736574726565736861000000000000000000", treeRequest.BaseTree)
 	testastic.Equal(t, 2, len(treeRequest.Tree))
 	testastic.Equal(t, "CHANGELOG.md", treeRequest.Tree[0].Path)
 	testastic.Equal(t, "VERSION.txt", treeRequest.Tree[1].Path)
 	testastic.Equal(t, "100644", treeRequest.Tree[0].Mode)
 	testastic.Equal(t, "blob", treeRequest.Tree[0].Type)
 	testastic.Equal(t, "chore: release 1.2.3", commitRequest.Message)
-	testastic.Equal(t, "new-tree-sha", commitRequest.Tree)
-	testastic.Equal(t, "base-ref-sha", strings.Join(commitRequest.Parents, ","))
+	testastic.Equal(t, "6e65777472656573686100000000000000000000", commitRequest.Tree)
+	testastic.Equal(t, "6261736572656673686100000000000000000000", strings.Join(commitRequest.Parents, ","))
 	testastic.Equal(t, "refs/heads/release-main", refRequest.Ref)
-	testastic.Equal(t, "new-commit-sha", refRequest.SHA)
+	testastic.Equal(t, "6e6577636f6d6d69747368610000000000000000", refRequest.SHA)
 }
 
 func TestGitLabReleasePRStateTransitions(t *testing.T) {
@@ -598,7 +598,11 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
 					merged = true
 
-					writeJSON(t, w, map[string]any{"iid": 8, "state": "merged", "merge_commit_sha": "merge-sha"})
+					writeJSON(t, w, map[string]any{
+						"iid":              8,
+						"state":            "merged",
+						"merge_commit_sha": "6d65726765736861000000000000000000000000",
+					})
 				default:
 					t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 				}
@@ -669,7 +673,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 					"draft":                 false,
 					"has_conflicts":         false,
 					"detailed_merge_status": "not_approved",
-					"sha":                   "head-sha",
+					"sha":                   "6865616473686100000000000000000000000000",
 					"source_branch":         "yeet/release-main",
 					"target_branch":         "main",
 					"source_project_id":     10,
@@ -684,7 +688,11 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 				err := json.NewDecoder(r.Body).Decode(&mergeRequest)
 				testastic.NoError(t, err)
 
-				writeJSON(t, w, map[string]any{"iid": 8, "state": "merged", "merge_commit_sha": "merge-sha"})
+				writeJSON(t, w, map[string]any{
+					"iid":              8,
+					"state":            "merged",
+					"merge_commit_sha": "6d65726765736861000000000000000000000000",
+				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 			}
@@ -701,7 +709,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		// then: the head SHA is forwarded and the squash flag is set on the merge request
 		testastic.NoError(t, err)
-		testastic.Equal(t, "head-sha", mergeRequest.SHA)
+		testastic.Equal(t, "6865616473686100000000000000000000000000", mergeRequest.SHA)
 		testastic.True(t, mergeRequest.Squash)
 	})
 }
@@ -763,7 +771,7 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 				"draft":                 false,
 				"has_conflicts":         false,
 				"detailed_merge_status": "mergeable",
-				"sha":                   "head-sha",
+				"sha":                   "6865616473686100000000000000000000000000",
 				"source_branch":         "yeet/release-main",
 				"target_branch":         "main",
 				"source_project_id":     10,
@@ -957,7 +965,7 @@ func TestGitLabUpdateFiles(t *testing.T) {
 			err := json.NewDecoder(r.Body).Decode(&commitRequest)
 			testastic.NoError(t, err)
 
-			writeJSON(t, w, map[string]any{"id": "new-commit"})
+			writeJSON(t, w, map[string]any{"id": "6e6577636f6d6d69740000000000000000000000"})
 		default:
 			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 		}

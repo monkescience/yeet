@@ -208,7 +208,7 @@ func registerGitLabMerge(
 	})
 
 	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyID: "new-commit-sha"})
+		writeJSON(w, map[string]any{gitlabKeyID: "6e6577636f6d6d69747368610000000000000000"})
 	})
 }
 
@@ -508,7 +508,7 @@ func gitlabPendingMR(iid int) map[string]any {
 		"target_project_id": gitlabFakeMRID,
 		"draft":             false,
 		"work_in_progress":  false,
-		"sha":               "head-sha",
+		"sha":               "6865616473686100000000000000000000000000",
 		"merge_commit_sha":  fakeMergeSHA,
 		"labels":            []string{fakePendingReleaseTag},
 	}

@@ -158,7 +158,7 @@ func TestMergeDriverAnswersAnAlreadyMergedRequestWithoutMerging(t *testing.T) {
 	current := mergeableState()
 	current.IsOpen = false
 	current.IsMerged = true
-	current.MergeCommitSHA = "merge-sha"
+	current.MergeCommitSHA = "6d65726765736861000000000000000000000000"
 
 	forge := &fakeForgeMerge{states: []mergeState{current}}
 
@@ -167,7 +167,7 @@ func TestMergeDriverAnswersAnAlreadyMergedRequestWithoutMerging(t *testing.T) {
 
 	// then: the existing merge commit is returned without a second merge
 	testastic.NoError(t, err)
-	testastic.Equal(t, "merge-sha", mergeSHA)
+	testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
 	testastic.Equal(t, 1, forge.stateCalls)
 	testastic.Equal(t, 0, forge.executeCalls)
 }
@@ -181,7 +181,7 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		// given: a forge that applies the merge on the completion response
 		forge := &fakeForgeMerge{
 			states:       []mergeState{mergeableState()},
-			executeSHA:   "merge-sha",
+			executeSHA:   "6d65726765736861000000000000000000000000",
 			executeEnded: true,
 		}
 
@@ -190,7 +190,7 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 
 		// then: the reported commit is returned and the forge is not read again
 		testastic.NoError(t, err)
-		testastic.Equal(t, "merge-sha", mergeSHA)
+		testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
 		testastic.Equal(t, 1, forge.stateCalls)
 	})
 
@@ -201,7 +201,7 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		merged := mergeableState()
 		merged.IsOpen = false
 		merged.IsMerged = true
-		merged.MergeCommitSHA = "merge-sha"
+		merged.MergeCommitSHA = "6d65726765736861000000000000000000000000"
 
 		forge := &fakeForgeMerge{states: []mergeState{mergeableState(), merged}}
 
@@ -210,7 +210,7 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 
 		// then: the commit comes from the poll rather than the completion response
 		testastic.NoError(t, err)
-		testastic.Equal(t, "merge-sha", mergeSHA)
+		testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
 		testastic.Equal(t, 2, forge.stateCalls)
 		testastic.Equal(t, 1, forge.executeCalls)
 	})

@@ -278,7 +278,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
 			http.NotFound(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/main":
-			writeJSON(t, w, map[string]any{"sha": "head-sha-123"})
+			writeJSON(t, w, map[string]any{"sha": "6865616473686131323300000000000000000000"})
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			writeJSON(t, w, map[string]any{
 				"login": "yeet-tester",
@@ -297,12 +297,12 @@ func TestGitHubCreateRelease(t *testing.T) {
 			testastic.NoError(t, err)
 			testastic.Equal(t, "v1.2.3", request.Tag)
 			testastic.Equal(t, "release notes", request.Message)
-			testastic.Equal(t, "head-sha-123", request.Object)
+			testastic.Equal(t, "6865616473686131323300000000000000000000", request.Object)
 			testastic.Equal(t, "commit", request.Type)
 
 			writeJSON(t, w, map[string]any{
 				"tag":     request.Tag,
-				"sha":     "tag-object-sha",
+				"sha":     "7461676f626a6563747368610000000000000000",
 				"message": request.Message,
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
@@ -314,7 +314,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 			err := json.NewDecoder(r.Body).Decode(&request)
 			testastic.NoError(t, err)
 			testastic.Equal(t, "refs/tags/v1.2.3", request.Ref)
-			testastic.Equal(t, "tag-object-sha", request.SHA)
+			testastic.Equal(t, "7461676f626a6563747368610000000000000000", request.SHA)
 
 			writeJSON(t, w, map[string]any{
 				"ref": request.Ref,
@@ -383,7 +383,7 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 			writeJSON(t, w, map[string]any{
 				"ref": "refs/tags/v1.2.3",
 				"object": map[string]any{
-					"sha":  "existing-tag-sha",
+					"sha":  "6578697374696e67746167736861000000000000",
 					"type": "tag",
 				},
 			})
@@ -881,7 +881,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 						"source_project_id": 10,
 						"target_project_id": 10,
 						"state":             "merged",
-						"sha":               "source-tip-sha",
+						"sha":               "736f757263657469707368610000000000000000",
 						"squash_on_merge":   false,
 					},
 				})
@@ -907,7 +907,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		// then: the source tip identifies the commit now on the target branch
 		testastic.NoError(t, err)
 		testastic.Equal(t, 6, pr.Number)
-		testastic.Equal(t, "source-tip-sha", pr.MergeCommitSHA)
+		testastic.Equal(t, "736f757263657469707368610000000000000000", pr.MergeCommitSHA)
 	})
 
 	t.Run("selects the most recently merged release MR", func(t *testing.T) {
@@ -928,7 +928,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 						"source_project_id": 10,
 						"target_project_id": 10,
 						"state":             "merged",
-						"merge_commit_sha":  "stale-sha",
+						"merge_commit_sha":  "7374616c65736861000000000000000000000000",
 						"merged_at":         "2024-01-01T00:00:00Z",
 						"updated_at":        "2024-06-01T00:00:00Z",
 					},
@@ -941,7 +941,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 						"source_project_id": 10,
 						"target_project_id": 10,
 						"state":             "merged",
-						"merge_commit_sha":  "fresh-sha",
+						"merge_commit_sha":  "6672657368736861000000000000000000000000",
 						"merged_at":         "2024-05-01T00:00:00Z",
 						"updated_at":        "2024-02-01T00:00:00Z",
 					},
@@ -968,7 +968,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		// then: the most recently merged MR is returned, not the most recently updated
 		testastic.NoError(t, err)
 		testastic.Equal(t, 8, pr.Number)
-		testastic.Equal(t, "fresh-sha", pr.MergeCommitSHA)
+		testastic.Equal(t, "6672657368736861000000000000000000000000", pr.MergeCommitSHA)
 	})
 }
 
@@ -1194,7 +1194,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 					"draft":                 false,
 					"has_conflicts":         false,
 					"detailed_merge_status": "mergeable",
-					"sha":                   "source-tip-sha",
+					"sha":                   "736f757263657469707368610000000000000000",
 					"source_branch":         "yeet/release-main",
 					"target_branch":         "main",
 					"source_project_id":     10,
@@ -1209,7 +1209,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				writeJSON(t, w, map[string]any{
 					"iid":             1,
 					"state":           "merged",
-					"sha":             "source-tip-sha",
+					"sha":             "736f757263657469707368610000000000000000",
 					"squash_on_merge": false,
 				})
 			default:
@@ -1235,7 +1235,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// then: the source tip is returned as the final commit on the target branch
 		testastic.NoError(t, err)
-		testastic.Equal(t, "source-tip-sha", mergeSHA)
+		testastic.Equal(t, "736f757263657469707368610000000000000000", mergeSHA)
 	})
 
 	t.Run("auto method waits for the asynchronous accept to finalize", func(t *testing.T) {
@@ -1258,7 +1258,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 					"draft":                 false,
 					"has_conflicts":         false,
 					"detailed_merge_status": "mergeable",
-					"sha":                   "source-tip-sha",
+					"sha":                   "736f757263657469707368610000000000000000",
 					"source_branch":         "yeet/release-main",
 					"target_branch":         "main",
 					"source_project_id":     10,
@@ -1275,7 +1275,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				writeJSON(t, w, map[string]any{
 					"iid":   1,
 					"state": "opened",
-					"sha":   "source-tip-sha",
+					"sha":   "736f757263657469707368610000000000000000",
 				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
@@ -1300,7 +1300,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// then: the source tip is returned once GitLab reports the MR merged
 		testastic.NoError(t, err)
-		testastic.Equal(t, "source-tip-sha", mergeSHA)
+		testastic.Equal(t, "736f757263657469707368610000000000000000", mergeSHA)
 	})
 
 	t.Run("auto method reports an accept that never finalizes", func(t *testing.T) {
@@ -1316,7 +1316,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 					"draft":                 false,
 					"has_conflicts":         false,
 					"detailed_merge_status": "mergeable",
-					"sha":                   "source-tip-sha",
+					"sha":                   "736f757263657469707368610000000000000000",
 					"source_branch":         "yeet/release-main",
 					"target_branch":         "main",
 					"source_project_id":     10,
@@ -1331,7 +1331,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				writeJSON(t, w, map[string]any{
 					"iid":   1,
 					"state": "opened",
-					"sha":   "source-tip-sha",
+					"sha":   "736f757263657469707368610000000000000000",
 				})
 			default:
 				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
