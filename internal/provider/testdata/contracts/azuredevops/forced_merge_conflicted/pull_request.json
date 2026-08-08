@@ -1,0 +1,11 @@
+{
+  "pullRequestId": 42,
+  "repository": {
+    "name": "contoso-repo"
+  },
+  "status": "active",
+  "mergeStatus": "conflicts",
+  "isDraft": false,
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main"
+}

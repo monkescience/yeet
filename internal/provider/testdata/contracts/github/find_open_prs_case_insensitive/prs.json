@@ -1,0 +1,19 @@
+[
+  {
+    "number": 10,
+    "title": "chore: release v1.2.3",
+    "body": "release body",
+    "html_url": "https://example.com/pulls/42",
+    "head": {
+      "ref": "yeet/release-main",
+      "repo": {
+        "full_name": "o/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "Autorelease: Pending"
+      }
+    ]
+  }
+]

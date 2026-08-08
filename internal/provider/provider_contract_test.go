@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1118,13 +1117,11 @@ func writeJSONFixture(t *testing.T, w http.ResponseWriter, name string) {
 	writeFixture(t, w, name)
 }
 
-func writeText(t *testing.T, w http.ResponseWriter, content string) {
+func writeTextFixture(t *testing.T, w http.ResponseWriter, name string) {
 	t.Helper()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-	_, err := io.WriteString(w, content)
-	testastic.NoError(t, err)
+	writeFixture(t, w, name)
 }
 
 func writeFixture(t *testing.T, w http.ResponseWriter, name string) {

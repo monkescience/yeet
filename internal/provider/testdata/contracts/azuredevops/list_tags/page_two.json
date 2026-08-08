@@ -1,0 +1,15 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "name": "refs/tags/v1.1.0",
+      "objectId": "tag-object-110",
+      "peeledObjectId": "tag-commit-110"
+    },
+    {
+      "name": "refs/tags/v1.0.0",
+      "objectId": "tag-object-100",
+      "peeledObjectId": "tag-commit-100"
+    }
+  ]
+}

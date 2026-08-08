@@ -1,0 +1,7 @@
+{
+  "iid": 42,
+  "title": "chore: release v1.2.3",
+  "description": "updated release body",
+  "web_url": "https://example.com/pulls/42",
+  "source_branch": "release-main"
+}

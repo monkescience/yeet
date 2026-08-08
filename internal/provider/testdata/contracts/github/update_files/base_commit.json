@@ -1,0 +1,6 @@
+{
+  "sha": "base-ref-sha",
+  "tree": {
+    "sha": "base-tree-sha"
+  }
+}

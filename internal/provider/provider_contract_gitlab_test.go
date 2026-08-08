@@ -63,12 +63,9 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractFindOpenPRs:
 			handleGitLabFindOpenPRsContract(t, w, r)
 		case providerContractFindOpenPRsUnlabeled:
-			handleGitLabFindOpenPRsListContract(
-				t, w, r,
-				gitLabLabelledOpenMRResponse([]string{testReleaseLabelPending}),
-			)
+			handleGitLabFindOpenPRsFixtureContract(t, w, r, "find_open_prs_unlabeled")
 		case providerContractFindOpenPRsAdoptable:
-			handleGitLabFindOpenPRsListContract(t, w, r, gitLabLabelledOpenMRResponse(nil))
+			handleGitLabFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
 		case providerContractFindMergedPR:
 			handleGitLabFindMergedPRContract(t, w, r)
 		case providerContractMergeReleasePR:
@@ -110,7 +107,7 @@ func handleGitLabBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http
 
 	if r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches/"+providerContractBaseBranch {
-		writeJSON(t, w, gitLabBranchResponse(providerContractBaseBranch, providerContractHeadSHA))
+		writeJSONFixture(t, w, "contracts/gitlab/branch_head/branch.json")
 
 		return
 	}
@@ -124,7 +121,7 @@ func handleGitLabBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, 
 	if r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches/missing-branch" {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSON(t, w, gitLabNotFoundResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 
 		return
 	}
@@ -136,7 +133,7 @@ func handleGitLabListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/tags" {
-		writeJSON(t, w, gitLabTagsResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/list_tags/tags.json")
 
 		return
 	}
@@ -154,13 +151,13 @@ func handleGitLabListTagsPagedContract(t *testing.T, w http.ResponseWriter, r *h
 	}
 
 	if r.URL.Query().Get("page") == "2" {
-		writeJSON(t, w, gitLabTagsPageTwoResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/list_tags/page_two.json")
 
 		return
 	}
 
 	w.Header().Set("X-Next-Page", "2")
-	writeJSON(t, w, gitLabTagsResponse())
+	writeJSONFixture(t, w, "contracts/gitlab/list_tags/tags.json")
 }
 
 func handleGitLabGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -168,7 +165,7 @@ func handleGitLabGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r 
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() ==
 		"/api/v4/projects/o%2Fr/releases/"+providerContractEscapedTag() {
-		writeJSON(t, w, gitLabReleaseResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/get_release_by_tag/release.json")
 
 		return
 	}
@@ -197,7 +194,7 @@ func handleGitLabCreateReleasePRContract(t *testing.T, w http.ResponseWriter, r 
 	testastic.Equal(t, providerContractReleaseBranch, request.SourceBranch)
 	testastic.Equal(t, providerContractBaseBranch, request.TargetBranch)
 
-	writeJSON(t, w, gitLabReleaseMRResponse(providerContractReleaseBody))
+	writeJSONFixture(t, w, "contracts/gitlab/create_release_pr/response.json")
 }
 
 func handleGitLabCreateReleasePRReviewersContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -214,10 +211,7 @@ func handleGitLabCreateReleasePRReviewersContract(t *testing.T, w http.ResponseW
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, providerContractReleaseTitle, request.Title)
 		testastic.SliceEqual(t, []int64{101, 102}, request.ReviewerIDs)
-		writeJSON(t, w, gitLabReleaseMRWithReviewersResponse(
-			gitLabMemberResponse(gitLabContractAliceID, providerContractReviewerAlice),
-			gitLabMemberResponse(gitLabContractBobID, providerContractReviewerBob),
-		))
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
@@ -228,7 +222,7 @@ func handleGitLabUnknownReviewerContract(t *testing.T, w http.ResponseWriter, r 
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all" {
 		testastic.Equal(t, providerContractUnknownReviewerName, r.URL.Query().Get("query"))
-		writeJSON(t, w, []map[string]any{})
+		writeJSONFixture(t, w, "contracts/gitlab/unknown_reviewer/members_empty.json")
 
 		return
 	}
@@ -241,9 +235,9 @@ func writeGitLabMemberFixture(t *testing.T, w http.ResponseWriter, query string)
 
 	switch query {
 	case providerContractReviewerAlice:
-		writeJSON(t, w, []map[string]any{gitLabMemberResponse(gitLabContractAliceID, providerContractReviewerAlice)})
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/members_alice.json")
 	case providerContractReviewerBob:
-		writeJSON(t, w, []map[string]any{gitLabMemberResponse(gitLabContractBobID, providerContractReviewerBob)})
+		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/members_bob.json")
 	default:
 		t.Fatalf("unexpected GitLab member lookup: %s", query)
 	}
@@ -261,15 +255,13 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
 			writeGitLabMemberFixture(t, w, r.URL.Query().Get("query"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
-			writeJSON(t, w, gitLabReleaseMRWithReviewersResponse(
-				gitLabMemberResponse(gitLabContractAliceID, providerContractReviewerAlice),
-			))
+			writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/response_dropped.json")
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
 			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 			pendingMarked = true
 
-			writeJSON(t, w, gitLabUpdatedMRResponse())
+			writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/update.json")
 		default:
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
@@ -385,7 +377,7 @@ func handleGitLabUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r 
 	testastic.Equal(t, providerContractReleaseTitle, request.Title)
 	testastic.Equal(t, "updated release body", request.Description)
 
-	writeJSON(t, w, gitLabReleaseMRResponse(providerContractUpdatedReleaseBody))
+	writeJSONFixture(t, w, "contracts/gitlab/update_release_pr/response.json")
 }
 
 func handleGitLabFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -394,7 +386,7 @@ func handleGitLabFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
 		testastic.Equal(t, "opened", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("target_branch"))
-		writeJSON(t, w, gitLabOpenMRsResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs/prs.json")
 
 		return
 	}
@@ -402,18 +394,18 @@ func handleGitLabFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
-func handleGitLabFindOpenPRsListContract(
+func handleGitLabFindOpenPRsFixtureContract(
 	t *testing.T,
 	w http.ResponseWriter,
 	r *http.Request,
-	prs []map[string]any,
+	dir string,
 ) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
 		testastic.Equal(t, "", r.URL.Query().Get("labels"))
 		testastic.Equal(t, providerContractPendingBranch, r.URL.Query().Get("source_branch"))
-		writeJSON(t, w, prs)
+		writeJSONFixture(t, w, "contracts/gitlab/"+dir+"/prs.json")
 
 		return
 	}
@@ -427,7 +419,7 @@ func handleGitLabFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
 		testastic.Equal(t, "merged", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("target_branch"))
-		writeJSON(t, w, gitLabMergedMRsResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr/prs.json")
 
 		return
 	}
@@ -450,7 +442,7 @@ func newGitLabContractLabelHandler(
 			name := decodedPathTail(t, r)
 			if status, answered := registry.status(name); answered {
 				w.WriteHeader(status)
-				writeJSON(t, w, gitLabNotFoundResponse())
+				writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 
 				return
 			}
@@ -464,7 +456,7 @@ func newGitLabContractLabelHandler(
 			decodeJSONRequest(t, r, &request)
 			store.attach(splitProviderContractLabels(request.AddLabels)...)
 			store.detach(splitProviderContractLabels(request.RemoveLabels)...)
-			writeJSON(t, w, gitLabUpdatedMRResponse())
+			writeJSONFixture(t, w, "contracts/gitlab/mark_release_pr/update.json")
 		default:
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
@@ -476,16 +468,16 @@ func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
-		writeJSON(t, w, gitLabMergeStateMRResponse("mergeable"))
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/pr.json")
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
-		writeJSON(t, w, gitLabMergeCommitProjectResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/project.json")
 	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42/merge":
 		var request struct {
 			SHA string `json:"sha"`
 		}
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, providerContractHeadSHA, request.SHA)
-		writeJSON(t, w, gitLabMergeResultResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/result.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
@@ -513,9 +505,9 @@ func handleGitLabAsyncMergeReleasePRContract(
 			return
 		}
 
-		writeJSON(t, w, gitLabMergeStateMRResponse("mergeable"))
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/pr.json")
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
-		writeJSON(t, w, gitLabMergeCommitProjectResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/merge_release_pr/project.json")
 	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42/merge":
 		mergeAccepted.Store(true)
 		writeJSON(t, w, map[string]any{"iid": 42, "state": "opened"})
@@ -528,7 +520,7 @@ func handleGitLabCreateBranchContract(t *testing.T, w http.ResponseWriter, r *ht
 	t.Helper()
 
 	if r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches" {
-		writeJSON(t, w, gitLabBranchResponse(providerContractReleaseBranch, gitLabContractBaseRefSHA))
+		writeJSONFixture(t, w, "contracts/gitlab/create_branch/branch.json")
 
 		return
 	}
@@ -557,14 +549,14 @@ func handleGitLabCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	testastic.Equal(t, providerContractTag, request.Name)
 	testastic.Equal(t, "release notes", request.Description)
 
-	writeJSON(t, w, gitLabReleaseResponse())
+	writeJSONFixture(t, w, "contracts/gitlab/create_release/release.json")
 }
 
 func handleGitLabGetFileContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && isGitLabRawFilePath(r, "CHANGELOG.md") {
-		writeText(t, w, providerContractChangelogContent)
+		writeTextFixture(t, w, "contracts/gitlab/get_file/file.txt")
 
 		return
 	}
@@ -597,7 +589,7 @@ func handleGitLabUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 		testastic.Equal(t, "update", request.Actions[0].Action)
 		testastic.Equal(t, "VERSION.txt", request.Actions[1].FilePath)
 		testastic.Equal(t, "create", request.Actions[1].Action)
-		writeJSON(t, w, gitLabPushResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/update_files/push.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
@@ -608,7 +600,7 @@ func handleGitLabMissingFileContract(t *testing.T, w http.ResponseWriter, r *htt
 
 	if r.Method == http.MethodGet && isGitLabRawFilePath(r, "MISSING.md") {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSON(t, w, gitLabNotFoundResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 
 		return
 	}
@@ -622,7 +614,7 @@ func handleGitLabMissingReleaseContract(t *testing.T, w http.ResponseWriter, r *
 	if r.Method == http.MethodGet && r.URL.EscapedPath() ==
 		"/api/v4/projects/o%2Fr/releases/"+providerContractEscapedTag() {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSON(t, w, gitLabNotFoundResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
 
 		return
 	}
@@ -634,7 +626,7 @@ func handleGitLabMissingPRContract(t *testing.T, w http.ResponseWriter, r *http.
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
-		writeJSON(t, w, []map[string]any{})
+		writeJSONFixture(t, w, "contracts/gitlab/missing_pr/prs.json")
 
 		return
 	}
@@ -646,7 +638,7 @@ func handleGitLabBlockedMergeContract(t *testing.T, w http.ResponseWriter, r *ht
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
-		writeJSON(t, w, gitLabMergeStateMRResponse("not_approved"))
+		writeJSONFixture(t, w, "contracts/gitlab/blocked_merge/pr.json")
 
 		return
 	}
@@ -659,9 +651,9 @@ func handleGitLabUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
-		writeJSON(t, w, gitLabMergeStateMRResponse("mergeable"))
+		writeJSONFixture(t, w, "contracts/gitlab/unsupported_merge/pr.json")
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
-		writeJSON(t, w, gitLabMergeCommitProjectResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/unsupported_merge/project.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
@@ -697,9 +689,7 @@ func handleGitLabForcedMergeUntrustedContract(t *testing.T, w http.ResponseWrite
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
-		mr := gitLabMergeStateMRResponse("mergeable")
-		mr["source_project_id"] = gitLabContractForkProjectID
-		writeJSON(t, w, mr)
+		writeJSONFixture(t, w, "contracts/gitlab/forced_merge_untrusted/pr.json")
 
 		return
 	}
@@ -711,7 +701,7 @@ func handleGitLabForcedMergeConflictedContract(t *testing.T, w http.ResponseWrit
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
-		writeJSON(t, w, gitLabConflictedMRResponse())
+		writeJSONFixture(t, w, "contracts/gitlab/forced_merge_conflicted/pr.json")
 
 		return
 	}

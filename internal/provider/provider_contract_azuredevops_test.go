@@ -142,17 +142,14 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 		switch {
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
 			baseLookups.Add(1)
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/heads/"+providerContractBaseBranch,
-				azureDevOpsContractBaseSHA,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
 			branchLookups.Add(1)
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "empty_refs.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
-			writeJSON(t, w, azureDevOpsReleaseBranchRefUpdateResponse(azureDevOpsContractZeroSHA))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
-			writeJSON(t, w, map[string]any{"pushId": 1})
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "push.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -189,15 +186,12 @@ func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.
 
 		switch {
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/heads/"+providerContractBaseBranch,
-				azureDevOpsContractBaseSHA,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
 			writeAzureDevOpsTruncatedRefs(t, w, r, "refs/heads/"+providerContractReleaseBranch, "release-sha")
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
 			refUpdates.Add(1)
-			writeJSON(t, w, azureDevOpsReleaseBranchRefUpdateResponse(azureDevOpsContractZeroSHA))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -234,7 +228,7 @@ func TestAzureDevOpsGetReleaseByTagFindsATagOnALaterRefPage(t *testing.T) {
 			writeAzureDevOpsTruncatedRefs(t, w, r, "refs/tags/"+providerContractTag, "tag-object-123")
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags/tag-object-123"):
-			writeJSON(t, w, azureDevOpsAnnotatedTagResponse(azureDevOpsContractTagObjectID))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_release_by_tag", "annotated_tag.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -810,7 +804,7 @@ func handleAzureDevOpsBootstrap(t *testing.T, w http.ResponseWriter, r *http.Req
 
 		return true
 	case r.Method == http.MethodGet && strings.EqualFold(r.URL.Path, apisPath+"/ResourceAreas"):
-		writeJSON(t, w, azureDevOpsListResponse())
+		writeJSONFixture(t, w, azureDevOpsContractFixture("_shared", "resource_areas_empty.json"))
 
 		return true
 	}
@@ -847,9 +841,9 @@ func newAzureDevOpsScenarioHandler(
 	case providerContractFindOpenPRs:
 		return azureDevOpsFindOpenPRsHandler(t)
 	case providerContractFindOpenPRsUnlabeled:
-		return azureDevOpsFindOpenPRsListHandler(t, azureDevOpsLabelledOpenPRsResponse(testReleaseLabelPending))
+		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_unlabeled")
 	case providerContractFindOpenPRsAdoptable:
-		return azureDevOpsFindOpenPRsListHandler(t, azureDevOpsLabelledOpenPRsResponse())
+		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_adoptable")
 	case providerContractFindMergedPR:
 		return azureDevOpsFindMergedPRHandler(t)
 	case providerContractMergeReleasePR:
@@ -906,7 +900,7 @@ func azureDevOpsBranchHeadHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch) {
-			writeJSON(t, w, azureDevOpsBranchHeadRefsResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("branch_head", "refs.json"))
 
 			return
 		}
@@ -920,7 +914,7 @@ func azureDevOpsBranchHeadMissingHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "heads/missing-branch") {
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("branch_head", "empty_refs.json"))
 
 			return
 		}
@@ -934,7 +928,7 @@ func azureDevOpsListTagsHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "tags/") {
-			writeJSON(t, w, azureDevOpsTagRefsResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("list_tags", "tags.json"))
 
 			return
 		}
@@ -954,13 +948,13 @@ func azureDevOpsListTagsPagedHandler(t *testing.T) http.HandlerFunc {
 		}
 
 		if r.URL.Query().Get("continuationToken") == azureDevOpsContractRefContinuationToken {
-			writeJSON(t, w, azureDevOpsTagRefsPageTwoResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("list_tags", "page_two.json"))
 
 			return
 		}
 
 		w.Header().Set("x-ms-continuationtoken", azureDevOpsContractRefContinuationToken)
-		writeJSON(t, w, azureDevOpsTagRefsResponse())
+		writeJSONFixture(t, w, azureDevOpsContractFixture("list_tags", "tags.json"))
 	}
 }
 
@@ -974,13 +968,10 @@ func azureDevOpsGetReleaseByTagHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case isAzureDevOpsRefsRequest(r, "tags/"+providerContractTag):
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/tags/"+providerContractTag,
-				azureDevOpsContractTagObjectID,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_release_by_tag", "tag_refs.json"))
 		case r.Method == http.MethodGet &&
 			r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags/tag-object-123"):
-			writeJSON(t, w, azureDevOpsAnnotatedTagResponse(azureDevOpsContractTagObjectID))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_release_by_tag", "annotated_tag.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1009,7 +1000,7 @@ func azureDevOpsCreateReleasePRHandler(t *testing.T) http.HandlerFunc {
 		testastic.Equal(t, providerContractReleaseTitle, request.Title)
 		testastic.Equal(t, providerContractReleaseBody, request.Description)
 
-		writeJSON(t, w, azureDevOpsReleasePRResponse())
+		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr", "pull_request.json"))
 	}
 }
 
@@ -1042,7 +1033,7 @@ func azureDevOpsCreateReleasePRReviewersHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, 2, len(request.Reviewers))
 			testastic.Equal(t, azureDevOpsContractReviewerAliceID, request.Reviewers[0].ID)
 			testastic.Equal(t, azureDevOpsContractReviewerBobID, request.Reviewers[1].ID)
-			writeJSON(t, w, azureDevOpsReleasePRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr", "pull_request.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1055,7 +1046,7 @@ func azureDevOpsUnknownReviewerHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsIdentitiesRequest(r) {
 			testastic.Equal(t, providerContractUnknownReviewerName, r.URL.Query().Get("filterValue"))
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("unknown_reviewer", "identities_empty.json"))
 
 			return
 		}
@@ -1071,15 +1062,9 @@ func writeAzureDevOpsIdentityFixture(t *testing.T, w http.ResponseWriter, r *htt
 
 	switch filterValue := r.URL.Query().Get("filterValue"); filterValue {
 	case providerContractReviewerAlice:
-		writeJSON(t, w, azureDevOpsListResponse(azureDevOpsIdentityResponse(
-			azureDevOpsContractReviewerAliceID,
-			"Alice Example",
-		)))
+		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_alice.json"))
 	case providerContractReviewerBob:
-		writeJSON(t, w, azureDevOpsListResponse(azureDevOpsIdentityResponse(
-			azureDevOpsContractReviewerBobID,
-			"Bob Example",
-		)))
+		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_bob.json"))
 	default:
 		t.Fatalf("unexpected Azure DevOps identity lookup: %s", filterValue)
 	}
@@ -1097,10 +1082,7 @@ func TestAzureDevOpsRejectsAmbiguousReviewer(t *testing.T) {
 
 		if isAzureDevOpsIdentitiesRequest(r) {
 			testastic.Equal(t, "alex", r.URL.Query().Get("filterValue"))
-			writeJSON(t, w, azureDevOpsListResponse(
-				azureDevOpsIdentityResponse(azureDevOpsContractAmbiguousFirstID, "Alex One"),
-				azureDevOpsIdentityResponse(azureDevOpsContractAmbiguousSecondID, "Alex Two"),
-			))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_ambiguous.json"))
 
 			return
 		}
@@ -1146,7 +1128,7 @@ func azureDevOpsUpdateReleasePRHandler(t *testing.T) http.HandlerFunc {
 		testastic.Equal(t, providerContractReleaseTitle, request.Title)
 		testastic.Equal(t, "updated release body", request.Description)
 
-		writeJSON(t, w, azureDevOpsUpdatedPRResponse())
+		writeJSONFixture(t, w, azureDevOpsContractFixture("update_release_pr", "pull_request.json"))
 	}
 }
 
@@ -1162,11 +1144,11 @@ func azureDevOpsFindOpenPRsHandler(t *testing.T) http.HandlerFunc {
 
 		testastic.Equal(t, "active", r.URL.Query().Get("searchCriteria.status"))
 		testastic.Equal(t, "refs/heads/"+providerContractBaseBranch, r.URL.Query().Get("searchCriteria.targetRefName"))
-		writeJSON(t, w, azureDevOpsOpenPRsResponse())
+		writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_requests.json"))
 	}
 }
 
-func azureDevOpsFindOpenPRsListHandler(t *testing.T, prs map[string]any) http.HandlerFunc {
+func azureDevOpsFindOpenPRsFixtureHandler(t *testing.T, dir string) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1176,7 +1158,7 @@ func azureDevOpsFindOpenPRsListHandler(t *testing.T, prs map[string]any) http.Ha
 			return
 		}
 
-		writeJSON(t, w, prs)
+		writeJSONFixture(t, w, azureDevOpsContractFixture(dir, "pull_requests.json"))
 	}
 }
 
@@ -1187,9 +1169,9 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 		switch {
 		case isAzureDevOpsPullRequestsListRequest(r):
 			testastic.Equal(t, "completed", r.URL.Query().Get("searchCriteria.status"))
-			writeJSON(t, w, azureDevOpsMergedPRsResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
-			writeJSON(t, w, azureDevOpsMergedPRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_request.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1241,7 +1223,7 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
-			writeJSON(t, w, azureDevOpsMergeablePRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
 			var request struct {
 				Status            string `json:"status"`
@@ -1252,7 +1234,7 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 			decodeJSONRequest(t, r, &request)
 			testastic.Equal(t, "completed", request.Status)
 			testastic.Equal(t, "squash", request.CompletionOptions.MergeStrategy)
-			writeJSON(t, w, azureDevOpsCompletedPRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "completed.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1284,7 +1266,7 @@ func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 				return
 			}
 
-			writeJSON(t, w, azureDevOpsMergeablePRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
 			completed.Store(true)
 			writeJSON(t, w, map[string]any{
@@ -1305,12 +1287,9 @@ func azureDevOpsCreateBranchHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/heads/"+providerContractBaseBranch,
-				azureDevOpsContractBaseSHA,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "empty_refs.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
 			var request []struct {
 				Name        string `json:"name"`
@@ -1322,7 +1301,7 @@ func azureDevOpsCreateBranchHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
 			testastic.Equal(t, "0000000000000000000000000000000000000000", request[0].OldObjectID)
 			testastic.Equal(t, "base-sha", request[0].NewObjectID)
-			writeJSON(t, w, azureDevOpsReleaseBranchRefUpdateResponse(azureDevOpsContractZeroSHA))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1340,14 +1319,11 @@ func azureDevOpsCreateReleaseHandler(t *testing.T) http.HandlerFunc {
 			// points at a stale commit. CreateRelease must resolve to the
 			// branch's HEAD, not the tag's commit.
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
-			writeJSON(t, w, azureDevOpsListResponse(map[string]any{"commitId": azureDevOpsContractStaleTagSHA}))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "tag_collision.json"))
 		case isAzureDevOpsCommitsListRequest(r) &&
 			r.URL.Query().Get("searchCriteria.itemVersion.versionType") == "branch":
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
-			writeJSON(t, w, azureDevOpsListResponse(map[string]any{
-				"commitId": providerContractHeadSHA,
-				"comment":  "base",
-			}))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "commits.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags"):
 			var request struct {
 				Name         string `json:"name"`
@@ -1360,7 +1336,7 @@ func azureDevOpsCreateReleaseHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, providerContractTag, request.Name)
 			testastic.Equal(t, "release notes", request.Message)
 			testastic.Equal(t, providerContractHeadSHA, request.TaggedObject.ObjectID)
-			writeJSON(t, w, azureDevOpsAnnotatedTagResponse(azureDevOpsContractNewTagObjectID))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "annotated_tag.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1374,7 +1350,7 @@ func azureDevOpsGetFileHandler(t *testing.T) http.HandlerFunc {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("items") {
 			testastic.Equal(t, "CHANGELOG.md", r.URL.Query().Get("path"))
 			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("versionDescriptor.version"))
-			writeText(t, w, providerContractChangelogContent)
+			writeTextFixture(t, w, azureDevOpsContractFixture("get_file", "changelog.txt"))
 
 			return
 		}
@@ -1391,15 +1367,9 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/heads/"+providerContractReleaseBranch,
-				azureDevOpsContractReleaseTipSHA,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "branch_ref.json"))
 		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
-			writeJSON(t, w, azureDevOpsListResponse(azureDevOpsRefResponse(
-				"refs/heads/"+providerContractBaseBranch,
-				azureDevOpsContractBaseSHA,
-			)))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "base_ref.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
 			var request []struct {
 				Name        string `json:"name"`
@@ -1414,7 +1384,7 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 
 			resetCalled = true
 
-			writeJSON(t, w, azureDevOpsReleaseBranchRefUpdateResponse(azureDevOpsContractReleaseTipSHA))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "ref_reset.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pushes"):
 			testastic.True(t, resetCalled)
 
@@ -1428,7 +1398,7 @@ func azureDevOpsUpdateFilesHandler(t *testing.T) http.HandlerFunc {
 			testastic.Equal(t, 1, len(push.RefUpdates))
 			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, push.RefUpdates[0].Name)
 			testastic.Equal(t, "base-sha", push.RefUpdates[0].OldObjectID)
-			writeJSON(t, w, map[string]any{"pushId": 1})
+			writeJSONFixture(t, w, azureDevOpsContractFixture("update_files", "push.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
@@ -1454,7 +1424,7 @@ func azureDevOpsMissingReleaseHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "tags/"+providerContractTag) {
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("missing_release", "empty_refs.json"))
 
 			return
 		}
@@ -1468,7 +1438,7 @@ func azureDevOpsMissingPRHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsPullRequestsListRequest(r) {
-			writeJSON(t, w, azureDevOpsListResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("missing_pr", "empty_prs.json"))
 
 			return
 		}
@@ -1482,7 +1452,7 @@ func azureDevOpsBlockedMergeHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			writeJSON(t, w, azureDevOpsMergeStatePRResponse("conflicts"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("blocked_merge", "pull_request.json"))
 
 			return
 		}
@@ -1496,7 +1466,7 @@ func azureDevOpsUnsupportedMergeHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			writeJSON(t, w, azureDevOpsMergeStatePRResponse("succeeded"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("unsupported_merge", "pull_request.json"))
 
 			return
 		}
@@ -1519,11 +1489,14 @@ func azureDevOpsTagPaginationLimitHandler(t *testing.T) http.HandlerFunc {
 
 		page := pages.Add(1)
 		w.Header().Set("x-ms-continuationtoken", fmt.Sprintf("refs-page-%d", page+1))
-		writeJSON(t, w, azureDevOpsListResponse(map[string]any{
-			"name":           fmt.Sprintf("refs/tags/v0.0.%d", page),
-			"objectId":       fmt.Sprintf("tag-object-%d", page),
-			"peeledObjectId": fmt.Sprintf("sha-%d", page),
-		}))
+		writeJSON(t, w, map[string]any{
+			"count": 1,
+			"value": []map[string]any{{
+				"name":           fmt.Sprintf("refs/tags/v0.0.%d", page),
+				"objectId":       fmt.Sprintf("tag-object-%d", page),
+				"peeledObjectId": fmt.Sprintf("sha-%d", page),
+			}},
+		})
 	}
 }
 
@@ -1532,9 +1505,7 @@ func azureDevOpsForcedMergeUntrustedHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			pr := azureDevOpsMergeStatePRResponse("succeeded")
-			pr["repository"] = map[string]any{"name": azureDevOpsContractForkRepo}
-			writeJSON(t, w, pr)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("forced_merge_untrusted", "pull_request.json"))
 
 			return
 		}
@@ -1548,7 +1519,7 @@ func azureDevOpsForcedMergeConflictedHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			writeJSON(t, w, azureDevOpsMergeStatePRResponse("conflicts"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("forced_merge_conflicted", "pull_request.json"))
 
 			return
 		}

@@ -1,0 +1,23 @@
+{
+  "count": 1,
+  "value": [
+    {
+      "pullRequestId": 42,
+      "repository": {
+        "name": "contoso-repo"
+      },
+      "title": "chore: release v1.2.3",
+      "description": "release body",
+      "url": "https://example.com/pulls/42",
+      "sourceRefName": "refs/heads/yeet/release-main",
+      "targetRefName": "refs/heads/main",
+      "status": "active",
+      "labels": [
+        {
+          "name": "autorelease: pending",
+          "active": true
+        }
+      ]
+    }
+  ]
+}

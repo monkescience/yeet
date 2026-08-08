@@ -232,11 +232,7 @@ func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
 			return
 		}
 
-		writeJSON(t, w, []map[string]any{gitHubOpenPRResponse(
-			10,
-			"yeet/release-main",
-			[]string{"Autorelease: Pending"},
-		)})
+		writeJSONFixture(t, w, "contracts/github/find_open_prs_case_insensitive/prs.json")
 	}))
 	defer server.Close()
 
@@ -817,7 +813,7 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 				polls.Add(1)
 			}
 
-			writeJSON(t, w, azureDevOpsMergeablePRResponse())
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
 		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
 			completed.Store(true)
 			writeJSON(t, w, map[string]any{
@@ -900,7 +896,7 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 						return
 					}
 
-					writeJSON(t, w, azureDevOpsMergeablePRResponse())
+					writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
 				case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
 					completed.Store(true)
 					writeJSON(t, w, map[string]any{

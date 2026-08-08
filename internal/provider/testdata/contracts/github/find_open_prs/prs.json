@@ -1,0 +1,63 @@
+[
+  {
+    "number": 42,
+    "title": "chore: release v1.2.3",
+    "body": "release body",
+    "html_url": "https://example.com/pulls/42",
+    "head": {
+      "ref": "yeet/release-main",
+      "repo": {
+        "full_name": "o/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "release: waiting"
+      }
+    ]
+  },
+  {
+    "number": 66,
+    "title": "forged release",
+    "body": "untrusted body",
+    "html_url": "https://example.com/pulls/66",
+    "head": {
+      "ref": "yeet/release-main",
+      "repo": {
+        "full_name": "attacker/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "autorelease: pending"
+      }
+    ]
+  },
+  {
+    "number": 67,
+    "title": "lookalike release branch",
+    "body": "untrusted body",
+    "html_url": "https://example.com/pulls/67",
+    "head": {
+      "ref": "yeet/release-main-attacker",
+      "repo": {
+        "full_name": "o/r"
+      }
+    },
+    "labels": [
+      {
+        "name": "autorelease: pending"
+      }
+    ]
+  },
+  {
+    "number": 7,
+    "title": "feature work",
+    "body": "",
+    "html_url": "https://example.com/pulls/7",
+    "head": {
+      "ref": "feature/work"
+    },
+    "labels": []
+  }
+]
