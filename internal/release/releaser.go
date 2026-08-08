@@ -15,13 +15,13 @@ import (
 )
 
 var (
-	ErrNilHistorySource          = errors.New("history source is required")
-	ErrInvalidReleaseAs          = errors.New("invalid release-as footer")
-	ErrConflictingReleaseAs      = errors.New("conflicting release-as footers")
-	ErrChangelogEntryNotFound    = errors.New("changelog entry not found")
+	errNilHistorySource          = errors.New("history source is required")
+	errInvalidReleaseAs          = errors.New("invalid release-as footer")
+	errConflictingReleaseAs      = errors.New("conflicting release-as footers")
+	errChangelogEntryNotFound    = errors.New("changelog entry not found")
 	ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
-	ErrUnknownTarget             = errors.New("unknown target")
-	ErrConflictingFileUpdate     = errors.New("conflicting file update")
+	errUnknownTarget             = errors.New("unknown target")
+	errConflictingFileUpdate     = errors.New("conflicting file update")
 )
 
 type Result struct {
@@ -48,7 +48,7 @@ type TargetPlan struct {
 	previousRef     string
 }
 
-type Releaser struct {
+type releaser struct {
 	core      *releaseCore
 	source    releaseSource
 	prs       releasePRProvider
@@ -61,16 +61,16 @@ type versionStrategy struct {
 	prefix   string
 }
 
-// New constructs a Releaser. History and base-branch files are served by the
+// newReleaser constructs a releaser. History and base-branch files are served by the
 // local-git source, while every provider-side capability comes from deps.
-func New(
+func newReleaser(
 	ctx context.Context,
 	cfg *config.Config,
 	deps releaserDependencies,
 	source releaseSource,
-) (*Releaser, error) {
+) (*releaser, error) {
 	if source == nil {
-		return nil, ErrNilHistorySource
+		return nil, errNilHistorySource
 	}
 
 	targets, err := cfg.ResolvedTargets(ctx)
@@ -88,7 +88,7 @@ func New(
 		return nil, err
 	}
 
-	return &Releaser{
+	return &releaser{
 		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps, titles: titles},
 		source:    source,
 		prs:       deps,
@@ -147,15 +147,15 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 	return dir + base + "." + channelName + ext
 }
 
-// ValidateTargets checks target selection without reading history or mutating
+// validateTargets checks target selection without reading history or mutating
 // provider state.
-func (r *Releaser) ValidateTargets(selectedTargetIDs []string) error {
+func (r *releaser) validateTargets(selectedTargetIDs []string) error {
 	_, err := newReleaseAnalyzer(r.core, r.source).selectTargets(selectedTargetIDs)
 
 	return err
 }
 
-func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
+func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
 	analyzer := newReleaseAnalyzer(r.core, r.source)
 
 	selection, err := analyzer.selectTargets(selectedTargetIDs)
@@ -207,7 +207,7 @@ func (r *Releaser) ReleaseTargets(ctx context.Context, dryRun bool, selectedTarg
 	return result, nil
 }
 
-func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
+func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 	ctx context.Context,
 	selection releaseSelection,
 	result *Result,
@@ -249,7 +249,7 @@ func (r *Releaser) finalizeAndRefreshReleaseAnalysis(
 	return result, nil
 }
 
-func (r *Releaser) validateRenderedReleaseTitles(result *Result) error {
+func (r *releaser) validateRenderedReleaseTitles(result *Result) error {
 	if len(result.Plans) == 0 {
 		return nil
 	}
@@ -265,7 +265,7 @@ func (r *Releaser) validateRenderedReleaseTitles(result *Result) error {
 	return nil
 }
 
-func (r *Releaser) logReleaseAnalysis(ctx context.Context, result *Result) {
+func (r *releaser) logReleaseAnalysis(ctx context.Context, result *Result) {
 	if len(result.Plans) == 0 {
 		slog.InfoContext(ctx, "no releasable commits found")
 
@@ -275,7 +275,7 @@ func (r *Releaser) logReleaseAnalysis(ctx context.Context, result *Result) {
 	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(result.Plans)))
 }
 
-func (r *Releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
+func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
 	return newReleasePublisher(r.core, r.publisher, r.source).finalizeMergedReleasePR(ctx)
 }
 

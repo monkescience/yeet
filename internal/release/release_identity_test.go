@@ -123,7 +123,7 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		_, err = releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
 
 		// then: parsing fails closed instead of trusting the forged marker
-		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+		testastic.ErrorIs(t, err, errInvalidReleaseManifest)
 	})
 }
 
@@ -215,7 +215,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			err := r.core.validateReleaseManifest(pullRequest, manifest)
 
 			// then: the manifest fails closed
-			testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+			testastic.ErrorIs(t, err, errInvalidReleaseManifest)
 		})
 	}
 }

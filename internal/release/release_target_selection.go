@@ -33,7 +33,7 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 
 		target, exists := r.targets[normalizedTargetID]
 		if !exists {
-			return releaseSelection{}, fmt.Errorf("%w: %s", ErrUnknownTarget, normalizedTargetID)
+			return releaseSelection{}, fmt.Errorf("%w: %s", errUnknownTarget, normalizedTargetID)
 		}
 
 		selectedTargets[normalizedTargetID] = target
@@ -48,7 +48,7 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 		for _, includeID := range target.Includes {
 			includedTarget, exists := r.targets[includeID]
 			if !exists {
-				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", ErrUnknownTarget, includeID, normalizedTargetID)
+				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", errUnknownTarget, includeID, normalizedTargetID)
 			}
 
 			pathTargetsToAnalyze[includeID] = includedTarget

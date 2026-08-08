@@ -15,7 +15,7 @@ const (
 	commitOverrideEndMarker   = "END_COMMIT_OVERRIDE"
 )
 
-var ErrInvalidCommitOverride = errors.New("invalid commit override")
+var errInvalidCommitOverride = errors.New("invalid commit override")
 
 type commitOverrideResult struct {
 	commits []commit.Commit
@@ -36,17 +36,17 @@ func commitOverrideMessages(
 
 	end := strings.Index(body[start:], commitOverrideEndMarker)
 	if end == -1 {
-		return nil, true, fmt.Errorf("%w: missing %s marker", ErrInvalidCommitOverride, commitOverrideEndMarker)
+		return nil, true, fmt.Errorf("%w: missing %s marker", errInvalidCommitOverride, commitOverrideEndMarker)
 	}
 
 	block := strings.TrimSpace(body[start : start+end])
 	if block == "" {
-		return nil, true, fmt.Errorf("%w: empty override block", ErrInvalidCommitOverride)
+		return nil, true, fmt.Errorf("%w: empty override block", errInvalidCommitOverride)
 	}
 
 	messages := splitCommitOverrideMessages(ctx, block, knownTypes)
 	if len(messages) == 0 {
-		return nil, true, fmt.Errorf("%w: empty override block", ErrInvalidCommitOverride)
+		return nil, true, fmt.Errorf("%w: empty override block", errInvalidCommitOverride)
 	}
 
 	return messages, true, nil

@@ -444,7 +444,7 @@ func changelogEntryByTag(changelogBody, tag string) (string, error) {
 	}
 
 	if start == -1 {
-		return "", fmt.Errorf("%w: %s", ErrChangelogEntryNotFound, tag)
+		return "", fmt.Errorf("%w: %s", errChangelogEntryNotFound, tag)
 	}
 
 	end := len(lines)
@@ -459,7 +459,7 @@ func changelogEntryByTag(changelogBody, tag string) (string, error) {
 
 	entry := strings.TrimSpace(strings.Join(lines[start:end], "\n"))
 	if entry == "" {
-		return "", fmt.Errorf("%w: %s", ErrChangelogEntryNotFound, tag)
+		return "", fmt.Errorf("%w: %s", errChangelogEntryNotFound, tag)
 	}
 
 	return entry, nil

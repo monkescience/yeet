@@ -36,12 +36,12 @@ Flags:
       --channel string             run a configured prerelease channel, defaulting to the channel matching the current branch
       --dry-run                    show the planned release without creating a PR/MR
   -h, --help                       help for release
-      --host string                override repository host, such as github.com or gitlab.company.com
-      --owner string               override repository owner or namespace for github-style repositories
-      --project string             override full GitLab project path, including subgroups
+      --host string                override repository host, such as github.com or gitlab.company.com (github, gitlab, azuredevops)
+      --owner string               override repository owner or namespace (github)
+      --project string             override full project path, including subgroups (github, gitlab, azuredevops)
       --provider string            override provider: auto|github|gitlab|azuredevops
       --remote string              override git remote used for repository auto-detection
-      --repo string                override repository name for github-style repositories
+      --repo string                override repository name (github, azuredevops)
       --target stringArray         limit analysis to one or more configured targets (repeatable)
 
 Global Flags:

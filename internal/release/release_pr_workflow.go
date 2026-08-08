@@ -136,7 +136,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 
 		target, exists := r.targets[plan.ID]
 		if !exists {
-			return fmt.Errorf("%w: %s", ErrUnknownTarget, plan.ID)
+			return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
 		}
 
 		changelogFile := target.Changelog.File
@@ -213,7 +213,7 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef s
 		return entry, true, nil
 	}
 
-	if !errors.Is(err, ErrChangelogEntryNotFound) {
+	if !errors.Is(err, errChangelogEntryNotFound) {
 		return "", false, err
 	}
 
@@ -227,7 +227,7 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef s
 		return entry, true, nil
 	}
 
-	if errors.Is(err, ErrChangelogEntryNotFound) {
+	if errors.Is(err, errChangelogEntryNotFound) {
 		return "", false, nil
 	}
 

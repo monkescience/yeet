@@ -429,7 +429,7 @@ func TestChangelogEntryByTag(t *testing.T) {
 
 		// then: not found error is returned
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrChangelogEntryNotFound)
+		testastic.ErrorIs(t, err, errChangelogEntryNotFound)
 	})
 }
 

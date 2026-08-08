@@ -99,7 +99,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 
 		// then: the missing end marker is reported as an invalid override
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidCommitOverride)
+		testastic.ErrorIs(t, err, errInvalidCommitOverride)
 	})
 }
 

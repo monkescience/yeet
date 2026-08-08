@@ -13,33 +13,23 @@ import (
 )
 
 var (
-	ErrUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
-	ErrUnknownReleaseChannel     = errors.New("unknown release channel")
+	errUnconfiguredReleaseBranch = errors.New("branch is not configured for releases")
+	errUnknownReleaseChannel     = errors.New("unknown release channel")
 )
 
 type Options struct {
-	DryRun               bool
-	Provider             string
-	ProviderSet          bool
-	RepositoryRemote     string
-	RepositoryRemoteSet  bool
-	RepositoryHost       string
-	RepositoryHostSet    bool
-	RepositoryOwner      string
-	RepositoryOwnerSet   bool
-	RepositoryRepo       string
-	RepositoryRepoSet    bool
-	RepositoryProject    string
-	RepositoryProjectSet bool
-	AutoMerge            bool
-	AutoMergeSet         bool
-	AutoMergeForce       bool
-	AutoMergeForceSet    bool
-	AutoMergeMethod      string
-	AutoMergeMethodSet   bool
-	Channel              string
-	ChannelSet           bool
-	Targets              []string
+	DryRun            bool
+	Provider          *string
+	RepositoryRemote  *string
+	RepositoryHost    *string
+	RepositoryOwner   *string
+	RepositoryRepo    *string
+	RepositoryProject *string
+	AutoMerge         *bool
+	AutoMergeForce    *bool
+	AutoMergeMethod   *string
+	Channel           *string
+	Targets           []string
 }
 
 type ConfigError struct {
@@ -72,7 +62,7 @@ func (e *ExecutionError) Unwrap() error {
 }
 
 func Run(ctx context.Context, configPath string, options Options) (*Result, error) {
-	cfg, err := Prepare(ctx, configPath, options)
+	cfg, err := prepare(ctx, configPath, options)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +79,12 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 
 	historySource := history.New(p, cfg.Branch, ".")
 
-	r, err := New(ctx, cfg, p, historySource)
+	r, err := newReleaser(ctx, cfg, p, historySource)
 	if err != nil {
 		return nil, &ConfigError{path: configPath, err: err}
 	}
 
-	if err := r.ValidateTargets(options.Targets); err != nil {
+	if err := r.validateTargets(options.Targets); err != nil {
 		return nil, &ExecutionError{err: err}
 	}
 
@@ -102,7 +92,7 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 		return nil, &ExecutionError{err: err}
 	}
 
-	result, err := r.ReleaseTargets(ctx, options.DryRun, options.Targets)
+	result, err := r.releaseTargets(ctx, options.DryRun, options.Targets)
 	if err != nil {
 		return nil, &ExecutionError{err: err}
 	}
@@ -110,7 +100,7 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 	return result, nil
 }
 
-func Prepare(ctx context.Context, configPath string, options Options) (*config.Config, error) {
+func prepare(ctx context.Context, configPath string, options Options) (*config.Config, error) {
 	cfg, resolvedConfigPath, err := config.LoadResolved(ctx, configPath)
 	if err != nil {
 		return nil, &ConfigError{path: resolvedConfigPath, err: err}
@@ -118,7 +108,7 @@ func Prepare(ctx context.Context, configPath string, options Options) (*config.C
 
 	logRun(ctx, resolvedConfigPath, options)
 
-	if err := ApplyOptions(cfg, options); err != nil {
+	if err := applyOptions(cfg, options); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
@@ -128,7 +118,7 @@ func Prepare(ctx context.Context, configPath string, options Options) (*config.C
 
 	currentBranch, branchErr := currentGitBranch(ctx)
 	if branchErr != nil {
-		if !options.DryRun && (errors.Is(branchErr, ErrCINonBranchRef) || len(cfg.Release.Channels) > 0) {
+		if !options.DryRun && (errors.Is(branchErr, errCINonBranchRef) || len(cfg.Release.Channels) > 0) {
 			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
 		}
 
@@ -137,22 +127,18 @@ func Prepare(ctx context.Context, configPath string, options Options) (*config.C
 		)
 	}
 
-	if err := ResolveMode(cfg, currentBranch, options); err != nil {
+	if err := resolveMode(cfg, currentBranch, options); err != nil {
 		return nil, fmt.Errorf("invalid release options: %w", err)
 	}
 
 	return cfg, nil
 }
 
-func IsMergeBlocked(err error) bool {
-	return errors.Is(err, provider.ErrMergeBlocked)
-}
-
-func ResolveMode(cfg *config.Config, currentBranch string, options Options) error {
+func resolveMode(cfg *config.Config, currentBranch string, options Options) error {
 	currentBranch = strings.TrimSpace(currentBranch)
 
-	if options.ChannelSet {
-		return ResolveExplicitChannel(cfg, currentBranch, options)
+	if options.Channel != nil {
+		return resolveExplicitChannel(cfg, currentBranch, options)
 	}
 
 	if currentBranch == cfg.Branch {
@@ -186,24 +172,24 @@ func ResolveMode(cfg *config.Config, currentBranch string, options Options) erro
 
 	return fmt.Errorf(
 		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
-		ErrUnconfiguredReleaseBranch,
+		errUnconfiguredReleaseBranch,
 		currentBranch,
 	)
 }
 
-func ResolveExplicitChannel(cfg *config.Config, currentBranch string, options Options) error {
-	channelName := strings.TrimSpace(options.Channel)
+func resolveExplicitChannel(cfg *config.Config, currentBranch string, options Options) error {
+	channelName := strings.TrimSpace(*options.Channel)
 
 	channel, exists := cfg.Release.Channels[channelName]
 	if !exists {
-		return fmt.Errorf("%w: %q", ErrUnknownReleaseChannel, channelName)
+		return fmt.Errorf("%w: %q", errUnknownReleaseChannel, channelName)
 	}
 
 	channelBranch := strings.TrimSpace(channel.Branch)
 	if !options.DryRun && strings.TrimSpace(currentBranch) != channelBranch {
 		return fmt.Errorf(
 			"%w: channel %q must run on branch %q, got %q",
-			ErrUnconfiguredReleaseBranch,
+			errUnconfiguredReleaseBranch,
 			channelName,
 			channelBranch,
 			currentBranch,
@@ -216,12 +202,12 @@ func ResolveExplicitChannel(cfg *config.Config, currentBranch string, options Op
 	return nil
 }
 
-func ApplyOptions(cfg *config.Config, options Options) error {
+func applyOptions(cfg *config.Config, options Options) error {
 	if err := applyRepositoryOptions(cfg, options); err != nil {
 		return err
 	}
 
-	ApplyBehaviorOptions(cfg, options)
+	applyBehaviorOptions(cfg, options)
 
 	return nil
 }
@@ -229,18 +215,18 @@ func ApplyOptions(cfg *config.Config, options Options) error {
 func applyRepositoryOptions(cfg *config.Config, options Options) error {
 	previousProvider := cfg.Provider
 
-	if options.ProviderSet {
-		cfg.Provider = config.ProviderType(options.Provider)
+	if options.Provider != nil {
+		cfg.Provider = config.ProviderType(*options.Provider)
 	}
 
-	if options.RepositoryRemoteSet {
-		cfg.Repository.Remote = options.RepositoryRemote
+	if options.RepositoryRemote != nil {
+		cfg.Repository.Remote = *options.RepositoryRemote
 	}
 
-	hasRepoFieldOverride := options.RepositoryHostSet ||
-		options.RepositoryOwnerSet ||
-		options.RepositoryRepoSet ||
-		options.RepositoryProjectSet
+	hasRepoFieldOverride := options.RepositoryHost != nil ||
+		options.RepositoryOwner != nil ||
+		options.RepositoryRepo != nil ||
+		options.RepositoryProject != nil
 
 	if cfg.Provider == config.ProviderAuto {
 		if hasRepoFieldOverride {
@@ -283,32 +269,32 @@ func applyGitHubOverrides(repository *config.RepositoryConfig, options Options) 
 
 	github := repository.GitHub
 
-	if options.RepositoryHostSet {
-		github.Host = options.RepositoryHost
+	if options.RepositoryHost != nil {
+		github.Host = *options.RepositoryHost
 	}
 
-	if options.RepositoryOwnerSet {
-		github.Owner = options.RepositoryOwner
+	if options.RepositoryOwner != nil {
+		github.Owner = *options.RepositoryOwner
 	}
 
-	if options.RepositoryRepoSet {
-		github.Repo = options.RepositoryRepo
+	if options.RepositoryRepo != nil {
+		github.Repo = *options.RepositoryRepo
 	}
 
-	if options.RepositoryProjectSet {
-		github.Project = options.RepositoryProject
+	if options.RepositoryProject != nil {
+		github.Project = *options.RepositoryProject
 
-		if !options.RepositoryOwnerSet {
+		if options.RepositoryOwner == nil {
 			github.Owner = ""
 		}
 
-		if !options.RepositoryRepoSet {
+		if options.RepositoryRepo == nil {
 			github.Repo = ""
 		}
 	}
 
-	if !options.RepositoryProjectSet &&
-		(options.RepositoryOwnerSet || options.RepositoryRepoSet) &&
+	if options.RepositoryProject == nil &&
+		(options.RepositoryOwner != nil || options.RepositoryRepo != nil) &&
 		strings.TrimSpace(github.Owner) != "" &&
 		strings.TrimSpace(github.Repo) != "" {
 		github.Project = ""
@@ -318,7 +304,7 @@ func applyGitHubOverrides(repository *config.RepositoryConfig, options Options) 
 }
 
 func applyGitLabOverrides(repository *config.RepositoryConfig, options Options) error {
-	if options.RepositoryOwnerSet || options.RepositoryRepoSet {
+	if options.RepositoryOwner != nil || options.RepositoryRepo != nil {
 		return fmt.Errorf(
 			"%w: --owner/--repo are not valid for provider gitlab. Use --project",
 			config.ErrInvalidConfig,
@@ -331,19 +317,19 @@ func applyGitLabOverrides(repository *config.RepositoryConfig, options Options) 
 
 	gitlab := repository.GitLab
 
-	if options.RepositoryHostSet {
-		gitlab.Host = options.RepositoryHost
+	if options.RepositoryHost != nil {
+		gitlab.Host = *options.RepositoryHost
 	}
 
-	if options.RepositoryProjectSet {
-		gitlab.Project = options.RepositoryProject
+	if options.RepositoryProject != nil {
+		gitlab.Project = *options.RepositoryProject
 	}
 
 	return nil
 }
 
 func applyAzureDevOpsOverrides(repository *config.RepositoryConfig, options Options) error {
-	if options.RepositoryOwnerSet {
+	if options.RepositoryOwner != nil {
 		return fmt.Errorf(
 			"%w: --owner is not valid for provider azuredevops",
 			config.ErrInvalidConfig,
@@ -356,16 +342,16 @@ func applyAzureDevOpsOverrides(repository *config.RepositoryConfig, options Opti
 
 	azure := repository.AzureDevOps
 
-	if options.RepositoryHostSet {
-		azure.Host = options.RepositoryHost
+	if options.RepositoryHost != nil {
+		azure.Host = *options.RepositoryHost
 	}
 
-	if options.RepositoryRepoSet {
-		azure.Repo = options.RepositoryRepo
+	if options.RepositoryRepo != nil {
+		azure.Repo = *options.RepositoryRepo
 	}
 
-	if options.RepositoryProjectSet {
-		azure.Project = options.RepositoryProject
+	if options.RepositoryProject != nil {
+		azure.Project = *options.RepositoryProject
 	}
 
 	return nil
@@ -391,20 +377,20 @@ func normalizedProvider(providerType config.ProviderType) string {
 	return providerName
 }
 
-func ApplyBehaviorOptions(cfg *config.Config, options Options) {
-	if options.AutoMergeSet {
-		cfg.Release.AutoMerge = options.AutoMerge
-		if !options.AutoMerge {
+func applyBehaviorOptions(cfg *config.Config, options Options) {
+	if options.AutoMerge != nil {
+		cfg.Release.AutoMerge = *options.AutoMerge
+		if !*options.AutoMerge {
 			cfg.Release.AutoMergeForce = false
 		}
 	}
 
-	if options.AutoMergeForceSet {
-		cfg.Release.AutoMergeForce = options.AutoMergeForce
+	if options.AutoMergeForce != nil {
+		cfg.Release.AutoMergeForce = *options.AutoMergeForce
 	}
 
-	if options.AutoMergeMethodSet {
-		cfg.Release.AutoMergeMethod = config.AutoMergeMethod(options.AutoMergeMethod)
+	if options.AutoMergeMethod != nil {
+		cfg.Release.AutoMergeMethod = config.AutoMergeMethod(*options.AutoMergeMethod)
 	}
 
 	if cfg.Release.AutoMergeForce {
@@ -413,17 +399,22 @@ func ApplyBehaviorOptions(cfg *config.Config, options Options) {
 }
 
 func logRun(ctx context.Context, configPath string, options Options) {
+	channel := ""
+	if options.Channel != nil {
+		channel = *options.Channel
+	}
+
 	slog.DebugContext(ctx, "running release command",
 		slog.String("config", configPath),
 		slog.Bool("dry_run", options.DryRun),
-		slog.Bool("provider_override_set", options.ProviderSet),
-		slog.Bool("remote_override_set", options.RepositoryRemoteSet),
-		slog.Bool("host_override_set", options.RepositoryHostSet),
-		slog.Bool("owner_override_set", options.RepositoryOwnerSet),
-		slog.Bool("repo_override_set", options.RepositoryRepoSet),
-		slog.Bool("project_override_set", options.RepositoryProjectSet),
-		slog.String("channel", options.Channel),
-		slog.Bool("channel_set", options.ChannelSet),
+		slog.Bool("provider_override_set", options.Provider != nil),
+		slog.Bool("remote_override_set", options.RepositoryRemote != nil),
+		slog.Bool("host_override_set", options.RepositoryHost != nil),
+		slog.Bool("owner_override_set", options.RepositoryOwner != nil),
+		slog.Bool("repo_override_set", options.RepositoryRepo != nil),
+		slog.Bool("project_override_set", options.RepositoryProject != nil),
+		slog.String("channel", channel),
+		slog.Bool("channel_set", options.Channel != nil),
 		slog.Any("targets", options.Targets),
 	)
 }

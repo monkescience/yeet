@@ -43,7 +43,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("non numeric input is rejected", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("zero is rejected", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as because counters must be >= 1
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("leading zero is accepted as numeric", func(t *testing.T) {

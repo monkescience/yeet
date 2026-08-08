@@ -13,8 +13,8 @@ import (
 const githubRefNameEnv = "GITHUB_REF_NAME"
 
 var (
-	ErrDetachedHead   = errors.New("git head is detached")
-	ErrCINonBranchRef = errors.New("ci ref is not a branch")
+	errDetachedHead   = errors.New("git head is detached")
+	errCINonBranchRef = errors.New("ci ref is not a branch")
 )
 
 func currentGitBranch(ctx context.Context) (string, error) {
@@ -27,7 +27,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 	if githubRef != "" {
 		githubBranch, isBranch := strings.CutPrefix(githubRef, "refs/heads/")
 		if !isBranch || githubBranch == "" {
-			return "", fmt.Errorf("%w: %q", ErrCINonBranchRef, githubRef)
+			return "", fmt.Errorf("%w: %q", errCINonBranchRef, githubRef)
 		}
 
 		return githubBranch, nil
@@ -44,7 +44,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 	if azureRef != "" {
 		azureBranch, isBranch := strings.CutPrefix(azureRef, "refs/heads/")
 		if !isBranch || azureBranch == "" {
-			return "", fmt.Errorf("%w: %q", ErrCINonBranchRef, azureRef)
+			return "", fmt.Errorf("%w: %q", errCINonBranchRef, azureRef)
 		}
 
 		return azureBranch, nil
@@ -63,7 +63,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 	}
 
 	if !head.Name().IsBranch() {
-		return "", fmt.Errorf("%w: %s", ErrDetachedHead, head.Hash())
+		return "", fmt.Errorf("%w: %s", errDetachedHead, head.Hash())
 	}
 
 	return head.Name().Short(), nil

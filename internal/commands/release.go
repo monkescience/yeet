@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
@@ -79,15 +80,25 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "show the planned release without creating a PR/MR")
 	cmd.Flags().StringVar(&flags.providerType, "provider", "", "override provider: auto|github|gitlab|azuredevops")
 	cmd.Flags().StringVar(&flags.remote, "remote", "", "override git remote used for repository auto-detection")
-	cmd.Flags().StringVar(&flags.host, "host", "", "override repository host, such as github.com or gitlab.company.com")
+	cmd.Flags().StringVar(
+		&flags.host,
+		"host",
+		"",
+		"override repository host, such as github.com or gitlab.company.com (github, gitlab, azuredevops)",
+	)
 	cmd.Flags().StringVar(
 		&flags.owner,
 		"owner",
 		"",
-		"override repository owner or namespace for github-style repositories",
+		"override repository owner or namespace (github)",
 	)
-	cmd.Flags().StringVar(&flags.repo, "repo", "", "override repository name for github-style repositories")
-	cmd.Flags().StringVar(&flags.project, "project", "", "override full GitLab project path, including subgroups")
+	cmd.Flags().StringVar(&flags.repo, "repo", "", "override repository name (github, azuredevops)")
+	cmd.Flags().StringVar(
+		&flags.project,
+		"project",
+		"",
+		"override full project path, including subgroups (github, gitlab, azuredevops)",
+	)
 	cmd.Flags().BoolVar(
 		&flags.autoMerge,
 		"auto-merge",
@@ -127,29 +138,27 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 
 func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) release.Options {
 	return release.Options{
-		DryRun:               flags.dryRun,
-		Provider:             flags.providerType,
-		ProviderSet:          cmd.Flags().Changed("provider"),
-		RepositoryRemote:     flags.remote,
-		RepositoryRemoteSet:  cmd.Flags().Changed("remote"),
-		RepositoryHost:       flags.host,
-		RepositoryHostSet:    cmd.Flags().Changed("host"),
-		RepositoryOwner:      flags.owner,
-		RepositoryOwnerSet:   cmd.Flags().Changed("owner"),
-		RepositoryRepo:       flags.repo,
-		RepositoryRepoSet:    cmd.Flags().Changed("repo"),
-		RepositoryProject:    flags.project,
-		RepositoryProjectSet: cmd.Flags().Changed("project"),
-		AutoMerge:            flags.autoMerge,
-		AutoMergeSet:         cmd.Flags().Changed("auto-merge"),
-		AutoMergeForce:       flags.autoMergeForce,
-		AutoMergeForceSet:    cmd.Flags().Changed("auto-merge-force"),
-		AutoMergeMethod:      flags.autoMergeMethod,
-		AutoMergeMethodSet:   cmd.Flags().Changed("auto-merge-method"),
-		Channel:              flags.channel,
-		ChannelSet:           cmd.Flags().Changed("channel"),
-		Targets:              append([]string(nil), flags.targets...),
+		DryRun:            flags.dryRun,
+		Provider:          changedFlag(cmd, "provider", &flags.providerType),
+		RepositoryRemote:  changedFlag(cmd, "remote", &flags.remote),
+		RepositoryHost:    changedFlag(cmd, "host", &flags.host),
+		RepositoryOwner:   changedFlag(cmd, "owner", &flags.owner),
+		RepositoryRepo:    changedFlag(cmd, "repo", &flags.repo),
+		RepositoryProject: changedFlag(cmd, "project", &flags.project),
+		AutoMerge:         changedFlag(cmd, "auto-merge", &flags.autoMerge),
+		AutoMergeForce:    changedFlag(cmd, "auto-merge-force", &flags.autoMergeForce),
+		AutoMergeMethod:   changedFlag(cmd, "auto-merge-method", &flags.autoMergeMethod),
+		Channel:           changedFlag(cmd, "channel", &flags.channel),
+		Targets:           append([]string(nil), flags.targets...),
 	}
+}
+
+func changedFlag[T any](cmd *cobra.Command, name string, value *T) *T {
+	if !cmd.Flags().Changed(name) {
+		return nil
+	}
+
+	return value
 }
 
 func runRelease(ctx context.Context, output io.Writer, configPath string, options release.Options) error {
@@ -210,7 +219,7 @@ func wrapReleaseConfigError(configPath string, err error) error {
 }
 
 func wrapReleaseExecutionError(err error) error {
-	if release.IsMergeBlocked(err) {
+	if errors.Is(err, provider.ErrMergeBlocked) {
 		return fmt.Errorf(
 			"release execution failed: merge blocked. Resolve pull request or merge request readiness, "+
 				"or use --auto-merge-force when appropriate: %w",

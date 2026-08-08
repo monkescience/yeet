@@ -14,8 +14,8 @@ import (
 	"github.com/monkescience/yeet/internal/versionfile"
 )
 
-func (r *Releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
-	return r.ReleaseTargets(ctx, dryRun, nil)
+func (r *releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
+	return r.releaseTargets(ctx, dryRun, nil)
 }
 
 func TestReleaseSemVerPreMajorBumps(t *testing.T) {
@@ -203,7 +203,7 @@ func TestNewHistorySource(t *testing.T) {
 			"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
 		}
 
-		r, err := New(context.Background(), cfg, deps, historySource)
+		r, err := newReleaser(context.Background(), cfg, deps, historySource)
 		testastic.NoError(t, err)
 
 		// when: calculating a release
@@ -227,10 +227,10 @@ func TestNewHistorySource(t *testing.T) {
 		}
 
 		// when: constructing the releaser with a nil history source
-		_, err := New(context.Background(), cfg, newProviderStub(), nil)
+		_, err := newReleaser(context.Background(), cfg, newProviderStub(), nil)
 
 		// then: construction fails
-		testastic.ErrorIs(t, err, ErrNilHistorySource)
+		testastic.ErrorIs(t, err, errNilHistorySource)
 	})
 }
 
@@ -259,7 +259,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		stub := newProviderStub()
 
 		// when: constructing the releaser
-		_, err := New(context.Background(), cfg, stub, stub)
+		_, err := newReleaser(context.Background(), cfg, stub, stub)
 
 		// then: the error identifies the incompatible target
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
@@ -663,7 +663,7 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: non-strict semver values are rejected
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("rejects v-prefixed override value", func(t *testing.T) {
@@ -686,7 +686,7 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: values must be strict semver without v-prefix
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("fails on conflicting override values", func(t *testing.T) {
@@ -715,7 +715,7 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: conflict is rejected
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrConflictingReleaseAs)
+		testastic.ErrorIs(t, err, errConflictingReleaseAs)
 	})
 
 	t.Run("fails on invalid override value", func(t *testing.T) {
@@ -738,7 +738,7 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: invalid value is rejected
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("fails when override is not greater than current version", func(t *testing.T) {
@@ -761,7 +761,7 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		// then: non-incrementing override is rejected
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
 	t.Run("ignores override for calver", func(t *testing.T) {
@@ -813,10 +813,10 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: running a non-dry release for the unknown target
-		result, err := r.ReleaseTargets(context.Background(), false, []string{"missing"})
+		result, err := r.releaseTargets(context.Background(), false, []string{"missing"})
 
 		// then: target validation fails before provider reads or mutations
-		testastic.ErrorIs(t, err, ErrUnknownTarget)
+		testastic.ErrorIs(t, err, errUnknownTarget)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 0, stub.findMergedPRCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
@@ -990,7 +990,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		result, err := r.Release(context.Background(), false)
 
 		// then: the conflict surfaces instead of being swallowed by the finalization probe
-		testastic.ErrorIs(t, err, ErrConflictingReleaseAs)
+		testastic.ErrorIs(t, err, errConflictingReleaseAs)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
@@ -2185,7 +2185,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		))
 		source.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = existingChangelog
 
-		r, err := New(t.Context(), cfg, deps, source)
+		r, err := newReleaser(t.Context(), cfg, deps, source)
 		testastic.NoError(t, err)
 
 		// when: finalizing both releases
@@ -2422,7 +2422,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		_, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: finalization fails before creating or marking a release
-		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+		testastic.ErrorIs(t, err, errInvalidReleaseManifest)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 0, len(stub.markTaggedCalls))
 	})
@@ -2599,7 +2599,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// then: manifest marker requirement is enforced
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrInvalidReleaseManifest)
+		testastic.ErrorIs(t, err, errInvalidReleaseManifest)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 	})
 
@@ -2626,7 +2626,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// then: missing entry is reported
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, ErrChangelogEntryNotFound)
+		testastic.ErrorIs(t, err, errChangelogEntryNotFound)
 	})
 }
 
@@ -2746,7 +2746,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		)
 
 		// then: the collision is reported instead of prepending markdown into the version file
-		testastic.ErrorIs(t, err, ErrConflictingFileUpdate)
+		testastic.ErrorIs(t, err, errConflictingFileUpdate)
 	})
 
 	t.Run("reads base files only from the local release source", func(t *testing.T) {
@@ -2764,7 +2764,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		localSource.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
 
 		remote := newProviderStub()
-		r, err := New(t.Context(), cfg, remote, localSource)
+		r, err := newReleaser(t.Context(), cfg, remote, localSource)
 		testastic.NoError(t, err)
 
 		result := &Result{Plans: []TargetPlan{{
@@ -3130,7 +3130,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning only the api target
-		result, err := r.ReleaseTargets(context.Background(), true, []string{"api"})
+		result, err := r.releaseTargets(context.Background(), true, []string{"api"})
 
 		// then: root still derives from the selected child target but ignores unselected direct commits and web changes
 		testastic.NoError(t, err)
@@ -3181,7 +3181,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning only the derived root target
-		result, err := r.ReleaseTargets(context.Background(), true, []string{"root"})
+		result, err := r.releaseTargets(context.Background(), true, []string{"root"})
 
 		// then: root still releases based on child changes, but child targets are not emitted as top-level plans
 		testastic.NoError(t, err)
@@ -3249,7 +3249,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR for only the derived root target
-		result, err := r.ReleaseTargets(context.Background(), false, []string{"root"})
+		result, err := r.releaseTargets(context.Background(), false, []string{"root"})
 
 		// then: the derived target compare link points at the newest included child commit
 		// instead of include order or the unreleased tag
@@ -3319,7 +3319,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR for only the derived root target
-		result, err := r.ReleaseTargets(context.Background(), false, []string{"root"})
+		result, err := r.releaseTargets(context.Background(), false, []string{"root"})
 
 		// then: the derived target compare link points at the newest included commit overall
 		testastic.NoError(t, err)
@@ -3378,7 +3378,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning the selected child target and its derived parent together
-		result, err := r.ReleaseTargets(context.Background(), true, []string{"root", "api"})
+		result, err := r.releaseTargets(context.Background(), true, []string{"root", "api"})
 
 		// then: api is emitted explicitly, root is emitted as selected, and unselected web is only used for analysis
 		testastic.NoError(t, err)

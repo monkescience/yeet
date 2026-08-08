@@ -21,7 +21,7 @@ type testReleaserDeps interface {
 	releaseSource
 }
 
-func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *Releaser {
+func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *releaser {
 	t.Helper()
 
 	if len(cfg.Targets) == 0 {
@@ -34,9 +34,9 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *R
 		}
 	}
 
-	r, err := New(t.Context(), cfg, deps, deps)
+	r, err := newReleaser(t.Context(), cfg, deps, deps)
 	if err != nil {
-		t.Fatalf("New() returned unexpected error: %v", err)
+		t.Fatalf("newReleaser() returned unexpected error: %v", err)
 	}
 
 	return r
