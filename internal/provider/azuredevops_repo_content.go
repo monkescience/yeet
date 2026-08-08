@@ -332,25 +332,49 @@ func (a *AzureDevOps) branchTipSHA(ctx context.Context, branch string) (string, 
 	}
 
 	filter := "heads/" + branch
-
-	response, err := gitClient.GetRefs(ctx, git.GetRefsArgs{
-		RepositoryId: &a.repo,
-		Project:      &a.project,
-		Filter:       &filter,
-	})
-	if err != nil {
-		return "", fmt.Errorf("list branch refs for %q: %w", branch, err)
-	}
-
 	wantName := "refs/heads/" + branch
+	pageSize := azureDevOpsRefPageSize
+	tip := ""
 
-	for _, ref := range response.Value {
-		if ref.Name != nil && *ref.Name == wantName && ref.ObjectId != nil {
-			return *ref.ObjectId, nil
-		}
+	err = paginateAzureDevOps(ctx, "resolving branch tip",
+		func(token string) ([]git.GitRef, string, error) {
+			args := git.GetRefsArgs{
+				RepositoryId: &a.repo,
+				Project:      &a.project,
+				Filter:       &filter,
+				Top:          &pageSize,
+			}
+
+			if token != "" {
+				args.ContinuationToken = &token
+			}
+
+			response, err := gitClient.GetRefs(ctx, args)
+			if err != nil {
+				return nil, "", fmt.Errorf("list branch refs for %q: %w", branch, err)
+			}
+
+			return response.Value, response.ContinuationToken, nil
+		},
+		func(ref git.GitRef) (bool, error) {
+			if derefString(ref.Name) != wantName {
+				return false, nil
+			}
+
+			tip = strings.TrimSpace(derefString(ref.ObjectId))
+
+			return true, nil
+		},
+	)
+	if err != nil {
+		return "", err
 	}
 
-	return "", errAzureDevOpsBranchMissing
+	if tip == "" {
+		return "", errAzureDevOpsBranchMissing
+	}
+
+	return tip, nil
 }
 
 func ensureLeadingSlash(path string) string {

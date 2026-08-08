@@ -173,6 +173,115 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 	testastic.Equal(t, int32(1), branchLookups.Load())
 }
 
+func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.T) {
+	t.Parallel()
+
+	var refUpdates atomic.Int32
+
+	// given: the release branch sorts behind a full page of prefix-matching siblings
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
+		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
+			writeAzureDevOpsTruncatedRefs(t, w, r, "refs/heads/"+providerContractReleaseBranch, "release-sha")
+		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
+			refUpdates.Add(1)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: the branch that already exists is created
+	err := p.CreateBranch(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+	)
+
+	// then: the continuation page proves the branch exists, so nothing is created
+	testastic.NoError(t, err)
+	testastic.Equal(t, int32(0), refUpdates.Load())
+}
+
+func TestAzureDevOpsGetReleaseByTagFindsATagOnALaterRefPage(t *testing.T) {
+	t.Parallel()
+
+	// given: the tag sorts behind a full page of prerelease siblings
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsRefsRequest(r, "tags/"+providerContractTag):
+			writeAzureDevOpsTruncatedRefs(t, w, r, "refs/tags/"+providerContractTag, "tag-object-123")
+		case r.Method == http.MethodGet &&
+			r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags/tag-object-123"):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("get_release_by_tag", "annotated_tag.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: the release is looked up by that tag
+	release, err := p.GetReleaseByTag(context.Background(), providerContractTag)
+
+	// then: the continuation page yields the released tag
+	testastic.NoError(t, err)
+	testastic.Equal(t, providerContractTag, release.TagName)
+	testastic.Equal(t, "release notes", release.Body)
+}
+
+const azureDevOpsContractRefContinuationToken = "refs-page-2"
+
+// writeAzureDevOpsTruncatedRefs answers a ref query the way a prefix filter
+// does: a full first page of refs that merely start with the wanted name, and
+// the wanted ref itself only on the continuation page.
+func writeAzureDevOpsTruncatedRefs(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	name, objectID string,
+) {
+	t.Helper()
+
+	if r.URL.Query().Get("continuationToken") == azureDevOpsContractRefContinuationToken {
+		wanted := []map[string]any{{"name": name, "objectId": objectID}}
+		writeJSON(t, w, map[string]any{"count": len(wanted), "value": wanted})
+
+		return
+	}
+
+	const pageSize = 100
+
+	siblings := make([]map[string]any, pageSize)
+	for idx := range siblings {
+		siblings[idx] = map[string]any{
+			"name":     fmt.Sprintf("%s-%03d", name, idx),
+			"objectId": fmt.Sprintf("sibling-sha-%03d", idx),
+		}
+	}
+
+	w.Header().Set("x-ms-continuationtoken", azureDevOpsContractRefContinuationToken)
+	writeJSON(t, w, map[string]any{"count": len(siblings), "value": siblings})
+}
+
 func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	t.Parallel()
 

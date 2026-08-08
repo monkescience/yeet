@@ -100,25 +100,49 @@ func (a *AzureDevOps) lookupTagObjectID(ctx context.Context, tag string) (string
 	}
 
 	filter := "tags/" + tag
-
-	response, err := gitClient.GetRefs(ctx, git.GetRefsArgs{
-		RepositoryId: &a.repo,
-		Project:      &a.project,
-		Filter:       &filter,
-	})
-	if err != nil {
-		return "", fmt.Errorf("get tag ref %q: %w", tag, err)
-	}
-
 	wantName := azureDevOpsTagRefPrefix + tag
+	pageSize := azureDevOpsRefPageSize
+	objectID := ""
 
-	for _, ref := range response.Value {
-		if ref.Name != nil && *ref.Name == wantName && ref.ObjectId != nil && *ref.ObjectId != "" {
-			return *ref.ObjectId, nil
-		}
+	err = paginateAzureDevOps(ctx, "looking up tag ref",
+		func(token string) ([]git.GitRef, string, error) {
+			args := git.GetRefsArgs{
+				RepositoryId: &a.repo,
+				Project:      &a.project,
+				Filter:       &filter,
+				Top:          &pageSize,
+			}
+
+			if token != "" {
+				args.ContinuationToken = &token
+			}
+
+			response, err := gitClient.GetRefs(ctx, args)
+			if err != nil {
+				return nil, "", fmt.Errorf("get tag ref %q: %w", tag, err)
+			}
+
+			return response.Value, response.ContinuationToken, nil
+		},
+		func(ref git.GitRef) (bool, error) {
+			if derefString(ref.Name) != wantName {
+				return false, nil
+			}
+
+			objectID = strings.TrimSpace(derefString(ref.ObjectId))
+
+			return true, nil
+		},
+	)
+	if err != nil {
+		return "", err
 	}
 
-	return "", ErrNoRelease
+	if objectID == "" {
+		return "", ErrNoRelease
+	}
+
+	return objectID, nil
 }
 
 func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*git.GitAnnotatedTag, error) {
