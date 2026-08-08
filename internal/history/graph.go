@@ -11,7 +11,6 @@ import (
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 // localHistory caches the reachable graph and changed paths for one release run.
@@ -52,16 +51,16 @@ func (l *localHistory) commitsSinceRefs(
 	refs []string,
 	boundaries map[string]plumbing.Hash,
 	includePaths bool,
-) (provider.CommitHistory, error) {
+) (CommitHistory, error) {
 	normalizedRefs := normalizeRefs(refs)
 
 	graph, err := l.branchGraph(ctx)
 	if err != nil {
-		return provider.CommitHistory{}, err
+		return CommitHistory{}, err
 	}
 
-	history := provider.CommitHistory{
-		EntriesByRef: make(map[string][]provider.CommitEntry, len(normalizedRefs)),
+	history := CommitHistory{
+		EntriesByRef: make(map[string][]CommitEntry, len(normalizedRefs)),
 	}
 
 	for _, ref := range normalizedRefs {
@@ -74,7 +73,7 @@ func (l *localHistory) commitsSinceRefs(
 
 		if includePaths {
 			if err := l.hydratePaths(ctx, hashes); err != nil {
-				return provider.CommitHistory{}, err
+				return CommitHistory{}, err
 			}
 		}
 
@@ -134,11 +133,11 @@ func (l *localHistory) materializeEntries(
 	graph *branchGraph,
 	hashes []plumbing.Hash,
 	includePaths bool,
-) []provider.CommitEntry {
-	entries := make([]provider.CommitEntry, 0, len(hashes))
+) []CommitEntry {
+	entries := make([]CommitEntry, 0, len(hashes))
 
 	for _, hash := range hashes {
-		entry := provider.CommitEntry{
+		entry := CommitEntry{
 			Hash:    hash.String(),
 			Message: graph.nodes[hash].message,
 		}

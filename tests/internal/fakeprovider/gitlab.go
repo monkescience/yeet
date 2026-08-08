@@ -473,6 +473,7 @@ func gitlabMergedPendingMR(opts GitLabOptions) map[string]any {
 	mr["merged_at"] = fakeMergedAtTimestamp
 	mr["description"] = "## ٩(^ᴗ^)۶ release created\n\n" + gitlabReleaseManifest + "\n"
 	mr["labels"] = []string{fakePendingReleaseTag}
+	mr["merge_commit_sha"] = opts.BranchHeadSHA
 
 	if opts.FastForwardMerge {
 		delete(mr, "merge_commit_sha")

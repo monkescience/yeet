@@ -31,14 +31,14 @@ func newReleaseBranchUpdater(
 func (u *releaseBranchUpdater) updateFiles(
 	ctx context.Context,
 	branch string,
-	result *Result,
+	plans []TargetPlan,
 	commitSubject string,
 ) error {
 	r := u.core
 	files := map[string]provider.FileUpdate{}
 	changelogFiles := map[string]struct{}{}
 
-	for _, plan := range result.Plans {
+	for _, plan := range plans {
 		target, exists := r.targets[plan.ID]
 		if !exists {
 			return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)

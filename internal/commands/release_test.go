@@ -223,7 +223,11 @@ func TestHandleReleaseResult(t *testing.T) {
 
 		// given: a result with finalized releases but no new plans
 		result := &release.Result{
-			Releases: []*provider.Release{{TagName: "v1.2.3"}},
+			Releases: []release.FinalizedRelease{{
+				TargetID:  "default",
+				CommitSHA: "abc1234",
+				Release:   &provider.Release{TagName: "v1.2.3"},
+			}},
 		}
 
 		var buf bytes.Buffer
@@ -347,7 +351,11 @@ func TestReleaseLogMessages(t *testing.T) {
 	t.Run("finalized release log states that no new release is needed", func(t *testing.T) {
 		// given: a finalized release and an info logger
 		result := &release.Result{
-			Releases: []*provider.Release{{TagName: "v1.2.3"}},
+			Releases: []release.FinalizedRelease{{
+				TargetID:  "default",
+				CommitSHA: "abc1234",
+				Release:   &provider.Release{TagName: "v1.2.3"},
+			}},
 		}
 
 		var logOutput bytes.Buffer

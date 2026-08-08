@@ -733,7 +733,7 @@ func githubMergedPendingPR(opts GitHubOptions) map[string]any {
 	pr["state"] = "closed"
 	pr["merged"] = true
 	pr["merged_at"] = fakeMergedAtTimestamp
-	pr["merge_commit_sha"] = fakeMergeSHA
+	pr["merge_commit_sha"] = opts.BranchHeadSHA
 	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
 	pr["labels"] = []map[string]any{
 		{githubKeyName: fakePendingReleaseTag},

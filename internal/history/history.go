@@ -22,6 +22,21 @@ var ErrCheckoutUnusable = errors.New("local checkout cannot serve release histor
 
 var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
 
+// CommitEntry is one commit in a release range.
+type CommitEntry struct {
+	Hash    string
+	Message string
+	Paths   []string
+}
+
+// CommitHistory is the result of resolving one or more release ranges.
+type CommitHistory struct {
+	// EntriesByRef contains each reachable commit range in newest-first order.
+	EntriesByRef map[string][]CommitEntry
+	// MissingRefs contains refs that do not exist or are unreachable from the branch.
+	MissingRefs []string
+}
+
 // Remote provides authoritative tag targets and the branch head used to
 // validate the local checkout.
 type Remote interface {
@@ -76,13 +91,6 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-// InvalidateTags drops the cached remote tag snapshot so the next lookup
-// observes tags published after the snapshot was taken.
-func (s *Source) InvalidateTags() {
-	s.remoteTags = nil
-	s.remoteTagCommits = nil
-}
-
 // GetFile reads a blob from the validated local HEAD commit. Working-tree
 // changes are intentionally ignored so release inputs match the remote branch.
 func (s *Source) GetFile(ctx context.Context, branch, path string) (string, error) {
@@ -118,25 +126,29 @@ func (s *Source) GetFile(ctx context.Context, branch, path string) (string, erro
 }
 
 // GetCommitsSinceRefs returns exact per-ref ranges from the local commit graph.
+// knownTags carries boundaries the caller already knows, which is how a run
+// scans from a tag it published itself: the forge tag listing is eventually
+// consistent, so it cannot be asked about that tag yet.
 func (s *Source) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
 	branch string,
 	includePaths bool,
-) (provider.CommitHistory, error) {
+	knownTags []provider.TagRef,
+) (CommitHistory, error) {
 	local, err := s.eligibleLocal(ctx, branch)
 	if err != nil {
-		return provider.CommitHistory{}, err
+		return CommitHistory{}, err
 	}
 
-	boundaries, err := s.remoteBoundaries(ctx, refs)
+	boundaries, err := s.remoteBoundaries(ctx, refs, knownTags)
 	if err != nil {
-		return provider.CommitHistory{}, err
+		return CommitHistory{}, err
 	}
 
 	history, err := local.commitsSinceRefs(ctx, refs, boundaries, includePaths)
 	if err != nil {
-		return provider.CommitHistory{}, err
+		return CommitHistory{}, err
 	}
 
 	slog.DebugContext(ctx, "local git history served commit ranges",
@@ -188,7 +200,11 @@ func (s *Source) loadRemoteTags(ctx context.Context) ([]string, map[string]strin
 	return slices.Clone(tags), commits, nil
 }
 
-func (s *Source) remoteBoundaries(ctx context.Context, refs []string) (map[string]plumbing.Hash, error) {
+func (s *Source) remoteBoundaries(
+	ctx context.Context,
+	refs []string,
+	knownTags []provider.TagRef,
+) (map[string]plumbing.Hash, error) {
 	_, remoteCommits, err := s.loadRemoteTags(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load remote tag boundaries: %w", err)
@@ -208,6 +224,10 @@ func (s *Source) remoteBoundaries(ctx context.Context, refs []string) (map[strin
 
 		remoteCommit, exists := remoteCommits[ref]
 		if !exists {
+			remoteCommit, exists = knownTagCommit(knownTags, ref)
+		}
+
+		if !exists {
 			return nil, fmt.Errorf("%w: tag %q is not present in the remote tag list", ErrCheckoutUnusable, ref)
 		}
 
@@ -220,6 +240,23 @@ func (s *Source) remoteBoundaries(ctx context.Context, refs []string) (map[strin
 	}
 
 	return boundaries, nil
+}
+
+func knownTagCommit(knownTags []provider.TagRef, ref string) (string, bool) {
+	for _, knownTag := range knownTags {
+		if strings.TrimSpace(knownTag.Name) != ref {
+			continue
+		}
+
+		commitHash := strings.TrimSpace(knownTag.CommitSHA)
+		if commitHash == "" {
+			return "", false
+		}
+
+		return commitHash, true
+	}
+
+	return "", false
 }
 
 func (s *Source) eligibleLocal(ctx context.Context, branch string) (*localHistory, error) {

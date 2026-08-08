@@ -48,11 +48,11 @@ func (c *releaseCore) isPrerelease() bool {
 
 func (c *releaseCore) releasePROptions(
 	ctx context.Context,
-	result *Result,
+	plans []TargetPlan,
 	releaseBranch string,
 	providerBodyLimit int,
 ) (provider.ReleasePROptions, error) {
-	manifest := releaseManifestForPlans(result.BaseBranch, result.Plans)
+	manifest := releaseManifestForPlans(c.cfg.Branch, plans)
 	manifest.Channel = strings.TrimSpace(c.cfg.ActiveChannel)
 	manifest.Prerelease = c.isPrerelease()
 
@@ -61,7 +61,7 @@ func (c *releaseCore) releasePROptions(
 		return provider.ReleasePROptions{}, err
 	}
 
-	changelogBody := c.combinedPRChangelog(result)
+	changelogBody := c.combinedPRChangelog(plans)
 	limit := c.effectivePRBodyLimit(providerBodyLimit)
 
 	body, omitted := c.releasePRBody(changelogBody, manifestMarker, limit)
@@ -72,7 +72,7 @@ func (c *releaseCore) releasePROptions(
 		)
 	}
 
-	title, err := c.releasePRTitle(result)
+	title, err := c.releasePRTitle(plans)
 	if err != nil {
 		return provider.ReleasePROptions{}, err
 	}
@@ -116,8 +116,7 @@ func (c *releaseCore) effectivePRBodyLimit(providerLimit int) int {
 	}
 }
 
-func (c *releaseCore) releaseSubject(result *Result) string {
-	plans := result.Plans
+func (c *releaseCore) releaseSubject(plans []TargetPlan) string {
 	if len(plans) == 1 {
 		return "chore: release " + plans[0].NextVersion
 	}
@@ -125,8 +124,7 @@ func (c *releaseCore) releaseSubject(result *Result) string {
 	return "chore: release wave"
 }
 
-func (c *releaseCore) combinedPRChangelog(result *Result) string {
-	plans := result.Plans
+func (c *releaseCore) combinedPRChangelog(plans []TargetPlan) string {
 	if len(plans) == 0 {
 		return ""
 	}
@@ -139,7 +137,7 @@ func (c *releaseCore) combinedPRChangelog(result *Result) string {
 
 	var body strings.Builder
 	body.WriteString("## Release wave\n\n")
-	fmt.Fprintf(&body, "Base branch: `%s`\n", result.BaseBranch)
+	fmt.Fprintf(&body, "Base branch: `%s`\n", c.cfg.Branch)
 	fmt.Fprintf(&body, "Targets: %s", formatSectionTargetList(sections))
 
 	for _, section := range sections {

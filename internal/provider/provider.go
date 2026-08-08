@@ -77,19 +77,6 @@ type MergeReleasePROptions struct {
 	Method            MergeMethod
 }
 
-type CommitEntry struct {
-	Hash    string
-	Message string
-	Paths   []string
-}
-
-type CommitHistory struct {
-	// EntriesByRef contains each reachable commit range in newest-first order.
-	EntriesByRef map[string][]CommitEntry
-	// MissingRefs contains refs that do not exist or are unreachable from the branch.
-	MissingRefs []string
-}
-
 // FileUpdate holds new content and whether the file exists on the base branch.
 type FileUpdate struct {
 	Content string

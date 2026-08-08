@@ -200,31 +200,31 @@ func validateReleaseTitleBranch(
 	return nil
 }
 
-func (c *releaseCore) releasePRTitle(result *Result) (string, error) {
+func (c *releaseCore) releasePRTitle(plans []TargetPlan) (string, error) {
 	if c.titles == nil {
-		return c.releaseSubject(result), nil
+		return c.releaseSubject(plans), nil
 	}
 
-	return c.releaseTemplatedSubject(result, c.titles.single, c.titles.group)
+	return c.releaseTemplatedSubject(plans, c.titles.single, c.titles.group)
 }
 
-func (c *releaseCore) releaseCommitSubject(result *Result) (string, error) {
+func (c *releaseCore) releaseCommitSubject(plans []TargetPlan) (string, error) {
 	if c.titles == nil {
-		return c.releaseSubject(result), nil
+		return c.releaseSubject(plans), nil
 	}
 
-	return c.releaseTemplatedSubject(result, c.titles.commitSingle, c.titles.commitGrouped)
+	return c.releaseTemplatedSubject(plans, c.titles.commitSingle, c.titles.commitGrouped)
 }
 
 func (c *releaseCore) releaseTemplatedSubject(
-	result *Result,
+	plans []TargetPlan,
 	single, grouped *template.Template,
 ) (string, error) {
-	if len(result.Plans) == 1 && single != nil {
-		plan := result.Plans[0]
+	if len(plans) == 1 && single != nil {
+		plan := plans[0]
 
 		return renderReleaseTitle(single, singleReleaseTitleData{
-			Branch:  result.BaseBranch,
+			Branch:  c.cfg.Branch,
 			Channel: strings.TrimSpace(c.cfg.ActiveChannel),
 			Target:  plan.ID,
 			Version: plan.NextVersion,
@@ -232,15 +232,15 @@ func (c *releaseCore) releaseTemplatedSubject(
 		})
 	}
 
-	if len(result.Plans) > 1 && grouped != nil {
+	if len(plans) > 1 && grouped != nil {
 		return renderReleaseTitle(grouped, groupReleaseTitleData{
-			Branch:      result.BaseBranch,
+			Branch:      c.cfg.Branch,
 			Channel:     strings.TrimSpace(c.cfg.ActiveChannel),
-			TargetCount: len(result.Plans),
+			TargetCount: len(plans),
 		})
 	}
 
-	return c.releaseSubject(result), nil
+	return c.releaseSubject(plans), nil
 }
 
 func renderReleaseTitle(tmpl *template.Template, data any) (string, error) {

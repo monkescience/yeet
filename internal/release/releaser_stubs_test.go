@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -17,8 +18,38 @@ import (
 // plus the version history that production wiring sources from the local
 // checkout.
 type testReleaserDeps interface {
-	releaserDependencies
+	repoMetadataProvider
+	releasePRProvider
+	releaseFileProvider
+	releasePublishingProvider
 	releaseSource
+}
+
+func stubDependencies(deps testReleaserDeps) dependencies {
+	return dependencies{metadata: deps, prs: deps, files: deps, publisher: deps}
+}
+
+func newStubReleaser(ctx context.Context, cfg *config.Config, deps testReleaserDeps) (*releaser, error) {
+	core, err := newReleaseCore(ctx, cfg, deps)
+	if err != nil {
+		return nil, err
+	}
+
+	return newReleaser(core, stubDependencies(deps), deps)
+}
+
+func newStubReleaserWithSource(
+	ctx context.Context,
+	cfg *config.Config,
+	deps testReleaserDeps,
+	source releaseSource,
+) (*releaser, error) {
+	core, err := newReleaseCore(ctx, cfg, deps)
+	if err != nil {
+		return nil, err
+	}
+
+	return newReleaser(core, stubDependencies(deps), source)
 }
 
 func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *releaser {
@@ -34,7 +65,7 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *r
 		}
 	}
 
-	r, err := newReleaser(t.Context(), cfg, deps, deps)
+	r, err := newStubReleaser(t.Context(), cfg, deps)
 	if err != nil {
 		t.Fatalf("newReleaser() returned unexpected error: %v", err)
 	}
@@ -87,13 +118,11 @@ type providerStub struct {
 }
 
 func newProviderStub() *providerStub {
-	history := &versionHistoryStub{
-		commitsErrByRef: make(map[string]error),
-	}
-
 	stub := &providerStub{
-		repoMetadataStub:   &repoMetadataStub{},
-		versionHistoryStub: history,
+		repoMetadataStub: &repoMetadataStub{},
+		versionHistoryStub: &versionHistoryStub{
+			commitsErrByRef: make(map[string]error),
+		},
 		releasePRWorkflowStub: &releasePRWorkflowStub{
 			pullRequests: make(map[string]*provider.PullRequest),
 			mergePRSHA:   "merged-sha",
@@ -107,9 +136,6 @@ func newProviderStub() *providerStub {
 			tags:          make(map[string]bool),
 		},
 	}
-
-	history.publishing = stub.releasePublishingStub
-	stub.history = history
 
 	return stub
 }
@@ -138,40 +164,23 @@ func (s *repoMetadataStub) CompareURL(fromRef, toRef string) string {
 type versionHistoryStub struct {
 	tagList []string
 
-	tagSnapshot    []string
-	tagSnapshotSet bool
-
 	listTagsCalls            int
 	getCommitsSinceRefsCalls int
 
-	commits         []provider.CommitEntry
+	commits         []history.CommitEntry
 	commitsErr      error
 	commitsErrByRef map[string]error
 
-	commitsByRef               map[string][]provider.CommitEntry
+	commitsByRef               map[string][]history.CommitEntry
 	getCommitsSinceRefsOf      [][]string
 	getCommitsSinceBranches    []string
 	getCommitsSinceIncludePath []bool
-
-	publishing *releasePublishingStub
 }
 
-// ListTags mirrors the real history source, which snapshots the provider tag
-// list on first use and reuses it until the snapshot is invalidated.
 func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 	s.listTagsCalls++
 
-	if !s.tagSnapshotSet {
-		s.tagSnapshot = s.remoteTags()
-		s.tagSnapshotSet = true
-	}
-
-	return slices.Clone(s.tagSnapshot), nil
-}
-
-func (s *versionHistoryStub) InvalidateTags() {
-	s.tagSnapshot = nil
-	s.tagSnapshotSet = false
+	return slices.Clone(s.tagList), nil
 }
 
 func (s *versionHistoryStub) GetCommitsSinceRefs(
@@ -179,52 +188,41 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 	refs []string,
 	branch string,
 	includePaths bool,
-) (provider.CommitHistory, error) {
+	_ []provider.TagRef,
+) (history.CommitHistory, error) {
 	s.getCommitsSinceRefsCalls++
 	s.getCommitsSinceRefsOf = append(s.getCommitsSinceRefsOf, append([]string(nil), refs...))
 	s.getCommitsSinceBranches = append(s.getCommitsSinceBranches, branch)
 	s.getCommitsSinceIncludePath = append(s.getCommitsSinceIncludePath, includePaths)
 
-	history := provider.CommitHistory{EntriesByRef: make(map[string][]provider.CommitEntry, len(refs))}
+	scanned := history.CommitHistory{EntriesByRef: make(map[string][]history.CommitEntry, len(refs))}
 
 	if errors.Is(s.commitsErr, provider.ErrCommitBoundaryNotFound) {
-		history.MissingRefs = append(history.MissingRefs, refs...)
+		scanned.MissingRefs = append(scanned.MissingRefs, refs...)
 
-		return history, nil
+		return scanned, nil
 	}
 
 	if s.commitsErr != nil {
-		return provider.CommitHistory{}, s.commitsErr
+		return history.CommitHistory{}, s.commitsErr
 	}
 
 	for _, ref := range refs {
 		if err, exists := s.commitsErrByRef[ref]; exists {
 			if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
-				history.MissingRefs = append(history.MissingRefs, ref)
+				scanned.MissingRefs = append(scanned.MissingRefs, ref)
 
 				continue
 			}
 
-			return provider.CommitHistory{}, err
+			return history.CommitHistory{}, err
 		}
 
 		entries := s.entriesForRef(ref)
-		history.EntriesByRef[ref] = entries
+		scanned.EntriesByRef[ref] = entries
 	}
 
-	return history, nil
-}
-
-func (s *versionHistoryStub) remoteTags() []string {
-	if len(s.tagList) > 0 {
-		return slices.Clone(s.tagList)
-	}
-
-	if s.publishing.latestRelease != nil {
-		return []string{s.publishing.latestRelease.TagName}
-	}
-
-	return nil
+	return scanned, nil
 }
 
 // singleRefProbes returns the flat sequence of refs probed via single-ref
@@ -242,24 +240,24 @@ func (s *versionHistoryStub) singleRefProbes() []string {
 	return probes
 }
 
-func (s *versionHistoryStub) entriesForRef(ref string) []provider.CommitEntry {
+func (s *versionHistoryStub) entriesForRef(ref string) []history.CommitEntry {
 	if s.commitsByRef != nil {
 		entries, exists := s.commitsByRef[ref]
 		if !exists || len(entries) == 0 {
-			return []provider.CommitEntry{}
+			return []history.CommitEntry{}
 		}
 
-		result := make([]provider.CommitEntry, len(entries))
+		result := make([]history.CommitEntry, len(entries))
 		copy(result, entries)
 
 		return result
 	}
 
 	if len(s.commits) == 0 {
-		return []provider.CommitEntry{}
+		return []history.CommitEntry{}
 	}
 
-	result := make([]provider.CommitEntry, len(s.commits))
+	result := make([]history.CommitEntry, len(s.commits))
 	copy(result, s.commits)
 
 	return result
@@ -453,8 +451,6 @@ type releasePublishingStub struct {
 	getReleaseByTagCalls int
 	createReleaseCalls   int
 	createReleaseOpts    []provider.ReleaseOptions
-
-	history *versionHistoryStub
 }
 
 func (s *releasePublishingStub) FindMergedReleasePR(
@@ -510,10 +506,6 @@ func (s *releasePublishingStub) CreateRelease(
 	s.latestRelease = release
 	s.releasesByTag[opts.TagName] = release
 	s.tags[opts.TagName] = true
-
-	if !slices.Contains(s.history.tagList, opts.TagName) {
-		s.history.tagList = append(s.history.tagList, opts.TagName)
-	}
 
 	return release, nil
 }

@@ -77,19 +77,28 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 		return nil, fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	historySource := history.New(p, cfg.Branch, ".")
-
-	r, err := newReleaser(ctx, cfg, p, historySource)
+	core, err := newReleaseCore(ctx, cfg, p)
 	if err != nil {
 		return nil, &ConfigError{path: configPath, err: err}
 	}
 
-	if err := r.validateTargets(options.Targets); err != nil {
+	if _, err := selectTargets(core, options.Targets); err != nil {
 		return nil, &ExecutionError{err: err}
 	}
 
+	historySource := history.New(p, cfg.Branch, ".")
 	if err := historySource.Validate(ctx); err != nil {
 		return nil, &ExecutionError{err: err}
+	}
+
+	r, err := newReleaser(core, dependencies{
+		metadata:  p,
+		prs:       p,
+		files:     p,
+		publisher: p,
+	}, historySource)
+	if err != nil {
+		return nil, &ConfigError{path: configPath, err: err}
 	}
 
 	result, err := r.releaseTargets(ctx, options.DryRun, options.Targets)

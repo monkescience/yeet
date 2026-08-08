@@ -8,6 +8,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -116,7 +117,8 @@ func TestReleaseCommitOverrides(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash: "abcdef1234567890",
 			Message: `fix: auth stuff
 
@@ -151,7 +153,8 @@ END_COMMIT_OVERRIDE`,
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash: "abcdef1234567890",
 			Message: `fix: auth stuff
 

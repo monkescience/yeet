@@ -12,6 +12,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -125,7 +126,7 @@ func TestReleaseAnalyzerSharedMonorepoHistoryIndex(t *testing.T) {
 	const targetCount = 100
 
 	stub := newProviderStub()
-	stub.commits = make([]provider.CommitEntry, 0, targetCount)
+	stub.commits = make([]history.CommitEntry, 0, targetCount)
 
 	for idx := range targetCount {
 		targetID := fmt.Sprintf("service-%03d", idx)
@@ -140,7 +141,7 @@ func TestReleaseAnalyzerSharedMonorepoHistoryIndex(t *testing.T) {
 		}
 
 		stub.tagList = append(stub.tagList, tagPrefix+"1.0.0")
-		stub.commits = append(stub.commits, provider.CommitEntry{
+		stub.commits = append(stub.commits, history.CommitEntry{
 			Hash:    fmt.Sprintf("%040d", idx),
 			Message: "fix: patch service",
 			Paths:   []string{servicePath + "/main.go"},
@@ -180,7 +181,7 @@ func TestReleaseAnalyzerSharedHistoryUsesPerTargetBoundaries(t *testing.T) {
 
 	stub := newProviderStub()
 	stub.tagList = []string{"web-v2.0.0", "api-v1.0.0"}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
 			{Hash: "web-new", Message: "feat: refresh web", Paths: []string{"apps/web/app.tsx"}},
@@ -227,7 +228,7 @@ func TestReleaseAnalyzerSharedHistoryExcludesUnboundedTargets(t *testing.T) {
 
 	stub := newProviderStub()
 	stub.tagList = []string{"api-v1.0.0"}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
 		},
@@ -279,7 +280,7 @@ func TestReleaseAnalyzerSharedHistoryFallsBackBeyondTopRefs(t *testing.T) {
 	stub.commitsErrByRef["api-v1.1.0"] = provider.ErrCommitBoundaryNotFound
 	stub.commitsErrByRef["api-v1.0.2"] = provider.ErrCommitBoundaryNotFound
 	stub.commitsErrByRef["api-v1.0.1"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
 		},
@@ -307,6 +308,79 @@ func TestReleaseAnalyzerSharedHistoryFallsBackBeyondTopRefs(t *testing.T) {
 		[]string{"api-v1.0.1", "api-v1.0.2", "api-v1.1.0", "web-v1.0.0"},
 		stub.getCommitsSinceRefsOf[0],
 	)
+}
+
+func TestReleaseAnalyzerFallbackScansEachBoundaryRefOnce(t *testing.T) {
+	t.Parallel()
+
+	// given: two path targets whose top refs are unreachable, plus a derived target
+	//        that groups them, so the shared scan covers only the derived boundary
+	cfg := config.Default()
+	cfg.Targets = map[string]config.Target{
+		"api": {
+			Type:      config.TargetTypePath,
+			Path:      "services/api",
+			TagPrefix: "api-v",
+			Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+		},
+		"web": {
+			Type:      config.TargetTypePath,
+			Path:      "apps/web",
+			TagPrefix: "web-v",
+			Changelog: config.ChangelogConfig{File: "apps/web/CHANGELOG.md"},
+		},
+		"platform": {
+			Type:      config.TargetTypeDerived,
+			TagPrefix: "platform-v",
+			Includes:  []string{"api", "web"},
+		},
+	}
+
+	apiCommit := history.CommitEntry{
+		Hash:    "api-new",
+		Message: "fix: patch api",
+		Paths:   []string{"services/api/main.go"},
+	}
+	webCommit := history.CommitEntry{
+		Hash:    "web-new",
+		Message: "feat: refresh web",
+		Paths:   []string{"apps/web/app.tsx"},
+	}
+
+	stub := newProviderStub()
+	stub.tagList = []string{
+		"api-v1.3.0", "api-v1.2.0", "api-v1.1.0", "api-v1.0.0",
+		"web-v1.3.0", "web-v1.2.0", "web-v1.1.0", "web-v1.0.0",
+		"platform-v1.0.0",
+	}
+
+	for _, unreachableRef := range []string{
+		"api-v1.3.0", "api-v1.2.0", "api-v1.1.0",
+		"web-v1.3.0", "web-v1.2.0", "web-v1.1.0",
+	} {
+		stub.commitsErrByRef[unreachableRef] = provider.ErrCommitBoundaryNotFound
+	}
+
+	stub.commitsByRef = map[string][]history.CommitEntry{
+		"api-v1.0.0":      {apiCommit},
+		"web-v1.0.0":      {webCommit},
+		"platform-v1.0.0": {apiCommit, webCommit},
+	}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: analyzing the release wave
+	result, err := r.Release(context.Background(), true)
+
+	// then: each fallback boundary costs one scan rather than a reachability probe
+	//       the range lookup then cannot reuse
+	testastic.NoError(t, err)
+	testastic.Equal(t, 3, len(result.Plans))
+	testastic.Equal(t, "api-v1.0.1", result.Plans[0].NextTag)
+	testastic.Equal(t, "web-v1.1.0", result.Plans[1].NextTag)
+	testastic.Equal(t, "platform-v1.1.0", result.Plans[2].NextTag)
+	testastic.Equal(t, 3, stub.getCommitsSinceRefsCalls)
+	testastic.SliceEqual(t, []string{"api-v1.0.0", "web-v1.0.0"}, stub.singleRefProbes())
 }
 
 func TestReleaseAnalyzerSharedHistoryFallbackReusesScan(t *testing.T) {
@@ -339,7 +413,7 @@ func TestReleaseAnalyzerSharedHistoryFallbackReusesScan(t *testing.T) {
 	stub.commitsErrByRef["api-v1.1.0"] = provider.ErrCommitBoundaryNotFound
 	stub.commitsErrByRef["api-v1.0.2"] = provider.ErrCommitBoundaryNotFound
 	stub.commitsErrByRef["api-v1.0.1"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
 		},
@@ -356,5 +430,5 @@ func TestReleaseAnalyzerSharedHistoryFallbackReusesScan(t *testing.T) {
 	// then: the fallback path reuses the shared scan's reachability and entries,
 	//       probing only the deeper ref the shared scan did not cover
 	testastic.NoError(t, err)
-	testastic.SliceEqual(t, []string{"api-v1.0.0", "api-v1.0.0"}, stub.singleRefProbes())
+	testastic.SliceEqual(t, []string{"api-v1.0.0"}, stub.singleRefProbes())
 }

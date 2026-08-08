@@ -12,21 +12,15 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-type releaseVersionRefs struct {
-	tags []string
-}
-
 func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 ) (string, string, error) {
-	refs, err := a.versionHistoryRefs(ctx, target)
-	if err != nil {
-		return "", "", err
-	}
+	refs := a.versionHistoryRefs(scan, target)
 
 	for _, ref := range refs {
-		currentVersion, usable, useErr := a.currentVersionFromReachableRef(ctx, target, ref)
+		currentVersion, usable, useErr := a.currentVersionFromReachableRef(ctx, scan, target, ref)
 		if useErr != nil {
 			return "", "", useErr
 		}
@@ -43,33 +37,13 @@ func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
 	return "", "", nil
 }
 
-func (a *releaseAnalyzer) versionHistoryRefs(ctx context.Context, target config.ResolvedTarget) ([]string, error) {
-	historyRefs, err := a.rawVersionHistoryRefs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.orderedVersionRefs(target, historyRefs.tags, ""), nil
-}
-
-func (a *releaseAnalyzer) rawVersionHistoryRefs(ctx context.Context) (releaseVersionRefs, error) {
-	if a.versionRefs != nil {
-		return *a.versionRefs, nil
-	}
-
-	tags, err := a.history.ListTags(ctx)
-	if err != nil {
-		return releaseVersionRefs{}, fmt.Errorf("list tags: %w", err)
-	}
-
-	refs := releaseVersionRefs{tags: append([]string(nil), tags...)}
-	a.versionRefs = &refs
-
-	return refs, nil
+func (a *releaseAnalyzer) versionHistoryRefs(scan *historyScan, target config.ResolvedTarget) []string {
+	return a.orderedVersionRefs(target, scan.tags, "")
 }
 
 func (a *releaseAnalyzer) currentVersionFromReachableRef(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 	ref string,
 ) (string, bool, error) {
@@ -78,7 +52,7 @@ func (a *releaseAnalyzer) currentVersionFromReachableRef(
 		return "", false, nil
 	}
 
-	reachable, err := a.refReachableFromBranch(ctx, ref)
+	reachable, err := a.refReachableFromBranch(ctx, scan, ref)
 	if err != nil {
 		return "", false, err
 	}
@@ -137,21 +111,31 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 	return prerelease == channelPrerelease || strings.HasPrefix(prerelease, channelPrerelease+".")
 }
 
-func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, ref string) (bool, error) {
-	if reachable, ok := a.refReachable[ref]; ok {
+func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *historyScan, ref string) (bool, error) {
+	if reachable, ok := scan.reachable[ref]; ok {
 		return reachable, nil
 	}
 
-	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, a.core.cfg.Branch, false)
+	history, err := a.history.GetCommitsSinceRefs(
+		ctx,
+		[]string{ref},
+		a.core.cfg.Branch,
+		scan.includePaths,
+		scan.extraTags,
+	)
 	if err != nil {
 		return false, fmt.Errorf("validate version ref %q: %w", ref, err)
 	}
 
 	reachable := !slices.Contains(history.MissingRefs, ref)
-	a.refReachable[ref] = reachable
+	scan.reachable[ref] = reachable
 
 	if reachable {
-		a.commitCache[commitCacheKey{ref: ref, branch: a.core.cfg.Branch, includePaths: false}] = history.EntriesByRef[ref]
+		scan.commits[commitCacheKey{
+			ref:          ref,
+			branch:       a.core.cfg.Branch,
+			includePaths: scan.includePaths,
+		}] = history.EntriesByRef[ref]
 	}
 
 	return reachable, nil

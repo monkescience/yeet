@@ -218,7 +218,7 @@ func (f *repoFixture) source() (*history.Source, *remoteStub) {
 	return history.New(remote, fixtureBranch, f.dir), remote
 }
 
-func entryHashes(entries []provider.CommitEntry) []string {
+func entryHashes(entries []history.CommitEntry) []string {
 	hashes := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		hashes = append(hashes, entry.Hash)
@@ -227,14 +227,14 @@ func entryHashes(entries []provider.CommitEntry) []string {
 	return hashes
 }
 
-func sortedPaths(entry provider.CommitEntry) []string {
+func sortedPaths(entry history.CommitEntry) []string {
 	paths := slices.Clone(entry.Paths)
 	slices.Sort(paths)
 
 	return paths
 }
 
-func entryByHash(t *testing.T, entries []provider.CommitEntry, hash plumbing.Hash) provider.CommitEntry {
+func entryByHash(t *testing.T, entries []history.CommitEntry, hash plumbing.Hash) history.CommitEntry {
 	t.Helper()
 
 	for _, entry := range entries {
@@ -245,7 +245,7 @@ func entryByHash(t *testing.T, entries []provider.CommitEntry, hash plumbing.Has
 
 	t.Fatalf("commit %s not found in entries", hash)
 
-	return provider.CommitEntry{}
+	return history.CommitEntry{}
 }
 
 func TestSourceLocalRanges(t *testing.T) {
@@ -264,7 +264,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the range since the tag is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: exactly the commits after the tag are returned newest-first
 		testastic.NoError(t, err)
@@ -285,7 +285,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the unbounded range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false, nil)
 
 		// then: the whole branch history is returned newest-first
 		testastic.NoError(t, err)
@@ -309,7 +309,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the range since the hotfix tag is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.1"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.1"}, fixtureBranch, false, nil)
 
 		// then: only commits unreachable from the tag are included
 		testastic.NoError(t, err)
@@ -335,7 +335,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the unreachable tag is requested next to a reachable base
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v2.0.0", ""}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v2.0.0", ""}, fixtureBranch, false, nil)
 
 		// then: the tag is missing and the other range is still served
 		testastic.NoError(t, err)
@@ -358,7 +358,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: ranges for both tags are requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", "v1.0.1"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", "v1.0.1"}, fixtureBranch, false, nil)
 
 		// then: both tags peel to their commit and bound exact ranges
 		testastic.NoError(t, err)
@@ -379,7 +379,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the range since the skewed tag is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: membership follows graph reachability, not timestamps
 		testastic.NoError(t, err)
@@ -398,7 +398,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the same ref is requested twice with padding
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", " v1.0.0 "}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", " v1.0.0 "}, fixtureBranch, false, nil)
 
 		// then: one deduplicated range is returned
 		testastic.NoError(t, err)
@@ -423,7 +423,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: local history serves it
 		testastic.NoError(t, err)
@@ -443,9 +443,9 @@ func TestSourceLocalRanges(t *testing.T) {
 		source, remote := fx.source()
 
 		// when: two history calls run in the same release run
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 		testastic.NoError(t, err)
-		_, err = source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false)
+		_, err = source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, false, nil)
 
 		// then: remote head and tag state are each loaded exactly once
 		testastic.NoError(t, err)
@@ -478,7 +478,7 @@ func TestSourcePaths(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the full history is requested with paths
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, true)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, true, nil)
 
 		// then: root paths, both rename sides, and the deleted path are present
 		testastic.NoError(t, err)
@@ -504,7 +504,7 @@ func TestSourcePaths(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: the full history is requested with paths
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, true)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, fixtureBranch, true, nil)
 
 		// then: the merge reports the paths it introduced over its first parent
 		testastic.NoError(t, err)
@@ -523,7 +523,7 @@ func TestSourcePaths(t *testing.T) {
 		source, _ := fx.source()
 
 		// when: overlapping ranges are requested with paths
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", ""}, fixtureBranch, true)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0", ""}, fixtureBranch, true, nil)
 		testastic.NoError(t, err)
 
 		tagged := entryByHash(t, result.EntriesByRef["v1.0.0"], c2)
@@ -548,7 +548,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source := history.New(remote, fixtureBranch, t.TempDir())
 
 		// when: a range is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the run fails with the checkout sentinel
 		testastic.Error(t, err)
@@ -568,7 +568,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source, remote := fx.source()
 
 		// when: a range is requested
-		_, err = source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err = source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the run fails before any remote validation
 		testastic.Error(t, err)
@@ -594,7 +594,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the run fails asking for a current checkout
 		testastic.Error(t, err)
@@ -621,7 +621,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the run fails naming both branches
 		testastic.Error(t, err)
@@ -645,7 +645,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source := history.New(remote, fixtureBranch, fx.dir)
 
 		// when: a range is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the remote error surfaces with validation context
 		testastic.Error(t, err)
@@ -666,7 +666,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		})
 
 		// when: the provider tag is used as the release boundary
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v9.9.9"}, fixtureBranch, false, nil)
 
 		// then: the provider target bounds history without a local tag ref
 		testastic.NoError(t, err)
@@ -686,7 +686,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: c2.String()}}
 
 		// when: the tag is used as a release boundary
-		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: the provider target is authoritative
 		testastic.NoError(t, err)
@@ -704,7 +704,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: "not-a-commit"}}
 
 		// when: the malformed target is used as a release boundary
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
 
 		// then: invalid provider metadata is rejected
 		testastic.Error(t, err)
@@ -748,7 +748,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		source, remote := fx.source()
 
 		// when: history for a different branch is requested
-		_, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, "other", false)
+		_, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, "other", false, nil)
 
 		// then: the run fails without touching the remote
 		testastic.Error(t, err)
@@ -769,7 +769,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		cancel()
 
 		// when: a range is requested with the cancelled context
-		_, err := source.GetCommitsSinceRefs(ctx, []string{""}, fixtureBranch, false)
+		_, err := source.GetCommitsSinceRefs(ctx, []string{""}, fixtureBranch, false, nil)
 
 		// then: the cancellation surfaces
 		testastic.Error(t, err)
@@ -799,35 +799,34 @@ func TestSourceDelegation(t *testing.T) {
 	testastic.Equal(t, 1, remote.tagRefCalls)
 }
 
-func TestSourceInvalidateTags(t *testing.T) {
+func TestSourceKnownTagBoundaries(t *testing.T) {
 	t.Parallel()
 
-	// given: a source that already cached the provider tag snapshot
+	// given: a source whose tag snapshot predates a tag the caller already knows
 	fx := newRepoFixture(t)
-	fx.commit("feat: one", map[string]string{"a.txt": "one"})
+	c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+	c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
 
 	source, remote := fx.source()
-	remote.tagRefs = []provider.TagRef{
-		{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
-	}
+	remote.tagRefs = []provider.TagRef{}
 
 	_, err := source.ListTags(t.Context())
 	testastic.NoError(t, err)
 
-	remote.tagRefs = append(remote.tagRefs, provider.TagRef{
-		Name:      "v3.0.0",
-		CommitSHA: "3333333333333333333333333333333333333333",
-	})
+	// when: the range since that tag is requested with its boundary supplied
+	result, err := source.GetCommitsSinceRefs(
+		t.Context(),
+		[]string{"v2.0.0"},
+		fixtureBranch,
+		false,
+		[]provider.TagRef{{Name: "v2.0.0", CommitSHA: c1.String()}},
+	)
 
-	// when: the snapshot is invalidated and tags are requested again
-	source.InvalidateTags()
-
-	tags, err := source.ListTags(t.Context())
-
-	// then: the tag published after the first lookup is visible
+	// then: the boundary resolves without a second remote tag listing
 	testastic.NoError(t, err)
-	testastic.SliceEqual(t, []string{"v2.0.0", "v3.0.0"}, tags)
-	testastic.Equal(t, 2, remote.tagRefCalls)
+	testastic.Empty(t, result.MissingRefs)
+	testastic.SliceEqual(t, []string{c2.String()}, entryHashes(result.EntriesByRef["v2.0.0"]))
+	testastic.Equal(t, 1, remote.tagRefCalls)
 }
 
 func TestSourceGetFile(t *testing.T) {

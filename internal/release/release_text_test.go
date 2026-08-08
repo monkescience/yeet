@@ -242,7 +242,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.core.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result.Plans)
 
 		// then: the single-target changelog stays unchanged
 		testastic.Equal(t, prChangelog, body)
@@ -303,7 +303,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.core.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result.Plans)
 
 		// then: the output matches the expected multi-target release wave markdown
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_multi_target.expected.md", body)
@@ -350,7 +350,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog for the mixed release wave
-		body := r.core.combinedPRChangelog(result)
+		body := r.core.combinedPRChangelog(result.Plans)
 
 		// then: the output matches the expected derived-target markdown with embedded child sections
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_embedded_children.expected.md", body)

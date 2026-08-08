@@ -14,13 +14,12 @@ type releaseSelection struct {
 	pathTargetIDsToEmit  map[string]struct{}
 }
 
-func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSelection, error) {
-	r := a.core
+func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelection, error) {
 	if len(selectedTargetIDs) == 0 {
 		return releaseSelection{
-			selectedTargets:      r.targets,
-			pathTargetsToAnalyze: filterTargetsByType(r.targets, config.TargetTypePath),
-			pathTargetIDsToEmit:  targetIDSet(filterTargetsByType(r.targets, config.TargetTypePath)),
+			selectedTargets:      core.targets,
+			pathTargetsToAnalyze: filterTargetsByType(core.targets, config.TargetTypePath),
+			pathTargetIDsToEmit:  targetIDSet(filterTargetsByType(core.targets, config.TargetTypePath)),
 		}, nil
 	}
 
@@ -31,7 +30,7 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 	for _, selectedTargetID := range selectedTargetIDs {
 		normalizedTargetID := strings.TrimSpace(selectedTargetID)
 
-		target, exists := r.targets[normalizedTargetID]
+		target, exists := core.targets[normalizedTargetID]
 		if !exists {
 			return releaseSelection{}, fmt.Errorf("%w: %s", errUnknownTarget, normalizedTargetID)
 		}
@@ -46,7 +45,7 @@ func (a *releaseAnalyzer) selectTargets(selectedTargetIDs []string) (releaseSele
 		}
 
 		for _, includeID := range target.Includes {
-			includedTarget, exists := r.targets[includeID]
+			includedTarget, exists := core.targets[includeID]
 			if !exists {
 				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", errUnknownTarget, includeID, normalizedTargetID)
 			}

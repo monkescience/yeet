@@ -16,20 +16,21 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 
 		// given: a single-target title template and release plan
 		cfg := config.Default()
+		cfg.Branch = "beta"
 		cfg.ActiveChannel = "beta"
 		cfg.Release.PRTitle = " {{ .Branch }}|{{ .Channel }}|{{ .Target }}|{{ .Version }}|{{ .Tag }} "
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
-		result := &Result{BaseBranch: "beta", Plans: []TargetPlan{{
+		plans := []TargetPlan{{
 			ID:          "api",
 			NextVersion: "1.2.3-beta.1",
 			NextTag:     "api-v1.2.3-beta.1",
-		}}}
+		}}
 
 		// when: rendering the PR title
-		title, err := core.releasePRTitle(result)
+		title, err := core.releasePRTitle(plans)
 
 		// then: values are rendered as data and surrounding whitespace is trimmed
 		testastic.NoError(t, err)
@@ -46,10 +47,10 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
-		result := &Result{BaseBranch: "main", Plans: []TargetPlan{{ID: "api"}, {ID: "web"}}}
+		plans := []TargetPlan{{ID: "api"}, {ID: "web"}}
 
 		// when: rendering the PR title
-		title, err := core.releasePRTitle(result)
+		title, err := core.releasePRTitle(plans)
 
 		// then: group data excludes target-specific values
 		testastic.NoError(t, err)
@@ -96,10 +97,7 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
-		title, err := core.releasePRTitle(&Result{
-			BaseBranch: "main",
-			Plans:      []TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}},
-		})
+		title, err := core.releasePRTitle([]TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}})
 
 		// then: validation uses the actual branch instead of synthetic data
 		testastic.NoError(t, err)
@@ -132,10 +130,7 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 			titles, err := newReleaseTitleTemplates(cfg.Release)
 			if err == nil {
 				core := &releaseCore{cfg: cfg, titles: titles}
-				_, err = core.releasePRTitle(&Result{
-					BaseBranch: "main",
-					Plans:      []TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}},
-				})
+				_, err = core.releasePRTitle([]TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}})
 			}
 
 			// then: invalid fields, empty results, and multiline results are rejected
@@ -158,16 +153,16 @@ func TestReleaseCommitSubjectTemplates(t *testing.T) {
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
-		result := &Result{BaseBranch: "main", Plans: []TargetPlan{{
+		plans := []TargetPlan{{
 			ID:          "api",
 			NextVersion: "1.2.3",
 			NextTag:     "api-v1.2.3",
-		}}}
+		}}
 
 		// when: rendering both values
-		prTitle, err := core.releasePRTitle(result)
+		prTitle, err := core.releasePRTitle(plans)
 		testastic.NoError(t, err)
-		commitSubject, err := core.releaseCommitSubject(result)
+		commitSubject, err := core.releaseCommitSubject(plans)
 
 		// then: each output uses its own template
 		testastic.NoError(t, err)
@@ -180,16 +175,17 @@ func TestReleaseCommitSubjectTemplates(t *testing.T) {
 
 		// given: a group commit subject template
 		cfg := config.Default()
+		cfg.Branch = "beta"
 		cfg.ActiveChannel = "rc"
 		cfg.Release.CommitSubjectGroup = "commit {{ .Branch }} {{ .Channel }} {{ .TargetCount }}"
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
-		result := &Result{BaseBranch: "beta", Plans: []TargetPlan{{ID: "api"}, {ID: "web"}}}
+		plans := []TargetPlan{{ID: "api"}, {ID: "web"}}
 
 		// when: rendering the commit subject
-		subject, err := core.releaseCommitSubject(result)
+		subject, err := core.releaseCommitSubject(plans)
 
 		// then: group values are available
 		testastic.NoError(t, err)

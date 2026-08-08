@@ -11,6 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
@@ -30,7 +31,8 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat(api)!: remove deprecated endpoint",
 		}}
@@ -55,7 +57,8 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -86,7 +89,8 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat(api)!: remove deprecated endpoint",
 		}}
@@ -113,7 +117,8 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -139,7 +144,8 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -163,7 +169,7 @@ func TestReleaseUsesLatestTag(t *testing.T) {
 
 	stub := newProviderStub()
 	stub.tagList = []string{"v1.2.3"}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"v1.2.3": {{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
@@ -200,11 +206,11 @@ func TestNewHistorySource(t *testing.T) {
 
 		historySource := newProviderStub()
 		historySource.tagList = []string{"v2.0.0"}
-		historySource.commitsByRef = map[string][]provider.CommitEntry{
+		historySource.commitsByRef = map[string][]history.CommitEntry{
 			"v2.0.0": {{Hash: "abcdef1234567890", Message: "feat: new feature"}},
 		}
 
-		r, err := newReleaser(context.Background(), cfg, deps, historySource)
+		r, err := newStubReleaserWithSource(context.Background(), cfg, deps, historySource)
 		testastic.NoError(t, err)
 
 		// when: calculating a release
@@ -228,7 +234,7 @@ func TestNewHistorySource(t *testing.T) {
 		}
 
 		// when: constructing the releaser with a nil history source
-		_, err := newReleaser(context.Background(), cfg, newProviderStub(), nil)
+		_, err := newStubReleaserWithSource(context.Background(), cfg, newProviderStub(), nil)
 
 		// then: construction fails
 		testastic.ErrorIs(t, err, errNilHistorySource)
@@ -260,7 +266,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		stub := newProviderStub()
 
 		// when: constructing the releaser
-		_, err := newReleaser(context.Background(), cfg, stub, stub)
+		_, err := newStubReleaser(context.Background(), cfg, stub)
 
 		// then: the error identifies the incompatible target
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
@@ -280,7 +286,7 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v1.2.3": {{
 				Hash:    "abcdef1234567890",
 				Message: "fix: patch bug",
@@ -311,7 +317,8 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -341,7 +348,7 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v1.2.3", "v1.3.0-beta.1"}
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v1.3.0-beta.1": {{
 				Hash:    "abcdef1234567890",
 				Message: "fix: patch bug",
@@ -387,7 +394,7 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add token rotation",
 			Paths:   []string{"services/api/main.go"},
@@ -417,8 +424,9 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
 		stub.files[providerFileKey("beta", "VERSION")] = "version = \"1.2.3\" # x-yeet-version\n"
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -462,7 +470,8 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add export command",
 		}}
@@ -474,7 +483,7 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// then: provider release creation is marked as a prerelease
 		testastic.NoError(t, err)
-		testastic.Equal(t, "v1.3.0-beta.1", result.Releases[0].TagName)
+		testastic.Equal(t, "v1.3.0-beta.1", result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.True(t, stub.createReleaseOpts[0].Prerelease)
 	})
@@ -489,7 +498,7 @@ func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T)
 	stub := newProviderStub()
 	stub.tagList = []string{"v1.2.3", "v2.0.0"}
 	stub.commitsErrByRef["v2.0.0"] = &provider.CommitBoundaryNotFoundError{Ref: "v2.0.0", Branch: cfg.Branch}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"v1.2.3": {{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
@@ -518,7 +527,7 @@ func TestReleasePrefersNewerReachableTagOverOlderPublishedRelease(t *testing.T) 
 
 	stub := newProviderStub()
 	stub.tagList = []string{"v1.2.4", "v1.2.3"}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"v1.2.4": {{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
@@ -546,7 +555,7 @@ func TestReleaseChoosesHighestStableTagFromFallbackList(t *testing.T) {
 
 	stub := newProviderStub()
 	stub.tagList = []string{"v1.2.3", "v1.10.0", "preview-build", "v1.9.9"}
-	stub.commitsByRef = map[string][]provider.CommitEntry{
+	stub.commitsByRef = map[string][]history.CommitEntry{
 		"v1.10.0": {{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
@@ -577,7 +586,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: trigger stable release\n\nRelease-As: 1.0.0",
 		}}
@@ -603,7 +613,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch issue\n\nRelease-As: 1.4.0",
 		}}
@@ -628,7 +639,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nrelease-as: 1.3.0",
 		}}
@@ -652,7 +664,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nRelease-As: 1.3",
 		}}
@@ -675,7 +688,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nRelease-As: v1.3.0",
 		}}
@@ -698,7 +712,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{
 			{
 				Hash:    "abcdef1234567890",
 				Message: "chore: request release\n\nRelease-As: 1.0.0",
@@ -727,7 +742,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v0.4.2"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nRelease-As: not-a-version",
 		}}
@@ -750,7 +766,8 @@ func TestReleaseAsFooter(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nRelease-As: 1.2.3",
 		}}
@@ -773,7 +790,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg.Versioning = config.VersioningCalVer
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "chore: request release\n\nRelease-As: 1.0.0",
 		}}
@@ -802,6 +819,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         2,
 			URL:            "https://example.com/pr/2",
@@ -832,6 +850,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         3,
 			URL:            "https://example.com/pr/3",
@@ -840,7 +859,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v0.1.0": {},
 		}
 
@@ -852,7 +871,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		// then: merged release is finalized and no new release PR is created
 		testastic.NoError(t, err)
 		testastic.True(t, len(result.Releases) > 0)
-		testastic.Equal(t, "v0.1.0", result.Releases[0].TagName)
+		testastic.Equal(t, "v0.1.0", result.Releases[0].Release.TagName)
 		testastic.Equal(t, 0, len(result.Plans))
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
@@ -868,6 +887,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         4,
 			URL:            "https://example.com/pr/4",
@@ -876,7 +896,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v0.1.0": {{Hash: "abcdef1234567890", Message: "fix: patch after release"}},
 		}
 
@@ -888,11 +908,50 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		// then: merged release is finalized and a new release PR is created for fresh commits
 		testastic.NoError(t, err)
 		testastic.True(t, len(result.Releases) > 0)
-		testastic.Equal(t, "v0.1.0", result.Releases[0].TagName)
+		testastic.Equal(t, "v0.1.0", result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
+	})
+
+	t.Run("plans past a published tag the forge tag list has not caught up to", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged release PR for v0.1.0 and a forge whose tag list still
+		//        predates that publish when the run reads it again
+		cfg := config.Default()
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v0.0.9"}
+		stub.mergedPR = &provider.PullRequest{
+			Number:         7,
+			URL:            "https://example.com/pr/7",
+			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
+		stub.commitsByRef = map[string][]history.CommitEntry{
+			"v0.0.9": {
+				{Hash: "abcdef1234567890", Message: "feat: released change\n\nRelease-As: 0.1.0"},
+				{Hash: "fedcba0987654321", Message: "fix: patch after release"},
+			},
+			"v0.1.0": {{Hash: "fedcba0987654321", Message: "fix: patch after release"}},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: running release end-to-end
+		result, err := r.Release(context.Background(), false)
+
+		// then: the next wave starts from the tag this run published, not the one before it
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Releases))
+		testastic.Equal(t, "v0.1.0", result.Releases[0].Release.TagName)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "0.1.0", result.Plans[0].CurrentVersion)
+		testastic.Equal(t, "v0.1.1", result.Plans[0].NextTag)
 	})
 
 	t.Run("reports the finalized release and the auto-merged wave from one run", func(t *testing.T) {
@@ -905,6 +964,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		stub := newProviderStub()
 		stub.mergePRSHA = "second-merged-sha"
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         4,
 			URL:            "https://example.com/pr/4",
@@ -913,7 +973,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v0.1.0": {{Hash: "abcdef1234567890", Message: "fix: patch after release"}},
 		}
 
@@ -927,7 +987,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		tags := make([]string, 0, len(result.Releases))
 		for _, release := range result.Releases {
-			tags = append(tags, release.TagName)
+			tags = append(tags, release.Release.TagName)
 		}
 
 		testastic.SliceEqual(t, []string{"v0.1.0", "v0.1.1"}, tags)
@@ -941,6 +1001,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         6,
 			URL:            "https://example.com/pr/6",
@@ -949,7 +1010,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v0.0.9": {
 				{Hash: "abcdef1234567890", Message: "feat: released change\n\nRelease-As: 0.1.0"},
 				{Hash: "fedcba0987654321", Message: "fix: later patch\n\nRelease-As: 0.2.0"},
@@ -967,7 +1028,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		// then: finalization clears the conflict instead of wedging every rerun
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(result.Releases))
-		testastic.Equal(t, "v0.1.0", result.Releases[0].TagName)
+		testastic.Equal(t, "v0.1.0", result.Releases[0].Release.TagName)
 		testastic.Equal(t, "0.2.0", result.Plans[0].NextVersion)
 		testastic.Equal(t, 1, stub.createPRCalls)
 	})
@@ -980,7 +1041,8 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
-		stub.commits = []provider.CommitEntry{
+		stub.tagList = []string{"v0.0.9"}
+		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: change\n\nRelease-As: 0.1.0"},
 			{Hash: "fedcba0987654321", Message: "fix: patch\n\nRelease-As: 0.2.0"},
 		}
@@ -1009,7 +1071,7 @@ func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
 		cfg.Release.PRTitle = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1037,6 +1099,7 @@ func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.tagList = []string{"v0.0.9"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         5,
 			URL:            "https://example.com/pr/5",
@@ -1045,7 +1108,7 @@ func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
 			MergeCommitSHA: "merged-sha",
 		}
 		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(changelogBody)
-		stub.commitsByRef = map[string][]provider.CommitEntry{
+		stub.commitsByRef = map[string][]history.CommitEntry{
 			"v0.0.9": {{Hash: "abcdef1234567890", Message: "fix: release patch"}},
 			"v0.1.0": {{Hash: "fedcba0987654321", Message: "fix: later patch"}},
 		}
@@ -1073,6 +1136,7 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 
 	stub := newProviderStub()
 	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+	stub.tagList = []string{"v1.2.3"}
 	stub.commitsErr = &provider.CommitBoundaryNotFoundError{Ref: "v1.2.3", Branch: cfg.Branch}
 
 	r := newTestReleaser(t, cfg, stub)
@@ -1112,7 +1176,8 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1126,7 +1191,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
 		testastic.True(t, len(result.Releases) > 0)
-		testastic.Equal(t, result.Plans[0].NextTag, result.Releases[0].TagName)
+		testastic.Equal(t, result.Plans[0].NextTag, result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.Equal(t, 1, stub.mergePRCalls)
 		testastic.Equal(t, 1, len(stub.mergePRNumbers))
@@ -1150,7 +1215,8 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1177,7 +1243,8 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1207,7 +1274,8 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1233,7 +1301,8 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1269,7 +1338,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 		URL:    "https://example.com/pr/7",
 		Branch: "yeet/release-v0.0.1",
 	}}
-	stub.commits = []provider.CommitEntry{{
+	stub.commits = []history.CommitEntry{{
 		Hash:    "abcdef1234567890",
 		Message: "feat!: introduce breaking release flow",
 	}}
@@ -1308,7 +1377,7 @@ func TestReleaseAdoptsUnlabelledPendingPR(t *testing.T) {
 		Branch:            "yeet/release-main",
 		NeedsPendingLabel: true,
 	}}
-	stub.commits = []provider.CommitEntry{{
+	stub.commits = []history.CommitEntry{{
 		Hash:    "abcdef1234567890",
 		Message: "feat: add feature",
 	}}
@@ -1336,7 +1405,7 @@ func TestReleasePRCarriesReviewers(t *testing.T) {
 	cfg.Release.Reviewers = []string{"alice", "bob"}
 
 	stub := newProviderStub()
-	stub.commits = []provider.CommitEntry{{
+	stub.commits = []history.CommitEntry{{
 		Hash:    "abcdef1234567890",
 		Message: "feat: add feature",
 	}}
@@ -1365,7 +1434,7 @@ func TestReleasePRCarriesConfiguredLabels(t *testing.T) {
 	}
 
 	stub := newProviderStub()
-	stub.commits = []provider.CommitEntry{{
+	stub.commits = []history.CommitEntry{{
 		Hash:    "abcdef1234567890",
 		Message: "fix: add labels",
 	}}
@@ -1400,7 +1469,7 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 		{Number: 1, URL: "https://example.com/pr/1", Branch: "yeet/release-v0.0.1"},
 		{Number: 2, URL: "https://example.com/pr/2", Branch: "yeet/release-v0.1.0"},
 	}
-	stub.commits = []provider.CommitEntry{{
+	stub.commits = []history.CommitEntry{{
 		Hash:    "abcdef1234567890",
 		Message: "fix: patch bug",
 	}}
@@ -1433,7 +1502,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1474,7 +1543,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		cfg.Release.CommitSubject = "commit {{ .Branch }} {{ .Version }}"
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1498,7 +1567,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		cfg.Release.CommitSubject = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1529,7 +1598,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 			URL:    "https://example.com/pr/7",
 			Branch: "yeet/release-main",
 		}}
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1554,7 +1623,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		cfg.Release.PRBodyFooter = "Please review"
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1619,7 +1688,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}
 
 		// when: preserving edits for both release plans
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the shared branch and path are fetched once
 		testastic.NoError(t, err)
@@ -1656,7 +1725,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}
 
 		// when: preserving edits for both release plans
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the shared missing branch and path are fetched once
 		testastic.NoError(t, err)
@@ -1705,7 +1774,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}}
 
 		// when: preserving edits after the configured changelog path moved
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result)
+		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the manual section recorded at the manifest path survives
 		testastic.NoError(t, err)
@@ -1719,7 +1788,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1782,7 +1851,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		stub.openPending = []*provider.PullRequest{existingPR}
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1836,7 +1906,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		stub.openPending = []*provider.PullRequest{existingPR}
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1896,7 +1967,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		stub.openPending = []*provider.PullRequest{existingPR}
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "feat: add release automation",
 		}}
@@ -1948,7 +2020,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		stub.openPending = []*provider.PullRequest{existingPR}
 		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.4"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -1987,7 +2060,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		stub.openPending = []*provider.PullRequest{existingPR}
 		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
-		stub.commits = []provider.CommitEntry{{
+		stub.tagList = []string{"v1.2.4"}
+		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
@@ -2024,10 +2098,11 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		stub := newProviderStub()
 		stub.repoURL = "https://github.example.com/owner/repo"
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
 
 		const headSHA = "abcdef1234567890abcdef1234567890abcdef12"
 
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    headSHA,
 			Message: "fix: patch bug",
 		}}
@@ -2069,10 +2144,11 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		stub.repoURL = "https://gitlab.example.com/group/repo"
 		stub.pathPrefix = "/-"
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
 
 		const headSHA = "1234567890abcdef1234567890abcdef12345678"
 
-		stub.commits = []provider.CommitEntry{{
+		stub.commits = []history.CommitEntry{{
 			Hash:    headSHA,
 			Message: "fix: patch bug",
 		}}
@@ -2186,7 +2262,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		))
 		source.files[providerFileKey(cfg.Branch, "CHANGELOG.md")] = existingChangelog
 
-		r, err := newReleaser(t.Context(), cfg, deps, source)
+		r, err := newStubReleaserWithSource(t.Context(), cfg, deps, source)
 		testastic.NoError(t, err)
 
 		// when: finalizing both releases
@@ -2199,13 +2275,13 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			t,
 			"testdata/finalize_merged_release_p_r/"+
 				"reads_a_shared_changelog_once_for_multiple_releases/release_0_body.expected.md",
-			releases[0].Body,
+			releases[0].Release.Body,
 		)
 		testastic.AssertFile(
 			t,
 			"testdata/finalize_merged_release_p_r/"+
 				"reads_a_shared_changelog_once_for_multiple_releases/release_1_body.expected.md",
-			releases[1].Body,
+			releases[1].Release.Body,
 		)
 		testastic.Equal(t, 0, deps.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
 		testastic.Equal(t, 1, source.getFileCallsByKey[providerFileKey(cfg.Branch, "CHANGELOG.md")])
@@ -2246,7 +2322,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: release is created from matching changelog entry and PR is marked tagged
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, "v1.2.3", releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.getReleaseByTagCalls)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
@@ -2263,7 +2339,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			"testdata/finalize_merged_release_p_r/"+
 				"creates_release_from_latest_changelog_entry_and_marks_p_r_tagged/"+
 				"release_0_body.expected.md",
-			releases[0].Body,
+			releases[0].Release.Body,
 		)
 	})
 
@@ -2312,7 +2388,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			"testdata/finalize_merged_release_p_r/"+
 				"ignores_merged_p_r_body_release_notes_when_changelog_was_not_updated/"+
 				"release_0_body.expected.md",
-			releases[0].Body,
+			releases[0].Release.Body,
 		)
 	})
 
@@ -2351,7 +2427,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 			t,
 			"testdata/finalize_merged_release_p_r/"+
 				"includes_manual_changelog_notes_in_provider_release/release_0_body.expected.md",
-			releases[0].Body,
+			releases[0].Release.Body,
 		)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 	})
@@ -2391,7 +2467,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/finalize_merged_release_p_r/ignores_malformed_old_p_r_body_notes_block/release_0_body.expected.md",
-			releases[0].Body,
+			releases[0].Release.Body,
 		)
 	})
 
@@ -2436,6 +2512,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
 		stub.mergedPR = &provider.PullRequest{
 			Number:         9,
 			URL:            "https://example.com/pr/9",
@@ -2452,7 +2529,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: existing release is reused and PR is still marked tagged
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, "v1.2.3", releases[0].Release.TagName)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 9, stub.markTaggedCalls[0])
@@ -2466,6 +2543,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.latestRelease = &provider.Release{TagName: "v1.2.4", URL: "https://example.com/releases/v1.2.4"}
+		stub.tagList = []string{"v1.2.4"}
 		stub.releasesByTag["v1.2.3"] = &provider.Release{
 			TagName: "v1.2.3",
 			URL:     "https://example.com/releases/v1.2.3",
@@ -2486,8 +2564,8 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: the exact existing release is reused instead of checking only the latest release
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
-		testastic.Equal(t, "https://example.com/releases/v1.2.3", releases[0].URL)
+		testastic.Equal(t, "v1.2.3", releases[0].Release.TagName)
+		testastic.Equal(t, "https://example.com/releases/v1.2.3", releases[0].Release.URL)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 10, stub.markTaggedCalls[0])
@@ -2524,7 +2602,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: the provider owns the single tag lookup and reuses the existing tag
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, "v1.2.3", releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
@@ -2559,7 +2637,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: tag creation uses the merged commit ref instead of the current branch head
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(releases))
-		testastic.Equal(t, "v1.2.3", releases[0].TagName)
+		testastic.Equal(t, "v1.2.3", releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
@@ -2660,7 +2738,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: changelog is created with the release-please style header
@@ -2700,7 +2778,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: changelog and version file are updated
@@ -2753,7 +2831,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: the collision is reported instead of prepending markdown into the version file
@@ -2775,7 +2853,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		localSource.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
 
 		remote := newProviderStub()
-		r, err := newReleaser(t.Context(), cfg, remote, localSource)
+		r, err := newStubReleaserWithSource(t.Context(), cfg, remote, localSource)
 		testastic.NoError(t, err)
 
 		result := &Result{Plans: []TargetPlan{{
@@ -2789,7 +2867,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		err = newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
 			t.Context(),
 			"yeet/release-v1.2.4",
-			result,
+			result.Plans,
 			"commit subject",
 		)
 
@@ -2838,7 +2916,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: changelog and JSON version file are updated
@@ -2883,7 +2961,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: changelog and JSON version file are updated with the calver string
@@ -2916,7 +2994,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: missing markers abort the release and no provider updates are dispatched
@@ -2958,7 +3036,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: new entry is prepended and the changelog gains a top-level header
@@ -3016,7 +3094,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 		// when: updating release branch files
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result, "commit subject",
+			context.Background(), branch, result.Plans, "commit subject",
 		)
 
 		// then: the shared changelog contains both new entries instead of conflicting
@@ -3049,7 +3127,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
 			context.Background(),
 			"yeet/release-v1.2.4",
-			result,
+			result.Plans,
 			"commit subject",
 		)
 
@@ -3085,7 +3163,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
 			{Hash: "1234567890abcdef", Message: "fix: tidy repo metadata", Paths: []string{"README.md"}},
 		}
@@ -3132,7 +3210,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
 			{Hash: "1234567890abcdef", Message: "feat: refresh landing page", Paths: []string{"README.md"}},
 			{Hash: "fedcba0987654321", Message: "fix: patch dashboard", Paths: []string{"apps/web/src/app.tsx"}},
@@ -3185,7 +3263,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
 		}
 
@@ -3244,7 +3322,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			apiSHA = "abcdef1234567890abcdef1234567890abcdef12"
 		)
 
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{
 				Hash:    webSHA,
 				Message: "fix: patch dashboard",
@@ -3314,7 +3392,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 			rootSHA = "fedcba0987654321fedcba0987654321fedcba09"
 		)
 
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{
 				Hash:    apiSHA,
 				Message: "feat: add token rotation",
@@ -3381,7 +3459,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v3.0.0", "web-v2.0.0", "api-v1.2.0"}
-		stub.commits = []provider.CommitEntry{
+		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
 			{Hash: "1234567890abcdef", Message: "fix: patch dashboard", Paths: []string{"apps/web/src/app.tsx"}},
 		}

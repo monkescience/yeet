@@ -9,7 +9,7 @@ import (
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/history"
 )
 
 // When there is a single root-path target with no excludes, all commits belong to it
@@ -28,7 +28,7 @@ func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
 	return false
 }
 
-func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []provider.CommitEntry) ([]commit.Commit, error) {
+func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []history.CommitEntry) ([]commit.Commit, error) {
 	commits := make([]commit.Commit, 0, len(entries))
 
 	for _, entry := range entries {
@@ -51,7 +51,7 @@ func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []provider.C
 
 func (a *releaseAnalyzer) commitOverride(
 	ctx context.Context,
-	entry provider.CommitEntry,
+	entry history.CommitEntry,
 ) (commitOverrideResult, error) {
 	hash := strings.TrimSpace(entry.Hash)
 	if hash == "" {
@@ -87,6 +87,7 @@ func (a *releaseAnalyzer) commitOverride(
 
 func (a *releaseAnalyzer) planPathTargets(
 	ctx context.Context,
+	scan *historyScan,
 	selectedTargets map[string]config.ResolvedTarget,
 ) (map[string]TargetPlan, error) {
 	r := a.core
@@ -95,7 +96,7 @@ func (a *releaseAnalyzer) planPathTargets(
 	for _, targetID := range sortedTargetIDs(selectedTargets, config.TargetTypePath) {
 		target := r.targets[targetID]
 
-		plan, shouldRelease, err := a.planDirectTarget(ctx, target)
+		plan, shouldRelease, err := a.planDirectTarget(ctx, scan, target)
 		if err != nil {
 			return nil, err
 		}
@@ -112,6 +113,7 @@ func (a *releaseAnalyzer) planPathTargets(
 
 func (a *releaseAnalyzer) planDerivedTargets(
 	ctx context.Context,
+	scan *historyScan,
 	selectedTargets map[string]config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (map[string]TargetPlan, error) {
@@ -145,6 +147,7 @@ func (a *releaseAnalyzer) planDerivedTargets(
 
 		plan, shouldRelease, err := a.planDerivedTarget(
 			ctx,
+			scan,
 			target,
 			childPlans,
 			includeDirectCommits,
@@ -165,9 +168,10 @@ func (a *releaseAnalyzer) planDerivedTargets(
 
 func (a *releaseAnalyzer) planDirectTarget(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 ) (TargetPlan, bool, error) {
-	inputs, err := a.loadDirectPlanContext(ctx, target)
+	inputs, err := a.loadDirectPlanContext(ctx, scan, target)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
@@ -212,31 +216,32 @@ func (a *releaseAnalyzer) planDirectTarget(
 
 type directPlanContext struct {
 	history targetHistory
-	entries []provider.CommitEntry
+	entries []history.CommitEntry
 	commits []commit.Commit
 }
 
 func (a *releaseAnalyzer) loadDirectPlanContext(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 ) (directPlanContext, error) {
-	history, err := a.loadTargetHistory(ctx, target, true)
+	targetHist, err := a.loadTargetHistory(ctx, scan, target, true)
 	if err != nil {
 		return directPlanContext{}, err
 	}
 
 	slog.DebugContext(ctx, "planning target",
 		slog.String("target", target.ID),
-		slog.String("current_version", history.currentVersion),
-		slog.String("boundary_ref", history.ref),
+		slog.String("current_version", targetHist.currentVersion),
+		slog.String("boundary_ref", targetHist.ref),
 		slog.String("branch", a.core.cfg.Branch),
 	)
 
-	entries := filterEntriesForTarget(history.entries, target)
+	entries := filterEntriesForTarget(targetHist.entries, target)
 
 	slog.DebugContext(ctx, "commits since boundary",
 		slog.String("target", target.ID),
-		slog.Int("total", len(history.entries)),
+		slog.Int("total", len(targetHist.entries)),
 		slog.Int("filtered", len(entries)),
 	)
 
@@ -247,13 +252,13 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 
 	logParsedCommits(ctx, target.ID, commits)
 
-	return directPlanContext{history: history, entries: entries, commits: commits}, nil
+	return directPlanContext{history: targetHist, entries: entries, commits: commits}, nil
 }
 
 type derivedPlanContext struct {
 	history              targetHistory
-	directEntries        []provider.CommitEntry
-	childEntries         []provider.CommitEntry
+	directEntries        []history.CommitEntry
+	childEntries         []history.CommitEntry
 	directCommits        []commit.Commit
 	childPlans           []TargetPlan
 	includeDirectCommits bool
@@ -261,11 +266,12 @@ type derivedPlanContext struct {
 
 func (a *releaseAnalyzer) planDerivedTarget(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 	childPlans []TargetPlan,
 	includeDirectCommits bool,
 ) (TargetPlan, bool, error) {
-	inputs, err := a.loadDerivedPlanInputs(ctx, target, childPlans, includeDirectCommits)
+	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childPlans, includeDirectCommits)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
@@ -284,18 +290,19 @@ func (a *releaseAnalyzer) planDerivedTarget(
 
 func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 	childPlans []TargetPlan,
 	includeDirectCommits bool,
 ) (derivedPlanContext, error) {
-	history, err := a.loadTargetHistory(ctx, target, target.Path != "" || len(childPlans) > 0)
+	targetHist, err := a.loadTargetHistory(ctx, scan, target, target.Path != "" || len(childPlans) > 0)
 	if err != nil {
 		return derivedPlanContext{}, err
 	}
 
-	directEntries := []provider.CommitEntry{}
+	directEntries := []history.CommitEntry{}
 	if includeDirectCommits && target.Path != "" {
-		directEntries = filterEntriesForTarget(history.entries, target)
+		directEntries = filterEntriesForTarget(targetHist.entries, target)
 	}
 
 	directCommits, err := a.parseCommits(ctx, directEntries)
@@ -304,9 +311,9 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	}
 
 	return derivedPlanContext{
-		history:              history,
+		history:              targetHist,
 		directEntries:        directEntries,
-		childEntries:         filterEntriesForPlans(history.entries, childPlans, a.core.targets),
+		childEntries:         filterEntriesForPlans(targetHist.entries, childPlans, a.core.targets),
 		directCommits:        directCommits,
 		childPlans:           childPlans,
 		includeDirectCommits: includeDirectCommits,
@@ -315,39 +322,40 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 
 func (a *releaseAnalyzer) loadTargetHistory(
 	ctx context.Context,
+	scan *historyScan,
 	target config.ResolvedTarget,
 	includeEntries bool,
 ) (targetHistory, error) {
-	if history, ok := a.sharedTargetHistory(target); ok {
+	if shared, ok := sharedTargetHistory(scan, target); ok {
 		if !includeEntries {
-			history.entries = nil
+			shared.entries = nil
 		}
 
-		return history, nil
+		return shared, nil
 	}
 
-	if a.historyIndex != nil {
+	if scan.index != nil {
 		slog.DebugContext(ctx, "shared history miss: per-target lookup",
 			slog.String("target", target.ID),
 		)
 	}
 
-	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, target)
+	currentVersion, ref, err := a.currentVersionFromReleaseHistory(ctx, scan, target)
 	if err != nil {
 		return targetHistory{}, err
 	}
 
-	history := targetHistory{currentVersion: currentVersion, ref: ref}
+	targetHist := targetHistory{currentVersion: currentVersion, ref: ref}
 	if !includeEntries {
-		return history, nil
+		return targetHist, nil
 	}
 
-	history.entries, err = a.commitsSince(ctx, ref, a.core.cfg.Branch, needsPathFiltering(a.analyzedTargets))
+	targetHist.entries, err = a.commitsSince(ctx, scan, ref, a.core.cfg.Branch)
 	if err != nil {
 		return targetHistory{}, err
 	}
 
-	return history, nil
+	return targetHist, nil
 }
 
 func (a *releaseAnalyzer) derivedVersionPlan(
@@ -475,7 +483,7 @@ func (a *releaseAnalyzer) newTargetPlan(
 	baseVersion string,
 	bumpType commit.BumpType,
 	ref string,
-	entries []provider.CommitEntry,
+	entries []history.CommitEntry,
 	commits []commit.Commit,
 ) TargetPlan {
 	strategy := versionStrategyForResolvedTarget(target)
@@ -514,7 +522,7 @@ func setPlanVersions(plan *TargetPlan, strategy versionStrategy, nextVersion str
 }
 
 func derivedPRCompareRef(
-	entries []provider.CommitEntry,
+	entries []history.CommitEntry,
 	directTarget config.ResolvedTarget,
 	childPlans []TargetPlan,
 	includeDirectCommits bool,
@@ -549,10 +557,10 @@ func derivedPRCompareRef(
 }
 
 func filterEntriesForPlans(
-	entries []provider.CommitEntry,
+	entries []history.CommitEntry,
 	plans []TargetPlan,
 	targets map[string]config.ResolvedTarget,
-) []provider.CommitEntry {
+) []history.CommitEntry {
 	includedTargets := make([]config.ResolvedTarget, 0, len(plans))
 
 	for _, plan := range plans {
@@ -567,8 +575,8 @@ func filterEntriesForPlans(
 	return filterEntriesForTargets(entries, includedTargets)
 }
 
-func filterEntriesForTargets(entries []provider.CommitEntry, targets []config.ResolvedTarget) []provider.CommitEntry {
-	filteredEntries := make([]provider.CommitEntry, 0, len(entries))
+func filterEntriesForTargets(entries []history.CommitEntry, targets []config.ResolvedTarget) []history.CommitEntry {
+	filteredEntries := make([]history.CommitEntry, 0, len(entries))
 
 	for _, entry := range entries {
 		if slices.ContainsFunc(targets, func(target config.ResolvedTarget) bool {
@@ -581,7 +589,7 @@ func filterEntriesForTargets(entries []provider.CommitEntry, targets []config.Re
 	return filteredEntries
 }
 
-func uniqueEntryHashes(entryGroups ...[]provider.CommitEntry) []string {
+func uniqueEntryHashes(entryGroups ...[]history.CommitEntry) []string {
 	seen := make(map[string]struct{})
 	hashes := make([]string, 0)
 
@@ -615,8 +623,8 @@ func logParsedCommits(ctx context.Context, targetID string, commits []commit.Com
 	}
 }
 
-func filterEntriesForTarget(entries []provider.CommitEntry, target config.ResolvedTarget) []provider.CommitEntry {
-	filteredEntries := make([]provider.CommitEntry, 0, len(entries))
+func filterEntriesForTarget(entries []history.CommitEntry, target config.ResolvedTarget) []history.CommitEntry {
+	filteredEntries := make([]history.CommitEntry, 0, len(entries))
 
 	for _, entry := range entries {
 		if !entryBelongsToTarget(entry, target) {
@@ -629,7 +637,7 @@ func filterEntriesForTarget(entries []provider.CommitEntry, target config.Resolv
 	return filteredEntries
 }
 
-func entryBelongsToTarget(entry provider.CommitEntry, target config.ResolvedTarget) bool {
+func entryBelongsToTarget(entry history.CommitEntry, target config.ResolvedTarget) bool {
 	if target.Path == "" {
 		return false
 	}

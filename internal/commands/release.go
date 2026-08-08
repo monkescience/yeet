@@ -192,7 +192,7 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 
 	if len(result.Releases) > 0 {
 		slog.InfoContext(ctx, "release finalized with no new release needed",
-			slog.String("tag", result.Releases[0].TagName),
+			slog.String("tag", result.Releases[0].Release.TagName),
 		)
 
 		return nil

@@ -3,25 +3,27 @@ package release
 import (
 	"context"
 
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
 type versionHistoryProvider interface {
 	ListTags(ctx context.Context) ([]string, error)
+	// GetCommitsSinceRefs resolves each ref to a boundary commit. knownTags
+	// supplies boundaries for refs the forge cannot be asked about yet, which is
+	// how a run scans from a tag it published itself.
 	GetCommitsSinceRefs(
 		ctx context.Context,
 		refs []string,
 		branch string,
 		includePaths bool,
-	) (provider.CommitHistory, error)
+		knownTags []provider.TagRef,
+	) (history.CommitHistory, error)
 }
 
-// releaseSource may snapshot remote tag state, so InvalidateTags has to be
-// called after the run publishes a tag for later reads to observe it.
 type releaseSource interface {
 	versionHistoryProvider
 	GetFile(ctx context.Context, branch, path string) (string, error)
-	InvalidateTags()
 }
 
 type repoMetadataProvider interface {
@@ -56,12 +58,12 @@ type releasePublishingProvider interface {
 	MarkReleasePRTagged(ctx context.Context, number int, labels provider.ReleasePRLabels) error
 }
 
-// releaserDependencies is the provider-side capability set. Version history
-// is intentionally not part of it: commit ranges come from the local checkout
-// through a separate versionHistoryProvider passed to New.
-type releaserDependencies interface {
-	repoMetadataProvider
-	releasePRProvider
-	releaseFileProvider
-	releasePublishingProvider
+// dependencies is the provider-side capability set. Version history is
+// intentionally not part of it: commit ranges come from the local checkout
+// through a separate releaseSource.
+type dependencies struct {
+	metadata  repoMetadataProvider
+	prs       releasePRProvider
+	files     releaseFileProvider
+	publisher releasePublishingProvider
 }

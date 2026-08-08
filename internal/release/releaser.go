@@ -28,7 +28,16 @@ type Result struct {
 	BaseBranch  string
 	Plans       []TargetPlan
 	PullRequest *provider.PullRequest
-	Releases    []*provider.Release
+	Releases    []FinalizedRelease
+}
+
+// FinalizedRelease pairs a published release with the target it belongs to and
+// the commit it was cut from, neither of which the forge's release object
+// carries.
+type FinalizedRelease struct {
+	TargetID  string
+	CommitSHA string
+	Release   *provider.Release
 }
 
 type TargetPlan struct {
@@ -61,18 +70,13 @@ type versionStrategy struct {
 	prefix   string
 }
 
-// newReleaser constructs a releaser. History and base-branch files are served by the
-// local-git source, while every provider-side capability comes from deps.
-func newReleaser(
+// newReleaseCore resolves everything a run can determine from configuration
+// alone, so target selection can be checked before any source is opened.
+func newReleaseCore(
 	ctx context.Context,
 	cfg *config.Config,
-	deps releaserDependencies,
-	source releaseSource,
-) (*releaser, error) {
-	if source == nil {
-		return nil, errNilHistorySource
-	}
-
+	metadata repoMetadataProvider,
+) (*releaseCore, error) {
 	targets, err := cfg.ResolvedTargets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
@@ -88,12 +92,23 @@ func newReleaser(
 		return nil, err
 	}
 
+	return &releaseCore{cfg: cfg, targets: targets, metadata: metadata, titles: titles}, nil
+}
+
+// newReleaser wires a validated source to the provider-side capabilities.
+// History and base-branch files are served by the local-git source, while every
+// provider-side capability comes from deps.
+func newReleaser(core *releaseCore, deps dependencies, source releaseSource) (*releaser, error) {
+	if source == nil {
+		return nil, errNilHistorySource
+	}
+
 	return &releaser{
-		core:      &releaseCore{cfg: cfg, targets: targets, metadata: deps, titles: titles},
+		core:      core,
 		source:    source,
-		prs:       deps,
-		files:     deps,
-		publisher: deps,
+		prs:       deps.prs,
+		files:     deps.files,
+		publisher: deps.publisher,
 	}, nil
 }
 
@@ -147,25 +162,15 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 	return dir + base + "." + channelName + ext
 }
 
-// validateTargets checks target selection without reading history or mutating
-// provider state.
-func (r *releaser) validateTargets(selectedTargetIDs []string) error {
-	_, err := newReleaseAnalyzer(r.core, r.source).selectTargets(selectedTargetIDs)
-
-	return err
-}
-
 func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
-	analyzer := newReleaseAnalyzer(r.core, r.source)
-
-	selection, err := analyzer.selectTargets(selectedTargetIDs)
+	selection, err := selectTargets(r.core, selectedTargetIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	result, analysisErr := analyzer.analyze(ctx, selection)
+	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
 	if analysisErr == nil {
-		if err := r.validateRenderedReleaseTitles(result); err != nil {
+		if err := r.validateRenderedReleaseTitles(plans); err != nil {
 			return nil, err
 		}
 	}
@@ -175,107 +180,119 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTarg
 			return nil, analysisErr
 		}
 
-		r.logReleaseAnalysis(ctx, result)
+		r.logReleaseAnalysis(ctx, plans)
 
-		return result, nil
+		return &Result{BaseBranch: r.core.cfg.Branch, Plans: plans}, nil
 	}
 
-	result, err = r.finalizeAndRefreshReleaseAnalysis(ctx, selection, result, analysisErr)
+	plans, finalized, err := r.finalizeAndRefreshReleaseAnalysis(ctx, selection, plans, analysisErr)
 	if err != nil {
 		return nil, err
 	}
 
-	r.logReleaseAnalysis(ctx, result)
+	r.logReleaseAnalysis(ctx, plans)
 
-	if len(result.Plans) == 0 {
-		return result, nil
+	pullRequest, published, err := r.publishReleaseWave(ctx, plans)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		BaseBranch:  r.core.cfg.Branch,
+		Plans:       plans,
+		PullRequest: pullRequest,
+		Releases:    append(finalized, published...),
+	}, nil
+}
+
+func (r *releaser) publishReleaseWave(
+	ctx context.Context,
+	plans []TargetPlan,
+) (*provider.PullRequest, []FinalizedRelease, error) {
+	if len(plans) == 0 {
+		return nil, nil, nil
 	}
 
 	workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 
-	pr, err := workflow.createOrUpdate(ctx, result)
+	pullRequest, err := workflow.createOrUpdate(ctx, plans)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	result.PullRequest = pr
-
-	if err := workflow.autoMerge(ctx, result); err != nil {
-		return nil, err
+	published, err := workflow.autoMerge(ctx, pullRequest, plans)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return result, nil
+	return pullRequest, published, nil
 }
 
 func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 	ctx context.Context,
 	selection releaseSelection,
-	result *Result,
+	plans []TargetPlan,
 	analysisErr error,
-) (*Result, error) {
-	finalizedReleases, err := r.finalizeMergedReleasePRs(ctx)
+) ([]TargetPlan, []FinalizedRelease, error) {
+	finalized, err := r.finalizeMergedReleasePRs(ctx)
 	if errors.Is(err, provider.ErrNoPR) {
 		if analysisErr != nil {
-			return nil, analysisErr
+			return nil, nil, analysisErr
 		}
 
-		return result, nil
+		return plans, nil, nil
 	}
 
 	if err != nil {
-		return nil, errors.Join(analysisErr, err)
+		return nil, nil, errors.Join(analysisErr, err)
 	}
 
-	r.source.InvalidateTags()
-
-	result, err = newReleaseAnalyzer(r.core, r.source).analyze(ctx, selection)
+	plans, err = analyze(ctx, r.core, r.source, selection, publishedTagRefs(finalized))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := r.validateRenderedReleaseTitles(result); err != nil {
-		return nil, err
+	if err := r.validateRenderedReleaseTitles(plans); err != nil {
+		return nil, nil, err
 	}
 
-	for _, finalizedRelease := range finalizedReleases {
+	for _, finalizedRelease := range finalized {
 		slog.InfoContext(ctx, "finalized release",
-			slog.String("tag", finalizedRelease.TagName),
-			slog.String("url", finalizedRelease.URL),
+			slog.String("tag", finalizedRelease.Release.TagName),
+			slog.String("url", finalizedRelease.Release.URL),
 		)
 	}
 
-	result.Releases = finalizedReleases
-
-	return result, nil
+	return plans, finalized, nil
 }
 
-func (r *releaser) validateRenderedReleaseTitles(result *Result) error {
-	if len(result.Plans) == 0 {
+func (r *releaser) validateRenderedReleaseTitles(plans []TargetPlan) error {
+	if len(plans) == 0 {
 		return nil
 	}
 
-	if _, err := r.core.releasePRTitle(result); err != nil {
+	if _, err := r.core.releasePRTitle(plans); err != nil {
 		return err
 	}
 
-	if _, err := r.core.releaseCommitSubject(result); err != nil {
+	if _, err := r.core.releaseCommitSubject(plans); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *releaser) logReleaseAnalysis(ctx context.Context, result *Result) {
-	if len(result.Plans) == 0 {
+func (r *releaser) logReleaseAnalysis(ctx context.Context, plans []TargetPlan) {
+	if len(plans) == 0 {
 		slog.InfoContext(ctx, "no releasable commits found")
 
 		return
 	}
 
-	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(result.Plans)))
+	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", len(plans)))
 }
 
-func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]*provider.Release, error) {
+func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]FinalizedRelease, error) {
 	return newReleasePublisher(r.core, r.publisher, r.source).finalizeMergedReleasePR(ctx)
 }
 

@@ -31,7 +31,7 @@ func newReleasePublisher(
 	}
 }
 
-func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*provider.Release, error) {
+func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]FinalizedRelease, error) {
 	r := p.core
 
 	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
@@ -59,7 +59,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 
 	prerelease := manifest.Prerelease
 
-	releases := make([]*provider.Release, 0, len(manifest.Targets))
+	releases := make([]FinalizedRelease, 0, len(manifest.Targets))
 	for _, targetManifest := range manifest.Targets {
 		releaseInfo, releaseErr := p.releaseForTag(
 			ctx,
@@ -72,7 +72,11 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 			return nil, releaseErr
 		}
 
-		releases = append(releases, releaseInfo)
+		releases = append(releases, FinalizedRelease{
+			TargetID:  targetManifest.ID,
+			CommitSHA: releaseRef,
+			Release:   releaseInfo,
+		})
 	}
 
 	if err := p.markReleasePRTagged(ctx, mergedPR); err != nil {
@@ -82,14 +86,14 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]*prov
 	return releases, nil
 }
 
-func (p *releasePublisher) ensureReleasesForResult(
+func (p *releasePublisher) ensureReleasesForPlans(
 	ctx context.Context,
-	result *Result,
+	plans []TargetPlan,
 	ref string,
-) ([]*provider.Release, error) {
-	releases := make([]*provider.Release, 0, len(result.Plans))
+) ([]FinalizedRelease, error) {
+	releases := make([]FinalizedRelease, 0, len(plans))
 
-	for _, plan := range result.Plans {
+	for _, plan := range plans {
 		releaseBody := changelog.Render(plan.Entry)
 
 		releaseInfo, err := p.ensureReleaseForTag(ctx, plan.NextTag, ref, releaseBody, p.core.isPrerelease())
@@ -97,7 +101,11 @@ func (p *releasePublisher) ensureReleasesForResult(
 			return nil, err
 		}
 
-		releases = append(releases, releaseInfo)
+		releases = append(releases, FinalizedRelease{
+			TargetID:  plan.ID,
+			CommitSHA: ref,
+			Release:   releaseInfo,
+		})
 	}
 
 	return releases, nil

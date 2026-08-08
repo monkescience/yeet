@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -18,8 +19,16 @@ type commitCacheKey struct {
 	includePaths bool
 }
 
-type monorepoHistoryIndex struct {
-	targets map[string]targetHistory
+// historyScan holds the outputs of one ordered history pass: the tag list every
+// ref order derives from, the boundaries the shared range request resolved, and
+// the reachability and range results later per-target lookups reuse.
+type historyScan struct {
+	tags         []string
+	extraTags    []provider.TagRef
+	includePaths bool
+	index        map[string]targetHistory
+	reachable    map[string]bool
+	commits      map[commitCacheKey][]history.CommitEntry
 }
 
 // sharedHistoryTopRefsLimit caps how many of each target's ordered refs the
@@ -31,12 +40,15 @@ const sharedHistoryTopRefsLimit = 3
 type targetHistory struct {
 	currentVersion string
 	ref            string
-	entries        []provider.CommitEntry
+	entries        []history.CommitEntry
 }
 
 //nolint:funlen // Shared history assembly keeps target/ref/error handling together.
-func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection releaseSelection) error {
-	targets := a.sharedHistoryTargets(selection)
+func (a *releaseAnalyzer) buildSharedHistoryIndex(
+	ctx context.Context,
+	scan *historyScan,
+	targets map[string]config.ResolvedTarget,
+) error {
 	if len(targets) <= 1 {
 		return nil
 	}
@@ -47,10 +59,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 	for _, targetID := range sortedHistoryTargetIDs(targets) {
 		target := targets[targetID]
 
-		refs, err := a.versionHistoryRefs(ctx, target)
-		if err != nil {
-			return err
-		}
+		refs := a.versionHistoryRefs(scan, target)
 
 		// Targets with no version refs need an unbounded scan, which disables
 		// the provider's early-termination heuristic. Excluding them keeps the
@@ -81,63 +90,62 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(ctx context.Context, selection
 
 	sort.Strings(refs)
 
-	includePaths := needsPathFiltering(targets)
-
-	history, err := a.history.GetCommitsSinceRefs(
+	scanned, err := a.history.GetCommitsSinceRefs(
 		ctx,
 		refs,
 		a.core.cfg.Branch,
-		includePaths,
+		scan.includePaths,
+		scan.extraTags,
 	)
 	if err != nil {
 		return fmt.Errorf("get commits from branch %q: %w", a.core.cfg.Branch, err)
 	}
 
-	missingRefs := make(map[string]struct{}, len(history.MissingRefs))
-	for _, ref := range history.MissingRefs {
+	missingRefs := make(map[string]struct{}, len(scanned.MissingRefs))
+	for _, ref := range scanned.MissingRefs {
 		missingRefs[ref] = struct{}{}
 	}
 
-	if len(history.MissingRefs) > 0 {
+	if len(scanned.MissingRefs) > 0 {
 		slog.WarnContext(ctx, "shared history scan: refs unreachable from branch",
 			slog.String("branch", a.core.cfg.Branch),
-			slog.Any("missing_refs", history.MissingRefs),
+			slog.Any("missing_refs", scanned.MissingRefs),
 		)
 	}
 
 	for _, ref := range refs {
 		_, missing := missingRefs[ref]
-		a.refReachable[ref] = !missing
+		scan.reachable[ref] = !missing
 	}
 
-	for ref, entries := range history.EntriesByRef {
-		a.commitCache[commitCacheKey{
+	for ref, entries := range scanned.EntriesByRef {
+		scan.commits[commitCacheKey{
 			ref:          ref,
 			branch:       a.core.cfg.Branch,
-			includePaths: includePaths,
+			includePaths: scan.includePaths,
 		}] = entries
 	}
 
-	index := &monorepoHistoryIndex{targets: make(map[string]targetHistory, len(refsByTargetID))}
+	index := make(map[string]targetHistory, len(refsByTargetID))
 
 	for targetID, candidateRefs := range refsByTargetID {
-		selected, ok := a.selectTargetHistory(targets[targetID], candidateRefs, history.EntriesByRef, missingRefs)
+		selected, ok := a.selectTargetHistory(targets[targetID], candidateRefs, scanned.EntriesByRef, missingRefs)
 		if !ok {
 			// Top refs were unreachable, let the per-target fallback walk the full ref list.
 			continue
 		}
 
-		index.targets[targetID] = selected
+		index[targetID] = selected
 	}
 
-	a.historyIndex = index
+	scan.index = index
 
 	slog.DebugContext(ctx, "shared history index built",
 		slog.String("branch", a.core.cfg.Branch),
 		slog.Int("targets_total", len(targets)),
-		slog.Int("targets_indexed", len(index.targets)),
+		slog.Int("targets_indexed", len(index)),
 		slog.Int("refs_requested", len(refs)),
-		slog.Int("refs_missing", len(history.MissingRefs)),
+		slog.Int("refs_missing", len(scanned.MissingRefs)),
 	)
 
 	return nil
@@ -164,7 +172,7 @@ func (a *releaseAnalyzer) sharedHistoryTargets(selection releaseSelection) map[s
 func (a *releaseAnalyzer) selectTargetHistory(
 	target config.ResolvedTarget,
 	refs []string,
-	entriesByRef map[string][]provider.CommitEntry,
+	entriesByRef map[string][]history.CommitEntry,
 	missingRefs map[string]struct{},
 ) (targetHistory, bool) {
 	for _, ref := range refs {
@@ -188,27 +196,27 @@ func (a *releaseAnalyzer) selectTargetHistory(
 	return targetHistory{}, false
 }
 
-func (a *releaseAnalyzer) sharedTargetHistory(target config.ResolvedTarget) (targetHistory, bool) {
-	if a.historyIndex == nil {
+func sharedTargetHistory(scan *historyScan, target config.ResolvedTarget) (targetHistory, bool) {
+	if scan.index == nil {
 		return targetHistory{}, false
 	}
 
-	history, exists := a.historyIndex.targets[target.ID]
+	history, exists := scan.index[target.ID]
 
 	return history, exists
 }
 
 func (a *releaseAnalyzer) commitsSince(
 	ctx context.Context,
+	scan *historyScan,
 	ref, branch string,
-	includePaths bool,
-) ([]provider.CommitEntry, error) {
-	key := commitCacheKey{ref: ref, branch: branch, includePaths: includePaths}
-	if cached, exists := a.commitCache[key]; exists {
+) ([]history.CommitEntry, error) {
+	key := commitCacheKey{ref: ref, branch: branch, includePaths: scan.includePaths}
+	if cached, exists := scan.commits[key]; exists {
 		return cached, nil
 	}
 
-	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, includePaths)
+	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, scan.includePaths, scan.extraTags)
 	if err != nil {
 		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
 	}
@@ -224,7 +232,7 @@ func (a *releaseAnalyzer) commitsSince(
 	}
 
 	entries := history.EntriesByRef[ref]
-	a.commitCache[key] = entries
+	scan.commits[key] = entries
 
 	return entries, nil
 }

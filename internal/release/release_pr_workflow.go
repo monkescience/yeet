@@ -37,7 +37,7 @@ func newReleasePRWorkflow(
 	}
 }
 
-func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) (*provider.PullRequest, error) {
+func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPlan) (*provider.PullRequest, error) {
 	r := w.core
 
 	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
@@ -49,7 +49,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 		return nil, multiplePendingReleasePRError(pendingPRs)
 	}
 
-	commitSubject, err := r.releaseCommitSubject(result)
+	commitSubject, err := r.releaseCommitSubject(plans)
 	if err != nil {
 		return nil, err
 	}
@@ -61,26 +61,26 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, result *Result) 
 			return nil, err
 		}
 
-		if err := w.preserveExistingChangelogEdits(ctx, existing, result); err != nil {
+		if err := w.preserveExistingChangelogEdits(ctx, existing, plans); err != nil {
 			return nil, err
 		}
 
-		prOpts, prErr := r.releasePROptions(ctx, result, existing.Branch, w.prs.MaxPRBodyLength())
+		prOpts, prErr := r.releasePROptions(ctx, plans, existing.Branch, w.prs.MaxPRBodyLength())
 		if prErr != nil {
 			return nil, prErr
 		}
 
-		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, result)
+		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, plans)
 	}
 
 	releaseBranch := stableReleaseBranch(r.cfg.Branch)
 
-	prOpts, err := r.releasePROptions(ctx, result, releaseBranch, w.prs.MaxPRBodyLength())
+	prOpts, err := r.releasePROptions(ctx, plans, releaseBranch, w.prs.MaxPRBodyLength())
 	if err != nil {
 		return nil, err
 	}
 
-	return w.createNew(ctx, releaseBranch, prOpts, commitSubject, result)
+	return w.createNew(ctx, releaseBranch, prOpts, commitSubject, plans)
 }
 
 // adoptUnlabeledReleasePR recovers a release PR that was created but never
@@ -109,12 +109,8 @@ func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existin
 func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	ctx context.Context,
 	existing *provider.PullRequest,
-	result *Result,
+	plans []TargetPlan,
 ) error {
-	if result == nil {
-		return nil
-	}
-
 	r := w.core
 	previousTags := make(map[string]string)
 	previousChangelogFiles := make(map[string]string)
@@ -131,8 +127,8 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 		}
 	}
 
-	for idx := range result.Plans {
-		plan := &result.Plans[idx]
+	for idx := range plans {
+		plan := &plans[idx]
 
 		target, exists := r.targets[plan.ID]
 		if !exists {
@@ -230,12 +226,16 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef s
 	return "", false, fmt.Errorf("read changelog entry for %s: %w", previousTag, err)
 }
 
-func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error {
+func (w *releasePRWorkflow) autoMerge(
+	ctx context.Context,
+	pullRequest *provider.PullRequest,
+	plans []TargetPlan,
+) ([]FinalizedRelease, error) {
 	r := w.core
 
 	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
-	if !autoMergeEnabled || result.PullRequest == nil {
-		return nil
+	if !autoMergeEnabled || pullRequest == nil {
+		return nil, nil
 	}
 
 	mergeOptions := provider.MergeReleasePROptions{
@@ -244,32 +244,30 @@ func (w *releasePRWorkflow) autoMerge(ctx context.Context, result *Result) error
 	}
 
 	if err := w.prs.PrepareReleasePRLabels(ctx, r.releasePRLifecycleLabels()); err != nil {
-		return fmt.Errorf("prepare release PR labels: %w", err)
+		return nil, fmt.Errorf("prepare release PR labels: %w", err)
 	}
 
-	mergeSHA, err := w.prs.MergeReleasePR(ctx, result.PullRequest.Number, mergeOptions)
+	mergeSHA, err := w.prs.MergeReleasePR(ctx, pullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.BypassMergeChecks {
-			return fmt.Errorf("force merge release PR: %w", err)
+			return nil, fmt.Errorf("force merge release PR: %w", err)
 		}
 
-		return fmt.Errorf("merge release PR: %w", err)
+		return nil, fmt.Errorf("merge release PR: %w", err)
 	}
 
-	slog.InfoContext(ctx, "merged release PR", slog.String("url", result.PullRequest.URL))
+	slog.InfoContext(ctx, "merged release PR", slog.String("url", pullRequest.URL))
 
-	releaseInfos, err := w.publisher.ensureReleasesForResult(ctx, result, strings.TrimSpace(mergeSHA))
+	releases, err := w.publisher.ensureReleasesForPlans(ctx, plans, strings.TrimSpace(mergeSHA))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := w.publisher.markReleasePRTagged(ctx, result.PullRequest); err != nil {
-		return err
+	if err := w.publisher.markReleasePRTagged(ctx, pullRequest); err != nil {
+		return nil, err
 	}
 
-	result.Releases = append(result.Releases, releaseInfos...)
-
-	return nil
+	return releases, nil
 }
 
 func (w *releasePRWorkflow) updateExisting(
@@ -278,7 +276,7 @@ func (w *releasePRWorkflow) updateExisting(
 	releaseBranch string,
 	prOpts provider.ReleasePROptions,
 	commitSubject string,
-	result *Result,
+	plans []TargetPlan,
 ) (*provider.PullRequest, error) {
 	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
 
@@ -287,7 +285,7 @@ func (w *releasePRWorkflow) updateExisting(
 		return nil, fmt.Errorf("update release PR: %w", err)
 	}
 
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result, commitSubject); err != nil {
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
 		return nil, err
 	}
 
@@ -302,13 +300,13 @@ func (w *releasePRWorkflow) createNew(
 	releaseBranch string,
 	prOpts provider.ReleasePROptions,
 	commitSubject string,
-	result *Result,
+	plans []TargetPlan,
 ) (*provider.PullRequest, error) {
 	if err := w.prs.PrepareReleasePRLabels(ctx, w.core.releasePRLabels()); err != nil {
 		return nil, fmt.Errorf("prepare release PR labels: %w", err)
 	}
 
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, result, commitSubject); err != nil {
+	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
 		return nil, err
 	}
 

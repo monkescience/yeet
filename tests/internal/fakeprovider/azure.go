@@ -535,8 +535,8 @@ func azureMergedPendingPR(opts AzureOptions) map[string]any {
 		{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
 	}
 	pr["description"] = "## release created\n\n" + azureReleaseManifest + "\n"
-	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: fakeMergeSHA}
-	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: fakeMergeSHA}
+	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
+	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
 
 	return pr
 }
