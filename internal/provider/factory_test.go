@@ -394,6 +394,205 @@ func TestResolveInitConfigPath(t *testing.T) {
 	})
 }
 
+func TestValidateHostFormat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts a bare hostname", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a bare enterprise hostname
+		host := "gitlab.company.com"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is accepted
+		testastic.NoError(t, err)
+	})
+
+	t.Run("rejects an empty host", func(t *testing.T) {
+		t.Parallel()
+
+		// when: validating an empty host
+		err := validateHostFormat("")
+
+		// then: the empty host is reported
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+		testastic.Equal(t, "invalid provider host: host must not be empty", err.Error())
+	})
+
+	t.Run("rejects a scheme-prefixed host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host carrying a scheme
+		host := "https://gitlab.company.com"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is rejected as not bare
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+		testastic.Equal(
+			t,
+			"invalid provider host: \"https://gitlab.company.com\" must be a bare hostname without "+
+				"scheme, credentials, or path",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a credential-bearing host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host carrying userinfo
+		host := "attacker@gitlab.company.com"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is rejected as not bare
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+		testastic.Equal(
+			t,
+			"invalid provider host: \"attacker@gitlab.company.com\" must be a bare hostname without "+
+				"scheme, credentials, or path",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a path-bearing host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host carrying a path segment
+		host := "gitlab.company.com/api/v4"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is rejected as not bare
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+		testastic.Equal(
+			t,
+			"invalid provider host: \"gitlab.company.com/api/v4\" must be a bare hostname without "+
+				"scheme, credentials, or path",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a whitespace-bearing host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host carrying an inner space
+		host := "gitlab company.com"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is rejected as not bare
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+		testastic.Equal(
+			t,
+			"invalid provider host: \"gitlab company.com\" must be a bare hostname without "+
+				"scheme, credentials, or path",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a control-character host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a host carrying a control character
+		host := "gitlab.company.com\x00"
+
+		// when: validating its format
+		err := validateHostFormat(host)
+
+		// then: the host is rejected as not bare
+		testastic.ErrorIs(t, err, ErrInvalidHost)
+	})
+}
+
+func TestResolveRepositoryRejectsHostUnrelatedToProviderURLEnv(t *testing.T) {
+	// given: an operator-set GITLAB_URL for one self-hosted forge and a checked-in
+	// config naming an entirely different host, with the remote on neither
+	t.Setenv(gitlabURLEnv, "https://gitlab.selfhosted.test/api/v4")
+
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitLab
+	cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+		Host:    "attacker.invalid",
+		Project: "group/service",
+	}
+
+	// when: resolving the repository
+	_, err := ResolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "https://gitlab.selfhosted.test/group/service.git", nil
+		},
+	)
+
+	// then: the unrelated host is not trusted by the environment variable
+	testastic.ErrorIs(t, err, ErrUntrustedHost)
+	testastic.ErrorContains(
+		t,
+		err,
+		"provider host is not trusted: \"attacker.invalid\" does not match git remote host "+
+			"\"gitlab.selfhosted.test\"",
+	)
+}
+
+func TestResolveRepositoryTrustsHostOfProviderURLEnv(t *testing.T) {
+	// given: an operator-set GITLAB_URL whose host is the configured host, and a
+	// remote pointing somewhere else entirely
+	t.Setenv(gitlabURLEnv, "https://gitlab.selfhosted.test/api/v4")
+
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitLab
+	cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+		Host:    "gitlab.selfhosted.test",
+		Project: "group/service",
+	}
+
+	// when: resolving the repository
+	repository, err := ResolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "https://gitlab.com/group/service.git", nil
+		},
+	)
+
+	// then: the operator-controlled host is trusted without consulting the remote
+	testastic.NoError(t, err)
+	testastic.Equal(t, "gitlab.selfhosted.test", repository.Host)
+}
+
+func TestResolveRepositoryWrapsGitRemoteFailure(t *testing.T) {
+	t.Parallel()
+
+	// given: a custom host and a git remote lookup that fails with a known cause
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitLab
+	cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+		Host:    "gitlab.company.com",
+		Project: "group/service",
+	}
+
+	// when: resolving the repository
+	_, err := ResolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", ErrGitRemoteNotFound
+		},
+	)
+
+	// then: both the trust sentinel and the underlying cause are recoverable
+	testastic.ErrorIs(t, err, ErrUntrustedHost)
+	testastic.ErrorIs(t, err, ErrGitRemoteNotFound)
+}
+
 func TestNewRetryableHTTPClient(t *testing.T) {
 	t.Parallel()
 

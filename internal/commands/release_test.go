@@ -519,8 +519,8 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 }
 
 func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
-	// given: an operator-set GITHUB_URL and a config host that mismatches the remote
-	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
+	// given: an operator-set GITHUB_URL naming the configured host, which mismatches the remote
+	t.Setenv("GITHUB_URL", "https://github.company.com/api/v3/")
 
 	cfg := githubTrustConfig("github.company.com")
 

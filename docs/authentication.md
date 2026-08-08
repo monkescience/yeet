@@ -9,7 +9,8 @@ A custom `host` in `repository.<provider>.host` receives the API token only when
 of the git remote the repository is cloned from. If they differ, yeet refuses to send the token and
 fails, so a config committed to the repository cannot redirect the token to another server. To point
 the API at a different host on purpose (for example a separate API domain), set the provider's `*_URL`
-environment variable (`GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`), which is always trusted.
+environment variable (`GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`). That trusts the host of the
+URL you supply, so the configured `host` must match it.
 
 ## GitHub
 

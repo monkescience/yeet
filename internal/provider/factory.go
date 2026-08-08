@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -308,6 +309,23 @@ func applyRepositoryProviderDefaults(repository *RepositoryDescriptor) {
 	}
 }
 
+type untrustedHostError struct {
+	host   string
+	remote string
+	cause  error
+}
+
+func (e *untrustedHostError) Error() string {
+	return fmt.Sprintf(
+		"%s: %q could not be verified against git remote %q: %s",
+		ErrUntrustedHost, e.host, e.remote, e.cause,
+	)
+}
+
+func (e *untrustedHostError) Unwrap() []error {
+	return []error{ErrUntrustedHost, e.cause}
+}
+
 func validateProviderHostTrust(
 	ctx context.Context,
 	repository *RepositoryDescriptor,
@@ -318,7 +336,7 @@ func validateProviderHostTrust(
 		return err
 	}
 
-	if providerURLEnvSet(repository.Provider) {
+	if strings.EqualFold(providerURLEnvHost(repository.Provider), host) {
 		return nil
 	}
 
@@ -328,18 +346,12 @@ func validateProviderHostTrust(
 
 	remoteURL, err := getRemoteURL(ctx, repository.Remote)
 	if err != nil {
-		return fmt.Errorf(
-			"%w: %q could not be verified against git remote %q: %s",
-			ErrUntrustedHost, host, repository.Remote, err.Error(),
-		)
+		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
 	}
 
 	detected, err := ParseRemote(remoteURL)
 	if err != nil {
-		return fmt.Errorf(
-			"%w: %q could not be verified against git remote %q: %s",
-			ErrUntrustedHost, host, repository.Remote, err.Error(),
-		)
+		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
 	}
 
 	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
@@ -363,19 +375,28 @@ func validateHostFormat(host string) error {
 	return nil
 }
 
-func providerURLEnvSet(providerType string) bool {
+func providerURLEnvHost(providerType string) string {
+	var value string
+
 	switch config.ProviderType(providerType) {
 	case config.ProviderGitHub:
-		return strings.TrimSpace(os.Getenv(githubURLEnv)) != ""
+		value = strings.TrimSpace(os.Getenv(githubURLEnv))
 	case config.ProviderGitLab:
-		return strings.TrimSpace(os.Getenv(gitlabURLEnv)) != ""
+		value = strings.TrimSpace(os.Getenv(gitlabURLEnv))
 	case config.ProviderAzureDevOps:
-		return strings.TrimSpace(os.Getenv(azureURLEnv)) != ""
+		value = strings.TrimSpace(os.Getenv(azureURLEnv))
 	case config.ProviderAuto:
-		return false
+		return ""
 	default:
-		return false
+		return ""
 	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+
+	return parsed.Hostname()
 }
 
 func unsupportedAutoProviderError(host string, err error) error {
