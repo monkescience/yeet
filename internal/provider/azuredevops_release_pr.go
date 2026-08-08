@@ -316,54 +316,43 @@ func (a *AzureDevOps) listPullRequests(
 func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
-	pr, err := a.getPullRequest(ctx, number)
-	if err != nil {
-		return "", err
-	}
+	driver := mergeDriver{forge: &azureDevOpsMerge{provider: a, number: number}, polling: a.polling}
 
-	if derefString((*string)(pr.Status)) == string(git.PullRequestStatusValues.Completed) {
-		if mergeSHA := azureDevOpsCompletedMergeCommit(pr); mergeSHA != "" {
-			return mergeSHA, nil
-		}
-
-		return a.awaitMergeCommit(ctx, number)
-	}
-
-	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
-	if !a.isTrustedReleasePR(pr, baseBranch) {
-		return "", fmt.Errorf("%w: pull request !%d", ErrUntrustedReleasePR, number)
-	}
-
-	if err := validateAzureDevOpsPullRequestForMerge(number, pr, opts.BypassMergeChecks); err != nil {
-		return "", err
-	}
-
-	merged, err := a.completePullRequest(ctx, number, pr, opts.Method)
-	if err != nil {
-		return "", err
-	}
-
-	if mergeSHA := azureDevOpsCompletionResponseCommit(merged); mergeSHA != "" {
-		return mergeSHA, nil
-	}
-
-	return a.awaitMergeCommit(ctx, number)
+	return driver.run(ctx, opts)
 }
 
-func (a *AzureDevOps) completePullRequest(
-	ctx context.Context,
-	number int,
-	pr *git.GitPullRequest,
-	method MergeMethod,
-) (*git.GitPullRequest, error) {
-	strategy, err := azureDevOpsMergeStrategy(method)
+type azureDevOpsMerge struct {
+	provider *AzureDevOps
+	number   int
+}
+
+func (m *azureDevOpsMerge) state(ctx context.Context) (mergeState, error) {
+	pullRequest, err := m.provider.getPullRequest(ctx, m.number)
+	if err != nil {
+		return mergeState{}, err
+	}
+
+	return m.provider.azureDevOpsMergeState(m.number, pullRequest), nil
+}
+
+func (m *azureDevOpsMerge) resolveMethod(_ context.Context, requested MergeMethod) (any, error) {
+	strategy, err := azureDevOpsMergeStrategy(requested)
 	if err != nil {
 		return nil, err
 	}
 
-	gitClient, err := a.client(ctx)
+	return strategy, nil
+}
+
+func (m *azureDevOpsMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
+	strategy, ok := method.(git.GitPullRequestMergeStrategy)
+	if !ok {
+		return "", false, unsupportedResolvedMethod(method)
+	}
+
+	gitClient, err := m.provider.client(ctx)
 	if err != nil {
-		return nil, err
+		return "", false, err
 	}
 
 	completed := git.PullRequestStatusValues.Completed
@@ -375,51 +364,101 @@ func (a *AzureDevOps) completePullRequest(
 		},
 	}
 
-	if pr.LastMergeSourceCommit != nil && pr.LastMergeSourceCommit.CommitId != nil {
-		update.LastMergeSourceCommit = &git.GitCommitRef{CommitId: pr.LastMergeSourceCommit.CommitId}
+	if current.HeadSHA != "" {
+		update.LastMergeSourceCommit = &git.GitCommitRef{CommitId: &current.HeadSHA}
 	}
 
 	merged, err := gitClient.UpdatePullRequest(ctx, git.UpdatePullRequestArgs{
 		GitPullRequestToUpdate: &update,
-		RepositoryId:           &a.repo,
-		Project:                &a.project,
-		PullRequestId:          &number,
+		RepositoryId:           &m.provider.repo,
+		Project:                &m.provider.project,
+		PullRequestId:          &m.number,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("complete pull request !%d: %w", number, err)
+		return "", false, fmt.Errorf("complete pull request !%d: %w", m.number, err)
 	}
 
 	slog.DebugContext(ctx, "azure devops: completed pull request",
-		slog.Int("pr_number", number),
+		slog.Int("pr_number", m.number),
 		slog.String("strategy", string(strategy)),
 	)
 
-	return merged, nil
+	// The completion response can carry a provisional commit while the merge
+	// status is still queued, so only a succeeded merge status is trusted.
+	if mergeSHA := azureDevOpsCompletionResponseCommit(merged); mergeSHA != "" {
+		return mergeSHA, false, nil
+	}
+
+	if refusal := azureDevOpsCompletionRefusal(current.Reference, merged); refusal != nil {
+		return "", false, refusal
+	}
+
+	return "", true, nil
 }
 
-// awaitMergeCommit waits for a completion Azure DevOps has queued but not yet
-// applied. The completion response can carry a provisional commit while the
-// merge status is still queued, so only a succeeded merge status is trusted.
-func (a *AzureDevOps) awaitMergeCommit(ctx context.Context, number int) (string, error) {
-	reference := fmt.Sprintf("pull request !%d", number)
+// azureDevOpsCompletionRefusal reads the merge status Azure DevOps already puts
+// on the completion response, so a refused merge is reported at once instead of
+// being polled until the wait budget runs out.
+func azureDevOpsCompletionRefusal(reference string, pullRequest *git.GitPullRequest) error {
+	if pullRequest == nil {
+		return nil
+	}
 
-	return a.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
-		current, err := a.getPullRequest(pollCtx, number)
-		if err != nil {
-			return "", err
-		}
+	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
 
-		if derefString((*string)(current.Status)) == string(git.PullRequestStatusValues.Abandoned) {
-			return "", fmt.Errorf("%w: %s was abandoned", ErrMergeBlocked, reference)
-		}
+	reason, refused := azureDevOpsMergeRefusalReason(mergeStatus)
+	if !refused {
+		return nil
+	}
 
-		mergeStatus := derefString((*string)(current.MergeStatus))
-		if azureDevOpsMergeStatusBlocked(mergeStatus) {
-			return "", fmt.Errorf("%w: %s merge status is %s", ErrMergeBlocked, reference, mergeStatus)
-		}
+	detail := strings.TrimSpace(derefString(pullRequest.MergeFailureMessage))
+	if detail == "" {
+		detail = "merge_status=" + mergeStatus
+	}
 
-		return azureDevOpsCompletedMergeCommit(current), nil
-	})
+	return blockedMerge(reference, reason, "was refused: "+detail)
+}
+
+func azureDevOpsMergeRefusalReason(mergeStatus string) (MergeBlockedReason, bool) {
+	switch mergeStatus {
+	case string(git.PullRequestAsyncStatusValues.Conflicts):
+		return MergeBlockedReasonConflicts, true
+	case string(git.PullRequestAsyncStatusValues.RejectedByPolicy):
+		return MergeBlockedReasonPolicy, true
+	case string(git.PullRequestAsyncStatusValues.Failure):
+		return MergeBlockedReasonUnknown, true
+	default:
+		return MergeBlockedReasonUnknown, false
+	}
+}
+
+func (a *AzureDevOps) azureDevOpsMergeState(number int, pullRequest *git.GitPullRequest) mergeState {
+	status := derefString((*string)(pullRequest.Status))
+	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
+
+	return mergeState{
+		Reference:        fmt.Sprintf("pull request !%d", number),
+		RawReadiness:     "merge_status=" + mergeStatus,
+		MergeCommitSHA:   azureDevOpsCompletedMergeCommit(pullRequest),
+		HeadSHA:          azureDevOpsLastMergeSourceCommit(pullRequest),
+		SourceBranch:     azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName)),
+		BaseBranch:       azureDevOpsRefToBranch(derefString(pullRequest.TargetRefName)),
+		IsOpen:           status == string(git.PullRequestStatusValues.Active),
+		IsMerged:         status == string(git.PullRequestStatusValues.Completed),
+		IsClosedUnmerged: status == string(git.PullRequestStatusValues.Abandoned),
+		IsDraft:          pullRequest.IsDraft != nil && *pullRequest.IsDraft,
+		HasConflicts:     azureDevOpsMergeStatusConflicted(mergeStatus),
+		ReadinessBlocked: azureDevOpsMergeStatusReadinessBlocked(mergeStatus),
+		SameRepository:   pullRequest.ForkSource == nil && a.isConfiguredRepository(pullRequest.Repository),
+	}
+}
+
+func azureDevOpsLastMergeSourceCommit(pullRequest *git.GitPullRequest) string {
+	if pullRequest.LastMergeSourceCommit == nil {
+		return ""
+	}
+
+	return derefString(pullRequest.LastMergeSourceCommit.CommitId)
 }
 
 func (a *AzureDevOps) isTrustedReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
@@ -447,28 +486,6 @@ func (a *AzureDevOps) isConfiguredRepository(repository *git.GitRepository) bool
 	}
 
 	return repository.Id != nil && strings.EqualFold(repository.Id.String(), configured)
-}
-
-func validateAzureDevOpsPullRequestForMerge(
-	number int,
-	pullRequest *git.GitPullRequest,
-	bypassMergeChecks bool,
-) error {
-	status := derefString((*string)(pullRequest.Status))
-	if status != string(git.PullRequestStatusValues.Active) {
-		return fmt.Errorf("%w: pull request !%d is %s", ErrMergeBlocked, number, status)
-	}
-
-	if pullRequest.IsDraft != nil && *pullRequest.IsDraft {
-		return fmt.Errorf("%w: pull request !%d is draft", ErrMergeBlocked, number)
-	}
-
-	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
-	if !bypassMergeChecks && azureDevOpsMergeStatusBlocked(mergeStatus) {
-		return fmt.Errorf("%w: pull request !%d merge_status=%s", ErrMergeBlocked, number, mergeStatus)
-	}
-
-	return nil
 }
 
 func (a *AzureDevOps) PrepareReleasePRLabels(context.Context, ReleasePRLabels) error {
@@ -684,10 +701,15 @@ func azureDevOpsCompletionResponseCommit(pr *git.GitPullRequest) string {
 	return azureDevOpsMergeCommit(pr)
 }
 
-func azureDevOpsMergeStatusBlocked(status string) bool {
+// Azure DevOps reports conflicts and policy refusals through one enum field, so
+// the two are split here to keep --auto-merge-force from bypassing conflicts.
+func azureDevOpsMergeStatusConflicted(status string) bool {
+	return status == string(git.PullRequestAsyncStatusValues.Conflicts)
+}
+
+func azureDevOpsMergeStatusReadinessBlocked(status string) bool {
 	switch status {
-	case string(git.PullRequestAsyncStatusValues.Conflicts),
-		string(git.PullRequestAsyncStatusValues.RejectedByPolicy),
+	case string(git.PullRequestAsyncStatusValues.RejectedByPolicy),
 		string(git.PullRequestAsyncStatusValues.Failure):
 		return true
 	default:

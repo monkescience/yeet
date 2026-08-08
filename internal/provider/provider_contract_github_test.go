@@ -112,6 +112,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubTagPaginationLimitContract(t, w, r, &tagPages)
 		case providerContractForcedMergeUntrusted:
 			handleGitHubForcedMergeUntrustedContract(t, w, r)
+		case providerContractForcedMergeConflicted:
+			handleGitHubForcedMergeConflictedContract(t, w, r)
 		default:
 			t.Fatalf("unhandled GitHub contract scenario: %s", scenario)
 		}
@@ -636,6 +638,18 @@ func handleGitHubTagPaginationLimitContract(
 		"name":   fmt.Sprintf("v0.0.%d", page),
 		"commit": map[string]any{"sha": fmt.Sprintf("sha-%d", page)},
 	}})
+}
+
+func handleGitHubForcedMergeConflictedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42" {
+		writeJSON(t, w, gitHubMergeStatePRResponse("dirty"))
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
 func handleGitHubForcedMergeUntrustedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

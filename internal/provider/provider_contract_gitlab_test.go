@@ -105,6 +105,8 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabTagPaginationLimitContract(t, w, r, &tagPages)
 		case providerContractForcedMergeUntrusted:
 			handleGitLabForcedMergeUntrustedContract(t, w, r)
+		case providerContractForcedMergeConflicted:
+			handleGitLabForcedMergeConflictedContract(t, w, r)
 		default:
 			t.Fatalf("unhandled GitLab contract scenario: %s", scenario)
 		}
@@ -705,6 +707,18 @@ func handleGitLabForcedMergeUntrustedContract(t *testing.T, w http.ResponseWrite
 		mr := gitLabMergeStateMRResponse("mergeable")
 		mr["source_project_id"] = gitLabContractForkProjectID
 		writeJSON(t, w, mr)
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func handleGitLabForcedMergeConflictedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
+		writeJSON(t, w, gitLabConflictedMRResponse())
 
 		return
 	}

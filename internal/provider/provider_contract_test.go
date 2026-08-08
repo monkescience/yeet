@@ -73,6 +73,7 @@ const (
 	providerContractUnreachableExtraLabel    providerContractScenario = "unreachable extra label"
 	providerContractTagPaginationLimit       providerContractScenario = "tag pagination limit"
 	providerContractForcedMergeUntrusted     providerContractScenario = "forced merge untrusted"
+	providerContractForcedMergeConflicted    providerContractScenario = "forced merge conflicted"
 	providerContractMissingExtraLabelName                             = "missing"
 	providerContractUnreachableLabelName                              = "flaky"
 	providerContractReleaseTitle                                      = "chore: release v1.2.3"
@@ -721,6 +722,27 @@ func TestProviderContract(t *testing.T) {
 				// then: the trust check refuses the merge and no commit is reported
 				testastic.Error(t, err)
 				testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
+				testastic.Equal(t, "", mergeSHA)
+			})
+
+			t.Run("refuses a conflicted release pull request even when merge checks are bypassed", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server reporting PR 42 as conflicted, whose handler
+				// fails the test if a merge is attempted
+				server := httptest.NewServer(harness.handler(t, providerContractForcedMergeConflicted))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+					BypassMergeChecks: true,
+				})
+
+				// then: bypassing policy never bypasses conflicts and no commit is reported
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 				testastic.Equal(t, "", mergeSHA)
 			})
 		})

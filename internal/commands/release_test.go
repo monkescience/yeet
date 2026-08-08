@@ -303,20 +303,71 @@ func TestHandleReleaseResult(t *testing.T) {
 func TestWrapReleaseExecutionError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("merge blocked suggests the next action", func(t *testing.T) {
+	t.Run("merge blocked advises per reason", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an auto-merge attempt blocked by provider readiness rules
-		err := wrapReleaseExecutionError(fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked))
+		for _, testCase := range []struct {
+			name     string
+			reason   provider.MergeBlockedReason
+			expected string
+		}{
+			{
+				name:   "conflicts",
+				reason: provider.MergeBlockedReasonConflicts,
+				expected: "release execution failed: merge blocked by conflicts. Resolve the conflicts on the " +
+					"release branch, which --auto-merge-force never bypasses: " +
+					"release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
+				name:   "draft",
+				reason: provider.MergeBlockedReasonDraft,
+				expected: "release execution failed: merge blocked: the release pull request or merge request is " +
+					"a draft. Mark it ready to merge: release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
+				name:   "closed",
+				reason: provider.MergeBlockedReasonClosed,
+				expected: "release execution failed: merge blocked: the release pull request or merge request is " +
+					"no longer open. Reopen it, or let the next run open a new one: " +
+					"release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
+				name:   "policy",
+				reason: provider.MergeBlockedReasonPolicy,
+				expected: "release execution failed: merge blocked by repository policy. Satisfy the required " +
+					"approvals and checks, or use --auto-merge-force when appropriate: " +
+					"release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
+				name:   "method",
+				reason: provider.MergeBlockedReasonMethod,
+				expected: "release execution failed: merge blocked by merge method. Enable the requested method " +
+					"in the forge settings, or choose another --auto-merge-method: " +
+					"release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
+				name:   "unknown",
+				reason: provider.MergeBlockedReasonUnknown,
+				expected: "release execution failed: merge blocked. Resolve pull request or merge request " +
+					"readiness, or use --auto-merge-force when appropriate: " +
+					"release PR merge blocked: pull request #42 has conflicts",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
 
-		// then: the top-level message explains how to proceed
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
-		testastic.Equal(
-			t,
-			"release execution failed: merge blocked. Resolve pull request or merge request readiness, or use "+
-				"--auto-merge-force when appropriate: release PR merge blocked: required checks pending",
-			err.Error(),
-		)
+				// given: an auto-merge attempt the forge refused for a known reason
+				err := wrapReleaseExecutionError(&provider.MergeBlockedError{
+					Reference: "pull request #42",
+					Reason:    testCase.reason,
+					Detail:    "has conflicts",
+				})
+
+				// then: the top-level message names the action that clears this reason
+				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+				testastic.Equal(t, testCase.expected, err.Error())
+			})
+		}
 	})
 
 	t.Run("multiple pending PRs advises cleanup", func(t *testing.T) {

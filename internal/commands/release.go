@@ -220,12 +220,9 @@ func wrapReleaseConfigError(configPath string, err error) error {
 }
 
 func wrapReleaseExecutionError(err error) error {
-	if errors.Is(err, provider.ErrMergeBlocked) {
-		return fmt.Errorf(
-			"release execution failed: merge blocked. Resolve pull request or merge request readiness, "+
-				"or use --auto-merge-force when appropriate: %w",
-			err,
-		)
+	var blocked *provider.MergeBlockedError
+	if errors.As(err, &blocked) {
+		return fmt.Errorf("release execution failed: %s: %w", mergeBlockedRemediation(blocked.Reason), err)
 	}
 
 	if errors.Is(err, release.ErrMultiplePendingReleasePRs) {
@@ -237,6 +234,32 @@ func wrapReleaseExecutionError(err error) error {
 	}
 
 	return fmt.Errorf("release execution failed: %w", err)
+}
+
+const mergeBlockedReadinessRemediation = "merge blocked. Resolve pull request or merge request readiness, " +
+	"or use --auto-merge-force when appropriate"
+
+func mergeBlockedRemediation(reason provider.MergeBlockedReason) string {
+	switch reason {
+	case provider.MergeBlockedReasonConflicts:
+		return "merge blocked by conflicts. Resolve the conflicts on the release branch, " +
+			"which --auto-merge-force never bypasses"
+	case provider.MergeBlockedReasonDraft:
+		return "merge blocked: the release pull request or merge request is a draft. Mark it ready to merge"
+	case provider.MergeBlockedReasonClosed:
+		return "merge blocked: the release pull request or merge request is no longer open. " +
+			"Reopen it, or let the next run open a new one"
+	case provider.MergeBlockedReasonPolicy:
+		return "merge blocked by repository policy. Satisfy the required approvals and checks, " +
+			"or use --auto-merge-force when appropriate"
+	case provider.MergeBlockedReasonMethod:
+		return "merge blocked by merge method. Enable the requested method in the forge settings, " +
+			"or choose another --auto-merge-method"
+	case provider.MergeBlockedReasonUnknown:
+		return mergeBlockedReadinessRemediation
+	default:
+		return mergeBlockedReadinessRemediation
+	}
 }
 
 func printDryRun(w io.Writer, result *release.Result) {

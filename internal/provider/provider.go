@@ -74,7 +74,13 @@ const (
 
 type MergeReleasePROptions struct {
 	BypassMergeChecks bool
-	Method            MergeMethod
+	// Method is best effort, because the three forges expose unrelated
+	// capability models. GitHub validates it against repository settings and
+	// rejects a disabled method. GitLab has no per request strategy override, so
+	// rebase and merge only assert that the project is already configured that
+	// way. Azure DevOps exposes no capability API and validates nothing, which
+	// leaves auto and squash indistinguishable there.
+	Method MergeMethod
 }
 
 // FileUpdate holds new content and whether the file exists on the base branch.
@@ -107,6 +113,16 @@ type Provider interface {
 	PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch, pendingLabel string) ([]*PullRequest, error)
 	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*PullRequest, error)
+	// MergeReleasePR merges the release PR and returns the commit it produced on
+	// the base branch. It blocks for up to two minutes while a forge finalizes a
+	// merge it has already accepted, and is idempotent on a request that is
+	// already merged, which it answers with the existing merge commit.
+	//
+	// It returns ErrUntrustedReleasePR for a request that is not on the release
+	// branch of the configured repository, ErrMergeBlocked (as a
+	// *MergeBlockedError) when the forge refuses the merge,
+	// ErrMergeMethodUnsupported for a method no forge accepts, and
+	// ErrMergeNotFinalized when an accepted merge does not land inside the wait.
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error)
 	MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error
 	MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error
@@ -188,6 +204,47 @@ func (e *CommitBoundaryNotFoundError) Error() string {
 
 func (e *CommitBoundaryNotFoundError) Unwrap() error {
 	return ErrCommitBoundaryNotFound
+}
+
+// MergeBlockedReason distinguishes the conditions ErrMergeBlocked covers, so a
+// caller can tell a permanent refusal from one that may clear on its own.
+type MergeBlockedReason string
+
+const (
+	MergeBlockedReasonConflicts MergeBlockedReason = "conflicts"
+	MergeBlockedReasonDraft     MergeBlockedReason = "draft"
+	MergeBlockedReasonClosed    MergeBlockedReason = "closed"
+	MergeBlockedReasonPolicy    MergeBlockedReason = "policy"
+	MergeBlockedReasonMethod    MergeBlockedReason = "method"
+	MergeBlockedReasonUnknown   MergeBlockedReason = "unknown"
+)
+
+// MergeBlockedError reports why a forge refused to merge a release PR. Detail
+// carries the forge's own explanation and is never parsed.
+type MergeBlockedError struct {
+	Reference string
+	Reason    MergeBlockedReason
+	Detail    string
+}
+
+func (e *MergeBlockedError) Error() string {
+	reference := strings.TrimSpace(e.Reference)
+	detail := strings.TrimSpace(e.Detail)
+
+	switch {
+	case reference == "" && detail == "":
+		return ErrMergeBlocked.Error()
+	case detail == "":
+		return fmt.Sprintf("%s: %s", ErrMergeBlocked, reference)
+	case reference == "":
+		return fmt.Sprintf("%s: %s", ErrMergeBlocked, detail)
+	default:
+		return fmt.Sprintf("%s: %s %s", ErrMergeBlocked, reference, detail)
+	}
+}
+
+func (e *MergeBlockedError) Unwrap() error {
+	return ErrMergeBlocked
 }
 
 var scpLikeRemotePattern = regexp.MustCompile(`^(?:[^@]+@)?([^:]+):(.+)$`)

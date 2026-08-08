@@ -155,6 +155,13 @@ func gitLabMergeStateMRResponse(detailedMergeStatus string) map[string]any {
 	}
 }
 
+func gitLabConflictedMRResponse() map[string]any {
+	mr := gitLabMergeStateMRResponse("conflict")
+	mr["has_conflicts"] = true
+
+	return mr
+}
+
 func gitLabMergeCommitProjectResponse() map[string]any {
 	return map[string]any{"merge_method": "merge", "squash_option": "default_off"}
 }

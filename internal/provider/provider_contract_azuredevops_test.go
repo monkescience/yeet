@@ -880,6 +880,8 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsTagPaginationLimitHandler(t)
 	case providerContractForcedMergeUntrusted:
 		return azureDevOpsForcedMergeUntrustedHandler(t)
+	case providerContractForcedMergeConflicted:
+		return azureDevOpsForcedMergeConflictedHandler(t)
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
 			t.Fatalf("unhandled Azure DevOps contract scenario: %s (request %s %s)", scenario, r.Method, r.URL.String())
@@ -1530,6 +1532,20 @@ func azureDevOpsForcedMergeUntrustedHandler(t *testing.T) http.HandlerFunc {
 			pr := azureDevOpsMergeStatePRResponse("succeeded")
 			pr["repository"] = map[string]any{"name": azureDevOpsContractForkRepo}
 			writeJSON(t, w, pr)
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func azureDevOpsForcedMergeConflictedHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
+			writeJSON(t, w, azureDevOpsMergeStatePRResponse("conflicts"))
 
 			return
 		}

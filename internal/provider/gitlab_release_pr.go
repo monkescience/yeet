@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -533,128 +534,132 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
-	mr, _, err := g.client.MergeRequests.GetMergeRequest(g.projectID, int64(number), nil, gitlab.WithContext(ctx))
+	driver := mergeDriver{forge: &gitLabMerge{provider: g, number: number}, polling: g.polling}
+
+	return driver.run(ctx, opts)
+}
+
+type gitLabMerge struct {
+	provider *GitLab
+	number   int
+}
+
+func (m *gitLabMerge) state(ctx context.Context) (mergeState, error) {
+	mergeRequest, _, err := m.provider.client.MergeRequests.GetMergeRequest(
+		m.provider.projectID,
+		int64(m.number),
+		nil,
+		gitlab.WithContext(ctx),
+	)
 	if err != nil {
-		return "", fmt.Errorf("get merge request !%d: %w", number, err)
+		return mergeState{}, fmt.Errorf("get merge request !%d: %w", m.number, err)
 	}
 
-	if mr.State == gitlabMergeRequestMergedState {
-		if mergeSHA := gitLabMergeRequestCommitSHA(&mr.BasicMergeRequest); mergeSHA != "" {
-			return mergeSHA, nil
-		}
-
-		return g.awaitMergeCommit(ctx, number)
+	reference := fmt.Sprintf("merge request !%d", m.number)
+	if mergeRequest == nil {
+		return mergeState{Reference: reference}, nil
 	}
 
-	if !isTrustedGitLabReleasePR(mr.SourceBranch, mr.TargetBranch, mr.SourceProjectID, mr.TargetProjectID) {
-		return "", fmt.Errorf("%w: merge request !%d", ErrUntrustedReleasePR, number)
-	}
+	return gitLabMergeState(reference, mergeRequest), nil
+}
 
-	if err := validateGitLabMergeRequestForMerge(number, mr, opts.BypassMergeChecks); err != nil {
-		return "", err
-	}
-
-	project, err := g.projectMergeSettings(ctx)
+func (m *gitLabMerge) resolveMethod(ctx context.Context, requested MergeMethod) (any, error) {
+	project, err := m.provider.projectMergeSettings(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	acceptOptions, err := gitLabAcceptMergeOptions(project, opts.Method)
+	options, err := gitLabAcceptMergeOptions(project, requested)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	sha := strings.TrimSpace(mr.SHA)
-	if sha != "" {
-		acceptOptions.SHA = new(sha)
+	return options, nil
+}
+
+func (m *gitLabMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
+	acceptOptions, ok := method.(*gitlab.AcceptMergeRequestOptions)
+	if !ok {
+		return "", false, unsupportedResolvedMethod(method)
 	}
 
-	merged, _, err := g.client.MergeRequests.AcceptMergeRequest(
-		g.projectID,
-		int64(number),
+	if current.HeadSHA != "" {
+		acceptOptions.SHA = new(current.HeadSHA)
+	}
+
+	merged, response, err := m.provider.client.MergeRequests.AcceptMergeRequest(
+		m.provider.projectID,
+		int64(m.number),
 		acceptOptions,
 		gitlab.WithContext(ctx),
 	)
 	if err != nil {
-		return "", fmt.Errorf("accept merge request !%d: %w", number, err)
+		// GitLab answers a conflicting or already closed merge request with 405
+		// rather than a body explaining itself.
+		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
+			return "", false, gitLabAcceptRefused(current.Reference, err.Error())
+		}
+
+		return "", false, fmt.Errorf("accept merge request !%d: %w", m.number, err)
+	}
+
+	if merged == nil {
+		return "", true, nil
+	}
+
+	// MergeError is free-form English with no SDK constants, so it is reported
+	// verbatim rather than matched on.
+	if mergeError := strings.TrimSpace(merged.MergeError); mergeError != "" {
+		return "", false, gitLabAcceptRefused(current.Reference, mergeError)
 	}
 
 	slog.DebugContext(ctx, "gitlab: merged merge request",
-		slog.Int("iid", number),
-		slog.String("sha", sha),
+		slog.Int("iid", m.number),
+		slog.String("sha", current.HeadSHA),
 	)
 
-	if merged != nil && merged.State == gitlabMergeRequestMergedState {
+	if merged.State == gitlabMergeRequestMergedState {
 		if mergeSHA := gitLabMergeRequestCommitSHA(&merged.BasicMergeRequest); mergeSHA != "" {
-			return mergeSHA, nil
+			return mergeSHA, false, nil
 		}
 	}
 
-	return g.awaitMergeCommit(ctx, number)
+	// Fast-forward projects populate no merge or squash commit, so the source tip
+	// only becomes the release ref once GitLab reports the MR merged.
+	return "", true, nil
 }
 
-// awaitMergeCommit waits for an accepted merge request to reach the merged
-// state. Fast-forward projects populate no merge or squash commit, so the
-// source tip only becomes the release ref once GitLab reports the MR merged.
-func (g *GitLab) awaitMergeCommit(ctx context.Context, number int) (string, error) {
-	reference := fmt.Sprintf("merge request !%d", number)
+func gitLabAcceptRefused(reference, detail string) error {
+	return blockedMerge(reference, MergeBlockedReasonUnknown, "was refused: "+detail)
+}
 
-	return g.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
-		current, _, err := g.client.MergeRequests.GetMergeRequest(
-			g.projectID,
-			int64(number),
-			nil,
-			gitlab.WithContext(pollCtx),
-		)
-		if err != nil {
-			return "", fmt.Errorf("get merge request !%d: %w", number, err)
-		}
+func gitLabMergeState(reference string, mergeRequest *gitlab.MergeRequest) mergeState {
+	mergeStatus := strings.TrimSpace(mergeRequest.DetailedMergeStatus)
 
-		if current == nil {
-			return "", nil
-		}
+	return mergeState{
+		Reference:        reference,
+		RawReadiness:     "detailed_merge_status=" + mergeStatus,
+		MergeCommitSHA:   gitLabMergeRequestCommitSHA(&mergeRequest.BasicMergeRequest),
+		HeadSHA:          strings.TrimSpace(mergeRequest.SHA),
+		SourceBranch:     mergeRequest.SourceBranch,
+		BaseBranch:       mergeRequest.TargetBranch,
+		IsOpen:           mergeRequest.State == gitlabMergeRequestOpenedState,
+		IsMerged:         mergeRequest.State == gitlabMergeRequestMergedState,
+		IsClosedUnmerged: mergeRequest.State == gitlabMergeRequestClosedState,
+		IsDraft:          mergeRequest.Draft,
+		HasConflicts:     mergeRequest.HasConflicts,
+		ReadinessBlocked: !isGitLabMergeStatusMergeable(mergeStatus),
+		SameRepository:   isGitLabSameProject(mergeRequest.SourceProjectID, mergeRequest.TargetProjectID),
+	}
+}
 
-		if current.State == gitlabMergeRequestClosedState {
-			return "", fmt.Errorf("%w: %s was closed", ErrMergeBlocked, reference)
-		}
-
-		if current.State != gitlabMergeRequestMergedState {
-			return "", nil
-		}
-
-		return gitLabMergeRequestCommitSHA(&current.BasicMergeRequest), nil
-	})
+func isGitLabSameProject(sourceProjectID, targetProjectID int64) bool {
+	return sourceProjectID != 0 && sourceProjectID == targetProjectID
 }
 
 func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {
 	return isExpectedReleaseBranch(sourceBranch, baseBranch) &&
-		sourceProjectID != 0 &&
-		sourceProjectID == targetProjectID
-}
-
-func validateGitLabMergeRequestForMerge(
-	number int,
-	mergeRequest *gitlab.MergeRequest,
-	bypassMergeChecks bool,
-) error {
-	if mergeRequest.State != gitlabMergeRequestOpenedState {
-		return fmt.Errorf("%w: merge request !%d is %s", ErrMergeBlocked, number, mergeRequest.State)
-	}
-
-	if mergeRequest.Draft {
-		return fmt.Errorf("%w: merge request !%d is draft", ErrMergeBlocked, number)
-	}
-
-	if mergeRequest.HasConflicts {
-		return fmt.Errorf("%w: merge request !%d has conflicts", ErrMergeBlocked, number)
-	}
-
-	mergeStatus := strings.TrimSpace(mergeRequest.DetailedMergeStatus)
-	if !bypassMergeChecks && !isGitLabMergeStatusMergeable(mergeStatus) {
-		return fmt.Errorf("%w: merge request !%d detailed_merge_status=%s", ErrMergeBlocked, number, mergeStatus)
-	}
-
-	return nil
+		isGitLabSameProject(sourceProjectID, targetProjectID)
 }
 
 func (g *GitLab) PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error {
@@ -807,7 +812,7 @@ func (g *GitLab) projectMergeSettings(ctx context.Context) (*gitlab.Project, err
 	}
 
 	if project == nil {
-		return nil, fmt.Errorf("%w: missing project merge settings", ErrMergeBlocked)
+		return nil, gitLabMergeMethodBlocked("missing project merge settings")
 	}
 
 	return project, nil
@@ -832,12 +837,11 @@ func gitLabAcceptMergeOptions(
 		return options, nil
 	case MergeMethodSquash:
 		if project.SquashOption == gitlab.SquashOptionNever {
-			return nil, fmt.Errorf(
-				"%w: merge method %q disabled by project squash_option=%s",
-				ErrMergeBlocked,
+			return nil, gitLabMergeMethodBlocked(fmt.Sprintf(
+				"merge method %q disabled by project squash_option=%s",
 				requested,
 				project.SquashOption,
-			)
+			))
 		}
 
 		options.Squash = new(true)
@@ -845,27 +849,29 @@ func gitLabAcceptMergeOptions(
 		return options, nil
 	case MergeMethodRebase:
 		if project.MergeMethod != gitlab.RebaseMerge {
-			return nil, fmt.Errorf(
-				"%w: merge method %q incompatible with project merge_method=%s",
-				ErrMergeBlocked,
-				requested,
-				project.MergeMethod,
-			)
+			return nil, gitLabMergeMethodIncompatible(requested, project.MergeMethod)
 		}
 
 		return options, nil
 	case MergeMethodMerge:
 		if project.MergeMethod != gitlab.NoFastForwardMerge {
-			return nil, fmt.Errorf(
-				"%w: merge method %q incompatible with project merge_method=%s",
-				ErrMergeBlocked,
-				requested,
-				project.MergeMethod,
-			)
+			return nil, gitLabMergeMethodIncompatible(requested, project.MergeMethod)
 		}
 
 		return options, nil
 	default:
 		return nil, fmt.Errorf("%w: unknown merge method %q", ErrMergeMethodUnsupported, requested)
 	}
+}
+
+func gitLabMergeMethodIncompatible(requested MergeMethod, configured gitlab.MergeMethodValue) error {
+	return gitLabMergeMethodBlocked(fmt.Sprintf(
+		"merge method %q incompatible with project merge_method=%s",
+		requested,
+		configured,
+	))
+}
+
+func gitLabMergeMethodBlocked(detail string) error {
+	return blockedMerge("", MergeBlockedReasonMethod, detail)
 }

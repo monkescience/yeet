@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/provider"
@@ -571,6 +572,141 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 	})
 }
 
+func TestGitLabMergeReleasePRFastRefusal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reports an accept rejected with method not allowed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server that rejects the accept the way it rejects a
+		// conflicting or already closed merge request
+		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			writeJSON(t, w, map[string]any{"message": "405 Method Not Allowed"})
+		})
+
+		// then: the refusal is reported as a blocked merge without waiting for the forge
+		testastic.Equal(t, int32(0), polls.Load())
+	})
+
+	t.Run("reports an accept that answers with a merge error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server that accepts the request but reports why it did not merge
+		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{
+				"iid":         8,
+				"state":       "opened",
+				"merge_error": "Branch cannot be merged",
+			})
+		})
+
+		// then: the refusal is reported as a blocked merge without waiting for the forge
+		testastic.Equal(t, int32(0), polls.Load())
+	})
+}
+
+// gitLabRefusedAcceptServer merges MR 8 against a server whose accept response
+// is supplied by refuse, and reports how many times the merge request was polled
+// after the accept.
+func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.Int32 {
+	t.Helper()
+
+	var accepted atomic.Bool
+
+	polls := new(atomic.Int32)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
+			if accepted.Load() {
+				polls.Add(1)
+			}
+
+			writeJSON(t, w, map[string]any{
+				"iid":                   8,
+				"state":                 "opened",
+				"draft":                 false,
+				"has_conflicts":         false,
+				"detailed_merge_status": "mergeable",
+				"sha":                   "head-sha",
+				"source_branch":         "yeet/release-main",
+				"target_branch":         "main",
+				"source_project_id":     10,
+				"target_project_id":     10,
+			})
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+			writeJSON(t, w, map[string]any{
+				"merge_method":  string(gitlabapi.NoFastForwardMerge),
+				"squash_option": "default_off",
+			})
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
+			accepted.Store(true)
+			refuse(w, r)
+		default:
+			t.Errorf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	gl := newGitLabProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+	// when: MergeReleasePR is invoked on the refused merge request
+	mergeSHA, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+
+	testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	testastic.Equal(t, "", mergeSHA)
+
+	return polls
+}
+
+func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
+	t.Parallel()
+
+	// given: an Azure DevOps server whose completion response reports a refusal
+	var completed atomic.Bool
+
+	var polls atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			if completed.Load() {
+				polls.Add(1)
+			}
+
+			writeJSON(t, w, azureDevOpsMergeablePRResponse())
+		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			completed.Store(true)
+			writeJSON(t, w, map[string]any{
+				"pullRequestId":       42,
+				"status":              "active",
+				"mergeStatus":         "rejectedByPolicy",
+				"mergeFailureMessage": "the merge was rejected by a branch policy",
+			})
+		default:
+			t.Errorf("unexpected Azure DevOps request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+	// when: MergeReleasePR is invoked on the refused pull request
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		Method: provider.MergeMethodSquash,
+	})
+
+	// then: the refusal is reported as a blocked merge without waiting for the forge
+	testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, int32(0), polls.Load())
+}
+
 func TestGitLabUpdateFiles(t *testing.T) {
 	t.Parallel()
 
@@ -618,7 +754,11 @@ func TestGitLabUpdateFiles(t *testing.T) {
 	testastic.Equal(t, "create", commitRequest.Actions[1].Action)
 }
 
-func newGitLabProvider(t *testing.T, server *httptest.Server) *provider.GitLab {
+func newGitLabProvider(
+	t *testing.T,
+	server *httptest.Server,
+	options ...provider.MergePollingOption,
+) *provider.GitLab {
 	t.Helper()
 
 	client, err := gitlabapi.NewClient(
@@ -629,7 +769,7 @@ func newGitLabProvider(t *testing.T, server *httptest.Server) *provider.GitLab {
 	)
 	testastic.NoError(t, err)
 
-	return provider.NewGitLab(client, "o/r")
+	return provider.NewGitLab(client, "o/r", options...)
 }
 
 func decodedPathTail(t *testing.T, request *http.Request) string {

@@ -70,7 +70,7 @@ func (p mergePolling) awaitMergedCommit(
 		mergeSHA, err := resolve(waitCtx)
 		if err != nil {
 			if ctx.Err() == nil && waitCtx.Err() != nil {
-				return "", p.notFinalized(reference)
+				return "", p.notFinalizedFrom(reference, err)
 			}
 
 			return "", err
@@ -100,4 +100,24 @@ func (p mergePolling) awaitMergedCommit(
 
 func (p mergePolling) notFinalized(reference string) error {
 	return fmt.Errorf("%w: %s after %s", ErrMergeNotFinalized, reference, p.timeout)
+}
+
+// notFinalizedFrom keeps the cause that ended the wait alongside the sentinel,
+// so a forge that went unreachable stays distinguishable from a slow one.
+func (p mergePolling) notFinalizedFrom(reference string, cause error) error {
+	return &mergeNotFinalizedError{reference: reference, timeout: p.timeout, cause: cause}
+}
+
+type mergeNotFinalizedError struct {
+	cause     error
+	reference string
+	timeout   time.Duration
+}
+
+func (e *mergeNotFinalizedError) Error() string {
+	return fmt.Sprintf("%s: %s after %s: %s", ErrMergeNotFinalized, e.reference, e.timeout, e.cause)
+}
+
+func (e *mergeNotFinalizedError) Unwrap() []error {
+	return []error{ErrMergeNotFinalized, e.cause}
 }
