@@ -1,0 +1,9 @@
+provider: github
+branch: main
+bump_types:
+  minor: [""]
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

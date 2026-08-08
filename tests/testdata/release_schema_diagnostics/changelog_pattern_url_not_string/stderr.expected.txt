@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: changelog.references.patterns[0].url must be a string

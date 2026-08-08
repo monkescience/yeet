@@ -1,0 +1,11 @@
+provider: github
+branch: main
+changelog:
+  references:
+    patterns:
+      - url: https://issues.example/{{ .Ref }}
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

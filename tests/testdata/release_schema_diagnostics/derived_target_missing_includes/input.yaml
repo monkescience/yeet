@@ -1,0 +1,6 @@
+provider: github
+branch: main
+targets:
+  root:
+    type: derived
+    tag_prefix: v

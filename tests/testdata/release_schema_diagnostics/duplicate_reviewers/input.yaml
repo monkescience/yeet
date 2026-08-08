@@ -1,0 +1,9 @@
+provider: github
+branch: main
+release:
+  reviewers: [alice, alice]
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

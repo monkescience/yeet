@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.pr_body_max_length must not be negative, got -1

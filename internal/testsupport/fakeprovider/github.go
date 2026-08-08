@@ -21,6 +21,7 @@ type GitHubOptions struct {
 	Owner                     string
 	Repo                      string
 	BranchHeadSHA             string
+	ReleaseBranchMissing      bool
 	LatestTag                 string
 	ExtraTags                 []string
 	BoundarySHA               string
@@ -468,12 +469,7 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 
 	const fakeTreeSHA = "tree-sha"
 
-	mux.HandleFunc("GET "+prefix+"/git/ref/heads/{branch...}", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{
-			githubKeyRef:    "refs/heads/" + r.PathValue("branch"),
-			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
-		})
-	})
+	mux.HandleFunc("GET "+prefix+"/git/ref/heads/{branch...}", githubBranchRefHandler(opts))
 
 	mux.HandleFunc("GET "+prefix+"/git/ref/tags/{name}", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -517,6 +513,21 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
 		})
 	})
+}
+
+func githubBranchRefHandler(opts GitHubOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if opts.ReleaseBranchMissing && r.PathValue("branch") == fakeReleaseBranch {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		writeJSON(w, map[string]any{
+			githubKeyRef:    "refs/heads/" + r.PathValue("branch"),
+			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
+		})
+	}
 }
 
 func registerGitHubContent(mux *http.ServeMux, prefix string, opts GitHubOptions) {

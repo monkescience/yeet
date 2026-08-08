@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: targets.root.includes must not be empty

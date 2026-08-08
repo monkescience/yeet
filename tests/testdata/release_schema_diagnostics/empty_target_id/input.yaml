@@ -1,0 +1,7 @@
+provider: github
+branch: main
+targets:
+  "":
+    type: path
+    path: .
+    tag_prefix: v

@@ -1,0 +1,1 @@
+repository resolution failed: provider host is not trusted: "github.example" could not be verified against git remote "origin": open git repository: repository does not exist

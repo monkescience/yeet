@@ -1,0 +1,12 @@
+provider: github
+branch: main
+changelog:
+  references:
+    patterns:
+      - pattern: "#(?P<ref>[0-9]+)"
+        url: 42
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

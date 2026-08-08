@@ -1,0 +1,9 @@
+provider: github
+branch: main
+release:
+  pr_body_max_length: -1
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

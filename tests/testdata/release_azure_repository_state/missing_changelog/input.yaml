@@ -1,0 +1,15 @@
+provider: azuredevops
+branch: main
+repository:
+  azuredevops:
+    host: dev.azure.com
+    organization: contoso
+    project: platform
+    repo: yeet
+changelog:
+  file: RELEASES.md
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: targets.default.type must be "path" or "derived", got ""

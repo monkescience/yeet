@@ -1,6 +1,16 @@
 {
-  "count": 95,
+  "count": 96,
   "value": [
+    {
+      "id": "28010c54-d0c0-4c89-a5b0-1c9e188b9fb7",
+      "area": "IMS",
+      "resourceName": "identities",
+      "routeTemplate": "_apis/{resource}/{identityId}",
+      "resourceVersion": 1,
+      "minVersion": "1.0",
+      "maxVersion": "7.2",
+      "releasedVersion": "7.1"
+    },
     {
       "id": "75cf11c5-979f-4038-a76e-058a06adf2bf",
       "area": "git",

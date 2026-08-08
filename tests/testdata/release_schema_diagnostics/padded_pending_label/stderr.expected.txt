@@ -1,0 +1,1 @@
+invalid configuration: load config: invalid config: release.labels.pending " pending" must not have leading or trailing whitespace

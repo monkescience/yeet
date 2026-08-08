@@ -1,0 +1,12 @@
+provider: github
+branch: main
+release:
+  channels:
+    "":
+      branch: beta
+      prerelease: beta
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

@@ -1,0 +1,11 @@
+provider: github
+branch: main
+version_files:
+  - path: VERSION.txt
+    format: markers
+    json_pointer: /version
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

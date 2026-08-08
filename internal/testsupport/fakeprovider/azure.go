@@ -17,16 +17,22 @@ type AzureOptions struct {
 	Project                   string
 	Repo                      string
 	BranchHeadSHA             string
+	ReleaseBranchHeadSHA      string
+	ReleaseBranchMissing      bool
+	RefUpdateFailure          string
 	LatestTag                 string
 	ExtraTags                 []string
 	BoundarySHA               string
 	TagSHAs                   map[string]string
+	ExistingReleaseTag        string
 	Commits                   []AzureCommit
 	MergedPendingRelease      bool
 	MultipleOpenPRs           bool
 	MergeBlocked              bool
+	MergeCommitRef            string
 	ExistingOpenReleasePRBody string
 	Files                     map[string]string
+	Reviewers                 map[string]string
 }
 
 // AzureCommit is a tiny subset of the Azure DevOps commit payload yeet reads.
@@ -50,6 +56,7 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	repoAPI := "/" + opts.Organization + "/" + opts.Project + "/_apis/git/repositories/" + opts.Repo
 
 	mux := http.NewServeMux()
+	branchCreated := &atomic.Bool{}
 	merged := &atomic.Bool{}
 
 	mux.HandleFunc("OPTIONS "+rootAPI, func(w http.ResponseWriter, _ *http.Request) {
@@ -64,9 +71,26 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 		_, _ = w.Write(azureResourceAreasEmpty)
 	})
 
-	registerAzureHistory(mux, repoAPI, opts)
+	mux.HandleFunc("GET "+rootAPI+"/identities", func(w http.ResponseWriter, r *http.Request) {
+		id, exists := opts.Reviewers[r.URL.Query().Get("filterValue")]
+		if !exists {
+			writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})
+
+			return
+		}
+
+		writeJSON(w, map[string]any{
+			azureKeyCount: 1,
+			azureKeyValue: []map[string]any{{
+				gitlabKeyID:           id,
+				"providerDisplayName": r.URL.Query().Get("filterValue"),
+			}},
+		})
+	})
+
+	registerAzureHistory(mux, repoAPI, opts, branchCreated)
 	registerAzurePullRequests(mux, repoAPI, opts, merged)
-	registerAzureWrite(mux, repoAPI, opts)
+	registerAzureWrite(mux, repoAPI, opts, branchCreated)
 	registerAzureReleases(mux, opts.Organization, opts.Project)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -80,12 +104,27 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	return server
 }
 
-func registerAzureHistory(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
-	mux.HandleFunc("GET "+repoAPI+"/refs", azureRefsHandler(opts))
+func registerAzureHistory(
+	mux *http.ServeMux,
+	repoAPI string,
+	opts AzureOptions,
+	branchCreated *atomic.Bool,
+) {
+	mux.HandleFunc("GET "+repoAPI+"/refs", azureRefsHandler(opts, branchCreated))
 
 	mux.HandleFunc("GET "+repoAPI+"/commits", azureCommitsHandler(opts))
 
-	mux.HandleFunc("GET "+repoAPI+"/annotatedTags/{id}", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET "+repoAPI+"/annotatedTags/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if opts.ExistingReleaseTag != "" {
+			writeJSON(w, map[string]any{
+				azureKeyObjectID: r.PathValue("id"),
+				gitlabKeyName:    opts.ExistingReleaseTag,
+				"message":        "existing release notes",
+			})
+
+			return
+		}
+
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
@@ -143,29 +182,24 @@ func azureCommitsSince(commits []AzureCommit, boundarySHA string) []AzureCommit 
 	return commits
 }
 
-func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
+func azureRefsHandler(opts AzureOptions, branchCreated *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		filter := r.URL.Query().Get("filter")
 
-		if strings.HasPrefix(filter, "heads/") {
-			headSHA := opts.BranchHeadSHA
-			if headSHA == "" {
-				headSHA = fakeBaseSHA
-			}
-
-			writeJSON(w, map[string]any{
-				azureKeyCount: 1,
-				azureKeyValue: []map[string]any{{
-					gitlabKeyName:    "refs/" + filter,
-					azureKeyObjectID: headSHA,
-				}},
-			})
+		if branch, found := strings.CutPrefix(filter, "heads/"); found {
+			writeJSON(w, azureBranchRefsPayload(opts, branch, branchCreated.Load()))
 
 			return
 		}
 
 		if filter == "tags/"+opts.LatestTag && opts.LatestTag != "" {
 			writeJSON(w, azureTagRefsPayload(opts))
+
+			return
+		}
+
+		if filter == "tags/"+opts.ExistingReleaseTag && opts.ExistingReleaseTag != "" {
+			writeJSON(w, azureExistingReleaseTagRefsPayload(filter))
 
 			return
 		}
@@ -183,6 +217,39 @@ func azureRefsHandler(opts AzureOptions) http.HandlerFunc {
 		}
 
 		writeJSON(w, azureTagRefsPayload(opts))
+	}
+}
+
+func azureBranchRefsPayload(opts AzureOptions, branch string, branchCreated bool) map[string]any {
+	if branch == fakeReleaseBranch && opts.ReleaseBranchMissing && !branchCreated {
+		return map[string]any{azureKeyCount: 0, azureKeyValue: []any{}}
+	}
+
+	headSHA := opts.BranchHeadSHA
+	if branch == fakeReleaseBranch && opts.ReleaseBranchHeadSHA != "" {
+		headSHA = opts.ReleaseBranchHeadSHA
+	}
+
+	if headSHA == "" {
+		headSHA = fakeBaseSHA
+	}
+
+	return map[string]any{
+		azureKeyCount: 1,
+		azureKeyValue: []map[string]any{{
+			gitlabKeyName:    "refs/heads/" + branch,
+			azureKeyObjectID: headSHA,
+		}},
+	}
+}
+
+func azureExistingReleaseTagRefsPayload(filter string) map[string]any {
+	return map[string]any{
+		azureKeyCount: 1,
+		azureKeyValue: []map[string]any{{
+			gitlabKeyName:    "refs/" + filter,
+			azureKeyObjectID: "existing-tag-object-sha",
+		}},
 	}
 }
 
@@ -392,19 +459,13 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 	)
 }
 
-func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
-	mux.HandleFunc("POST "+repoAPI+"/refs", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{
-			azureKeyCount: 1,
-			azureKeyValue: []map[string]any{
-				{
-					gitlabKeyName:    "refs/heads/" + fakeReleaseBranch,
-					azureKeyObjectID: fakeBaseSHA,
-					"success":        true,
-				},
-			},
-		})
-	})
+func registerAzureWrite(
+	mux *http.ServeMux,
+	repoAPI string,
+	opts AzureOptions,
+	branchCreated *atomic.Bool,
+) {
+	mux.HandleFunc("POST "+repoAPI+"/refs", azureUpdateRefsHandler(opts, branchCreated))
 
 	mux.HandleFunc("POST "+repoAPI+"/pushes", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{"pushId": 1, keyCommits: []any{}})
@@ -418,7 +479,44 @@ func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 		})
 	})
 
-	mux.HandleFunc("GET "+repoAPI+"/items", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET "+repoAPI+"/items", azureItemsHandler(opts))
+}
+
+const azureKeySuccess = "success"
+
+func azureUpdateRefsHandler(opts AzureOptions, branchCreated *atomic.Bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		if opts.RefUpdateFailure != "" {
+			writeJSON(w, map[string]any{
+				azureKeyCount: 1,
+				azureKeyValue: []map[string]any{{
+					gitlabKeyName:    "refs/heads/" + fakeReleaseBranch,
+					azureKeyObjectID: fakeBaseSHA,
+					azureKeySuccess:  false,
+					"customMessage":  opts.RefUpdateFailure,
+				}},
+			})
+
+			return
+		}
+
+		branchCreated.Store(true)
+
+		writeJSON(w, map[string]any{
+			azureKeyCount: 1,
+			azureKeyValue: []map[string]any{
+				{
+					gitlabKeyName:    "refs/heads/" + fakeReleaseBranch,
+					azureKeyObjectID: fakeBaseSHA,
+					azureKeySuccess:  true,
+				},
+			},
+		})
+	}
+}
+
+func azureItemsHandler(opts AzureOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Query().Get("path"), "/")
 
 		if content, ok := opts.Files[path]; ok {
@@ -436,7 +534,7 @@ func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
 		}
 
 		http.Error(w, "not found", http.StatusNotFound)
-	})
+	}
 }
 
 func registerAzureReleases(mux *http.ServeMux, org, project string) {
@@ -535,8 +633,14 @@ func azureMergedPendingPR(opts AzureOptions) map[string]any {
 		{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
 	}
 	pr["description"] = "## release created\n\n" + azureReleaseManifest + "\n"
-	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
-	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
+
+	mergeCommitRef := opts.BranchHeadSHA
+	if opts.MergeCommitRef != "" {
+		mergeCommitRef = opts.MergeCommitRef
+	}
+
+	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: mergeCommitRef}
+	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: mergeCommitRef}
 
 	return pr
 }

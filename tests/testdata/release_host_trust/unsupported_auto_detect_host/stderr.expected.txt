@@ -1,0 +1,1 @@
+repository resolution failed: resolve repository provider for host "code.example": unsupported remote host: code.example. Auto-detection only supports github.com, gitlab.com, and dev.azure.com. Set provider, [repository], or pass explicit flags for custom domains

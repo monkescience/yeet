@@ -1,0 +1,1 @@
+repository resolution failed: provider host is not trusted: "github.example" does not match git remote host "other.example"

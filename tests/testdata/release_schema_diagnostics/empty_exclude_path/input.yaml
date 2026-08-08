@@ -1,0 +1,8 @@
+provider: github
+branch: main
+targets:
+  api:
+    type: path
+    path: api
+    exclude_paths: [""]
+    tag_prefix: api/v
