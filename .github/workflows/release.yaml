@@ -36,6 +36,7 @@ jobs:
           client-id: ${{ vars.YEET_APP_ID }}
           private-key: ${{ secrets.YEET_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Run yeet release
         run: go run ./cmd/yeet --verbose release
