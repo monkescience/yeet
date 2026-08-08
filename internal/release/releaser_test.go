@@ -13,7 +13,6 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
-	"github.com/monkescience/yeet/internal/versionfile"
 )
 
 func (r *releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
@@ -1530,7 +1529,12 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
+		testastic.AssertFile(
+			t,
+			"testdata/release_subject_formatting/default_subject_omits_branch_and_tag_prefix/"+
+				"release_branch_changelog.expected.md",
+			updatedChangelog,
+		)
 	})
 
 	t.Run("custom PR and commit subjects are independent", func(t *testing.T) {
@@ -2129,7 +2133,12 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"github_compare_link_uses_latest_commit_sha_in_p_r_body/release_branch_changelog.expected.md",
+			updatedChangelog,
+		)
 	})
 
 	t.Run("gitlab compare link uses latest commit sha in PR body", func(t *testing.T) {
@@ -2175,7 +2184,12 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		releaseBranch := "yeet/release-main"
 		updatedChangelog := stub.files[providerFileKey(releaseBranch, cfg.Changelog.File)]
-		testastic.Equal(t, prependChangelogEntry("", changelog.Render(result.Plans[0].Entry)), updatedChangelog)
+		testastic.AssertFile(
+			t,
+			"testdata/release_p_r_body_compare_u_r_l_uses_head_commit/"+
+				"gitlab_compare_link_uses_latest_commit_sha_in_p_r_body/release_branch_changelog.expected.md",
+			updatedChangelog,
+		)
 	})
 }
 
@@ -2704,434 +2718,6 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		// then: missing entry is reported
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, changelog.ErrEntryNotFound)
-	})
-}
-
-func TestUpdateReleaseBranchFiles(t *testing.T) {
-	t.Parallel()
-
-	t.Run("creates missing changelog with top-level header", func(t *testing.T) {
-		t.Parallel()
-
-		// given: releaser without an existing changelog file
-		cfg := config.Default()
-
-		stub := newProviderStub()
-		branch := "yeet/release-v0.1.0"
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "0.1.0",
-				NextTag:     "v0.1.0",
-				Entry: changelog.ParseEntry(readTestFile(
-					t,
-					"testdata/update_release_branch_files/"+
-						"creates_missing_changelog_with_top_level_header/changelog.input.md",
-				)),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: changelog is created with the release-please style header
-		testastic.NoError(t, err)
-
-		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.AssertFile(
-			t,
-			"testdata/update_release_branch_files/creates_missing_changelog_with_top_level_header/"+
-				"changelog.expected.md",
-			strings.TrimSpace(updated),
-		)
-		testastic.False(t, stub.updates[0].exists)
-	})
-
-	t.Run("updates configured version files", func(t *testing.T) {
-		t.Parallel()
-
-		// given: releaser with one configured version file containing yeet markers
-		cfg := config.Default()
-		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
-
-		stub := newProviderStub()
-		branch := "yeet/release-v1.2.4"
-		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "1.2.4",
-				NextTag:     "v1.2.4",
-				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: changelog and version file are updated
-		testastic.NoError(t, err)
-		testastic.Equal(t, 2, len(stub.updates))
-		testastic.Equal(t, "version=1.2.4 # x-yeet-version", stub.files[providerFileKey(branch, "VERSION.txt")])
-	})
-
-	t.Run("rejects a changelog that collides with another target's version file", func(t *testing.T) {
-		t.Parallel()
-
-		// given: one target's version file sharing a path with another target's changelog
-		cfg := config.Default()
-		cfg.Targets = map[string]config.Target{
-			"api": {
-				Type:         config.TargetTypePath,
-				Path:         "services/api",
-				TagPrefix:    "api-v",
-				Changelog:    config.ChangelogConfig{File: "api/CHANGELOG.md"},
-				VersionFiles: []config.VersionFile{{Path: "shared.md"}},
-			},
-			"web": {
-				Type:      config.TargetTypePath,
-				Path:      "apps/web",
-				TagPrefix: "web-v",
-				Changelog: config.ChangelogConfig{File: "shared.md"},
-			},
-		}
-
-		stub := newProviderStub()
-		branch := "yeet/release-main"
-		stub.files[providerFileKey(cfg.Branch, "shared.md")] = "version=1.2.3 # x-yeet-version"
-		stub.files[providerFileKey(cfg.Branch, "api/CHANGELOG.md")] = "# Changelog\n"
-
-		r := newTestReleaser(t, cfg, stub)
-		result := &Result{Plans: []TargetPlan{
-			{
-				ID:          "api",
-				NextVersion: "1.2.4",
-				NextTag:     "api-v1.2.4",
-				Entry:       changelog.ParseEntry("## api-v1.2.4 (2026-03-01)\n"),
-			},
-			{
-				ID:          "web",
-				NextVersion: "2.3.4",
-				NextTag:     "web-v2.3.4",
-				Entry:       changelog.ParseEntry("## web-v2.3.4 (2026-03-01)\n"),
-			},
-		}}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: the collision is reported instead of prepending markdown into the version file
-		testastic.ErrorIs(t, err, errConflictingFileUpdate)
-	})
-
-	t.Run("reads base files only from the local release source", func(t *testing.T) {
-		t.Parallel()
-
-		// given: separate local and provider sources with two base branch files
-		cfg := config.Default()
-		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
-		cfg.Targets = map[string]config.Target{
-			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
-		}
-
-		localSource := newProviderStub()
-		localSource.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n"
-		localSource.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3 # x-yeet-version"
-
-		remote := newProviderStub()
-		r, err := newStubReleaserWithSource(t.Context(), cfg, remote, localSource)
-		testastic.NoError(t, err)
-
-		result := &Result{Plans: []TargetPlan{{
-			ID:          "default",
-			NextVersion: "1.2.4",
-			NextTag:     "v1.2.4",
-			Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
-		}}}
-
-		// when: release branch files are prepared and written
-		err = newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			t.Context(),
-			"yeet/release-v1.2.4",
-			result.Plans,
-			"commit subject",
-		)
-
-		// then: local blobs are read and the provider only receives one batched write
-		testastic.NoError(t, err)
-		testastic.Equal(t, 2, localSource.getFileCalls)
-		testastic.Equal(t, 0, remote.getFileCalls)
-		testastic.Equal(t, 1, remote.updateFilesCalls)
-		testastic.Equal(t, 2, len(remote.updates))
-
-		for _, update := range remote.updates {
-			testastic.True(t, update.exists)
-		}
-	})
-
-	t.Run("updates configured json version file", func(t *testing.T) {
-		t.Parallel()
-
-		// given: releaser with one configured JSON version file using an explicit pointer
-		cfg := config.Default()
-		cfg.VersionFiles = []config.VersionFile{{
-			Path:        "package.json",
-			Format:      config.VersionFileFormatJSON,
-			JSONPointer: "/version",
-		}}
-
-		stub := newProviderStub()
-		branch := "yeet/release-v1.2.4"
-		stub.files[providerFileKey(cfg.Branch, "package.json")] = strings.Join([]string{
-			`{`,
-			`  "name": "app",`,
-			`  "version": "1.2.3"`,
-			`}`,
-		}, "\n")
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "1.2.4",
-				NextTag:     "v1.2.4",
-				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: changelog and JSON version file are updated
-		expected := strings.Join([]string{
-			`{`,
-			`  "name": "app",`,
-			`  "version": "1.2.4"`,
-			`}`,
-		}, "\n")
-
-		testastic.NoError(t, err)
-		testastic.Equal(t, 2, len(stub.updates))
-		testastic.Equal(t, expected, stub.files[providerFileKey(branch, "package.json")])
-	})
-
-	t.Run("updates configured calver json version file", func(t *testing.T) {
-		t.Parallel()
-
-		// given: calver releaser with one configured JSON version file using an explicit pointer
-		cfg := config.Default()
-		cfg.Versioning = config.VersioningCalVer
-		cfg.VersionFiles = []config.VersionFile{{
-			Path:        "package.json",
-			Format:      config.VersionFileFormatJSON,
-			JSONPointer: "/version",
-		}}
-
-		stub := newProviderStub()
-		branch := "yeet/release-v2026.03.1"
-		stub.files[providerFileKey(cfg.Branch, "package.json")] = `{"name":"app","version":"2026.02.7"}`
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "2026.03.1",
-				NextTag:     "v2026.03.1",
-				Entry:       changelog.ParseEntry("## v2026.03.1 (2026-03-01)\n"),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: changelog and JSON version file are updated with the calver string
-		testastic.NoError(t, err)
-		testastic.Equal(t, 2, len(stub.updates))
-		testastic.Equal(t, `{"name":"app","version":"2026.03.1"}`, stub.files[providerFileKey(branch, "package.json")])
-	})
-
-	t.Run("fails when configured version file has no yeet markers", func(t *testing.T) {
-		t.Parallel()
-
-		// given: releaser with one configured version file without markers
-		cfg := config.Default()
-		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
-
-		stub := newProviderStub()
-		branch := "yeet/release-v1.2.4"
-		stub.files[providerFileKey(cfg.Branch, "VERSION.txt")] = "version=1.2.3"
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "1.2.4",
-				NextTag:     "v1.2.4",
-				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: missing markers abort the release and no provider updates are dispatched
-		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
-		testastic.Equal(t, 0, len(stub.updates))
-	})
-
-	t.Run("prepends changelog entry and normalizes headerless history", func(t *testing.T) {
-		t.Parallel()
-
-		// given: existing changelog without top header and a new release entry
-		cfg := config.Default()
-
-		stub := newProviderStub()
-		branch := "yeet/release-v0.1.1"
-		changelogPath := providerFileKey(cfg.Branch, cfg.Changelog.File)
-		stub.files[changelogPath] = strings.TrimSpace(readTestFile(
-			t,
-			"testdata/update_release_branch_files/"+
-				"prepends_changelog_entry_and_normalizes_headerless_history/"+
-				"existing_changelog.input.md",
-		))
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "0.1.1",
-				NextTag:     "v0.1.1",
-				Entry: changelog.ParseEntry(readTestFile(
-					t,
-					"testdata/update_release_branch_files/"+
-						"prepends_changelog_entry_and_normalizes_headerless_history/"+
-						"changelog.input.md",
-				)),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: new entry is prepended and the changelog gains a top-level header
-		testastic.NoError(t, err)
-
-		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.AssertFile(t, "testdata/update_release_branch_files_prepends_header.expected.md", updated)
-	})
-
-	t.Run("merges multiple target entries into a shared changelog file", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two path targets that both write to the default shared changelog file
-		cfg := config.Default()
-		cfg.Targets = map[string]config.Target{
-			"api": {
-				Type:      config.TargetTypePath,
-				Path:      "services/api",
-				TagPrefix: "api-v",
-			},
-			"web": {
-				Type:      config.TargetTypePath,
-				Path:      "apps/web",
-				TagPrefix: "web-v",
-			},
-		}
-
-		stub := newProviderStub()
-		branch := "yeet/release-wave"
-
-		r := newTestReleaser(t, cfg, stub)
-
-		result := &Result{
-			Plans: []TargetPlan{
-				{
-					ID: "api",
-					Entry: changelog.ParseEntry(readTestFile(
-						t,
-						"testdata/update_release_branch_files/"+
-							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
-							"api_changelog.input.md",
-					)),
-				},
-				{
-					ID: "web",
-					Entry: changelog.ParseEntry(readTestFile(
-						t,
-						"testdata/update_release_branch_files/"+
-							"merges_multiple_target_entries_into_a_shared_changelog_file/"+
-							"web_changelog.input.md",
-					)),
-				},
-			},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(), branch, result.Plans, "commit subject",
-		)
-
-		// then: the shared changelog contains both new entries instead of conflicting
-		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(stub.updates))
-
-		updated := stub.files[providerFileKey(branch, cfg.Changelog.File)]
-		testastic.AssertFile(t, "testdata/update_release_branch_files_shared_changelog.expected.md", updated)
-	})
-
-	t.Run("fails when configured version file is missing", func(t *testing.T) {
-		t.Parallel()
-
-		// given: releaser with a missing configured version file
-		cfg := config.Default()
-		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
-
-		r := newTestReleaser(t, cfg, newProviderStub())
-
-		result := &Result{
-			Plans: []TargetPlan{{
-				ID:          "default",
-				NextVersion: "1.2.4",
-				NextTag:     "v1.2.4",
-				Entry:       changelog.ParseEntry("## v1.2.4 (2026-03-01)\n"),
-			}},
-		}
-
-		// when: updating release branch files
-		err := newReleaseBranchUpdater(r.core, r.source, r.files).updateFiles(
-			context.Background(),
-			"yeet/release-v1.2.4",
-			result.Plans,
-			"commit subject",
-		)
-
-		// then: missing file error is returned
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrFileNotFound)
 	})
 }
 

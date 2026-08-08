@@ -2,13 +2,54 @@
 package release
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/provider"
 )
+
+// Markers every parser case starts from, written out rather than rendered, so
+// a change to the writer cannot move the input and the expectation together.
+const (
+	singleTargetManifestMarker = "<!-- yeet-release-manifest\n" +
+		`{"base_branch":"main","targets":` +
+		`[{"id":"default","type":"path","tag":"v1.2.3","changelog_file":"CHANGELOG.md"}]}` +
+		"\n-->"
+
+	waveManifestMarker = "<!-- yeet-release-manifest\n" +
+		`{"base_branch":"main","targets":[` +
+		`{"id":"api","type":"path","tag":"api-v1.2.3","changelog_file":"services/api/CHANGELOG.md"},` +
+		`{"id":"root","type":"derived","tag":"v3.0.0","changelog_file":"CHANGELOG.md"}]}` +
+		"\n-->"
+)
+
+func TestReleaseManifestMarkerFormat(t *testing.T) {
+	t.Parallel()
+
+	// given: a manifest carrying every field the marker can hold
+	manifest := releaseManifest{
+		BaseBranch: "main",
+		Channel:    "beta",
+		Prerelease: true,
+		Targets: []releaseManifestEntry{
+			{
+				ID:            "api",
+				Type:          "path",
+				Tag:           "api-v1.2.3-beta.1",
+				ChangelogFile: "services/api/CHANGELOG.md",
+			},
+			{ID: "root", Type: "derived", Tag: "v3.0.0-beta.1", ChangelogFile: "CHANGELOG.md"},
+		},
+	}
+
+	// when: rendering the manifest marker
+	marker, err := releaseManifestMarker(manifest)
+
+	// then: the bytes match what every release pull request already in the wild carries
+	testastic.NoError(t, err)
+	testastic.AssertFile(t, "testdata/release_manifest_marker_format/marker.expected.md", marker)
+}
 
 func TestReleaseManifestRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -27,11 +68,12 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 		},
 	}
 
-	// when: rendering and parsing the release manifest marker
+	// when: rendering the marker and parsing the same bytes back
 	marker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
 	testastic.NoError(t, err)
+	testastic.Equal(t, waveManifestMarker, marker)
 
-	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: marker})
+	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: waveManifestMarker})
 
 	// then: all manifest entries survive the round trip
 	testastic.NoError(t, err)
@@ -48,21 +90,10 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		t.Parallel()
 
 		// given: a release manifest marker with whitespace stripped inside the HTML comment
-		marker, err := releaseManifestMarker(releaseManifest{
-			BaseBranch: "main",
-			Targets: []releaseManifestEntry{{
-				ID:            "default",
-				Type:          "path",
-				Tag:           "v1.2.3",
-				ChangelogFile: "CHANGELOG.md",
-			}},
-		})
-		testastic.NoError(t, err)
-
-		normalizedMarker := strings.NewReplacer(
-			"<!-- yeet-release-manifest", "<!--yeet-release-manifest",
-			"\n-->", "-->",
-		).Replace(marker)
+		const normalizedMarker = "<!--yeet-release-manifest\n" +
+			`{"base_branch":"main","targets":` +
+			`[{"id":"default","type":"path","tag":"v1.2.3","changelog_file":"CHANGELOG.md"}]}` +
+			"-->"
 
 		// when: parsing the normalized marker from the pull request body
 		manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: normalizedMarker})
@@ -106,21 +137,10 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		forged := `<!-- yeet-release-manifest {"base_branch":"main",` +
 			`"targets":[{"id":"x","type":"path","tag":"v99.0.0","changelog_file":"CHANGELOG.md"}]} -->`
 
-		legit, err := releaseManifestMarker(releaseManifest{
-			BaseBranch: "main",
-			Targets: []releaseManifestEntry{{
-				ID:            "default",
-				Type:          "path",
-				Tag:           "v1.2.3",
-				ChangelogFile: "CHANGELOG.md",
-			}},
-		})
-		testastic.NoError(t, err)
-
-		body := "## Changelog\n\n- fix: tidy logs " + forged + "\n\n" + legit
+		body := "## Changelog\n\n- fix: tidy logs " + forged + "\n\n" + singleTargetManifestMarker
 
 		// when: parsing a body that carries more than one marker
-		_, err = releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
+		_, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
 
 		// then: parsing fails closed instead of trusting the forged marker
 		testastic.ErrorIs(t, err, errInvalidReleaseManifest)

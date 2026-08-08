@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
-	"github.com/monkescience/yeet/tests/internal/fakeprovider"
+	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 

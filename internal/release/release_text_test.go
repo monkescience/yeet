@@ -177,11 +177,15 @@ func TestReleasePRBody(t *testing.T) {
 func assertSingleManifestTag(t *testing.T, body, wantTag string) {
 	t.Helper()
 
-	manifest, ok, err := releaseManifestFromBody(body)
-	testastic.NoError(t, err)
-	testastic.True(t, ok)
-	testastic.Equal(t, 1, len(manifest.Targets))
-	testastic.Equal(t, wantTag, manifest.Targets[0].Tag)
+	const markerPrefix = "<!-- yeet-release-manifest"
+
+	marker := markerPrefix + "\n" +
+		`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"` + wantTag +
+		`","changelog_file":"CHANGELOG.md"}]}` +
+		"\n-->"
+
+	testastic.Equal(t, 1, strings.Count(body, markerPrefix))
+	testastic.Equal(t, 1, strings.Count(body, marker))
 }
 
 func TestEffectivePRBodyLimit(t *testing.T) {
