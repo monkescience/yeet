@@ -255,6 +255,8 @@ func mergeBlockedRemediation(reason provider.MergeBlockedReason) string {
 	case provider.MergeBlockedReasonMethod:
 		return "merge blocked by merge method. Enable the requested method in the forge settings, " +
 			"or choose another --auto-merge-method"
+	case provider.MergeBlockedReasonFailure:
+		return "merge failed at the provider. Resolve the reported provider failure before retrying"
 	case provider.MergeBlockedReasonUnknown:
 		return mergeBlockedReadinessRemediation
 	default:

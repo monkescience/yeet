@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -842,6 +843,101 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 	testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
 	testastic.Equal(t, "", mergeSHA)
 	testastic.Equal(t, int32(0), polls.Load())
+}
+
+func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name        string
+		mergeStatus string
+		message     string
+		reason      provider.MergeBlockedReason
+	}{
+		{
+			name:        "policy rejection",
+			mergeStatus: "rejectedByPolicy",
+			message:     "the merge was rejected by a branch policy",
+			reason:      provider.MergeBlockedReasonPolicy,
+		},
+		{
+			name:        "conflicts",
+			mergeStatus: "conflicts",
+			message:     "the source branch conflicts with the target branch",
+			reason:      provider.MergeBlockedReasonConflicts,
+		},
+		{
+			name:        "provider failure",
+			mergeStatus: "failure",
+			message:     "the provider could not create the merge commit",
+			reason:      provider.MergeBlockedReasonFailure,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: Azure queues completion and reports a terminal refusal on the next read
+			var completed atomic.Bool
+
+			var polls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if handleAzureDevOpsBootstrap(t, w, r) {
+					return
+				}
+
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+					if completed.Load() {
+						polls.Add(1)
+						writeJSON(t, w, map[string]any{
+							"pullRequestId":       42,
+							"status":              "active",
+							"mergeStatus":         testCase.mergeStatus,
+							"mergeFailureMessage": testCase.message,
+						})
+
+						return
+					}
+
+					writeJSON(t, w, azureDevOpsMergeablePRResponse())
+				case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+					completed.Store(true)
+					writeJSON(t, w, map[string]any{
+						"pullRequestId": 42,
+						"status":        "active",
+						"mergeStatus":   "queued",
+					})
+				default:
+					t.Errorf("unexpected Azure DevOps request: %s %s", r.Method, r.URL.String())
+				}
+			}))
+			defer server.Close()
+
+			p := newAzureDevOpsContractProvider(
+				t,
+				server,
+				provider.WithMergePolling(time.Millisecond, 50*time.Millisecond),
+			)
+
+			// when: MergeReleasePR polls a completion that Azure later refuses
+			mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+				Method: provider.MergeMethodSquash,
+			})
+
+			// then: the terminal refusal is preserved instead of becoming a polling timeout
+			var blocked *provider.MergeBlockedError
+			if !errors.As(err, &blocked) {
+				t.Fatalf("expected MergeBlockedError, got %v", err)
+			}
+
+			testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+			testastic.Equal(t, string(testCase.reason), string(blocked.Reason))
+			testastic.Equal(t, "was refused: "+testCase.message, blocked.Detail)
+			testastic.Equal(t, "", mergeSHA)
+			testastic.Equal(t, int32(1), polls.Load())
+		})
+	}
 }
 
 func TestGitLabUpdateFiles(t *testing.T) {

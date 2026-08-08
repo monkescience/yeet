@@ -241,6 +241,7 @@ const (
 	MergeBlockedReasonClosed    MergeBlockedReason = "closed"
 	MergeBlockedReasonPolicy    MergeBlockedReason = "policy"
 	MergeBlockedReasonMethod    MergeBlockedReason = "method"
+	MergeBlockedReasonFailure   MergeBlockedReason = "failure"
 	MergeBlockedReasonUnknown   MergeBlockedReason = "unknown"
 )
 

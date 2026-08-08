@@ -214,4 +214,33 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		testastic.Equal(t, 2, forge.stateCalls)
 		testastic.Equal(t, 1, forge.executeCalls)
 	})
+
+	t.Run("a terminal refusal stops polling", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a forge that accepts the merge and later reports a terminal failure
+		refused := mergeableState()
+		refused.Refusal = &mergeRefusal{
+			reason: MergeBlockedReasonFailure,
+			detail: "was refused: provider failure",
+		}
+
+		forge := &fakeForgeMerge{states: []mergeState{mergeableState(), refused}}
+
+		// when: the merge driver polls the accepted merge
+		mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+
+		// then: the normalized refusal is returned after one read
+		var blocked *MergeBlockedError
+		if !errors.As(err, &blocked) {
+			t.Fatalf("expected MergeBlockedError, got %v", err)
+		}
+
+		testastic.ErrorIs(t, err, ErrMergeBlocked)
+		testastic.Equal(t, string(MergeBlockedReasonFailure), string(blocked.Reason))
+		testastic.Equal(t, "was refused: provider failure", blocked.Detail)
+		testastic.Equal(t, "", mergeSHA)
+		testastic.Equal(t, 2, forge.stateCalls)
+		testastic.Equal(t, 1, forge.executeCalls)
+	})
 }

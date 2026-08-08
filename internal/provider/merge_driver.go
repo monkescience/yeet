@@ -27,6 +27,12 @@ type mergeState struct {
 	HasConflicts     bool
 	ReadinessBlocked bool
 	SameRepository   bool
+	Refusal          *mergeRefusal
+}
+
+type mergeRefusal struct {
+	reason MergeBlockedReason
+	detail string
 }
 
 // forgeMerge is the per-forge half of the merge path: normalising the forge's
@@ -96,6 +102,8 @@ func (d mergeDriver) awaitMergeCommit(ctx context.Context, reference string) (st
 		// Readiness is deliberately absent here: a forge that accepted a merge
 		// under --auto-merge-force still reports the policy it was told to skip.
 		switch {
+		case current.Refusal != nil:
+			return "", blockedMerge(reference, current.Refusal.reason, current.Refusal.detail)
 		case current.IsMerged:
 			return current.MergeCommitSHA, nil
 		case current.IsClosedUnmerged:

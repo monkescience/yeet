@@ -383,17 +383,14 @@ func (m *azureDevOpsMerge) execute(ctx context.Context, current mergeState, meth
 		return mergeSHA, false, nil
 	}
 
-	if refusal := azureDevOpsCompletionRefusal(current.Reference, merged); refusal != nil {
-		return "", false, refusal
+	if refusal := azureDevOpsMergeRefusal(merged); refusal != nil {
+		return "", false, blockedMerge(current.Reference, refusal.reason, refusal.detail)
 	}
 
 	return "", true, nil
 }
 
-// azureDevOpsCompletionRefusal reads the merge status Azure DevOps already puts
-// on the completion response, so a refused merge is reported at once instead of
-// being polled until the wait budget runs out.
-func azureDevOpsCompletionRefusal(reference string, pullRequest *git.GitPullRequest) error {
+func azureDevOpsMergeRefusal(pullRequest *git.GitPullRequest) *mergeRefusal {
 	if pullRequest == nil {
 		return nil
 	}
@@ -410,7 +407,7 @@ func azureDevOpsCompletionRefusal(reference string, pullRequest *git.GitPullRequ
 		detail = "merge_status=" + mergeStatus
 	}
 
-	return blockedMerge(reference, reason, "was refused: "+detail)
+	return &mergeRefusal{reason: reason, detail: "was refused: " + detail}
 }
 
 func azureDevOpsMergeRefusalReason(mergeStatus string) (MergeBlockedReason, bool) {
@@ -420,7 +417,7 @@ func azureDevOpsMergeRefusalReason(mergeStatus string) (MergeBlockedReason, bool
 	case string(git.PullRequestAsyncStatusValues.RejectedByPolicy):
 		return MergeBlockedReasonPolicy, true
 	case string(git.PullRequestAsyncStatusValues.Failure):
-		return MergeBlockedReasonUnknown, true
+		return MergeBlockedReasonFailure, true
 	default:
 		return MergeBlockedReasonUnknown, false
 	}
@@ -444,6 +441,7 @@ func (a *AzureDevOps) azureDevOpsMergeState(number int, pullRequest *git.GitPull
 		HasConflicts:     azureDevOpsMergeStatusConflicted(mergeStatus),
 		ReadinessBlocked: azureDevOpsMergeStatusReadinessBlocked(mergeStatus),
 		SameRepository:   pullRequest.ForkSource == nil && a.isConfiguredRepository(pullRequest.Repository),
+		Refusal:          azureDevOpsMergeRefusal(pullRequest),
 	}
 }
 

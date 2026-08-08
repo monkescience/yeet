@@ -346,6 +346,12 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 					"release PR merge blocked: pull request #42 has conflicts",
 			},
 			{
+				name:   "provider failure",
+				reason: provider.MergeBlockedReasonFailure,
+				expected: "release execution failed: merge failed at the provider. Resolve the reported provider " +
+					"failure before retrying: release PR merge blocked: pull request #42 has conflicts",
+			},
+			{
 				name:   "unknown",
 				reason: provider.MergeBlockedReasonUnknown,
 				expected: "release execution failed: merge blocked. Resolve pull request or merge request " +
@@ -357,11 +363,14 @@ func TestWrapReleaseExecutionError(t *testing.T) {
 				t.Parallel()
 
 				// given: an auto-merge attempt the forge refused for a known reason
-				err := wrapReleaseExecutionError(&provider.MergeBlockedError{
+				blockedErr := &provider.MergeBlockedError{
 					Reference: "pull request #42",
 					Reason:    testCase.reason,
 					Detail:    "has conflicts",
-				})
+				}
+
+				// when: the execution error is wrapped for CLI output
+				err := wrapReleaseExecutionError(blockedErr)
 
 				// then: the top-level message names the action that clears this reason
 				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
