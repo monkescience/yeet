@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,6 +31,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 	var reviewersRequested atomic.Bool
 
 	var mergeAccepted atomic.Bool
+
+	var tagPages atomic.Int32
 
 	if scenario == providerContractCreateReleasePRReviewers {
 		t.Cleanup(func() {
@@ -60,9 +63,17 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractFindOpenPRs:
 			handleGitHubFindOpenPRsContract(t, w, r)
 		case providerContractFindOpenPRsUnlabeled:
-			handleGitHubFindOpenPRsFixtureContract(t, w, r, "find_open_prs_unlabeled")
+			handleGitHubFindOpenPRsListContract(t, w, r, []map[string]any{gitHubOpenPRResponse(
+				providerContractPRNumber,
+				providerContractPendingBranch,
+				[]string{testReleaseLabelPending},
+			)})
 		case providerContractFindOpenPRsAdoptable:
-			handleGitHubFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
+			handleGitHubFindOpenPRsListContract(t, w, r, []map[string]any{gitHubOpenPRResponse(
+				providerContractPRNumber,
+				providerContractPendingBranch,
+				nil,
+			)})
 		case providerContractFindMergedPR:
 			handleGitHubFindMergedPRContract(t, w, r)
 		case providerContractMarkReleasePR:
@@ -89,6 +100,18 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubBlockedMergeContract(t, w, r)
 		case providerContractUnsupportedMerge:
 			handleGitHubUnsupportedMergeContract(t, w, r)
+		case providerContractMissingExtraLabel:
+			handleGitHubExtraLabelLookupContract(t, w, r, providerContractMissingExtraLabelName, http.StatusNotFound)
+		case providerContractUnreachableExtraLabel:
+			handleGitHubExtraLabelLookupContract(
+				t, w, r,
+				providerContractUnreachableLabelName,
+				http.StatusInternalServerError,
+			)
+		case providerContractTagPaginationLimit:
+			handleGitHubTagPaginationLimitContract(t, w, r, &tagPages)
+		case providerContractForcedMergeUntrusted:
+			handleGitHubForcedMergeUntrustedContract(t, w, r)
 		default:
 			t.Fatalf("unhandled GitHub contract scenario: %s", scenario)
 		}
@@ -99,7 +122,7 @@ func handleGitHubListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/tags" {
-		writeJSONFixture(t, w, "contracts/github/list_tags/tags.json")
+		writeJSON(t, w, gitHubTagsResponse())
 
 		return
 	}
@@ -111,7 +134,7 @@ func handleGitHubBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/"+providerContractBaseBranch {
-		writeJSONFixture(t, w, "contracts/github/branch_head/commit.json")
+		writeJSON(t, w, gitHubSHAResponse(providerContractHeadSHA))
 
 		return
 	}
@@ -124,7 +147,7 @@ func handleGitHubBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, 
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/missing-branch" {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		writeJSON(t, w, gitHubNotFoundResponse())
 
 		return
 	}
@@ -136,7 +159,7 @@ func handleGitHubGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r 
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/tags/"+providerContractTag {
-		writeJSONFixture(t, w, "contracts/github/get_release_by_tag/release.json")
+		writeJSON(t, w, gitHubReleaseResponse())
 
 		return
 	}
@@ -165,7 +188,7 @@ func handleGitHubCreateReleasePRContract(t *testing.T, w http.ResponseWriter, r 
 	testastic.Equal(t, providerContractReleaseBranch, request.Head)
 	testastic.Equal(t, providerContractBaseBranch, request.Base)
 
-	writeJSONFixture(t, w, "contracts/github/create_release_pr/response.json")
+	writeJSON(t, w, gitHubReleasePRResponse(providerContractReleaseBody))
 }
 
 func handleGitHubCreateReleasePRReviewersContract(
@@ -185,7 +208,7 @@ func handleGitHubCreateReleasePRReviewersContract(
 
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls":
-		writeJSONFixture(t, w, "contracts/github/create_release_pr/response.json")
+		writeJSON(t, w, gitHubReleasePRResponse(providerContractReleaseBody))
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls/42/requested_reviewers":
 		var request struct {
 			Reviewers []string `json:"reviewers"`
@@ -197,7 +220,7 @@ func handleGitHubCreateReleasePRReviewersContract(
 			request.Reviewers,
 		)
 		reviewersRequested.Store(true)
-		writeJSONFixture(t, w, "contracts/github/create_release_pr/response.json")
+		writeJSON(t, w, gitHubReleasePRResponse(providerContractReleaseBody))
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -224,10 +247,10 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/collaborators/"+providerContractReviewerAlice:
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls":
-			writeJSONFixture(t, w, "contracts/github/create_release_pr/response.json")
+			writeJSON(t, w, gitHubReleasePRResponse(providerContractReleaseBody))
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls/42/requested_reviewers":
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			writeJSONFixture(t, w, "contracts/github/unknown_reviewer/error.json")
+			writeJSON(t, w, gitHubReviewerRefusalResponse())
 		default:
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
@@ -272,7 +295,7 @@ func handleGitHubUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r 
 	testastic.Equal(t, providerContractReleaseTitle, request.Title)
 	testastic.Equal(t, "updated release body", request.Body)
 
-	writeJSONFixture(t, w, "contracts/github/update_release_pr/response.json")
+	writeJSON(t, w, gitHubReleasePRResponse(providerContractUpdatedReleaseBody))
 }
 
 func handleGitHubFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -281,7 +304,7 @@ func handleGitHubFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls" {
 		testastic.Equal(t, "open", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("base"))
-		writeJSONFixture(t, w, "contracts/github/find_open_prs/prs.json")
+		writeJSON(t, w, gitHubOpenPRsResponse())
 
 		return
 	}
@@ -289,11 +312,16 @@ func handleGitHubFindOpenPRsContract(t *testing.T, w http.ResponseWriter, r *htt
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
-func handleGitHubFindOpenPRsFixtureContract(t *testing.T, w http.ResponseWriter, r *http.Request, dir string) {
+func handleGitHubFindOpenPRsListContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	prs []map[string]any,
+) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls" {
-		writeJSONFixture(t, w, "contracts/github/"+dir+"/prs.json")
+		writeJSON(t, w, prs)
 
 		return
 	}
@@ -310,9 +338,9 @@ func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 			`repo:o/r is:pr is:merged base:main label:"release: waiting"`,
 			r.URL.Query().Get("q"),
 		)
-		writeJSONFixture(t, w, "contracts/github/find_merged_pr/prs.json")
+		writeJSON(t, w, gitHubSearchIssuesResponse(map[string]any{"number": providerContractPRNumber}))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
-		writeJSONFixture(t, w, "contracts/github/find_merged_pr/pr.json")
+		writeJSON(t, w, gitHubMergedPRResponse())
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -353,9 +381,9 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
-		writeJSONFixture(t, w, "contracts/github/merge_release_pr/pr.json")
+		writeJSON(t, w, gitHubMergeStatePRResponse("clean"))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
-		writeJSONFixture(t, w, "contracts/github/merge_release_pr/repo.json")
+		writeJSON(t, w, gitHubSquashOnlyRepoResponse())
 	case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
 		var request struct {
 			MergeMethod string `json:"merge_method"`
@@ -364,7 +392,7 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, string(provider.MergeMethodSquash), request.MergeMethod)
 		testastic.Equal(t, providerContractHeadSHA, request.SHA)
-		writeJSONFixture(t, w, "contracts/github/merge_release_pr/result.json")
+		writeJSON(t, w, gitHubMergeResultResponse())
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -393,9 +421,9 @@ func handleGitHubAsyncMergeReleasePRContract(
 			return
 		}
 
-		writeJSONFixture(t, w, "contracts/github/merge_release_pr/pr.json")
+		writeJSON(t, w, gitHubMergeStatePRResponse("clean"))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
-		writeJSONFixture(t, w, "contracts/github/merge_release_pr/repo.json")
+		writeJSON(t, w, gitHubSquashOnlyRepoResponse())
 	case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
 		mergeAccepted.Store(true)
 		writeJSON(t, w, map[string]any{"merged": true, "sha": ""})
@@ -409,9 +437,9 @@ func handleGitHubCreateBranchContract(t *testing.T, w http.ResponseWriter, r *ht
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
-		writeJSONFixture(t, w, "contracts/github/create_branch/base_ref.json")
+		writeJSON(t, w, gitHubRefResponse("refs/heads/"+providerContractBaseBranch, gitHubContractBaseRefSHA, "commit"))
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
-		writeJSONFixture(t, w, "contracts/github/create_branch/created_ref.json")
+		writeJSON(t, w, gitHubRefResponse("refs/heads/"+providerContractReleaseBranch, gitHubContractBaseRefSHA, "commit"))
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -423,11 +451,11 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		writeJSON(t, w, gitHubNotFoundResponse())
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractBaseBranch:
-		writeJSONFixture(t, w, "contracts/github/create_release/commit_ref.json")
+		writeJSON(t, w, gitHubSHAResponse(providerContractHeadSHA))
 	case r.Method == http.MethodGet && r.URL.Path == "/user":
-		writeJSONFixture(t, w, "contracts/github/create_release/user.json")
+		writeJSON(t, w, gitHubUserResponse())
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/tags":
 		var request struct {
 			Tag     string `json:"tag"`
@@ -440,7 +468,7 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 		testastic.Equal(t, "release notes", request.Message)
 		testastic.Equal(t, providerContractHeadSHA, request.Object)
 		testastic.Equal(t, "commit", request.Type)
-		writeJSONFixture(t, w, "contracts/github/create_release/tag_object.json")
+		writeJSON(t, w, gitHubTagObjectResponse())
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
 		var request struct {
 			Ref string `json:"ref"`
@@ -448,7 +476,7 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 		}
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, "refs/tags/"+providerContractTag, request.Ref)
-		writeJSONFixture(t, w, "contracts/github/create_release/tag_ref.json")
+		writeJSON(t, w, gitHubRefResponse("refs/tags/"+providerContractTag, gitHubContractTagObjectSHA, "tag"))
 	case isGitHubCreateReleaseRequest(r):
 		var request struct {
 			TagName         string `json:"tag_name"`
@@ -463,7 +491,7 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 		testastic.Equal(t, providerContractTag, request.Name)
 		testastic.Equal(t, "release notes", request.Body)
 		testastic.True(t, request.Prerelease)
-		writeJSONFixture(t, w, "contracts/github/create_release/release.json")
+		writeJSON(t, w, gitHubCreatedReleaseResponse())
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -474,7 +502,7 @@ func handleGitHubGetFileContract(t *testing.T, w http.ResponseWriter, r *http.Re
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/contents/CHANGELOG.md" {
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("ref"))
-		writeJSONFixture(t, w, "contracts/github/get_file/file.json")
+		writeJSON(t, w, gitHubFileResponse("CHANGELOG.md", providerContractChangelogContent))
 
 		return
 	}
@@ -487,17 +515,17 @@ func handleGitHubUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
-		writeJSONFixture(t, w, "contracts/github/update_files/base_ref.json")
+		writeJSON(t, w, gitHubRefResponse("refs/heads/"+providerContractBaseBranch, gitHubContractBaseRefSHA, "commit"))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/base-ref-sha":
-		writeJSONFixture(t, w, "contracts/github/update_files/base_commit.json")
+		writeJSON(t, w, gitHubBaseCommitResponse())
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
-		writeJSONFixture(t, w, "contracts/github/update_files/tree.json")
+		writeJSON(t, w, gitHubSHAResponse(gitHubContractNewTreeSHA))
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/commits":
-		writeJSONFixture(t, w, "contracts/github/update_files/commit.json")
+		writeJSON(t, w, gitHubSHAResponse(gitHubContractNewCommitSHA))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/release-main":
 		http.NotFound(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
-		writeJSONFixture(t, w, "contracts/github/update_files/create_ref.json")
+		writeJSON(t, w, gitHubRefResponse("refs/heads/"+providerContractReleaseBranch, gitHubContractNewCommitSHA, "commit"))
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
@@ -508,7 +536,7 @@ func handleGitHubMissingFileContract(t *testing.T, w http.ResponseWriter, r *htt
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/contents/MISSING.md" {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		writeJSON(t, w, gitHubNotFoundResponse())
 
 		return
 	}
@@ -521,7 +549,7 @@ func handleGitHubMissingReleaseContract(t *testing.T, w http.ResponseWriter, r *
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/releases/tags/"+providerContractTag {
 		w.WriteHeader(http.StatusNotFound)
-		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		writeJSON(t, w, gitHubNotFoundResponse())
 
 		return
 	}
@@ -533,7 +561,7 @@ func handleGitHubMissingPRContract(t *testing.T, w http.ResponseWriter, r *http.
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/search/issues" {
-		writeJSONFixture(t, w, "contracts/github/missing_pr/prs.json")
+		writeJSON(t, w, gitHubSearchIssuesResponse())
 
 		return
 	}
@@ -545,7 +573,7 @@ func handleGitHubBlockedMergeContract(t *testing.T, w http.ResponseWriter, r *ht
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42" {
-		writeJSONFixture(t, w, "contracts/github/blocked_merge/pr.json")
+		writeJSON(t, w, gitHubMergeStatePRResponse("blocked"))
 
 		return
 	}
@@ -558,10 +586,72 @@ func handleGitHubUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
-		writeJSONFixture(t, w, "contracts/github/unsupported_merge/pr.json")
+		writeJSON(t, w, gitHubMergeStatePRResponse("clean"))
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
-		writeJSONFixture(t, w, "contracts/github/unsupported_merge/repo.json")
+		writeJSON(t, w, gitHubSquashOnlyRepoResponse())
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
+}
+
+func handleGitHubExtraLabelLookupContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	label string,
+	status int,
+) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && decodedPathTail(t, r) == label {
+		w.WriteHeader(status)
+		writeJSON(t, w, gitHubNotFoundResponse())
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubTagPaginationLimitContract(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	pages *atomic.Int32,
+) {
+	t.Helper()
+
+	if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/tags" {
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+
+		return
+	}
+
+	page := pages.Add(1)
+	w.Header().Set(
+		"Link",
+		fmt.Sprintf(`<http://%s/repos/o/r/tags?per_page=100&page=%d>; rel="next"`, r.Host, page+1),
+	)
+	writeJSON(t, w, []map[string]any{{
+		"name":   fmt.Sprintf("v0.0.%d", page),
+		"commit": map[string]any{"sha": fmt.Sprintf("sha-%d", page)},
+	}})
+}
+
+func handleGitHubForcedMergeUntrustedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42" {
+		pr := gitHubMergeStatePRResponse("clean")
+		pr["head"] = map[string]any{
+			"sha":  providerContractHeadSHA,
+			"ref":  providerContractPendingBranch,
+			"repo": map[string]any{"full_name": gitHubContractForkFullName},
+		}
+		writeJSON(t, w, pr)
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }

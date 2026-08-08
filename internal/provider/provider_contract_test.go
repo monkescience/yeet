@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +31,7 @@ type providerContractHarness struct {
 	expectedReleaseURL    func(serverURL string) string
 	expectedReviewerError string
 	expectedPathPrefix    string
+	preflightsExtraLabels bool
 }
 
 type providerContractScenario string
@@ -67,20 +69,43 @@ const (
 	providerContractMissingPR                providerContractScenario = "missing pr"
 	providerContractBlockedMerge             providerContractScenario = "blocked merge"
 	providerContractUnsupportedMerge         providerContractScenario = "unsupported merge"
+	providerContractMissingExtraLabel        providerContractScenario = "missing extra label"
+	providerContractUnreachableExtraLabel    providerContractScenario = "unreachable extra label"
+	providerContractTagPaginationLimit       providerContractScenario = "tag pagination limit"
+	providerContractForcedMergeUntrusted     providerContractScenario = "forced merge untrusted"
+	providerContractMissingExtraLabelName                             = "missing"
+	providerContractUnreachableLabelName                              = "flaky"
 	providerContractReleaseTitle                                      = "chore: release v1.2.3"
 	providerContractReleaseBody                                       = "release body"
+	providerContractUpdatedReleaseBody                                = "updated release body"
+	providerContractReleaseNotes                                      = "release notes"
+	providerContractChangelogContent                                  = "# Changelog\n"
 	providerContractReleaseBranch                                     = "release-main"
 	providerContractPendingBranch                                     = "yeet/release-main"
+	providerContractLookalikeBranch                                   = "yeet/release-main-attacker"
+	providerContractFeatureBranch                                     = "feature/work"
 	providerContractPendingLabel                                      = "release: waiting"
 	providerContractTaggedLabel                                       = "release: complete"
 	providerContractBaseBranch                                        = "main"
 	providerContractTag                                               = "v1.2.3"
 	providerContractTagCommitSHA                                      = "tag-commit-123"
+	providerContractPreviousTag                                       = "v1.2.2"
+	providerContractPreviousTagCommitSHA                              = "tag-commit-122"
 	providerContractHeadSHA                                           = "head-sha"
 	providerContractMergeSHA                                          = "merge-sha"
 	providerContractReviewerAlice                                     = "alice"
 	providerContractReviewerBob                                       = "bob"
 	providerContractUnknownReviewerName                               = "ghost"
+	providerContractPRNumber                                          = 42
+	providerContractForgedPRNumber                                    = 66
+	providerContractLookalikePRNumber                                 = 67
+	providerContractFeaturePRNumber                                   = 7
+	providerContractForgedTitle                                       = "forged release"
+	providerContractLookalikeTitle                                    = "lookalike release branch"
+	providerContractFeatureTitle                                      = "feature work"
+	providerContractUntrustedBody                                     = "untrusted body"
+	providerContractReleasePRURL                                      = "https://example.com/pulls/42"
+	providerContractReleaseURL                                        = "https://example.com/releases/v1.2.3"
 )
 
 func TestProviderContract(t *testing.T) {
@@ -605,6 +630,99 @@ func TestProviderContract(t *testing.T) {
 				testastic.Error(t, err)
 				testastic.ErrorIs(t, err, provider.ErrMergeMethodUnsupported)
 			})
+
+			t.Run("rejects a configured extra label the forge does not have", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server without the configured extra label
+				server := httptest.NewServer(harness.handler(t, providerContractMissingExtraLabel))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: release labels are prepared with an extra label that does not exist
+				err := p.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+					Pending: providerContractPendingLabel,
+					Tagged:  providerContractTaggedLabel,
+					Extra:   []string{providerContractMissingExtraLabelName},
+				})
+
+				// then: forges with a label registry fail preflight, and Azure DevOps
+				// has none to check the extra label against
+				if !harness.preflightsExtraLabels {
+					testastic.NoError(t, err)
+
+					return
+				}
+
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+			})
+
+			t.Run("separates an unreachable extra label from a missing one", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server that fails the extra label lookup
+				server := httptest.NewServer(harness.handler(t, providerContractUnreachableExtraLabel))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: release labels are prepared with an extra label the forge cannot report on
+				err := p.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+					Pending: providerContractPendingLabel,
+					Tagged:  providerContractTaggedLabel,
+					Extra:   []string{providerContractUnreachableLabelName},
+				})
+
+				// then: an unreachable label is never reported as one the operator must create
+				if !harness.preflightsExtraLabels {
+					testastic.NoError(t, err)
+
+					return
+				}
+
+				testastic.Error(t, err)
+				testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+				testastic.ErrorContains(t, err, `get label "`+providerContractUnreachableLabelName+`"`)
+			})
+
+			t.Run("stops listing tags at the pagination limit", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server that always announces another page of tags
+				server := httptest.NewServer(harness.handler(t, providerContractTagPaginationLimit))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: tag refs are listed from an effectively infinite repository
+				_, err := p.ListTagRefs(context.Background())
+
+				// then: the pagination limit is enforced instead of looping forever
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
+			})
+
+			t.Run("refuses an untrusted release pull request even when merge checks are bypassed", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a PR on the release branch from another repository
+				server := httptest.NewServer(harness.handler(t, providerContractForcedMergeUntrusted))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+					BypassMergeChecks: true,
+				})
+
+				// then: the trust check refuses the merge and no commit is reported
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
+				testastic.Equal(t, "", mergeSHA)
+			})
 		})
 	}
 }
@@ -616,20 +734,22 @@ func providerContractHarnesses() []providerContractHarness {
 			newProvider:           newGitHubContractProvider,
 			handler:               newGitHubContractHandler,
 			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL:  func(_ string) string { return "https://example.com/pulls/42" },
-			expectedReleaseURL:    func(_ string) string { return "https://example.com/releases/v1.2.3" },
+			expectedReleasePRURL:  func(_ string) string { return providerContractReleasePRURL },
+			expectedReleaseURL:    func(_ string) string { return providerContractReleaseURL },
 			expectedReviewerError: `reviewer not found: "ghost" is not a repository collaborator`,
 			expectedPathPrefix:    "",
+			preflightsExtraLabels: true,
 		},
 		{
 			name:                  "gitlab",
 			newProvider:           newGitLabContractProvider,
 			handler:               newGitLabContractHandler,
 			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL:  func(_ string) string { return "https://example.com/pulls/42" },
-			expectedReleaseURL:    func(_ string) string { return "https://example.com/releases/v1.2.3" },
+			expectedReleasePRURL:  func(_ string) string { return providerContractReleasePRURL },
+			expectedReleaseURL:    func(_ string) string { return providerContractReleaseURL },
 			expectedReviewerError: `reviewer not found: "ghost" is not a project member`,
 			expectedPathPrefix:    "/-",
+			preflightsExtraLabels: true,
 		},
 		{
 			name:                 "azuredevops",
@@ -660,11 +780,13 @@ func writeJSONFixture(t *testing.T, w http.ResponseWriter, name string) {
 	writeFixture(t, w, name)
 }
 
-func writeTextFixture(t *testing.T, w http.ResponseWriter, name string) {
+func writeText(t *testing.T, w http.ResponseWriter, content string) {
 	t.Helper()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	writeFixture(t, w, name)
+
+	_, err := io.WriteString(w, content)
+	testastic.NoError(t, err)
 }
 
 func writeFixture(t *testing.T, w http.ResponseWriter, name string) {

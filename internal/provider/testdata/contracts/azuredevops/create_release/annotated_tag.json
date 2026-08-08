@@ -1,9 +1,0 @@
-{
-  "name": "v1.2.3",
-  "objectId": "new-tag-object",
-  "message": "release notes",
-  "url": "https://example.com/releases/v1.2.3",
-  "taggedObject": {
-    "objectId": "head-sha"
-  }
-}

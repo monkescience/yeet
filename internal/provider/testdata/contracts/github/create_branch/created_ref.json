@@ -1,7 +1,0 @@
-{
-  "ref": "refs/heads/release-main",
-  "object": {
-    "sha": "base-ref-sha",
-    "type": "commit"
-  }
-}

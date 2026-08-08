@@ -1,9 +1,0 @@
-{
-  "number": 42,
-  "title": "chore: release v1.2.3",
-  "body": "updated release body",
-  "html_url": "https://example.com/pulls/42",
-  "head": {
-    "ref": "release-main"
-  }
-}

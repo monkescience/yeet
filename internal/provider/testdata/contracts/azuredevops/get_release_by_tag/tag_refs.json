@@ -1,9 +1,0 @@
-{
-  "count": 1,
-  "value": [
-    {
-      "name": "refs/tags/v1.2.3",
-      "objectId": "tag-object-123"
-    }
-  ]
-}

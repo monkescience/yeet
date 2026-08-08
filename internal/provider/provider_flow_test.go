@@ -3,7 +3,6 @@ package provider_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -65,170 +64,6 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		// then: only the pending label is added
 		testastic.NoError(t, err)
 		testastic.SliceEqual(t, []string{testReleaseLabelPending}, addLabels)
-	})
-
-	t.Run("marks pull request tagged", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub server that records label additions and deletions for PR 7
-		var addLabels []string
-
-		removedLabel := ""
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
-			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/7/labels":
-				err := json.NewDecoder(r.Body).Decode(&addLabels)
-				testastic.NoError(t, err)
-
-				writeJSON(t, w, []map[string]any{{"name": testReleaseLabelTagged}})
-			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/7/labels/"):
-				removedLabel = decodedPathTail(t, r)
-
-				w.WriteHeader(http.StatusNoContent)
-			default:
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		client := newGitHubTestClient(t, server)
-
-		gh := provider.NewGitHub(client, "o", "r")
-
-		// when: MarkReleasePRTagged is invoked for PR 7
-		err := gh.MarkReleasePRTagged(context.Background(), 7, defaultReleasePRLabels())
-
-		// then: the tagged label is added and the pending label is removed
-		testastic.NoError(t, err)
-		testastic.Equal(t, testReleaseLabelTagged, strings.Join(addLabels, ","))
-		testastic.Equal(t, testReleaseLabelPending, removedLabel)
-	})
-}
-
-func TestReleasePRLabelPreflightRejectsMissingExtraLabel(t *testing.T) {
-	t.Parallel()
-
-	t.Run("github", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository without the configured extra label
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && decodedPathTail(t, r) == "missing" {
-				http.NotFound(w, r)
-
-				return
-			}
-
-			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-		}))
-		defer server.Close()
-
-		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
-
-		// when: preparing release labels
-		err := gh.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
-			Pending: "pending",
-			Tagged:  "tagged",
-			Extra:   []string{"missing"},
-		})
-
-		// then: the missing extra label fails preflight before lifecycle labels are created
-		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
-	})
-
-	t.Run("gitlab", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab project without the configured extra label
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && decodedPathTail(t, r) == "missing" {
-				http.NotFound(w, r)
-
-				return
-			}
-
-			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-		}))
-		defer server.Close()
-
-		gl := newGitLabProvider(t, server)
-
-		// when: preparing release labels
-		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
-			Pending: "pending",
-			Tagged:  "tagged",
-			Extra:   []string{"missing"},
-		})
-
-		// then: the missing extra label fails preflight before lifecycle labels are created
-		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
-	})
-}
-
-func TestReleasePRLabelPreflightSeparatesLookupFailures(t *testing.T) {
-	t.Parallel()
-
-	t.Run("github", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitHub repository that fails the extra label lookup
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && decodedPathTail(t, r) == "flaky" {
-				http.Error(w, "server error", http.StatusInternalServerError)
-
-				return
-			}
-
-			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-		}))
-		defer server.Close()
-
-		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
-
-		// when: preparing release labels
-		err := gh.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
-			Pending: "pending",
-			Tagged:  "tagged",
-			Extra:   []string{"flaky"},
-		})
-
-		// then: an unreachable label is not reported as a label the operator must create
-		testastic.Error(t, err)
-		testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
-		testastic.ErrorContains(t, err, `get label "flaky"`)
-	})
-
-	t.Run("gitlab", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab project that fails the extra label lookup
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && decodedPathTail(t, r) == "flaky" {
-				http.Error(w, "server error", http.StatusInternalServerError)
-
-				return
-			}
-
-			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-		}))
-		defer server.Close()
-
-		gl := newGitLabProvider(t, server)
-
-		// when: preparing release labels
-		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
-			Pending: "pending",
-			Tagged:  "tagged",
-			Extra:   []string{"flaky"},
-		})
-
-		// then: an unreachable label is not reported as a label the operator must create
-		testastic.Error(t, err)
-		testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
-		testastic.ErrorContains(t, err, `get label "flaky"`)
 	})
 }
 
@@ -464,40 +299,6 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
 	})
-
-	t.Run("rejects fork release pull request even with force enabled", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a fork pull request using the expected release branch and a force merge request
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls/42" {
-				t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-			}
-
-			writeJSON(t, w, map[string]any{
-				"number":          42,
-				"state":           "open",
-				"mergeable_state": "clean",
-				"head": map[string]any{
-					"sha":  "attacker-sha",
-					"ref":  "yeet/release-main",
-					"repo": map[string]any{"full_name": "attacker/r"},
-				},
-				"base": map[string]any{"ref": "main"},
-			})
-		}))
-		defer server.Close()
-
-		gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
-
-		// when: forcing the fork pull request merge
-		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-			BypassMergeChecks: true,
-		})
-
-		// then: source repository verification blocks the merge
-		testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
-	})
 }
 
 func TestGitHubUpdateFiles(t *testing.T) {
@@ -627,41 +428,6 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		// then: only the pending label is added
 		testastic.NoError(t, err)
 		testastic.Equal(t, testReleaseLabelPending, updateRequest.AddLabels)
-	})
-
-	t.Run("marks merge request tagged", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a GitLab server that records label add and remove fields on MR 5 updates
-		var updateRequest struct {
-			AddLabels    string `json:"add_labels"`
-			RemoveLabels string `json:"remove_labels"`
-		}
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
-			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/5":
-				err := json.NewDecoder(r.Body).Decode(&updateRequest)
-				testastic.NoError(t, err)
-
-				writeJSON(t, w, map[string]any{"iid": 5})
-			default:
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-		}))
-		defer server.Close()
-
-		gl := newGitLabProvider(t, server)
-
-		// when: MarkReleasePRTagged is invoked for MR 5
-		err := gl.MarkReleasePRTagged(context.Background(), 5, defaultReleasePRLabels())
-
-		// then: the tagged label is added and the pending label is removed
-		testastic.NoError(t, err)
-		testastic.Equal(t, testReleaseLabelTagged, updateRequest.AddLabels)
-		testastic.Equal(t, testReleaseLabelPending, updateRequest.RemoveLabels)
 	})
 }
 
@@ -802,37 +568,6 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "head-sha", mergeRequest.SHA)
 		testastic.True(t, mergeRequest.Squash)
-	})
-
-	t.Run("rejects cross-project release merge request even with force enabled", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a cross-project merge request using the expected release branch
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests/8" {
-				t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-			}
-
-			writeJSON(t, w, map[string]any{
-				"iid":               8,
-				"state":             "opened",
-				"source_branch":     "yeet/release-main",
-				"target_branch":     "main",
-				"source_project_id": 11,
-				"target_project_id": 10,
-			})
-		}))
-		defer server.Close()
-
-		gl := newGitLabProvider(t, server)
-
-		// when: forcing the cross-project merge request
-		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
-			BypassMergeChecks: true,
-		})
-
-		// then: source project verification blocks the merge
-		testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
 	})
 }
 

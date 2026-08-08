@@ -1,8 +1,0 @@
-{
-  "pullRequestId": 42,
-  "status": "completed",
-  "mergeStatus": "succeeded",
-  "lastMergeCommit": {
-    "commitId": "merge-sha"
-  }
-}
