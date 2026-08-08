@@ -5,12 +5,13 @@ publishes releases.
 
 ## Host trust
 
-A custom `host` in `repository.<provider>.host` receives the API token only when it matches the host
-of the git remote the repository is cloned from. If they differ, yeet refuses to send the token and
-fails, so a config committed to the repository cannot redirect the token to another server. To point
-the API at a different host on purpose (for example a separate API domain), set the provider's `*_URL`
-environment variable (`GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`). That trusts the host of the
-URL you supply, so the configured `host` must match it.
+A repository host is trusted when it is a recognized public provider host, matches the host of the
+git remote, or matches the host of the provider's `*_URL` environment variable. This prevents a
+custom `host` committed to the repository from redirecting the API token on its own.
+
+Setting `GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL` overrides the API endpoint after repository
+resolution, including when the configured repository uses a public provider host. Treat these
+variables as trusted operator input because yeet sends the provider token to the URL they specify.
 
 ## GitHub
 
