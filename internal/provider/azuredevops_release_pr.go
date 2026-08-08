@@ -169,7 +169,7 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 
 	for _, pr := range prs {
 		branch := azureDevOpsRefToBranch(derefString(pr.SourceRefName))
-		if !isTrustedAzureDevOpsReleasePR(&pr, baseBranch) {
+		if !a.isTrustedReleasePR(&pr, baseBranch) {
 			continue
 		}
 
@@ -219,7 +219,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 	}
 
 	for _, pr := range prs {
-		if !isTrustedAzureDevOpsReleasePR(&pr, baseBranch) {
+		if !a.isTrustedReleasePR(&pr, baseBranch) {
 			continue
 		}
 
@@ -234,7 +234,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 			return nil, err
 		}
 
-		if !isTrustedAzureDevOpsReleasePR(full, baseBranch) {
+		if !a.isTrustedReleasePR(full, baseBranch) {
 			continue
 		}
 
@@ -330,7 +330,7 @@ func (a *AzureDevOps) MergeReleasePR(ctx context.Context, number int, opts Merge
 	}
 
 	baseBranch := azureDevOpsRefToBranch(derefString(pr.TargetRefName))
-	if !isTrustedAzureDevOpsReleasePR(pr, baseBranch) {
+	if !a.isTrustedReleasePR(pr, baseBranch) {
 		return "", fmt.Errorf("%w: pull request !%d", ErrUntrustedReleasePR, number)
 	}
 
@@ -422,14 +422,31 @@ func (a *AzureDevOps) awaitMergeCommit(ctx context.Context, number int) (string,
 	})
 }
 
-func isTrustedAzureDevOpsReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
+func (a *AzureDevOps) isTrustedReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
 	if pullRequest == nil || pullRequest.ForkSource != nil {
 		return false
 	}
 
 	sourceBranch := azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName))
 
-	return isExpectedReleaseBranch(sourceBranch, baseBranch)
+	return isExpectedReleaseBranch(sourceBranch, baseBranch) &&
+		a.isConfiguredRepository(pullRequest.Repository)
+}
+
+// Azure DevOps addresses a repository by either name or id, so the configured
+// value is compared against both.
+func (a *AzureDevOps) isConfiguredRepository(repository *git.GitRepository) bool {
+	configured := strings.TrimSpace(a.repo)
+	if repository == nil || configured == "" {
+		return false
+	}
+
+	name := strings.TrimSpace(derefString(repository.Name))
+	if name != "" && strings.EqualFold(name, configured) {
+		return true
+	}
+
+	return repository.Id != nil && strings.EqualFold(repository.Id.String(), configured)
 }
 
 func validateAzureDevOpsPullRequestForMerge(
@@ -598,7 +615,8 @@ func (a *AzureDevOps) getPullRequest(ctx context.Context, number int) (*git.GitP
 		return nil, err
 	}
 
-	pr, err := gitClient.GetPullRequestById(ctx, git.GetPullRequestByIdArgs{
+	pr, err := gitClient.GetPullRequest(ctx, git.GetPullRequestArgs{
+		RepositoryId:  &a.repo,
 		Project:       &a.project,
 		PullRequestId: &number,
 	})

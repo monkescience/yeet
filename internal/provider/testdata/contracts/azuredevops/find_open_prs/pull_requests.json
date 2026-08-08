@@ -3,6 +3,9 @@
   "value": [
     {
       "pullRequestId": 42,
+      "repository": {
+        "name": "contoso-repo"
+      },
       "title": "chore: release v1.2.3",
       "description": "release body",
       "url": "https://example.com/pulls/42",
@@ -18,6 +21,9 @@
     },
     {
       "pullRequestId": 66,
+      "repository": {
+        "name": "contoso-repo"
+      },
       "title": "forged release",
       "description": "untrusted body",
       "url": "https://example.com/pulls/66",
@@ -38,6 +44,9 @@
     },
     {
       "pullRequestId": 67,
+      "repository": {
+        "name": "contoso-repo"
+      },
       "title": "lookalike release branch",
       "description": "untrusted body",
       "url": "https://example.com/pulls/67",

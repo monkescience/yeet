@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -49,26 +50,48 @@ func TestTrustedAzureDevOpsReleasePR(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		repo        string
 		pullRequest *git.GitPullRequest
 		trusted     bool
 	}{
 		{
 			name: "accepts exact same-repository release branch",
+			repo: "yeet",
 			pullRequest: &git.GitPullRequest{
 				SourceRefName: new("refs/heads/yeet/release-main"),
+				Repository:    &git.GitRepository{Name: new("yeet")},
 			},
 			trusted: true,
 		},
 		{
+			name: "rejects another repository",
+			repo: "yeet",
+			pullRequest: &git.GitPullRequest{
+				SourceRefName: new("refs/heads/yeet/release-main"),
+				Repository:    &git.GitRepository{Name: new("yeet-attacker")},
+			},
+		},
+		{
+			name: "rejects missing repository",
+			repo: "yeet",
+			pullRequest: &git.GitPullRequest{
+				SourceRefName: new("refs/heads/yeet/release-main"),
+			},
+		},
+		{
 			name: "rejects lookalike release branch",
+			repo: "yeet",
 			pullRequest: &git.GitPullRequest{
 				SourceRefName: new("refs/heads/yeet/release-main-attacker"),
+				Repository:    &git.GitRepository{Name: new("yeet")},
 			},
 		},
 		{
 			name: "rejects fork release branch",
+			repo: "yeet",
 			pullRequest: &git.GitPullRequest{
 				SourceRefName: new("refs/heads/yeet/release-main"),
+				Repository:    &git.GitRepository{Name: new("yeet")},
 				ForkSource:    &git.GitForkRef{},
 			},
 		},
@@ -80,14 +103,53 @@ func TestTrustedAzureDevOpsReleasePR(t *testing.T) {
 
 			// given: an Azure DevOps pull request candidate
 			pullRequest := test.pullRequest
+			azureDevOpsProvider := NewAzureDevOps(
+				nil,
+				"https://dev.azure.com",
+				"pat-token",
+				"platform",
+				"platform",
+				"release-tools",
+				test.repo,
+			)
 
 			// when: checking the candidate against the configured base branch
-			trusted := isTrustedAzureDevOpsReleasePR(pullRequest, "main")
+			trusted := azureDevOpsProvider.isTrustedReleasePR(pullRequest, "main")
 
 			// then: only the exact same-repository release branch is trusted
 			testastic.Equal(t, test.trusted, trusted)
 		})
 	}
+}
+
+func TestTrustedAzureDevOpsReleasePRMatchesRepositoryConfiguredByID(t *testing.T) {
+	t.Parallel()
+
+	const repositoryID = "3f7c1b0e-4a2d-4c1e-9f3a-6b5d8e2a1c40"
+
+	// given: a pull request payload carrying the repository id
+	var pullRequest git.GitPullRequest
+
+	testastic.NoError(t, json.Unmarshal([]byte(`{
+		"sourceRefName": "refs/heads/yeet/release-main",
+		"repository": {"id": "`+repositoryID+`", "name": "yeet"}
+	}`), &pullRequest))
+
+	azureDevOpsProvider := NewAzureDevOps(
+		nil,
+		"https://dev.azure.com",
+		"pat-token",
+		"platform",
+		"platform",
+		"release-tools",
+		strings.ToUpper(repositoryID),
+	)
+
+	// when: checking the candidate against a provider configured with that id
+	trusted := azureDevOpsProvider.isTrustedReleasePR(&pullRequest, "main")
+
+	// then: the repository matches regardless of the configured id casing
+	testastic.Equal(t, true, trusted)
 }
 
 func TestAzureDevOpsPullRequestWebURL(t *testing.T) {

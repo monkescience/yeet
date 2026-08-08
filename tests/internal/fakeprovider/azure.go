@@ -390,19 +390,6 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 			w.WriteHeader(http.StatusNoContent)
 		},
 	)
-
-	mux.HandleFunc(
-		"GET /"+opts.Organization+"/"+opts.Project+"/_apis/git/pullRequests/{id}",
-		func(w http.ResponseWriter, _ *http.Request) {
-			if opts.MergedPendingRelease || merged.Load() {
-				writeJSON(w, azureMergedPendingPR(opts))
-
-				return
-			}
-
-			writeJSON(w, azureFakePR(opts))
-		},
-	)
 }
 
 func registerAzureWrite(mux *http.ServeMux, repoAPI string, opts AzureOptions) {
@@ -562,6 +549,7 @@ func azurePRBase(opts AzureOptions, id int, status string, draft, completed bool
 		"status":        status,
 		"sourceRefName": "refs/heads/" + fakeReleaseBranch,
 		"targetRefName": "refs/heads/" + fakeBaseBranch,
+		"repository":    map[string]any{gitlabKeyName: opts.Repo},
 		"url":           fmt.Sprintf("%s/pullrequest/%d", prefix, id),
 		"isDraft":       draft,
 		"mergeStatus":   "succeeded",

@@ -35,14 +35,10 @@ func azureDevOpsContractRepoAPI(suffix string) string {
 	)
 }
 
-// azureDevOpsContractPullRequestAPI returns the project-scoped PR API path used
-// by GetPullRequestById, which is not repo-scoped in the SDK route table.
+// azureDevOpsContractPullRequestAPI returns the repo-scoped single pull request
+// API path used by GetPullRequest.
 func azureDevOpsContractPullRequestAPI() string {
-	return fmt.Sprintf(
-		"/%s/%s/_apis/git/pullRequests/42",
-		azureDevOpsContractOrg,
-		azureDevOpsContractProject,
-	)
+	return azureDevOpsContractRepoAPI("pullRequests/42")
 }
 
 func azureDevOpsContractFixture(parts ...string) string {
@@ -210,6 +206,7 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 				"isDraft":       false,
 				"sourceRefName": "refs/heads/yeet/release-main",
 				"targetRefName": "refs/heads/main",
+				"repository":    map[string]any{"name": azureDevOpsContractRepo},
 				"lastMergeSourceCommit": map[string]any{
 					"commitId": "source-sha",
 				},
@@ -285,6 +282,64 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 	testastic.ErrorIs(t, err, provider.ErrMergeNotFinalized)
 }
 
+func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *testing.T) {
+	t.Parallel()
+
+	pullRequest := map[string]any{
+		"pullRequestId": 42,
+		"status":        "active",
+		"mergeStatus":   "succeeded",
+		"isDraft":       false,
+		"sourceRefName": "refs/heads/yeet/release-main",
+		"targetRefName": "refs/heads/main",
+		"repository": map[string]any{
+			"id":   "00000000-0000-0000-0000-0000000000ff",
+			"name": "attacker-repo",
+		},
+		"lastMergeSourceCommit": map[string]any{"commitId": "attacker-source-sha"},
+	}
+
+	var completionAttempts atomic.Int32
+
+	// given: a pull request that belongs to a repository yeet is not configured for
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			writeJSON(t, w, pullRequest)
+		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			completionAttempts.Add(1)
+
+			writeJSON(t, w, map[string]any{
+				"pullRequestId":   42,
+				"status":          "completed",
+				"mergeStatus":     "succeeded",
+				"lastMergeCommit": map[string]any{"commitId": "attacker-sha"},
+			})
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+	// when: the foreign pull request is submitted for completion
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		Method: provider.MergeMethodSquash,
+	})
+
+	// then: it is refused as untrusted before any completion is attempted
+	testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, int32(0), completionAttempts.Load())
+}
+
 func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 	t.Parallel()
 
@@ -294,6 +349,7 @@ func TestAzureDevOpsFindMergedReleasePRRejectsQueuedCommit(t *testing.T) {
 		"mergeStatus":   "queued",
 		"sourceRefName": "refs/heads/yeet/release-main",
 		"targetRefName": "refs/heads/main",
+		"repository":    map[string]any{"name": azureDevOpsContractRepo},
 		"lastMergeCommit": map[string]any{
 			"commitId": "preview-sha",
 		},
@@ -347,6 +403,7 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 		"status":        "completed",
 		"sourceRefName": "refs/heads/yeet/release-main",
 		"targetRefName": "refs/heads/main",
+		"repository":    map[string]any{"name": azureDevOpsContractRepo},
 		"lastMergeSourceCommit": map[string]any{
 			"commitId": "source-sha",
 		},
