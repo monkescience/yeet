@@ -37,6 +37,19 @@ func gitHubTagsResponse() []map[string]any {
 	}
 }
 
+func gitHubTagsPageTwoResponse() []map[string]any {
+	return []map[string]any{
+		{
+			"name":   providerContractOlderTag,
+			"commit": map[string]any{"sha": providerContractOlderTagCommitSHA},
+		},
+		{
+			"name":   providerContractOldestTag,
+			"commit": map[string]any{"sha": providerContractOldestTagCommitSHA},
+		},
+	}
+}
+
 func gitHubSHAResponse(sha string) map[string]any {
 	return map[string]any{"sha": sha}
 }

@@ -49,6 +49,21 @@ func azureDevOpsTagRefsResponse() map[string]any {
 	)
 }
 
+func azureDevOpsTagRefsPageTwoResponse() map[string]any {
+	return azureDevOpsListResponse(
+		map[string]any{
+			"name":           "refs/tags/" + providerContractOlderTag,
+			"objectId":       "tag-object-110",
+			"peeledObjectId": providerContractOlderTagCommitSHA,
+		},
+		map[string]any{
+			"name":           "refs/tags/" + providerContractOldestTag,
+			"objectId":       "tag-object-100",
+			"peeledObjectId": providerContractOldestTagCommitSHA,
+		},
+	)
+}
+
 func azureDevOpsReleaseBranchRefUpdateResponse(oldObjectID string) map[string]any {
 	return azureDevOpsListResponse(map[string]any{
 		"name":         "refs/heads/" + providerContractReleaseBranch,

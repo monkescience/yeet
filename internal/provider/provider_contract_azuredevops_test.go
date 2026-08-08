@@ -828,6 +828,8 @@ func newAzureDevOpsScenarioHandler(
 	switch scenario {
 	case providerContractListTags:
 		return azureDevOpsListTagsHandler(t)
+	case providerContractListTagsPaged:
+		return azureDevOpsListTagsPagedHandler(t)
 	case providerContractBranchHead:
 		return azureDevOpsBranchHeadHandler(t)
 	case providerContractBranchHeadMissing:
@@ -942,6 +944,27 @@ func azureDevOpsListTagsHandler(t *testing.T) http.HandlerFunc {
 		}
 
 		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func azureDevOpsListTagsPagedHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isAzureDevOpsRefsRequest(r, "tags/") {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		if r.URL.Query().Get("continuationToken") == azureDevOpsContractRefContinuationToken {
+			writeJSON(t, w, azureDevOpsTagRefsPageTwoResponse())
+
+			return
+		}
+
+		w.Header().Set("x-ms-continuationtoken", azureDevOpsContractRefContinuationToken)
+		writeJSON(t, w, azureDevOpsTagRefsResponse())
 	}
 }
 

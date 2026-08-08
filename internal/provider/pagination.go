@@ -63,7 +63,7 @@ func paginateByCursor[T any, C comparable](
 		cursor = nextCursor
 	}
 
-	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
+	return paginationLimitExceeded(resource)
 }
 
 // paginateAzureDevOpsBySkip walks Azure DevOps $skip/$top APIs. After the page
@@ -120,5 +120,9 @@ func paginateAzureDevOpsBySkip[T any](
 		return nil
 	}
 
+	return paginationLimitExceeded(resource)
+}
+
+func paginationLimitExceeded(resource string) error {
 	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
 }

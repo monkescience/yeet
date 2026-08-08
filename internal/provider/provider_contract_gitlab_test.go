@@ -44,6 +44,8 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 		switch scenario {
 		case providerContractListTags:
 			handleGitLabListTagsContract(t, w, r)
+		case providerContractListTagsPaged:
+			handleGitLabListTagsPagedContract(t, w, r)
 		case providerContractBranchHead:
 			handleGitLabBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
@@ -150,6 +152,25 @@ func handleGitLabListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func handleGitLabListTagsPagedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/repository/tags" {
+		fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+		return
+	}
+
+	if r.URL.Query().Get("page") == "2" {
+		writeJSON(t, w, gitLabTagsPageTwoResponse())
+
+		return
+	}
+
+	w.Header().Set("X-Next-Page", "2")
+	writeJSON(t, w, gitLabTagsResponse())
 }
 
 func handleGitLabGetReleaseByTagContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

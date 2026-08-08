@@ -26,6 +26,19 @@ func gitLabTagsResponse() []map[string]any {
 	}
 }
 
+func gitLabTagsPageTwoResponse() []map[string]any {
+	return []map[string]any{
+		{
+			"name":   providerContractOlderTag,
+			"commit": map[string]any{"id": providerContractOlderTagCommitSHA},
+		},
+		{
+			"name":   providerContractOldestTag,
+			"commit": map[string]any{"id": providerContractOldestTagCommitSHA},
+		},
+	}
+}
+
 func gitLabBranchResponse(name, sha string) map[string]any {
 	return map[string]any{
 		"name":   name,

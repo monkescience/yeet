@@ -13,36 +13,9 @@ import (
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "github: listing tags")
 
-	options := &github.ListOptions{PerPage: gitHubPageSize}
-	refs := make([]TagRef, 0)
-
-	err := paginate(ctx, "listing tags",
-		func(page int) ([]*github.RepositoryTag, int, error) {
-			options.Page = page
-
-			pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
-			if err != nil {
-				return nil, 0, fmt.Errorf("list tags: %w", err)
-			}
-
-			return pageTags, gitHubNextPage(resp), nil
-		},
-		func(tag *github.RepositoryTag) (bool, error) {
-			name := strings.TrimSpace(tag.GetName())
-			if name == "" {
-				return false, nil
-			}
-
-			commitHash := strings.TrimSpace(tag.GetCommit().GetSHA())
-			if commitHash == "" {
-				return false, fmt.Errorf("%w: tag %q", ErrEmptyCommitSHA, name)
-			}
-
-			refs = append(refs, TagRef{Name: name, CommitSHA: commitHash})
-
-			return false, nil
-		},
-	)
+	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *github.RepositoryTag) (string, string, bool) {
+		return tag.GetName(), tag.GetCommit().GetSHA(), true
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +40,24 @@ func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, erro
 	}
 
 	return sha, nil
+}
+
+func (g *GitHub) tagPages(ctx context.Context, handle func(*github.RepositoryTag) (bool, error)) error {
+	options := &github.ListOptions{PerPage: gitHubPageSize}
+
+	return paginate(ctx, "listing tags",
+		func(page int) ([]*github.RepositoryTag, int, error) {
+			options.Page = page
+
+			pageTags, resp, err := g.client.Repositories.ListTags(ctx, g.repo.Owner, g.repo.Name, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list tags: %w", err)
+			}
+
+			return pageTags, gitHubNextPage(resp), nil
+		},
+		handle,
+	)
 }
 
 func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {

@@ -44,8 +44,18 @@ func defaultReleasePRLabels() provider.ReleasePRLabels {
 	}
 }
 
+func providerContractPagedTagRefs() []provider.TagRef {
+	return []provider.TagRef{
+		{Name: providerContractTag, CommitSHA: providerContractTagCommitSHA},
+		{Name: providerContractPreviousTag, CommitSHA: providerContractPreviousTagCommitSHA},
+		{Name: providerContractOlderTag, CommitSHA: providerContractOlderTagCommitSHA},
+		{Name: providerContractOldestTag, CommitSHA: providerContractOldestTagCommitSHA},
+	}
+}
+
 const (
 	providerContractListTags                 providerContractScenario = "list tags"
+	providerContractListTagsPaged            providerContractScenario = "list tags paged"
 	providerContractBranchHead               providerContractScenario = "branch head"
 	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
 	providerContractGetReleaseByTag          providerContractScenario = "get release by tag"
@@ -92,6 +102,10 @@ const (
 	providerContractTagCommitSHA                                      = "tag-commit-123"
 	providerContractPreviousTag                                       = "v1.2.2"
 	providerContractPreviousTagCommitSHA                              = "tag-commit-122"
+	providerContractOlderTag                                          = "v1.1.0"
+	providerContractOlderTagCommitSHA                                 = "tag-commit-110"
+	providerContractOldestTag                                         = "v1.0.0"
+	providerContractOldestTagCommitSHA                                = "tag-commit-100"
 	providerContractHeadSHA                                           = "head-sha"
 	providerContractMergeSHA                                          = "merge-sha"
 	providerContractReviewerAlice                                     = "alice"
@@ -151,6 +165,23 @@ func TestProviderContract(t *testing.T) {
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractTag, refs[0].Name)
 				testastic.Equal(t, providerContractTagCommitSHA, refs[0].CommitSHA)
+			})
+
+			t.Run("lists every tag across every page", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server serving the tag list across two pages
+				server := httptest.NewServer(harness.handler(t, providerContractListTagsPaged))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				// when: tag refs are requested
+				refs, err := p.ListTagRefs(context.Background())
+
+				// then: both pages contribute every ref in provider order
+				testastic.NoError(t, err)
+				testastic.SliceEqual(t, providerContractPagedTagRefs(), refs)
 			})
 
 			t.Run("resolves branch head commit", func(t *testing.T) {

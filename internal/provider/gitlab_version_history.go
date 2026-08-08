@@ -13,12 +13,28 @@ import (
 func (g *GitLab) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 	slog.DebugContext(ctx, "gitlab: listing tags")
 
+	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *gitlab.Tag) (string, string, bool) {
+		if tag.Commit == nil {
+			return tag.Name, "", true
+		}
+
+		return tag.Name, tag.Commit.ID, true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "gitlab: listed tags", slog.Int("count", len(refs)))
+
+	return refs, nil
+}
+
+func (g *GitLab) tagPages(ctx context.Context, handle func(*gitlab.Tag) (bool, error)) error {
 	options := &gitlab.ListTagsOptions{
 		ListOptions: gitlab.ListOptions{PerPage: gitLabPageSize},
 	}
-	refs := make([]TagRef, 0)
 
-	err := paginate(ctx, "listing tags",
+	return paginate(ctx, "listing tags",
 		func(page int) ([]*gitlab.Tag, int, error) {
 			options.Page = int64(page)
 
@@ -29,28 +45,8 @@ func (g *GitLab) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 
 			return pageTags, gitLabNextPage(resp), nil
 		},
-		func(tag *gitlab.Tag) (bool, error) {
-			name := strings.TrimSpace(tag.Name)
-			if name == "" {
-				return false, nil
-			}
-
-			if tag.Commit == nil || strings.TrimSpace(tag.Commit.ID) == "" {
-				return false, fmt.Errorf("%w: tag %q", ErrEmptyCommitSHA, name)
-			}
-
-			refs = append(refs, TagRef{Name: name, CommitSHA: strings.TrimSpace(tag.Commit.ID)})
-
-			return false, nil
-		},
+		handle,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	slog.DebugContext(ctx, "gitlab: listed tags", slog.Int("count", len(refs)))
-
-	return refs, nil
 }
 
 // GetBranchHead returns the commit SHA branch currently points at. The

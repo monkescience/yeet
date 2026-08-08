@@ -46,6 +46,8 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 		switch scenario {
 		case providerContractListTags:
 			handleGitHubListTagsContract(t, w, r)
+		case providerContractListTagsPaged:
+			handleGitHubListTagsPagedContract(t, w, r)
 		case providerContractBranchHead:
 			handleGitHubBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
@@ -130,6 +132,25 @@ func handleGitHubListTagsContract(t *testing.T, w http.ResponseWriter, r *http.R
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubListTagsPagedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/tags" {
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+
+		return
+	}
+
+	if r.URL.Query().Get("page") == "2" {
+		writeJSON(t, w, gitHubTagsPageTwoResponse())
+
+		return
+	}
+
+	w.Header().Set("Link", fmt.Sprintf(`<http://%s/repos/o/r/tags?per_page=100&page=2>; rel="next"`, r.Host))
+	writeJSON(t, w, gitHubTagsResponse())
 }
 
 func handleGitHubBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
