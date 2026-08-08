@@ -564,7 +564,7 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 	testastic.Equal(t, "", pr.MergeCommitSHA)
 }
 
-func TestAzureDevOpsMarkReleasePRPendingKeepsPartialFailureRetryable(t *testing.T) {
+func TestAzureDevOpsSetReleasePRLabelsKeepsPartialFailureRetryable(t *testing.T) {
 	t.Parallel()
 
 	var pendingAttached atomic.Bool
@@ -607,18 +607,18 @@ func TestAzureDevOpsMarkReleasePRPendingKeepsPartialFailureRetryable(t *testing.
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking a release pull request pending with the rejected extra label
-	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Extra:   []string{"rejected"},
-	})
+	}, provider.ReleasePRPhasePending)
 
 	// then: the failure is returned after attaching the pending marker for retry discovery
 	testastic.Error(t, err)
 	testastic.True(t, pendingAttached.Load())
 }
 
-func TestAzureDevOpsMarkReleasePRPendingAttachesLabelsAfterARejectedOne(t *testing.T) {
+func TestAzureDevOpsSetReleasePRLabelsAttachesLabelsAfterARejectedOne(t *testing.T) {
 	t.Parallel()
 
 	var attached sync.Map
@@ -661,12 +661,12 @@ func TestAzureDevOpsMarkReleasePRPendingAttachesLabelsAfterARejectedOne(t *testi
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking pending with a rejected label positioned before other labels
-	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Extra:   []string{"rejected", "kept"},
 		Yeet:    true,
-	})
+	}, provider.ReleasePRPhasePending)
 
 	// then: the rejection surfaces but the labels queued behind it are still attached
 	testastic.Error(t, err)
@@ -678,7 +678,7 @@ func TestAzureDevOpsMarkReleasePRPendingAttachesLabelsAfterARejectedOne(t *testi
 	}
 }
 
-func TestAzureDevOpsMarkReleasePRPendingKeepsManagedFailureRetryable(t *testing.T) {
+func TestAzureDevOpsSetReleasePRLabelsKeepsManagedFailureRetryable(t *testing.T) {
 	t.Parallel()
 
 	var pendingAttached atomic.Bool
@@ -721,21 +721,21 @@ func TestAzureDevOpsMarkReleasePRPendingKeepsManagedFailureRetryable(t *testing.
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking a release pull request pending with the managed label enabled
-	err := p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Yeet:    true,
-	})
+	}, provider.ReleasePRPhasePending)
 
 	// then: the failure is returned after attaching the pending marker for retry discovery
 	testastic.Error(t, err)
 	testastic.True(t, pendingAttached.Load())
 
 	// when: marking the release pull request pending with the managed label disabled
-	err = p.MarkReleasePRPending(context.Background(), 42, provider.ReleasePRLabels{
+	err = p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
-	})
+	}, provider.ReleasePRPhasePending)
 
 	// then: Azure attaches the pending marker without requesting the managed label
 	testastic.NoError(t, err)
@@ -773,10 +773,10 @@ func TestAzureDevOpsLifecycleLabelRemovalMatchesCaseInsensitively(t *testing.T) 
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: transitioning a differently cased configured label to tagged
-	err := p.MarkReleasePRTagged(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 		Pending: "release pending",
 		Tagged:  providerContractTaggedLabel,
-	})
+	}, provider.ReleasePRPhaseTagged)
 
 	// then: the case-variant tag is recognised as the configured label and removed
 	testastic.NoError(t, err)
@@ -852,8 +852,6 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsFindOpenPRsListHandler(t, azureDevOpsLabelledOpenPRsResponse())
 	case providerContractFindMergedPR:
 		return azureDevOpsFindMergedPRHandler(t)
-	case providerContractMarkReleasePR:
-		return azureDevOpsMarkReleasePRHandler(t)
 	case providerContractMergeReleasePR:
 		return azureDevOpsMergeReleasePRHandler(t)
 	case providerContractAsyncMergeReleasePR:
@@ -876,8 +874,6 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsBlockedMergeHandler(t)
 	case providerContractUnsupportedMerge:
 		return azureDevOpsUnsupportedMergeHandler(t)
-	case providerContractMissingExtraLabel, providerContractUnreachableExtraLabel:
-		return azureDevOpsNoLabelRegistryHandler(t)
 	case providerContractTagPaginationLimit:
 		return azureDevOpsTagPaginationLimitHandler(t)
 	case providerContractForcedMergeUntrusted:
@@ -1200,49 +1196,43 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-func azureDevOpsMarkReleasePRHandler(t *testing.T) http.HandlerFunc {
+// newAzureDevOpsContractLabelHandler tracks the labels on PR 42 so a scenario
+// can assert the set a phase leaves behind. The registry is ignored, because
+// Azure DevOps creates a tag definition when a label is attached.
+func newAzureDevOpsContractLabelHandler(
+	t *testing.T,
+	store *providerContractLabelStore,
+	_ providerContractLabelRegistry,
+) http.Handler {
 	t.Helper()
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
 			var request struct {
 				Name string `json:"name"`
 			}
 			decodeJSONRequest(t, r, &request)
-			testastic.True(t,
-				request.Name == providerContractPendingLabel ||
-					request.Name == providerContractTaggedLabel ||
-					request.Name == "release" ||
-					request.Name == "automated" ||
-					request.Name == "yeet",
-			)
+			store.attach(request.Name)
 			writeJSON(t, w, map[string]any{
-				"name":   "label",
-				"id":     azureDevOpsContractLabelID,
+				"name":   request.Name,
+				"id":     store.id(request.Name),
 				"active": true,
 			})
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels"):
-			writeJSON(t, w, map[string]any{"value": []map[string]any{
-				{
-					"id":   "00000000-0000-0000-0000-000000000043",
-					"name": providerContractPendingLabel,
-				},
-				{
-					"id":   "00000000-0000-0000-0000-000000000044",
-					"name": providerContractTaggedLabel,
-				},
-			}})
+			writeJSON(t, w, map[string]any{"value": store.definitions()})
 		case r.Method == http.MethodDelete &&
-			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000043"):
-			w.WriteHeader(http.StatusNoContent)
-		case r.Method == http.MethodDelete &&
-			r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42/labels/00000000-0000-0000-0000-000000000044"):
+			strings.HasPrefix(r.URL.Path, azureDevOpsContractRepoAPI("pullRequests/42/labels/")):
+			store.detachID(strings.TrimPrefix(r.URL.Path, azureDevOpsContractRepoAPI("pullRequests/42/labels/")))
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}
-	}
+	})
 }
 
 func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
@@ -1511,16 +1501,6 @@ func azureDevOpsUnsupportedMergeHandler(t *testing.T) http.HandlerFunc {
 			return
 		}
 
-		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-	}
-}
-
-// azureDevOpsNoLabelRegistryHandler fails any request, because Azure DevOps has
-// no repository label registry to preflight a configured extra label against.
-func azureDevOpsNoLabelRegistryHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
 		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 	}
 }

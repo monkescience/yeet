@@ -71,8 +71,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabFindOpenPRsListContract(t, w, r, gitLabLabelledOpenMRResponse(nil))
 		case providerContractFindMergedPR:
 			handleGitLabFindMergedPRContract(t, w, r)
-		case providerContractMarkReleasePR:
-			handleGitLabMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitLabMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
@@ -95,14 +93,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabBlockedMergeContract(t, w, r)
 		case providerContractUnsupportedMerge:
 			handleGitLabUnsupportedMergeContract(t, w, r)
-		case providerContractMissingExtraLabel:
-			handleGitLabExtraLabelLookupContract(t, w, r, providerContractMissingExtraLabelName, http.StatusNotFound)
-		case providerContractUnreachableExtraLabel:
-			handleGitLabExtraLabelLookupContract(
-				t, w, r,
-				providerContractUnreachableLabelName,
-				http.StatusInternalServerError,
-			)
 		case providerContractTagPaginationLimit:
 			handleGitLabTagPaginationLimitContract(t, w, r, &tagPages)
 		case providerContractForcedMergeUntrusted:
@@ -421,12 +411,7 @@ func handleGitLabFindOpenPRsListContract(
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
-		if r.URL.Query().Get("labels") != "" {
-			writeJSON(t, w, []map[string]any{})
-
-			return
-		}
-
+		testastic.Equal(t, "", r.URL.Query().Get("labels"))
 		testastic.Equal(t, providerContractPendingBranch, r.URL.Query().Get("source_branch"))
 		writeJSON(t, w, prs)
 
@@ -450,34 +435,40 @@ func handleGitLabFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
-func handleGitLabMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+// newGitLabContractLabelHandler tracks the labels on MR 42 so a scenario can
+// assert the set a phase leaves behind.
+func newGitLabContractLabelHandler(
+	t *testing.T,
+	store *providerContractLabelStore,
+	registry providerContractLabelRegistry,
+) http.Handler {
 	t.Helper()
 
-	switch {
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
-		writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
-	case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
-		var request struct {
-			AddLabels    string `json:"add_labels"`
-			RemoveLabels string `json:"remove_labels"`
-		}
-		decodeJSONRequest(t, r, &request)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
+			name := decodedPathTail(t, r)
+			if status, answered := registry.status(name); answered {
+				w.WriteHeader(status)
+				writeJSON(t, w, gitLabNotFoundResponse())
 
-		if request.AddLabels == providerContractTaggedLabel {
-			testastic.Equal(t, providerContractPendingLabel, request.RemoveLabels)
-		} else {
-			testastic.Equal(
-				t,
-				providerContractPendingLabel+",release,automated,yeet",
-				request.AddLabels,
-			)
-			testastic.Equal(t, providerContractTaggedLabel, request.RemoveLabels)
-		}
+				return
+			}
 
-		writeJSON(t, w, gitLabUpdatedMRResponse())
-	default:
-		fatalUnexpectedProviderRequest(t, "GitLab", r)
-	}
+			writeJSON(t, w, map[string]any{"name": name})
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+			var request struct {
+				AddLabels    string `json:"add_labels"`
+				RemoveLabels string `json:"remove_labels"`
+			}
+			decodeJSONRequest(t, r, &request)
+			store.attach(splitProviderContractLabels(request.AddLabels)...)
+			store.detach(splitProviderContractLabels(request.RemoveLabels)...)
+			writeJSON(t, w, gitLabUpdatedMRResponse())
+		default:
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+		}
+	})
 }
 
 func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -678,25 +669,6 @@ func handleGitLabUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 
 func providerContractEscapedTag() string {
 	return strings.ReplaceAll(providerContractTag, ".", "%2E")
-}
-
-func handleGitLabExtraLabelLookupContract(
-	t *testing.T,
-	w http.ResponseWriter,
-	r *http.Request,
-	label string,
-	status int,
-) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && decodedPathTail(t, r) == label {
-		w.WriteHeader(status)
-		writeJSON(t, w, gitLabNotFoundResponse())
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
 func handleGitLabTagPaginationLimitContract(

@@ -16,6 +16,7 @@ type releasePublisher struct {
 	publisher  releasePublishingProvider
 	source     releaseSource
 	changelogs *changelogFileCache
+	labels     labelLifecycle
 }
 
 func newReleasePublisher(
@@ -28,6 +29,7 @@ func newReleasePublisher(
 		publisher:  publisher,
 		source:     source,
 		changelogs: newChangelogFileCache(),
+		labels:     newLabelLifecycle(core, publisher),
 	}
 }
 
@@ -46,10 +48,6 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 
 	if err := r.validateReleaseManifest(mergedPR, manifest); err != nil {
 		return nil, err
-	}
-
-	if err := p.publisher.PrepareReleasePRLabels(ctx, r.releasePRLifecycleLabels()); err != nil {
-		return nil, fmt.Errorf("prepare release PR labels: %w", err)
 	}
 
 	releaseRef, err := releaseRefForPullRequest(mergedPR)
@@ -205,9 +203,8 @@ func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string
 }
 
 func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
-	err := p.publisher.MarkReleasePRTagged(ctx, pullRequest.Number, p.core.releasePRLabels())
-	if err != nil {
-		return fmt.Errorf("mark release PR tagged: %w", err)
+	if err := p.labels.published(ctx, pullRequest.Number); err != nil {
+		return err
 	}
 
 	slog.InfoContext(ctx, "marked release PR tagged", slog.String("url", pullRequest.URL))

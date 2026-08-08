@@ -96,13 +96,6 @@ func (c *releaseCore) releasePRLabels() provider.ReleasePRLabels {
 	}
 }
 
-func (c *releaseCore) releasePRLifecycleLabels() provider.ReleasePRLabels {
-	return provider.ReleasePRLabels{
-		Pending: c.cfg.Release.Labels.Pending,
-		Tagged:  c.cfg.Release.Labels.Tagged,
-	}
-}
-
 func (c *releaseCore) effectivePRBodyLimit(providerLimit int) int {
 	configured := c.cfg.Release.PRBodyMaxLength
 

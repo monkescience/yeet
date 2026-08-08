@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
@@ -173,29 +172,24 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 			continue
 		}
 
-		needsPendingLabel := false
+		number := derefInt(pr.PullRequestId)
 
-		if !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
-			if pr.Labels != nil && len(*pr.Labels) > 0 {
-				return nil, fmt.Errorf(
-					"%w: trusted pull request !%d on branch %q is missing configured pending label %q",
-					ErrReleasePRLabelMismatch,
-					derefInt(pr.PullRequestId),
-					branch,
-					pendingLabel,
-				)
-			}
-
-			needsPendingLabel = true
+		state := classifyReleasePRLabels(azureDevOpsLabelNames(pr.Labels), pendingLabel, foldedLabelMatch)
+		if state == releasePRLabelsMismatched {
+			return nil, releasePRLabelMismatch(
+				azureDevOpsPullRequestReference(number),
+				branch,
+				pendingLabel,
+			)
 		}
 
 		pending = append(pending, &PullRequest{
-			Number:            derefInt(pr.PullRequestId),
+			Number:            number,
 			Title:             derefString(pr.Title),
 			Body:              derefString(pr.Description),
-			URL:               a.pullRequestWebURL(derefInt(pr.PullRequestId)),
+			URL:               a.pullRequestWebURL(number),
 			Branch:            branch,
-			NeedsPendingLabel: needsPendingLabel,
+			NeedsPendingLabel: state == releasePRLabelsAdoptable,
 		})
 	}
 
@@ -437,7 +431,7 @@ func (a *AzureDevOps) azureDevOpsMergeState(number int, pullRequest *git.GitPull
 	mergeStatus := derefString((*string)(pullRequest.MergeStatus))
 
 	return mergeState{
-		Reference:        fmt.Sprintf("pull request !%d", number),
+		Reference:        azureDevOpsPullRequestReference(number),
 		RawReadiness:     "merge_status=" + mergeStatus,
 		MergeCommitSHA:   azureDevOpsCompletedMergeCommit(pullRequest),
 		HeadSHA:          azureDevOpsLastMergeSourceCommit(pullRequest),
@@ -488,44 +482,43 @@ func (a *AzureDevOps) isConfiguredRepository(repository *git.GitRepository) bool
 	return repository.Id != nil && strings.EqualFold(repository.Id.String(), configured)
 }
 
-func (a *AzureDevOps) PrepareReleasePRLabels(context.Context, ReleasePRLabels) error {
-	return nil
+// SetReleasePRLabels has no definition step to run first: Azure DevOps creates a
+// tag definition when a label is attached and exposes no project-scoped or
+// repository-scoped pull request label listing to check one against.
+func (a *AzureDevOps) SetReleasePRLabels(
+	ctx context.Context,
+	number int,
+	labels ReleasePRLabels,
+	phase ReleasePRPhase,
+) error {
+	change := managedLabelChange(labels, phase)
+
+	return a.applyLabels(ctx, number, change.anchor, change.add, change.remove)
 }
 
-// MarkReleasePRPending attaches the pending label first so an interrupted run
-// still leaves the PR discoverable, then keeps attaching the remaining labels
-// even after a failure so a single rejected label cannot strand the rest.
-func (a *AzureDevOps) MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error {
-	if err := a.attachPullRequestLabel(ctx, number, labels.Pending); err != nil {
+// applyLabels attaches one label per request, since Azure DevOps has no bulk
+// label API. The anchor goes first and fails the whole call, and everything
+// after it is best effort so a single rejected label cannot strand the rest.
+func (a *AzureDevOps) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
+	if err := a.attachPullRequestLabel(ctx, number, anchor); err != nil {
 		return err
-	}
-
-	remaining := slices.Clone(labels.Extra)
-	if labels.Yeet {
-		remaining = append(remaining, ReleaseLabelYeet)
 	}
 
 	var errs []error
 
-	for _, label := range remaining {
+	for _, label := range add {
 		if err := a.attachPullRequestLabel(ctx, number, label); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
-	if err := a.detachPullRequestLabel(ctx, number, labels.Tagged); err != nil {
-		errs = append(errs, err)
+	for _, label := range remove {
+		if err := a.detachPullRequestLabel(ctx, number, label); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return errors.Join(errs...)
-}
-
-func (a *AzureDevOps) MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error {
-	if err := a.attachPullRequestLabel(ctx, number, labels.Tagged); err != nil {
-		return err
-	}
-
-	return a.detachPullRequestLabel(ctx, number, labels.Pending)
 }
 
 func (a *AzureDevOps) attachPullRequestLabel(ctx context.Context, number int, label string) error {
@@ -649,17 +642,33 @@ func azureDevOpsRefToBranch(ref string) string {
 }
 
 func azureDevOpsHasLabel(labels *[]core.WebApiTagDefinition, target string) bool {
-	if labels == nil {
-		return false
-	}
-
-	for _, label := range *labels {
-		if label.Name != nil && strings.EqualFold(*label.Name, target) {
+	for _, name := range azureDevOpsLabelNames(labels) {
+		if strings.EqualFold(name, target) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func azureDevOpsLabelNames(labels *[]core.WebApiTagDefinition) []string {
+	if labels == nil {
+		return nil
+	}
+
+	names := make([]string, 0, len(*labels))
+
+	for _, label := range *labels {
+		if label.Name != nil {
+			names = append(names, *label.Name)
+		}
+	}
+
+	return names
+}
+
+func azureDevOpsPullRequestReference(number int) string {
+	return fmt.Sprintf("pull request !%d", number)
 }
 
 func (a *AzureDevOps) pullRequestWebURL(id int) string {

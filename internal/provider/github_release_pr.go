@@ -11,6 +11,10 @@ import (
 )
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+	if err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra); err != nil {
+		return nil, err
+	}
+
 	if err := g.validateReviewers(ctx, opts.Reviewers); err != nil {
 		return nil, err
 	}
@@ -145,20 +149,13 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 
 			branch := pr.GetHead().GetRef()
 
-			needsPendingLabel := false
-
-			if !hasGitHubLabel(pr.Labels, pendingLabel) {
-				if len(pr.Labels) > 0 {
-					return false, fmt.Errorf(
-						"%w: trusted pull request #%d on branch %q is missing configured pending label %q",
-						ErrReleasePRLabelMismatch,
-						pr.GetNumber(),
-						branch,
-						pendingLabel,
-					)
-				}
-
-				needsPendingLabel = true
+			state := classifyReleasePRLabels(gitHubLabelNames(pr.Labels), pendingLabel, foldedLabelMatch)
+			if state == releasePRLabelsMismatched {
+				return false, releasePRLabelMismatch(
+					gitHubPullRequestReference(pr.GetNumber()),
+					branch,
+					pendingLabel,
+				)
 			}
 
 			pendingPRs = append(pendingPRs, &PullRequest{
@@ -167,7 +164,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 				Body:              pr.GetBody(),
 				URL:               pr.GetHTMLURL(),
 				Branch:            branch,
-				NeedsPendingLabel: needsPendingLabel,
+				NeedsPendingLabel: state == releasePRLabelsAdoptable,
 			})
 
 			return false, nil
@@ -256,26 +253,32 @@ func (g *GitHub) FindMergedReleasePR(
 	return found, nil
 }
 
-func (g *GitHub) MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error {
-	addLabels := append([]string{labels.Pending}, labels.Extra...)
-	if labels.Yeet {
-		addLabels = append(addLabels, ReleaseLabelYeet)
-	}
-
-	return g.updateReleasePRLabels(ctx, number, addLabels, labels.Tagged)
-}
-
-func (g *GitHub) MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error {
-	return g.updateReleasePRLabels(ctx, number, []string{labels.Tagged}, labels.Pending)
-}
-
-func (g *GitHub) updateReleasePRLabels(ctx context.Context, number int, addLabels []string, removeLabel string) error {
-	if err := g.addIssueLabels(ctx, number, addLabels); err != nil {
+func (g *GitHub) SetReleasePRLabels(
+	ctx context.Context,
+	number int,
+	labels ReleasePRLabels,
+	phase ReleasePRPhase,
+) error {
+	if err := g.labelDefinitions().prepare(ctx, labels); err != nil {
 		return err
 	}
 
-	if err := g.removeIssueLabel(ctx, number, removeLabel); err != nil {
+	change := managedLabelChange(labels, phase)
+
+	return g.applyLabels(ctx, number, change.anchor, change.add, change.remove)
+}
+
+// applyLabels sends every addition in one request, which puts the anchor on the
+// pull request before any removal is attempted.
+func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
+	if err := g.addIssueLabels(ctx, number, labelsAnchoredFirst(anchor, add)); err != nil {
 		return err
+	}
+
+	for _, label := range remove {
+		if err := g.removeIssueLabel(ctx, number, label); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -368,7 +371,7 @@ func gitHubMergeState(repo RepoInfo, number int, pullRequest *github.PullRequest
 	mergeableState := strings.TrimSpace(pullRequest.GetMergeableState())
 
 	return mergeState{
-		Reference:        fmt.Sprintf("pull request #%d", number),
+		Reference:        gitHubPullRequestReference(number),
 		RawReadiness:     "mergeable_state=" + mergeableState,
 		MergeCommitSHA:   strings.TrimSpace(pullRequest.GetMergeCommitSHA()),
 		HeadSHA:          strings.TrimSpace(head.GetSHA()),
@@ -398,66 +401,30 @@ func isGitHubSameRepository(repo RepoInfo, head *github.PullRequestBranch) bool 
 	return strings.EqualFold(strings.TrimSpace(head.GetRepo().GetFullName()), repo.Owner+"/"+repo.Name)
 }
 
-func (g *GitHub) PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error {
-	for _, label := range labels.Extra {
-		if err := g.validateExistingLabel(ctx, label); err != nil {
-			return err
-		}
+func (g *GitHub) labelDefinitions() labelDefinitions {
+	return labelDefinitions{
+		get: func(ctx context.Context, name string) error {
+			_, _, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
+			if err != nil {
+				return fmt.Errorf("get label %q: %w", name, err)
+			}
+
+			return nil
+		},
+		create: func(ctx context.Context, name, color, description string) error {
+			_, _, err := g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, &github.Label{
+				Name:        new(name),
+				Color:       new(color),
+				Description: new(description),
+			})
+			if err != nil {
+				return fmt.Errorf("create label %q: %w", name, err)
+			}
+
+			return nil
+		},
+		isNotFound: isGitHubNotFound,
 	}
-
-	if labels.Yeet {
-		err := g.ensureLabel(ctx, ReleaseLabelYeet, releaseLabelYeetColor, releaseLabelYeetDescription)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := g.ensureLabel(ctx, labels.Pending, releaseLabelPendingColor, releaseLabelPendingDescription)
-	if err != nil {
-		return err
-	}
-
-	err = g.ensureLabel(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (g *GitHub) validateExistingLabel(ctx context.Context, name string) error {
-	_, resp, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
-	if err == nil {
-		return nil
-	}
-
-	if resp == nil || resp.StatusCode != http.StatusNotFound {
-		return fmt.Errorf("get label %q: %w", name, err)
-	}
-
-	return fmt.Errorf("%w: extra label %q", ErrReleasePRLabelMissing, name)
-}
-
-func (g *GitHub) ensureLabel(ctx context.Context, name, color, description string) error {
-	_, resp, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
-	if err == nil {
-		return nil
-	}
-
-	if resp == nil || resp.StatusCode != http.StatusNotFound {
-		return fmt.Errorf("get label %q: %w", name, err)
-	}
-
-	_, _, err = g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, &github.Label{
-		Name:        new(name),
-		Color:       new(color),
-		Description: new(description),
-	})
-	if err != nil {
-		return fmt.Errorf("create label %q: %w", name, err)
-	}
-
-	return nil
 }
 
 func (g *GitHub) addIssueLabels(ctx context.Context, number int, labels []string) error {
@@ -482,14 +449,17 @@ func (g *GitHub) removeIssueLabel(ctx context.Context, number int, label string)
 	return nil
 }
 
-func hasGitHubLabel(labels []*github.Label, target string) bool {
+func gitHubLabelNames(labels []*github.Label) []string {
+	names := make([]string, 0, len(labels))
 	for _, label := range labels {
-		if strings.EqualFold(label.GetName(), target) {
-			return true
-		}
+		names = append(names, label.GetName())
 	}
 
-	return false
+	return names
+}
+
+func gitHubPullRequestReference(number int) string {
+	return fmt.Sprintf("pull request #%d", number)
 }
 
 func isGitHubMergeStateReadinessBlocked(state string) bool {

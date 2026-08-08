@@ -109,7 +109,31 @@ type fileUpdate struct {
 	message string
 }
 
+func pendingPhaseOnly() []provider.ReleasePRPhase {
+	return []provider.ReleasePRPhase{provider.ReleasePRPhasePending}
+}
+
+func taggedPhaseOnly() []provider.ReleasePRPhase {
+	return []provider.ReleasePRPhase{provider.ReleasePRPhaseTagged}
+}
+
+// callSequence records the order stub methods were called in, so a test can
+// assert that one provider mutation happened before another.
+type callSequence struct {
+	calls []string
+}
+
+func (s *callSequence) record(name string) {
+	if s == nil {
+		return
+	}
+
+	s.calls = append(s.calls, name)
+}
+
 type providerStub struct {
+	sequence *callSequence
+
 	*repoMetadataStub
 	*versionHistoryStub
 	*releasePRWorkflowStub
@@ -117,8 +141,26 @@ type providerStub struct {
 	*releasePublishingStub
 }
 
+// SetReleasePRLabels resolves the method both embedded stubs carry, and routes
+// by phase so each stub keeps recording the transition it is asserted on.
+func (s *providerStub) SetReleasePRLabels(
+	ctx context.Context,
+	number int,
+	labels provider.ReleasePRLabels,
+	phase provider.ReleasePRPhase,
+) error {
+	if phase == provider.ReleasePRPhaseTagged {
+		return s.releasePublishingStub.SetReleasePRLabels(ctx, number, labels, phase)
+	}
+
+	return s.releasePRWorkflowStub.SetReleasePRLabels(ctx, number, labels, phase)
+}
+
 func newProviderStub() *providerStub {
+	sequence := &callSequence{}
+
 	stub := &providerStub{
+		sequence:         sequence,
 		repoMetadataStub: &repoMetadataStub{},
 		versionHistoryStub: &versionHistoryStub{
 			commitsErrByRef: make(map[string]error),
@@ -126,10 +168,12 @@ func newProviderStub() *providerStub {
 		releasePRWorkflowStub: &releasePRWorkflowStub{
 			pullRequests: make(map[string]*provider.PullRequest),
 			mergePRSHA:   "merged-sha",
+			sequence:     sequence,
 		},
 		releaseFileStub: &releaseFileStub{
 			files:             make(map[string]string),
 			getFileCallsByKey: make(map[string]int),
+			sequence:          sequence,
 		},
 		releasePublishingStub: &releasePublishingStub{
 			releasesByTag: make(map[string]*provider.Release),
@@ -276,13 +320,15 @@ type releasePRWorkflowStub struct {
 
 	markPendingCalls  []int
 	markPendingLabels []provider.ReleasePRLabels
-	prepareLabelCalls []provider.ReleasePRLabels
+	setLabelPhases    []provider.ReleasePRPhase
 
 	mergePRCalls   int
 	mergePRNumbers []int
 	mergePROptions []provider.MergeReleasePROptions
 	mergePRSHA     string
 	mergePRErr     error
+
+	sequence *callSequence
 }
 
 func (s *releasePRWorkflowStub) CreateReleasePR(
@@ -308,6 +354,8 @@ func (s *releasePRWorkflowStub) CreateReleasePR(
 }
 
 func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts provider.ReleasePROptions) error {
+	s.sequence.record("UpdateReleasePR")
+
 	s.updatePRCalls++
 	s.updatePROptions = append(s.updatePROptions, opts)
 
@@ -348,20 +396,13 @@ func (s *releasePRWorkflowStub) MergeReleasePR(
 	return s.mergePRSHA, nil
 }
 
-func (s *releasePRWorkflowStub) PrepareReleasePRLabels(
-	_ context.Context,
-	labels provider.ReleasePRLabels,
-) error {
-	s.prepareLabelCalls = append(s.prepareLabelCalls, labels)
-
-	return nil
-}
-
-func (s *releasePRWorkflowStub) MarkReleasePRPending(
+func (s *releasePRWorkflowStub) SetReleasePRLabels(
 	_ context.Context,
 	number int,
 	labels provider.ReleasePRLabels,
+	phase provider.ReleasePRPhase,
 ) error {
+	s.setLabelPhases = append(s.setLabelPhases, phase)
 	s.markPendingCalls = append(s.markPendingCalls, number)
 	s.markPendingLabels = append(s.markPendingLabels, labels)
 
@@ -380,6 +421,8 @@ type releaseFileStub struct {
 	updateFilesMessages []string
 	getFileCalls        int
 	getFileCallsByKey   map[string]int
+
+	sequence *callSequence
 }
 
 func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (string, error) {
@@ -400,6 +443,8 @@ func (s *releaseFileStub) UpdateFiles(
 	files map[string]provider.FileUpdate,
 	message string,
 ) error {
+	s.sequence.record("UpdateFiles")
+
 	s.updateFilesCalls++
 	s.updateFilesMessages = append(s.updateFilesMessages, message)
 
@@ -443,6 +488,7 @@ type releasePublishingStub struct {
 
 	markTaggedCalls  []int
 	markTaggedLabels []provider.ReleasePRLabels
+	setLabelPhases   []provider.ReleasePRPhase
 
 	latestRelease *provider.Release
 	releasesByTag map[string]*provider.Release
@@ -510,11 +556,13 @@ func (s *releasePublishingStub) CreateRelease(
 	return release, nil
 }
 
-func (s *releasePublishingStub) MarkReleasePRTagged(
+func (s *releasePublishingStub) SetReleasePRLabels(
 	_ context.Context,
 	number int,
 	labels provider.ReleasePRLabels,
+	phase provider.ReleasePRPhase,
 ) error {
+	s.setLabelPhases = append(s.setLabelPhases, phase)
 	s.markTaggedCalls = append(s.markTaggedCalls, number)
 	s.markTaggedLabels = append(s.markTaggedLabels, labels)
 

@@ -53,6 +53,15 @@ type ReleasePRLabels struct {
 	Extra   []string
 }
 
+// ReleasePRPhase is which lifecycle label a release pull request should carry:
+// pending while it is open, tagged once its releases are published.
+type ReleasePRPhase int
+
+const (
+	ReleasePRPhasePending ReleasePRPhase = iota
+	ReleasePRPhaseTagged
+)
+
 type ReleaseOptions struct {
 	TagName    string
 	Ref        string
@@ -108,7 +117,6 @@ type Provider interface {
 
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
-	PrepareReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error
 	FindOpenPendingReleasePRs(ctx context.Context, baseBranch, pendingLabel string) ([]*PullRequest, error)
 	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*PullRequest, error)
 	// MergeReleasePR merges the release PR and returns the commit it produced on
@@ -122,8 +130,21 @@ type Provider interface {
 	// ErrMergeMethodUnsupported for a method no forge accepts, and
 	// ErrMergeNotFinalized when an accepted merge does not land inside the wait.
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error)
-	MarkReleasePRPending(ctx context.Context, number int, labels ReleasePRLabels) error
-	MarkReleasePRTagged(ctx context.Context, number int, labels ReleasePRLabels) error
+	// SetReleasePRLabels puts a release pull request in a phase. It states the
+	// phase rather than a desired end state: additions and removals are computed
+	// within the managed set, which is Pending, Tagged, Yeet and Extra, and every
+	// other label on the pull request is left where it is. Extra and the yeet
+	// marker are applied at creation or adoption and never removed. See ADR 0006.
+	//
+	// The lifecycle label of the phase is attached before anything else and
+	// fail-fast, so an interrupted run still leaves a pull request the next run
+	// can find. See ADR 0007.
+	//
+	// Extra labels must already exist on forges that expose label definitions. An
+	// unknown extra label fails the run before the pull request is created. Azure
+	// DevOps creates labels on attach and has no definition API, so an unknown
+	// extra label is created rather than rejected.
+	SetReleasePRLabels(ctx context.Context, number int, labels ReleasePRLabels, phase ReleasePRPhase) error
 	// MaxPRBodyLength returns zero when the provider has no known limit.
 	MaxPRBodyLength() int
 

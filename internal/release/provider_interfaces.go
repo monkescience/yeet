@@ -33,7 +33,6 @@ type repoMetadataProvider interface {
 }
 
 type releasePRProvider interface {
-	PrepareReleasePRLabels(ctx context.Context, labels provider.ReleasePRLabels) error
 	FindOpenPendingReleasePRs(
 		ctx context.Context,
 		baseBranch, pendingLabel string,
@@ -41,8 +40,19 @@ type releasePRProvider interface {
 	CreateReleasePR(ctx context.Context, opts provider.ReleasePROptions) (*provider.PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts provider.ReleasePROptions) error
 	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) (string, error)
-	MarkReleasePRPending(ctx context.Context, number int, labels provider.ReleasePRLabels) error
+	releasePRLabelSetter
 	MaxPRBodyLength() int
+}
+
+// releasePRLabelSetter is the whole label protocol as internal/release sees it:
+// state the phase a release PR is in and let the forge work out the labels.
+type releasePRLabelSetter interface {
+	SetReleasePRLabels(
+		ctx context.Context,
+		number int,
+		labels provider.ReleasePRLabels,
+		phase provider.ReleasePRPhase,
+	) error
 }
 
 type releaseFileProvider interface {
@@ -51,11 +61,10 @@ type releaseFileProvider interface {
 }
 
 type releasePublishingProvider interface {
-	PrepareReleasePRLabels(ctx context.Context, labels provider.ReleasePRLabels) error
 	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*provider.PullRequest, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
 	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
-	MarkReleasePRTagged(ctx context.Context, number int, labels provider.ReleasePRLabels) error
+	releasePRLabelSetter
 }
 
 // dependencies is the provider-side capability set. Version history is

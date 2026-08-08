@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,16 +26,140 @@ type providerContractProviderFactory func(
 	options ...provider.MergePollingOption,
 ) provider.Provider
 
+type providerContractLabelHandlerFactory func(
+	t *testing.T,
+	store *providerContractLabelStore,
+	registry providerContractLabelRegistry,
+) http.Handler
+
+// providerContractLabelRegistry describes how a forge's label definition lookup
+// answers for a given name, so one handler covers a forge that has the label,
+// one that does not, and one that cannot say.
+type providerContractLabelRegistry struct {
+	undefined   []string
+	unreachable []string
+}
+
+// status reports the failure a definition lookup answers with, and whether it
+// fails at all.
+func (r providerContractLabelRegistry) status(name string) (int, bool) {
+	switch {
+	case slices.Contains(r.undefined, name):
+		return http.StatusNotFound, true
+	case slices.Contains(r.unreachable, name):
+		return http.StatusInternalServerError, true
+	default:
+		return 0, false
+	}
+}
+
 type providerContractHarness struct {
-	name                  string
-	newProvider           providerContractProviderFactory
-	handler               func(t *testing.T, scenario providerContractScenario) http.Handler
-	expectedRepoURL       func(serverURL string) string
-	expectedReleasePRURL  func(serverURL string) string
-	expectedReleaseURL    func(serverURL string) string
-	expectedReviewerError string
-	expectedPathPrefix    string
-	preflightsExtraLabels bool
+	name                      string
+	newProvider               providerContractProviderFactory
+	handler                   func(t *testing.T, scenario providerContractScenario) http.Handler
+	labelHandler              providerContractLabelHandlerFactory
+	expectedRepoURL           func(serverURL string) string
+	expectedReleasePRURL      func(serverURL string) string
+	expectedReleaseURL        func(serverURL string) string
+	expectedReviewerError     string
+	expectedPathPrefix        string
+	rejectsUnknownExtraLabels bool
+}
+
+// providerContractLabelStore is the label set a contract handler has been told
+// to put on a pull request, so a scenario can assert what a phase leaves behind
+// rather than the requests it took to get there.
+type providerContractLabelStore struct {
+	ids    map[string]string
+	labels []string
+	next   int
+	mu     sync.Mutex
+}
+
+func newProviderContractLabelStore() *providerContractLabelStore {
+	return &providerContractLabelStore{ids: make(map[string]string)}
+}
+
+func (s *providerContractLabelStore) attach(names ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, name := range names {
+		if s.indexOf(name) >= 0 {
+			continue
+		}
+
+		s.next++
+		s.ids[strings.ToLower(name)] = fmt.Sprintf("00000000-0000-0000-0000-%012d", s.next)
+		s.labels = append(s.labels, name)
+	}
+}
+
+func (s *providerContractLabelStore) detach(names ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, name := range names {
+		if idx := s.indexOf(name); idx >= 0 {
+			s.labels = slices.Delete(s.labels, idx, idx+1)
+		}
+	}
+}
+
+func (s *providerContractLabelStore) detachID(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for name, candidate := range s.ids {
+		if candidate == id {
+			if idx := s.indexOf(name); idx >= 0 {
+				s.labels = slices.Delete(s.labels, idx, idx+1)
+			}
+
+			return
+		}
+	}
+}
+
+func (s *providerContractLabelStore) definitions() []map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	definitions := make([]map[string]any, 0, len(s.labels))
+	for _, name := range s.labels {
+		definitions = append(definitions, map[string]any{"id": s.ids[strings.ToLower(name)], "name": name})
+	}
+
+	return definitions
+}
+
+func (s *providerContractLabelStore) id(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.ids[strings.ToLower(name)]
+}
+
+func (s *providerContractLabelStore) sorted() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	names := slices.Clone(s.labels)
+	slices.Sort(names)
+
+	return names
+}
+
+func (s *providerContractLabelStore) indexOf(name string) int {
+	return slices.IndexFunc(s.labels, func(existing string) bool { return strings.EqualFold(existing, name) })
+}
+
+func splitProviderContractLabels(joined string) []string {
+	if joined == "" {
+		return nil
+	}
+
+	return strings.Split(joined, ",")
 }
 
 type providerContractScenario string
@@ -41,6 +169,15 @@ func defaultReleasePRLabels() provider.ReleasePRLabels {
 		Pending: testReleaseLabelPending,
 		Tagged:  testReleaseLabelTagged,
 		Yeet:    true,
+	}
+}
+
+func providerContractManagedLabels() provider.ReleasePRLabels {
+	return provider.ReleasePRLabels{
+		Pending: providerContractPendingLabel,
+		Tagged:  providerContractTaggedLabel,
+		Yeet:    true,
+		Extra:   []string{"release", "automated"},
 	}
 }
 
@@ -67,7 +204,6 @@ const (
 	providerContractFindOpenPRsUnlabeled     providerContractScenario = "find open prs unlabeled"
 	providerContractFindOpenPRsAdoptable     providerContractScenario = "find open prs adoptable"
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
-	providerContractMarkReleasePR            providerContractScenario = "mark release pr"
 	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
 	providerContractAsyncMergeReleasePR      providerContractScenario = "async merge release pr"
 	providerContractCreateBranch             providerContractScenario = "create branch"
@@ -79,8 +215,6 @@ const (
 	providerContractMissingPR                providerContractScenario = "missing pr"
 	providerContractBlockedMerge             providerContractScenario = "blocked merge"
 	providerContractUnsupportedMerge         providerContractScenario = "unsupported merge"
-	providerContractMissingExtraLabel        providerContractScenario = "missing extra label"
-	providerContractUnreachableExtraLabel    providerContractScenario = "unreachable extra label"
 	providerContractTagPaginationLimit       providerContractScenario = "tag pagination limit"
 	providerContractForcedMergeUntrusted     providerContractScenario = "forced merge untrusted"
 	providerContractForcedMergeConflicted    providerContractScenario = "forced merge conflicted"
@@ -422,33 +556,42 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractReleaseBody, pr.Body)
 			})
 
-			t.Run("marks release pull request state", func(t *testing.T) {
+			t.Run("carries the managed label set of the phase it was put in", func(t *testing.T) {
 				t.Parallel()
 
-				// given: a provider server accepting label transitions on PR 42
-				server := httptest.NewServer(harness.handler(t, providerContractMarkReleasePR))
+				// given: a provider server tracking the labels on PR 42
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(t, store, providerContractLabelRegistry{}))
 				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
-				labels := provider.ReleasePRLabels{
-					Pending: providerContractPendingLabel,
-					Tagged:  providerContractTaggedLabel,
-					Yeet:    true,
-					Extra:   []string{"release", "automated"},
-				}
+				labels := providerContractManagedLabels()
 
-				// when: custom labels are prepared and transitioned in sequence on PR 42
-				err := p.PrepareReleasePRLabels(context.Background(), labels)
+				// when: the pull request is put in the pending phase
+				err := p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+
+				// then: it carries the pending label, the extras and the yeet marker, and not tagged
 				testastic.NoError(t, err)
+				testastic.SliceEqual(t, []string{
+					"automated",
+					"release",
+					providerContractPendingLabel,
+					provider.ReleaseLabelYeet,
+				}, store.sorted())
 
-				err = p.MarkReleasePRPending(context.Background(), 42, labels)
+				// when: the pull request is put in the tagged phase
+				err = p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhaseTagged)
+
+				// then: the lifecycle label flips and everything else stays put
 				testastic.NoError(t, err)
-
-				err = p.MarkReleasePRTagged(context.Background(), 42, labels)
-
-				// then: both label transitions succeed
-				testastic.NoError(t, err)
+				testastic.SliceEqual(t, []string{
+					"automated",
+					"release",
+					providerContractTaggedLabel,
+					provider.ReleaseLabelYeet,
+				}, store.sorted())
 			})
 
 			t.Run("merges release pull request", func(t *testing.T) {
@@ -663,52 +806,71 @@ func TestProviderContract(t *testing.T) {
 				testastic.ErrorIs(t, err, provider.ErrMergeMethodUnsupported)
 			})
 
-			t.Run("rejects a configured extra label the forge does not have", func(t *testing.T) {
+			t.Run("resolves a configured extra label the forge does not define", func(t *testing.T) {
 				t.Parallel()
 
-				// given: a provider server without the configured extra label
-				server := httptest.NewServer(harness.handler(t, providerContractMissingExtraLabel))
+				// given: a provider server that does not define the configured extra label
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(
+					t,
+					store,
+					providerContractLabelRegistry{undefined: []string{providerContractMissingExtraLabelName}},
+				))
 				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
-				// when: release labels are prepared with an extra label that does not exist
-				err := p.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+				labels := provider.ReleasePRLabels{
 					Pending: providerContractPendingLabel,
 					Tagged:  providerContractTaggedLabel,
 					Extra:   []string{providerContractMissingExtraLabelName},
-				})
+				}
 
-				// then: forges with a label registry fail preflight, and Azure DevOps
-				// has none to check the extra label against
-				if !harness.preflightsExtraLabels {
-					testastic.NoError(t, err)
+				// when: the pull request is put in the pending phase
+				err := p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+
+				// then: a forge that exposes label definitions rejects the unknown label
+				// and mutates nothing, and one that creates labels on attach carries it
+				if harness.rejectsUnknownExtraLabels {
+					testastic.Error(t, err)
+					testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+					testastic.Equal(t, 0, len(store.sorted()))
 
 					return
 				}
 
-				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+				testastic.NoError(t, err)
+				testastic.SliceEqual(t, []string{
+					providerContractMissingExtraLabelName,
+					providerContractPendingLabel,
+				}, store.sorted())
 			})
 
 			t.Run("separates an unreachable extra label from a missing one", func(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that fails the extra label lookup
-				server := httptest.NewServer(harness.handler(t, providerContractUnreachableExtraLabel))
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(
+					t,
+					store,
+					providerContractLabelRegistry{unreachable: []string{providerContractUnreachableLabelName}},
+				))
 				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
-				// when: release labels are prepared with an extra label the forge cannot report on
-				err := p.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+				// when: the pending phase is applied with an extra label the forge cannot report on
+				err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 					Pending: providerContractPendingLabel,
 					Tagged:  providerContractTaggedLabel,
 					Extra:   []string{providerContractUnreachableLabelName},
-				})
+				}, provider.ReleasePRPhasePending)
 
 				// then: an unreachable label is never reported as one the operator must create
-				if !harness.preflightsExtraLabels {
+				if !harness.rejectsUnknownExtraLabels {
 					testastic.NoError(t, err)
 
 					return
@@ -783,31 +945,34 @@ func TestProviderContract(t *testing.T) {
 func providerContractHarnesses() []providerContractHarness {
 	return []providerContractHarness{
 		{
-			name:                  "github",
-			newProvider:           newGitHubContractProvider,
-			handler:               newGitHubContractHandler,
-			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL:  func(_ string) string { return providerContractReleasePRURL },
-			expectedReleaseURL:    func(_ string) string { return providerContractReleaseURL },
-			expectedReviewerError: `reviewer not found: "ghost" is not a repository collaborator`,
-			expectedPathPrefix:    "",
-			preflightsExtraLabels: true,
+			name:                      "github",
+			newProvider:               newGitHubContractProvider,
+			handler:                   newGitHubContractHandler,
+			labelHandler:              newGitHubContractLabelHandler,
+			expectedRepoURL:           func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL:      func(_ string) string { return providerContractReleasePRURL },
+			expectedReleaseURL:        func(_ string) string { return providerContractReleaseURL },
+			expectedReviewerError:     `reviewer not found: "ghost" is not a repository collaborator`,
+			expectedPathPrefix:        "",
+			rejectsUnknownExtraLabels: true,
 		},
 		{
-			name:                  "gitlab",
-			newProvider:           newGitLabContractProvider,
-			handler:               newGitLabContractHandler,
-			expectedRepoURL:       func(serverURL string) string { return serverURL + "/o/r" },
-			expectedReleasePRURL:  func(_ string) string { return providerContractReleasePRURL },
-			expectedReleaseURL:    func(_ string) string { return providerContractReleaseURL },
-			expectedReviewerError: `reviewer not found: "ghost" is not a project member`,
-			expectedPathPrefix:    "/-",
-			preflightsExtraLabels: true,
+			name:                      "gitlab",
+			newProvider:               newGitLabContractProvider,
+			handler:                   newGitLabContractHandler,
+			labelHandler:              newGitLabContractLabelHandler,
+			expectedRepoURL:           func(serverURL string) string { return serverURL + "/o/r" },
+			expectedReleasePRURL:      func(_ string) string { return providerContractReleasePRURL },
+			expectedReleaseURL:        func(_ string) string { return providerContractReleaseURL },
+			expectedReviewerError:     `reviewer not found: "ghost" is not a project member`,
+			expectedPathPrefix:        "/-",
+			rejectsUnknownExtraLabels: true,
 		},
 		{
 			name:                 "azuredevops",
 			newProvider:          newAzureDevOpsContractProvider,
 			handler:              newAzureDevOpsContractHandler,
+			labelHandler:         newAzureDevOpsContractLabelHandler,
 			expectedRepoURL:      azureDevOpsContractExpectedRepoURL,
 			expectedReleasePRURL: func(s string) string { return azureDevOpsContractExpectedRepoURL(s) + "/pullrequest/42" },
 			expectedReleaseURL: func(s string) string {

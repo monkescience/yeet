@@ -632,6 +632,10 @@ func TestGitHubEnsureLabel(t *testing.T) {
 
 					w.WriteHeader(http.StatusCreated)
 					writeJSON(t, w, map[string]any{"name": request.Name})
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+					writeJSON(t, w, []map[string]any{{"name": testReleaseLabelPending}})
+				case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+					w.WriteHeader(http.StatusNoContent)
 				default:
 					t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
 				}
@@ -644,8 +648,8 @@ func TestGitHubEnsureLabel(t *testing.T) {
 			labels := defaultReleasePRLabels()
 			labels.Yeet = test.yeet
 
-			// when: preparing release PR labels
-			err := gh.PrepareReleasePRLabels(context.Background(), labels)
+			// when: the pending phase is applied
+			err := gh.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
 
 			// then: only the enabled managed and lifecycle labels are created
 			testastic.NoError(t, err)
@@ -1000,6 +1004,8 @@ func TestGitLabEnsureLabel(t *testing.T) {
 
 					w.WriteHeader(http.StatusCreated)
 					writeJSON(t, w, map[string]any{"name": request.Name})
+				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+					writeJSON(t, w, map[string]any{"iid": 42})
 				default:
 					t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
 				}
@@ -1018,8 +1024,8 @@ func TestGitLabEnsureLabel(t *testing.T) {
 			labels := defaultReleasePRLabels()
 			labels.Yeet = test.yeet
 
-			// when: preparing release MR labels
-			err = gl.PrepareReleasePRLabels(context.Background(), labels)
+			// when: the pending phase is applied
+			err = gl.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
 
 			// then: only the enabled managed and lifecycle labels are created
 			testastic.NoError(t, err)

@@ -1,7 +1,9 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -55,6 +57,15 @@ func (g *GitHub) PathPrefix() string {
 
 func (g *GitHub) CompareURL(fromRef, toRef string) string {
 	return fmt.Sprintf("%s/compare/%s...%s", g.RepoURL(), fromRef, toRef)
+}
+
+func isGitHubNotFound(err error) bool {
+	var errorResponse *github.ErrorResponse
+	if !errors.As(err, &errorResponse) || errorResponse.Response == nil {
+		return false
+	}
+
+	return errorResponse.Response.StatusCode == http.StatusNotFound
 }
 
 func gitHubNextPage(resp *github.Response) int {

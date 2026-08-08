@@ -2,13 +2,45 @@
 package release
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/history"
+	"github.com/monkescience/yeet/internal/provider"
 )
+
+func TestReleaseRefreshWritesBranchFilesBeforeTheManifest(t *testing.T) {
+	t.Parallel()
+
+	// given: an open pending release PR and a commit that moves the version on
+	cfg := config.Default()
+
+	stub := newProviderStub()
+	stub.openPending = []*provider.PullRequest{{
+		Number: 7,
+		URL:    "https://example.com/pr/7",
+		Branch: "yeet/release-main",
+	}}
+	stub.commits = []history.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "feat: add a thing",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: the run refreshes that pull request
+	_, err := r.Release(context.Background(), false)
+
+	// then: the branch carries the new tags and changelog before the body
+	// advertises them, so a merge inside the window publishes the older tag the
+	// next run re-plans from instead of one whose commits were never written
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"UpdateFiles", "UpdateReleasePR"}, stub.sequence.calls)
+}
 
 func TestPreserveTargetChangelogEdits(t *testing.T) {
 	t.Parallel()

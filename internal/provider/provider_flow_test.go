@@ -49,8 +49,8 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		gh := provider.NewGitHub(client, "o", "r")
 
-		// when: MarkReleasePRPending is invoked for PR 42
-		err := gh.MarkReleasePRPending(context.Background(), 42, defaultReleasePRLabels())
+		// when: PR 42 is put in the pending phase
+		err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), provider.ReleasePRPhasePending)
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
@@ -60,7 +60,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		// when: marking the same pull request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
 		labels.Yeet = false
-		err = gh.MarkReleasePRPending(context.Background(), 42, labels)
+		err = gh.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)
@@ -77,12 +77,6 @@ func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
 			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
-
-			return
-		}
-
-		if r.URL.Query().Get("labels") != "" {
-			writeJSON(t, w, []map[string]any{})
 
 			return
 		}
@@ -113,6 +107,149 @@ func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
 	testastic.Equal(t, "yeet/release-main", guardSourceBranch)
 }
 
+func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub server that rejects the label addition on PR 42
+	var removals atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSON(t, w, map[string]any{"message": "labels rejected"})
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+			removals.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+	// when: the pull request is moved into the tagged phase
+	err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), provider.ReleasePRPhaseTagged)
+
+	// then: the failure surfaces and the pending label the next run finds it by
+	// is never removed
+	testastic.Error(t, err)
+	testastic.Equal(t, int32(0), removals.Load())
+}
+
+func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab project whose only release MR was left unlabelled
+	var listings atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+
+			return
+		}
+
+		listings.Add(1)
+
+		testastic.Equal(t, "", r.URL.Query().Get("labels"))
+		testastic.Equal(t, "yeet/release-main", r.URL.Query().Get("source_branch"))
+
+		writeJSON(t, w, []map[string]any{{
+			"iid":               10,
+			"title":             "chore: release v2.0.0",
+			"web_url":           "https://gitlab.com/o/r/-/merge_requests/10",
+			"source_branch":     "yeet/release-main",
+			"source_project_id": 10,
+			"target_project_id": 10,
+			"state":             "opened",
+			"labels":            []string{},
+		}})
+	}))
+	defer server.Close()
+
+	gl := newGitLabProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
+
+	// then: one source-branch listing finds the MR and offers it for adoption
+	testastic.NoError(t, err)
+	testastic.Equal(t, int32(1), listings.Load())
+	testastic.Equal(t, 1, len(prs))
+	testastic.Equal(t, 10, prs[0].Number)
+	testastic.True(t, prs[0].NeedsPendingLabel)
+}
+
+func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release MR labelled in a different case than the configured
+	// pending label, which GitLab treats as a distinct label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			t.Fatalf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+
+			return
+		}
+
+		writeJSON(t, w, []map[string]any{{
+			"iid":               10,
+			"title":             "chore: release v2.0.0",
+			"web_url":           "https://gitlab.com/o/r/-/merge_requests/10",
+			"source_branch":     "yeet/release-main",
+			"source_project_id": 10,
+			"target_project_id": 10,
+			"state":             "opened",
+			"labels":            []string{"Autorelease: Pending"},
+		}})
+	}))
+	defer server.Close()
+
+	gl := newGitLabProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
+
+	// then: the case variant is a different label, so the MR is a mismatch
+	testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+	testastic.Equal(t, 0, len(prs))
+}
+
+func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release PR labelled in a different case than the configured
+	// pending label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls" {
+			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+
+			return
+		}
+
+		writeJSON(t, w, []map[string]any{gitHubOpenPRResponse(
+			10,
+			"yeet/release-main",
+			[]string{"Autorelease: Pending"},
+		)})
+	}))
+	defer server.Close()
+
+	gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+	// when: finding open pending release PRs
+	prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
+
+	// then: the case variant is accepted as the configured pending label
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, len(prs))
+	testastic.False(t, prs[0].NeedsPendingLabel)
+}
+
 func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 	t.Parallel()
 
@@ -130,15 +267,15 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
-		// when: preparing the release labels
-		err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+		// when: the pending phase is applied
+		err := gl.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 			Pending: "release::pending",
 			Tagged:  "release::tagged",
-		})
+		}, provider.ReleasePRPhasePending)
 
-		// then: both sequential lifecycle states are accepted and prepared
+		// then: both sequential lifecycle states are accepted, prepared and applied
 		testastic.NoError(t, err)
-		testastic.Equal(t, int32(2), calls.Load())
+		testastic.Equal(t, int32(3), calls.Load())
 	})
 
 	t.Run("rejects an extra label sharing a lifecycle scope", func(t *testing.T) {
@@ -160,8 +297,8 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 			Extra:   []string{"workflow::backend::automated"},
 		}
 
-		// when: preparing the release labels
-		err := gl.PrepareReleasePRLabels(context.Background(), labels)
+		// when: the pending phase is applied
+		err := gl.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
 
 		// then: the permanent label conflict is rejected before a provider request
 		testastic.ErrorContains(t, err, "share GitLab scope workflow::backend")
@@ -186,11 +323,11 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 
 				gl := newGitLabProvider(t, server)
 
-				// when: preparing the release labels
-				err := gl.PrepareReleasePRLabels(context.Background(), provider.ReleasePRLabels{
+				// when: the pending phase is applied
+				err := gl.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
 					Pending: reserved,
 					Tagged:  "release::tagged",
-				})
+				}, provider.ReleasePRPhasePending)
 
 				// then: the reserved filter value is rejected before a provider request
 				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
@@ -413,8 +550,8 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 
 		gl := newGitLabProvider(t, server)
 
-		// when: MarkReleasePRPending is invoked for MR 12
-		err := gl.MarkReleasePRPending(context.Background(), 12, defaultReleasePRLabels())
+		// when: MR 12 is put in the pending phase
+		err := gl.SetReleasePRLabels(context.Background(), 12, defaultReleasePRLabels(), provider.ReleasePRPhasePending)
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
@@ -424,7 +561,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		// when: marking the same merge request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
 		labels.Yeet = false
-		err = gl.MarkReleasePRPending(context.Background(), 12, labels)
+		err = gl.SetReleasePRLabels(context.Background(), 12, labels, provider.ReleasePRPhasePending)
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)

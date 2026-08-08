@@ -95,6 +95,7 @@ func gitLabOpenMRsResponse() []map[string]any {
 		providerContractPendingBranch,
 		gitLabContractProjectID,
 	)
+	pending["labels"] = []string{providerContractPendingLabel}
 
 	forged := gitLabOpenMRResponse(
 		providerContractForgedPRNumber,

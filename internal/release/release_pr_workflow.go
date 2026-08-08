@@ -18,6 +18,7 @@ type releasePRWorkflow struct {
 	branchUpdater *releaseBranchUpdater
 	publisher     *releasePublisher
 	changelogs    *changelogFileCache
+	labels        labelLifecycle
 }
 
 func newReleasePRWorkflow(
@@ -34,6 +35,7 @@ func newReleasePRWorkflow(
 		branchUpdater: newReleaseBranchUpdater(core, source, files),
 		publisher:     newReleasePublisher(core, publisher, source),
 		changelogs:    newChangelogFileCache(),
+		labels:        newLabelLifecycle(core, prs),
 	}
 }
 
@@ -93,12 +95,8 @@ func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existin
 
 	slog.InfoContext(ctx, "adopting unlabelled release PR", slog.String("url", existing.URL))
 
-	if err := w.prs.PrepareReleasePRLabels(ctx, w.core.releasePRLabels()); err != nil {
-		return fmt.Errorf("prepare release PR labels: %w", err)
-	}
-
-	if err := w.prs.MarkReleasePRPending(ctx, existing.Number, w.core.releasePRLabels()); err != nil {
-		return fmt.Errorf("mark release PR pending: %w", err)
+	if err := w.labels.opened(ctx, existing.Number); err != nil {
+		return err
 	}
 
 	existing.NeedsPendingLabel = false
@@ -243,10 +241,6 @@ func (w *releasePRWorkflow) autoMerge(
 		Method:            provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
-	if err := w.prs.PrepareReleasePRLabels(ctx, r.releasePRLifecycleLabels()); err != nil {
-		return nil, fmt.Errorf("prepare release PR labels: %w", err)
-	}
-
 	mergeSHA, err := w.prs.MergeReleasePR(ctx, pullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.BypassMergeChecks {
@@ -280,13 +274,18 @@ func (w *releasePRWorkflow) updateExisting(
 ) (*provider.PullRequest, error) {
 	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
 
-	err := w.prs.UpdateReleasePR(ctx, existing.Number, prOpts)
-	if err != nil {
-		return nil, fmt.Errorf("update release PR: %w", err)
-	}
-
+	// The branch is written before the body, because the manifest marker in the
+	// body is authoritative for finalization. A failure between the two then
+	// leaves newer content under an older manifest, so a merge inside the window
+	// publishes the older tag and the next run re-plans the newer version from
+	// it. The reverse order advertises tags and files the branch does not carry,
+	// which does not self-heal.
 	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
 		return nil, err
+	}
+
+	if err := w.prs.UpdateReleasePR(ctx, existing.Number, prOpts); err != nil {
+		return nil, fmt.Errorf("update release PR: %w", err)
 	}
 
 	existing.Title = prOpts.Title
@@ -302,10 +301,6 @@ func (w *releasePRWorkflow) createNew(
 	commitSubject string,
 	plans []TargetPlan,
 ) (*provider.PullRequest, error) {
-	if err := w.prs.PrepareReleasePRLabels(ctx, w.core.releasePRLabels()); err != nil {
-		return nil, fmt.Errorf("prepare release PR labels: %w", err)
-	}
-
 	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
 		return nil, err
 	}
@@ -315,9 +310,8 @@ func (w *releasePRWorkflow) createNew(
 		return nil, fmt.Errorf("create release PR: %w", err)
 	}
 
-	err = w.prs.MarkReleasePRPending(ctx, pr.Number, w.core.releasePRLabels())
-	if err != nil {
-		return nil, fmt.Errorf("mark release PR pending: %w", err)
+	if err := w.labels.opened(ctx, pr.Number); err != nil {
+		return nil, err
 	}
 
 	slog.InfoContext(ctx, "created release PR", slog.String("url", pr.URL))

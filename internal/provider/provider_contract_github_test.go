@@ -78,8 +78,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			)})
 		case providerContractFindMergedPR:
 			handleGitHubFindMergedPRContract(t, w, r)
-		case providerContractMarkReleasePR:
-			handleGitHubMarkReleasePRContract(t, w, r)
 		case providerContractMergeReleasePR:
 			handleGitHubMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
@@ -102,14 +100,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubBlockedMergeContract(t, w, r)
 		case providerContractUnsupportedMerge:
 			handleGitHubUnsupportedMergeContract(t, w, r)
-		case providerContractMissingExtraLabel:
-			handleGitHubExtraLabelLookupContract(t, w, r, providerContractMissingExtraLabelName, http.StatusNotFound)
-		case providerContractUnreachableExtraLabel:
-			handleGitHubExtraLabelLookupContract(
-				t, w, r,
-				providerContractUnreachableLabelName,
-				http.StatusInternalServerError,
-			)
 		case providerContractTagPaginationLimit:
 			handleGitHubTagPaginationLimitContract(t, w, r, &tagPages)
 		case providerContractForcedMergeUntrusted:
@@ -369,34 +359,39 @@ func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	}
 }
 
-func handleGitHubMarkReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+// newGitHubContractLabelHandler tracks the labels on PR 42 so a scenario can
+// assert the set a phase leaves behind.
+func newGitHubContractLabelHandler(
+	t *testing.T,
+	store *providerContractLabelStore,
+	registry providerContractLabelRegistry,
+) http.Handler {
 	t.Helper()
 
-	switch {
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
-		writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
-	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
-		var labels []string
-		decodeJSONRequest(t, r, &labels)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
+			name := decodedPathTail(t, r)
+			if status, answered := registry.status(name); answered {
+				w.WriteHeader(status)
+				writeJSON(t, w, gitHubNotFoundResponse())
 
-		if len(labels) == 1 {
-			testastic.SliceEqual(t, []string{providerContractTaggedLabel}, labels)
-		} else {
-			testastic.SliceEqual(
-				t,
-				[]string{providerContractPendingLabel, "release", "automated", "yeet"},
-				labels,
-			)
+				return
+			}
+
+			writeJSON(t, w, map[string]any{"name": name})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+			var names []string
+			decodeJSONRequest(t, r, &names)
+			store.attach(names...)
+			writeJSON(t, w, []map[string]any{{"name": names[0]}})
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+			store.detach(decodedPathTail(t, r))
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
-
-		writeJSON(t, w, []map[string]any{{"name": labels[0]}})
-	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
-		removed := decodedPathTail(t, r)
-		testastic.True(t, removed == providerContractPendingLabel || removed == providerContractTaggedLabel)
-		w.WriteHeader(http.StatusNoContent)
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
+	})
 }
 
 func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -615,25 +610,6 @@ func handleGitHubUnsupportedMergeContract(t *testing.T, w http.ResponseWriter, r
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}
-}
-
-func handleGitHubExtraLabelLookupContract(
-	t *testing.T,
-	w http.ResponseWriter,
-	r *http.Request,
-	label string,
-	status int,
-) {
-	t.Helper()
-
-	if r.Method == http.MethodGet && decodedPathTail(t, r) == label {
-		w.WriteHeader(status)
-		writeJSON(t, w, gitHubNotFoundResponse())
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
 func handleGitHubTagPaginationLimitContract(
