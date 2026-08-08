@@ -192,6 +192,8 @@ var (
 	ErrNoPR                    = errors.New("no release PR found")
 	ErrFileNotFound            = errors.New("file not found")
 	ErrEmptyCommitSHA          = errors.New("empty commit SHA")
+	ErrInvalidCommitSHA        = errors.New("ref is not a commit SHA")
+	ErrEmptyTagName            = errors.New("empty tag name")
 	ErrEmptyCommitID           = errors.New("empty commit ID")
 	ErrRefNotFound             = errors.New("ref not found")
 	ErrMergeBlocked            = errors.New("release PR merge blocked")
@@ -205,6 +207,25 @@ var (
 )
 
 const maxPaginationPages = 100
+
+func isFullCommitSHA(ref string) bool {
+	const commitSHALength = 40
+
+	if len(ref) != commitSHALength {
+		return false
+	}
+
+	for _, r := range ref {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f', r >= 'A' && r <= 'F':
+			continue
+		default:
+			return false
+		}
+	}
+
+	return true
+}
 
 type CommitBoundaryNotFoundError struct {
 	Ref    string

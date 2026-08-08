@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -33,7 +32,10 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 }
 
 func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
-	ref := strings.TrimSpace(opts.Ref)
+	ref := opts.Ref
+	if !isFullCommitSHA(ref) {
+		return nil, fmt.Errorf("create release: %w: %q", ErrInvalidCommitSHA, ref)
+	}
 
 	slog.DebugContext(ctx, "gitlab: creating release",
 		slog.String("tag", opts.TagName),
@@ -45,10 +47,7 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 		Name:        new(opts.Name),
 		Description: new(opts.Body),
 		TagMessage:  new(opts.Body),
-	}
-
-	if ref != "" {
-		releaseOptions.Ref = new(ref)
+		Ref:         new(ref),
 	}
 
 	release, _, err := g.client.Releases.CreateRelease(g.projectID, releaseOptions, gitlab.WithContext(ctx))

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/provider"
@@ -141,7 +140,7 @@ func (p *releasePublisher) releaseForTag(
 		return nil, err
 	}
 
-	return p.createReleaseForUnreleasedTag(ctx, tag, ref, releaseBody, prerelease)
+	return p.createReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
 func (p *releasePublisher) createReleaseForTag(
@@ -182,22 +181,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 		return existingRelease, nil
 	}
 
-	return p.createReleaseForUnreleasedTag(ctx, tag, ref, releaseBody, prerelease)
-}
-
-func (p *releasePublisher) createReleaseForUnreleasedTag(
-	ctx context.Context,
-	tag, ref, releaseBody string,
-	prerelease bool,
-) (*provider.Release, error) {
-	r := p.core
-
-	creationRef := strings.TrimSpace(ref)
-	if creationRef == "" {
-		creationRef = r.cfg.Branch
-	}
-
-	return p.createReleaseForTag(ctx, tag, creationRef, releaseBody, prerelease)
+	return p.createReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
 func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {

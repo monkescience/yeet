@@ -29,7 +29,6 @@ type AzureOptions struct {
 	MergedPendingRelease      bool
 	MultipleOpenPRs           bool
 	MergeBlocked              bool
-	MergeCommitRef            string
 	ExistingOpenReleasePRBody string
 	Files                     map[string]string
 	Reviewers                 map[string]string
@@ -634,13 +633,8 @@ func azureMergedPendingPR(opts AzureOptions) map[string]any {
 	}
 	pr["description"] = "## release created\n\n" + azureReleaseManifest + "\n"
 
-	mergeCommitRef := opts.BranchHeadSHA
-	if opts.MergeCommitRef != "" {
-		mergeCommitRef = opts.MergeCommitRef
-	}
-
-	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: mergeCommitRef}
-	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: mergeCommitRef}
+	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
+	pr["lastMergeSourceCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}
 
 	return pr
 }

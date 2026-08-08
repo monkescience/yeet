@@ -462,8 +462,6 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 		w.WriteHeader(http.StatusNotFound)
 		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/"+providerContractBaseBranch:
-		writeJSONFixture(t, w, "contracts/github/create_release/commit_ref.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/user":
 		writeJSONFixture(t, w, "contracts/github/create_release/user.json")
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/tags":
@@ -497,7 +495,7 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 		}
 		decodeJSONRequest(t, r, &request)
 		testastic.Equal(t, providerContractTag, request.TagName)
-		testastic.Equal(t, providerContractBaseBranch, request.TargetCommitish)
+		testastic.Equal(t, providerContractHeadSHA, request.TargetCommitish)
 		testastic.Equal(t, providerContractTag, request.Name)
 		testastic.Equal(t, "release notes", request.Body)
 		testastic.True(t, request.Prerelease)

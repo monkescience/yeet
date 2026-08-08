@@ -45,20 +45,15 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 }
 
 func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
-	ref := strings.TrimSpace(opts.Ref)
-	if ref == "" {
-		return nil, fmt.Errorf("create release: %w: ref required", ErrEmptyCommitSHA)
+	ref := opts.Ref
+	if !isFullCommitSHA(ref) {
+		return nil, fmt.Errorf("create release: %w: %q", ErrInvalidCommitSHA, ref)
 	}
 
 	slog.DebugContext(ctx, "azure devops: creating annotated tag",
 		slog.String("tag", opts.TagName),
 		slog.String("ref", ref),
 	)
-
-	objectID, err := a.resolveAzureDevOpsReleaseTarget(ctx, ref)
-	if err != nil {
-		return nil, fmt.Errorf("resolve ref %q: %w", ref, err)
-	}
 
 	gitClient, err := a.client(ctx)
 	if err != nil {
@@ -69,7 +64,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*
 		Name:    new(opts.TagName),
 		Message: new(opts.Body),
 		TaggedObject: &git.GitObject{
-			ObjectId: new(objectID),
+			ObjectId: new(ref),
 		},
 	}
 
@@ -87,7 +82,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*
 
 	slog.DebugContext(ctx, "azure devops: created annotated tag",
 		slog.String("tag", opts.TagName),
-		slog.String("object_id", objectID),
+		slog.String("object_id", ref),
 	)
 
 	return release, nil
@@ -131,96 +126,6 @@ func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*gi
 	}
 
 	return tag, nil
-}
-
-// For CreateRelease callers typically pass a branch name, so try Branch first.
-// Fall back to Tag so a tag ref still works. Crucially, this means a repo with
-// both a branch and a tag of the same name (e.g. "main") tags the branch HEAD,
-// not the tag.
-func (a *AzureDevOps) resolveAzureDevOpsReleaseTarget(ctx context.Context, ref string) (string, error) {
-	return a.resolveAzureDevOpsObjectIDPreferring(
-		ctx,
-		ref,
-		git.GitVersionTypeValues.Branch,
-		git.GitVersionTypeValues.Tag,
-	)
-}
-
-func (a *AzureDevOps) resolveAzureDevOpsObjectIDPreferring(
-	ctx context.Context,
-	ref string,
-	preferred, fallback git.GitVersionType,
-) (string, error) {
-	if isAzureDevOpsCommitSHA(ref) {
-		return ref, nil
-	}
-
-	gitClient, err := a.client(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	sha, found, err := a.resolveAzureDevOpsRef(ctx, gitClient, ref, preferred)
-	if err != nil {
-		return "", err
-	}
-
-	if found {
-		return sha, nil
-	}
-
-	sha, found, err = a.resolveAzureDevOpsRef(ctx, gitClient, ref, fallback)
-	if err != nil {
-		return "", err
-	}
-
-	if found {
-		return sha, nil
-	}
-
-	return "", fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
-}
-
-func (a *AzureDevOps) resolveAzureDevOpsRef(
-	ctx context.Context,
-	gitClient git.Client,
-	ref string,
-	versionType git.GitVersionType,
-) (string, bool, error) {
-	top := 1
-
-	commits, err := gitClient.GetCommits(ctx, git.GetCommitsArgs{
-		RepositoryId: &a.repo,
-		Project:      &a.project,
-		SearchCriteria: &git.GitQueryCommitsCriteria{
-			ItemVersion: &git.GitVersionDescriptor{
-				Version:     &ref,
-				VersionType: &versionType,
-			},
-			Top: &top,
-		},
-		Top: &top,
-	})
-	if err != nil {
-		if isAzureDevOpsNotFound(err) {
-			return "", false, nil
-		}
-
-		return "", false, fmt.Errorf("resolve ref %q: %w", ref, err)
-	}
-
-	// Azure DevOps returns an empty result (rather than 404) when the ref
-	// does not exist as the requested versionType.
-	if commits == nil || len(*commits) == 0 {
-		return "", false, nil
-	}
-
-	first := (*commits)[0]
-	if first.CommitId == nil || *first.CommitId == "" {
-		return "", false, fmt.Errorf("%w: ref %q", ErrEmptyCommitSHA, ref)
-	}
-
-	return *first.CommitId, true, nil
 }
 
 func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *Release {

@@ -277,8 +277,6 @@ func TestGitHubCreateRelease(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
 			http.NotFound(w, r)
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/main":
-			writeJSON(t, w, map[string]any{"sha": "6865616473686131323300000000000000000000"})
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			writeJSON(t, w, map[string]any{
 				"login": "yeet-tester",
@@ -335,7 +333,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 			err := json.NewDecoder(r.Body).Decode(&request)
 			testastic.NoError(t, err)
 			testastic.Equal(t, "v1.2.3", request.TagName)
-			testastic.Equal(t, "main", request.TargetCommitish)
+			testastic.Equal(t, "6865616473686131323300000000000000000000", request.TargetCommitish)
 			testastic.Equal(t, "v1.2.3", request.Name)
 			testastic.Equal(t, "release notes", request.Body)
 			testastic.True(t, request.Prerelease)
@@ -360,7 +358,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	// when: creating a release with an explicit ref
 	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
 		TagName:    "v1.2.3",
-		Ref:        "main",
+		Ref:        "6865616473686131323300000000000000000000",
 		Name:       "v1.2.3",
 		Body:       "release notes",
 		Prerelease: true,
@@ -406,7 +404,7 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	// when: creating a release for the existing tag
 	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
 		TagName: "v1.2.3",
-		Ref:     "main",
+		Ref:     "6865616473686131323300000000000000000000",
 		Name:    "v1.2.3",
 		Body:    "release notes",
 	})
@@ -415,6 +413,86 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, "v1.2.3", release.TagName)
 	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
+}
+
+func TestGitHubCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name string
+		ref  string
+	}{
+		{name: "rejects a branch name", ref: "main"},
+		{name: "rejects an abbreviated SHA", ref: "6865616473"},
+		{name: "rejects a blank ref", ref: "  "},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitHub provider whose server fails any request it receives
+			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				t.Errorf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
+			}))
+			defer server.Close()
+
+			gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
+
+			// when: creating a release for a ref that is not a commit SHA
+			_, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+				TagName: "v1.2.3",
+				Ref:     scenario.ref,
+				Name:    "v1.2.3",
+				Body:    "release notes",
+			})
+
+			// then: the sentinel for an unusable ref is returned before any request
+			testastic.ErrorIs(t, err, provider.ErrInvalidCommitSHA)
+		})
+	}
+}
+
+func TestGitLabCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name string
+		ref  string
+	}{
+		{name: "rejects a branch name", ref: "main"},
+		{name: "rejects an abbreviated SHA", ref: "6865616473"},
+		{name: "rejects a blank ref", ref: "  "},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitLab provider whose server fails any request it receives
+			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				t.Errorf("unexpected GitLab request: %s %s", r.Method, r.URL.String())
+			}))
+			defer server.Close()
+
+			client, err := gitlabapi.NewClient(
+				"",
+				gitlabapi.WithBaseURL(server.URL),
+				gitlabapi.WithHTTPClient(server.Client()),
+				gitlabapi.WithoutRetries(),
+			)
+			testastic.NoError(t, err)
+
+			gl := provider.NewGitLab(client, "o/r")
+
+			// when: creating a release for a ref that is not a commit SHA
+			_, err = gl.CreateRelease(t.Context(), provider.ReleaseOptions{
+				TagName: "v1.2.3",
+				Ref:     scenario.ref,
+				Name:    "v1.2.3",
+				Body:    "release notes",
+			})
+
+			// then: the sentinel for an unusable ref is returned before any request
+			testastic.ErrorIs(t, err, provider.ErrInvalidCommitSHA)
+		})
+	}
 }
 
 func newGitHubTestClient(t *testing.T, server *httptest.Server) *githubapi.Client {

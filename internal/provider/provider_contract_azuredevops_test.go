@@ -891,10 +891,6 @@ func isAzureDevOpsRefsRequest(r *http.Request, filter string) bool {
 		r.URL.Query().Get("filter") == filter
 }
 
-func isAzureDevOpsCommitsListRequest(r *http.Request) bool {
-	return r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("commits")
-}
-
 func isAzureDevOpsPullRequestsListRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests")
 }
@@ -1317,17 +1313,6 @@ func azureDevOpsCreateReleaseHandler(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.versionType") == "tag":
-			// Branch and tag share the name "main" in this scenario, and the tag
-			// points at a stale commit. CreateRelease must resolve to the
-			// branch's HEAD, not the tag's commit.
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "tag_collision.json"))
-		case isAzureDevOpsCommitsListRequest(r) &&
-			r.URL.Query().Get("searchCriteria.itemVersion.versionType") == "branch":
-			testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("searchCriteria.itemVersion.version"))
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_release", "commits.json"))
 		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("annotatedTags"):
 			var request struct {
 				Name         string `json:"name"`

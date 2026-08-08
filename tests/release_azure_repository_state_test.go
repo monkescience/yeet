@@ -290,52 +290,6 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Equal(t, "", result.Stdout)
 	})
-
-	t.Run("resolves a merged branch ref before creating the annotated tag", func(t *testing.T) {
-		t.Parallel()
-
-		// given: Azure reports a branch name as the merged release reference.
-		repoDir, shas := fixture.WriteRepoWithHistory(
-			t,
-			"https://dev.azure.com/contoso/platform/_git/yeet",
-			"main",
-			[]fixture.RepoCommit{
-				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
-			},
-		)
-
-		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization:   "contoso",
-			Project:        "platform",
-			Repo:           "yeet",
-			LatestTag:      "v1.0.0",
-			BoundarySHA:    shas[0],
-			BranchHeadSHA:  shas[1],
-			MergeCommitRef: "main",
-		})
-
-		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
-			Provider:     "azuredevops",
-			Branch:       "main",
-			Host:         "dev.azure.com",
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-		})
-
-		// when: automatically merging and tagging the release.
-		result := binary.RunWithOptions(
-			t,
-			[]string{"release", "--auto-merge", "--config", configPath},
-			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
-		)
-
-		// then: yeet resolves the branch to a commit before creating the tag.
-		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stdout)
-	})
 }
 
 func TestReleaseGitHubRepositoryState(t *testing.T) {

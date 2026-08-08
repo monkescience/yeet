@@ -94,8 +94,12 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 // portable git data, mirroring release-please behavior. Idempotent: if the tag
 // ref already exists the call is a no-op.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
-	if strings.TrimSpace(tagName) == "" || strings.TrimSpace(ref) == "" {
-		return nil
+	if strings.TrimSpace(tagName) == "" {
+		return ErrEmptyTagName
+	}
+
+	if !isFullCommitSHA(ref) {
+		return fmt.Errorf("%w: %q", ErrInvalidCommitSHA, ref)
 	}
 
 	exists, err := g.tagExists(ctx, tagName)
@@ -107,17 +111,12 @@ func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message s
 		return nil
 	}
 
-	objectSHA, err := g.resolveCommitSHA(ctx, ref)
-	if err != nil {
-		return fmt.Errorf("resolve tag target %q: %w", ref, err)
-	}
-
 	tagger := g.resolveTaggerIdentity(ctx)
 
 	tagObject, _, err := g.client.Git.CreateTag(ctx, g.repo.Owner, g.repo.Name, github.CreateTag{
 		Tag:     tagName,
 		Message: message,
-		Object:  objectSHA,
+		Object:  ref,
 		Type:    "commit",
 		Tagger:  tagger,
 	})

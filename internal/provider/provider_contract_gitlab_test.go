@@ -545,7 +545,7 @@ func handleGitLabCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	}
 	decodeJSONRequest(t, r, &request)
 	testastic.Equal(t, providerContractTag, request.TagName)
-	testastic.Equal(t, providerContractBaseBranch, request.Ref)
+	testastic.Equal(t, providerContractHeadSHA, request.Ref)
 	testastic.Equal(t, providerContractTag, request.Name)
 	testastic.Equal(t, "release notes", request.Description)
 

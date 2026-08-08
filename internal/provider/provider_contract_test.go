@@ -650,7 +650,7 @@ func TestProviderContract(t *testing.T) {
 			t.Run("creates release", func(t *testing.T) {
 				t.Parallel()
 
-				// given: a provider server accepting a new prerelease against the base branch
+				// given: a provider server accepting a new prerelease at the head commit
 				server := httptest.NewServer(harness.handler(t, providerContractCreateRelease))
 				defer server.Close()
 
@@ -659,7 +659,7 @@ func TestProviderContract(t *testing.T) {
 				// when: CreateRelease is invoked with the contract tag and release notes
 				release, err := p.CreateRelease(context.Background(), provider.ReleaseOptions{
 					TagName:    providerContractTag,
-					Ref:        providerContractBaseBranch,
+					Ref:        providerContractHeadSHA,
 					Name:       providerContractTag,
 					Body:       "release notes",
 					Prerelease: true,
