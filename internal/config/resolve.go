@@ -101,9 +101,8 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 }
 
 func resolveTargetType(targetID string, value TargetType) (TargetType, error) {
-	targetType := TargetType(strings.TrimSpace(string(value)))
-	if targetType == TargetTypePath || targetType == TargetTypeDerived {
-		return targetType, nil
+	if value == TargetTypePath || value == TargetTypeDerived {
+		return value, nil
 	}
 
 	return "", fmt.Errorf(

@@ -15,6 +15,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/monkescience/testastic v0.4.1
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	gitlab.com/gitlab-org/api/client-go/v2 v2.55.1
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
@@ -56,5 +57,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )

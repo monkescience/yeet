@@ -100,7 +100,7 @@ func TestInitCommand(t *testing.T) {
 		_, err := git.PlainInit(repositoryPath, false)
 		testastic.NoError(t, err)
 
-		err = os.WriteFile(filepath.Join(repositoryPath, config.DefaultFile), []byte(config.SchemaDirective+"\n"), 0o644)
+		err = os.WriteFile(filepath.Join(repositoryPath, config.DefaultFile), []byte(config.SchemaDirective()+"\n"), 0o644)
 		testastic.NoError(t, err)
 
 		nestedPath := filepath.Join(repositoryPath, "internal", "cli")
@@ -148,7 +148,7 @@ func TestInitCommand(t *testing.T) {
 			contentStr,
 		)
 
-		cfg, parseErr := config.Parse(content)
+		cfg, _, parseErr := config.LoadResolved(t.Context(), config.DefaultFile)
 		testastic.NoError(t, parseErr)
 
 		_, exists := cfg.Targets["my-cool-app"]
@@ -183,7 +183,7 @@ func TestInitCommand(t *testing.T) {
 			contentStr,
 		)
 
-		cfg, parseErr := config.Parse(content)
+		cfg, _, parseErr := config.LoadResolved(t.Context(), config.DefaultFile)
 		testastic.NoError(t, parseErr)
 
 		_, exists := cfg.Targets["root"]

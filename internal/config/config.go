@@ -14,10 +14,6 @@ import (
 
 const DefaultFile = ".yeet.yaml"
 
-const DefaultSchemaURL = "https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json"
-
-const SchemaDirective = "# yaml-language-server: $schema=" + DefaultSchemaURL
-
 const githubProjectSegments = 2
 
 // Conventional commit types referenced in defaults. Defined as constants so
@@ -107,9 +103,6 @@ func (v *VersionFile) UnmarshalYAML(value *yaml.Node) error {
 	}
 
 	*v = VersionFile(decoded)
-	if v.Format == "" {
-		v.Format = VersionFileFormatMarkers
-	}
 
 	return nil
 }
@@ -252,15 +245,15 @@ type CalVerConfig struct {
 
 var (
 	ErrInvalidConfig          = errors.New("invalid config")
-	ErrEmptyRepoPath          = errors.New("must not be empty")
-	ErrPathMustBeRepoRelative = errors.New("must be repo-relative")
+	errEmptyRepoPath          = errors.New("must not be empty")
+	errPathMustBeRepoRelative = errors.New("must be repo-relative")
 
 	errJSONPointerMustStartWithSlash = errors.New("must start with /")
 )
 
 var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
-func Load(ctx context.Context, path string) (*Config, error) {
+func load(ctx context.Context, path string) (*Config, error) {
 	slog.DebugContext(ctx, "config: loading file", slog.String("path", path))
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
@@ -268,7 +261,7 @@ func Load(ctx context.Context, path string) (*Config, error) {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
-	cfg, err := Parse(data)
+	cfg, err := parse(data)
 	if err != nil {
 		return nil, err
 	}
@@ -282,13 +275,24 @@ func Load(ctx context.Context, path string) (*Config, error) {
 	return cfg, nil
 }
 
-func Parse(data []byte) (*Config, error) {
+func parse(data []byte) (*Config, error) {
+	var instance any
+
+	err := yaml.Unmarshal(data, &instance)
+	if err != nil {
+		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
+	}
+
+	if err := validateAgainstSchema(instance); err != nil {
+		return nil, err
+	}
+
 	cfg := Default()
 
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 
-	err := decoder.Decode(cfg)
+	err = decoder.Decode(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
 	}

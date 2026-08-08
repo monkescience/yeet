@@ -257,11 +257,13 @@
         },
         "pr_body_header": {
           "type": "string",
-          "description": "Optional markdown inserted before changelog in release PR/MR body."
+          "description": "Optional markdown inserted before changelog in release PR/MR body.",
+          "default": "## \u0669(^\u1d17^)\u06f6 release created"
         },
         "pr_body_footer": {
           "type": "string",
-          "description": "Optional markdown appended after changelog in release PR/MR body."
+          "description": "Optional markdown appended after changelog in release PR/MR body.",
+          "default": "_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._"
         },
         "pr_body_max_length": {
           "type": "integer",
@@ -285,10 +287,7 @@
           "description": "Named prerelease channels. Each channel runs only on its configured branch and creates semver prerelease versions.",
           "propertyNames": {
             "type": "string",
-            "minLength": 1,
-            "not": {
-              "const": "stable"
-            }
+            "minLength": 1
           },
           "additionalProperties": {
             "$ref": "#/$defs/release_channel"
@@ -461,7 +460,24 @@
             "minLength": 1
           },
           "additionalProperties": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default": {
+            "breaking": "Breaking Changes",
+            "build": "Build System",
+            "chore": "Miscellaneous Chores",
+            "ci": "Continuous Integration",
+            "docs": "Documentation",
+            "feat": "Features",
+            "fix": "Bug Fixes",
+            "perf": "Performance Improvements",
+            "refactor": "Code Refactoring",
+            "revert": "Reverts",
+            "style": "Styles",
+            "test": "Tests"
           }
         },
         "references": {
@@ -483,7 +499,10 @@
                     "minLength": 1
                   },
                   "url": {
-                    "type": "string",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "description": "URL template with {value} placeholder. Empty string renders as plain text."
                   }
                 }
@@ -497,7 +516,10 @@
                 "minLength": 1
               },
               "additionalProperties": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }

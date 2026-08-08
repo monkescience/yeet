@@ -23,16 +23,16 @@ func RepoPathContains(basePath, candidatePath string) bool {
 func normalizeRepoPath(rawPath string) (string, error) {
 	trimmedPath := strings.TrimSpace(rawPath)
 	if trimmedPath == "" {
-		return "", ErrEmptyRepoPath
+		return "", errEmptyRepoPath
 	}
 
 	if isRepoPathAbsolute(trimmedPath) {
-		return "", ErrPathMustBeRepoRelative
+		return "", errPathMustBeRepoRelative
 	}
 
 	normalizedPath := filepath.ToSlash(trimmedPath)
 	if path.IsAbs(normalizedPath) {
-		return "", ErrPathMustBeRepoRelative
+		return "", errPathMustBeRepoRelative
 	}
 
 	normalizedPath = path.Clean(normalizedPath)
@@ -41,7 +41,7 @@ func normalizeRepoPath(rawPath string) (string, error) {
 	}
 
 	if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
-		return "", ErrPathMustBeRepoRelative
+		return "", errPathMustBeRepoRelative
 	}
 
 	return normalizedPath, nil

@@ -264,6 +264,14 @@ func writeVersionFiles(b *strings.Builder, files []VersionFileOptions) {
 	b.WriteString("version_files:\n")
 
 	for _, vf := range files {
+		if vf.Format == "" && vf.JSONPointer == "" {
+			b.WriteString("  - ")
+			b.WriteString(vf.Path)
+			b.WriteString("\n")
+
+			continue
+		}
+
 		b.WriteString("  - path: ")
 		b.WriteString(vf.Path)
 		b.WriteString("\n")

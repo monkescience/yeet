@@ -12,37 +12,12 @@ import (
 )
 
 func (c *Config) Validate() error {
-	if c.Versioning != VersioningSemver && c.Versioning != VersioningCalVer {
-		return fmt.Errorf("%w: versioning must be %q or %q, got %q",
-			ErrInvalidConfig, VersioningSemver, VersioningCalVer, c.Versioning)
-	}
-
-	if c.Branch == "" {
-		return fmt.Errorf("%w: branch must not be empty", ErrInvalidConfig)
-	}
-
-	if c.Provider != ProviderAuto &&
-		c.Provider != ProviderGitHub &&
-		c.Provider != ProviderGitLab &&
-		c.Provider != ProviderAzureDevOps {
-		return fmt.Errorf("%w: provider must be %q, %q, %q, or %q, got %q",
-			ErrInvalidConfig, ProviderAuto, ProviderGitHub, ProviderGitLab, ProviderAzureDevOps, c.Provider)
-	}
-
 	if err := validateBumpTypes(c.BumpTypes); err != nil {
 		return err
 	}
 
 	if err := validateRepositoryConfig(c.Provider, c.Repository); err != nil {
 		return err
-	}
-
-	if c.Changelog.File == "" {
-		return fmt.Errorf("%w: changelog.file must not be empty", ErrInvalidConfig)
-	}
-
-	if len(c.Changelog.Include) == 0 {
-		return fmt.Errorf("%w: changelog.include must not be empty", ErrInvalidConfig)
 	}
 
 	if err := validateReferencesConfig("changelog.references", c.Changelog.References); err != nil {
@@ -112,61 +87,6 @@ func validateVersionFile(configPath string, versionFile VersionFile) error {
 		return fmt.Errorf("%w: %s must not contain empty paths", ErrInvalidConfig, configPath)
 	}
 
-	switch versionFile.Format {
-	case "", VersionFileFormatMarkers:
-		if strings.TrimSpace(versionFile.JSONPointer) != "" {
-			return fmt.Errorf(
-				"%w: %s json_pointer requires format %q",
-				ErrInvalidConfig,
-				configPath,
-				VersionFileFormatJSON,
-			)
-		}
-	case VersionFileFormatJSON:
-		if strings.TrimSpace(versionFile.JSONPointer) == "" {
-			return fmt.Errorf(
-				"%w: %s json_pointer is required for format %q",
-				ErrInvalidConfig,
-				configPath,
-				VersionFileFormatJSON,
-			)
-		}
-
-		err := validateJSONPointerSyntax(versionFile.JSONPointer)
-		if err != nil {
-			return fmt.Errorf("%w: %s json_pointer: %v", ErrInvalidConfig, configPath, err)
-		}
-	default:
-		return fmt.Errorf(
-			"%w: %s format must be %q or %q, got %q",
-			ErrInvalidConfig,
-			configPath,
-			VersionFileFormatMarkers,
-			VersionFileFormatJSON,
-			versionFile.Format,
-		)
-	}
-
-	return nil
-}
-
-func validateJSONPointerSyntax(pointer string) error {
-	if pointer == "" || pointer[0] != '/' {
-		return errJSONPointerMustStartWithSlash
-	}
-
-	for i := 0; i < len(pointer); i++ {
-		if pointer[i] != '~' {
-			continue
-		}
-
-		if i+1 >= len(pointer) || (pointer[i+1] != '0' && pointer[i+1] != '1') {
-			return errJSONPointerInvalidEscape
-		}
-
-		i++
-	}
-
 	return nil
 }
 
@@ -221,29 +141,6 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		return err
 	}
 
-	if release.AutoMergeMethod != AutoMergeMethodAuto &&
-		release.AutoMergeMethod != AutoMergeMethodSquash &&
-		release.AutoMergeMethod != AutoMergeMethodRebase &&
-		release.AutoMergeMethod != AutoMergeMethodMerge {
-		return fmt.Errorf(
-			"%w: release.auto_merge_method must be %q, %q, %q, or %q, got %q",
-			ErrInvalidConfig,
-			AutoMergeMethodAuto,
-			AutoMergeMethodSquash,
-			AutoMergeMethodRebase,
-			AutoMergeMethodMerge,
-			release.AutoMergeMethod,
-		)
-	}
-
-	if release.PRBodyMaxLength < 0 {
-		return fmt.Errorf(
-			"%w: release.pr_body_max_length must not be negative, got %d",
-			ErrInvalidConfig,
-			release.PRBodyMaxLength,
-		)
-	}
-
 	if err := validateReleaseReviewers(release.Reviewers); err != nil {
 		return err
 	}
@@ -258,15 +155,6 @@ func validateReleaseConfig(release ReleaseConfig) error {
 func validateLifecycleLabelName(path, name string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("%w: %s must not be blank", ErrInvalidConfig, path)
-	}
-
-	if name != strings.TrimSpace(name) {
-		return fmt.Errorf(
-			"%w: %s %q must not have leading or trailing whitespace",
-			ErrInvalidConfig,
-			path,
-			name,
-		)
 	}
 
 	if strings.Contains(name, ",") {
@@ -343,14 +231,6 @@ func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
 			return fmt.Errorf("%w: release.labels.extra must not contain blank labels", ErrInvalidConfig)
 		}
 
-		if extra != strings.TrimSpace(extra) {
-			return fmt.Errorf(
-				"%w: release.labels.extra entry %q must not have leading or trailing whitespace",
-				ErrInvalidConfig,
-				extra,
-			)
-		}
-
 		if strings.Contains(extra, ",") {
 			return fmt.Errorf(
 				"%w: release.labels.extra entry %q must not contain a comma",
@@ -380,26 +260,10 @@ func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
 }
 
 func validateReleaseReviewers(reviewers []string) error {
-	seen := make(map[string]struct{}, len(reviewers))
-
 	for _, reviewer := range reviewers {
 		if strings.TrimSpace(reviewer) == "" {
 			return fmt.Errorf("%w: release.reviewers must not contain empty strings", ErrInvalidConfig)
 		}
-
-		if reviewer != strings.TrimSpace(reviewer) {
-			return fmt.Errorf(
-				"%w: release.reviewers entry %q must not have leading or trailing whitespace",
-				ErrInvalidConfig,
-				reviewer,
-			)
-		}
-
-		if _, exists := seen[reviewer]; exists {
-			return fmt.Errorf("%w: release.reviewers contains duplicate %q", ErrInvalidConfig, reviewer)
-		}
-
-		seen[reviewer] = struct{}{}
 	}
 
 	return nil

@@ -14,7 +14,7 @@ targets:
     tag_prefix: v
 ```
 
-All available options, defaults, and descriptions are defined in the [JSON schema](../yeet.schema.json). YAML-aware editors that support `# yaml-language-server: $schema=...` modelines will provide validation and autocomplete automatically. You can pin the schema URL to a release tag for stricter reproducibility.
+All available options, defaults, and descriptions are defined in the [JSON schema](../yeet.schema.json). YAML-aware editors that support `# yaml-language-server: $schema=...` modelines will provide validation and autocomplete automatically. The schema is also embedded in the binary and enforced when the config is loaded, so an editor and a release run apply the same rules. A released `yeet init` writes the modeline pinned to its own tag; a development build writes `main`, as shown above.
 
 ## Repository targeting
 

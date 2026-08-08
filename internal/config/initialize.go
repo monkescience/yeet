@@ -17,7 +17,7 @@ var targetNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 const fallbackTargetName = "root"
 
 func Initialize(ctx context.Context, path string) error {
-	resolvedPath, err := ResolveInitPath(ctx, path)
+	resolvedPath, err := resolveInitPath(ctx, path)
 	if err != nil {
 		return fmt.Errorf("resolve init config path: %w", err)
 	}
@@ -48,7 +48,7 @@ targets:
     type: path
     path: .
     tag_prefix: v
-`, SchemaDirective, targetName)
+`, SchemaDirective(), targetName)
 }
 
 func deriveTargetName(configPath string) string {

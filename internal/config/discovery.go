@@ -10,12 +10,12 @@ import (
 )
 
 func LoadResolved(ctx context.Context, path string) (*Config, string, error) {
-	resolvedPath, err := ResolvePath(ctx, path)
+	resolvedPath, err := resolvePath(ctx, path)
 	if err != nil {
 		return nil, resolvedPath, err
 	}
 
-	cfg, err := Load(ctx, resolvedPath)
+	cfg, err := load(ctx, resolvedPath)
 	if err != nil {
 		return nil, resolvedPath, fmt.Errorf("load config: %w", err)
 	}
@@ -23,7 +23,7 @@ func LoadResolved(ctx context.Context, path string) (*Config, string, error) {
 	return cfg, resolvedPath, nil
 }
 
-func ResolvePath(ctx context.Context, path string) (string, error) {
+func resolvePath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
@@ -51,7 +51,7 @@ func ResolvePath(ctx context.Context, path string) (string, error) {
 	return filepath.Join(configDir, DefaultFile), nil
 }
 
-func ResolveInitPath(ctx context.Context, path string) (string, error) {
+func resolveInitPath(ctx context.Context, path string) (string, error) {
 	explicitPath, hasExplicitPath := explicitConfigPath(path)
 	if hasExplicitPath {
 		return explicitPath, nil
