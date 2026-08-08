@@ -83,16 +83,9 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 	ids := make([]int64, 0, len(usernames))
 
 	for _, username := range usernames {
-		members, _, err := g.client.ProjectMembers.ListAllProjectMembers(g.projectID, &gitlab.ListProjectMembersOptions{
-			Query: new(username),
-		}, gitlab.WithContext(ctx))
+		id, err := g.findProjectMemberID(ctx, username)
 		if err != nil {
-			return nil, fmt.Errorf("look up reviewer %q: %w", username, err)
-		}
-
-		id, found := matchGitLabMember(members, username)
-		if !found {
-			return nil, fmt.Errorf("%w: %q is not a project member", ErrReviewerNotFound, username)
+			return nil, err
 		}
 
 		ids = append(ids, id)
@@ -101,16 +94,55 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 	return ids, nil
 }
 
-// matchGitLabMember picks the exact username match: the members query
-// parameter is a fuzzy search over name and username.
-func matchGitLabMember(members []*gitlab.ProjectMember, username string) (int64, bool) {
-	for _, member := range members {
-		if strings.EqualFold(member.Username, username) {
-			return member.ID, true
-		}
+// findProjectMemberID picks the exact username match: the members query
+// parameter is a fuzzy search over name and username, so the wanted member can
+// sit behind any number of looser matches.
+func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int64, error) {
+	options := &gitlab.ListProjectMembersOptions{
+		ListOptions: gitlab.ListOptions{PerPage: gitLabPageSize},
+		Query:       new(username),
 	}
 
-	return 0, false
+	var (
+		id    int64
+		found bool
+	)
+
+	err := paginate(ctx, "listing project members",
+		func(page int) ([]*gitlab.ProjectMember, int, error) {
+			options.Page = int64(page)
+
+			members, resp, err := g.client.ProjectMembers.ListAllProjectMembers(
+				g.projectID,
+				options,
+				gitlab.WithContext(ctx),
+			)
+			if err != nil {
+				return nil, 0, fmt.Errorf("look up reviewer %q: %w", username, err)
+			}
+
+			return members, gitLabNextPage(resp), nil
+		},
+		func(member *gitlab.ProjectMember) (bool, error) {
+			if !strings.EqualFold(member.Username, username) {
+				return false, nil
+			}
+
+			id = member.ID
+			found = true
+
+			return true, nil
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if !found {
+		return 0, fmt.Errorf("%w: %q is not a project member", ErrReviewerNotFound, username)
+	}
+
+	return id, nil
 }
 
 // verifyGitLabReviewers guards against GitLab silently applying fewer

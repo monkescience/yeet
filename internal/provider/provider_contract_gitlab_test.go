@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -261,6 +262,74 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 		err.Error(),
 	)
 	testastic.True(t, pendingMarked)
+}
+
+func TestGitLabFindsReviewerOnLaterMemberPage(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab server whose member list spans two pages, with the
+	// requested reviewer only on the second
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
+			testastic.Equal(t, providerContractReviewerAlice, r.URL.Query().Get("query"))
+
+			if r.URL.Query().Get("page") == "2" {
+				writeJSON(t, w, []map[string]any{{"id": 101, "username": providerContractReviewerAlice}})
+
+				return
+			}
+
+			w.Header().Set("X-Next-Page", "2")
+			writeJSON(t, w, gitLabOtherMembers(100))
+		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests":
+			var request struct {
+				ReviewerIDs []int64 `json:"reviewer_ids"`
+			}
+			decodeJSONRequest(t, r, &request)
+			testastic.SliceEqual(t, []int64{101}, request.ReviewerIDs)
+			writeJSON(t, w, map[string]any{
+				"iid":           42,
+				"title":         providerContractReleaseTitle,
+				"description":   providerContractReleaseBody,
+				"web_url":       "https://example.com/pulls/42",
+				"source_branch": providerContractReleaseBranch,
+				"reviewers":     []map[string]any{{"id": 101, "username": providerContractReviewerAlice}},
+			})
+		default:
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: creating a release MR with that reviewer
+	pr, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+		Title:         providerContractReleaseTitle,
+		Body:          providerContractReleaseBody,
+		BaseBranch:    providerContractBaseBranch,
+		ReleaseBranch: providerContractReleaseBranch,
+		Reviewers:     []string{providerContractReviewerAlice},
+		Labels:        defaultReleasePRLabels(),
+	})
+
+	// then: the reviewer resolves and the merge request is created
+	testastic.NoError(t, err)
+	testastic.Equal(t, 42, pr.Number)
+}
+
+func gitLabOtherMembers(count int) []map[string]any {
+	members := make([]map[string]any, 0, count)
+
+	for i := range count {
+		members = append(members, map[string]any{
+			"id":       200 + i,
+			"username": fmt.Sprintf("%s-%d", providerContractReviewerAlice, i),
+		})
+	}
+
+	return members
 }
 
 func handleGitLabUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
