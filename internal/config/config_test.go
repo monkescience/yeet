@@ -334,6 +334,9 @@ func TestValidate(t *testing.T) {
 
 		// given: config with unsupported auto merge method
 		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
 		cfg.Release.AutoMergeMethod = "fast-forward"
 
 		// when: validating
@@ -342,6 +345,38 @@ func TestValidate(t *testing.T) {
 		// then: validation fails
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err != nil {
+			testastic.Equal(
+				t,
+				"invalid config: release.auto_merge_method must be \"auto\", \"squash\", "+
+					"\"rebase\", or \"merge\", got \"fast-forward\"",
+				err.Error(),
+			)
+		}
+	})
+
+	t.Run("invalid provider fails", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Provider = "wrongo"
+
+		err := cfg.Validate()
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err != nil {
+			testastic.Equal(
+				t,
+				"invalid config: provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got \"wrongo\"",
+				err.Error(),
+			)
+		}
 	})
 
 	t.Run("repository owner and repo must be set together", func(t *testing.T) {

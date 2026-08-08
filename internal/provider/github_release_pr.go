@@ -259,13 +259,17 @@ func (g *GitHub) SetReleasePRLabels(
 	labels ReleasePRLabels,
 	phase ReleasePRPhase,
 ) error {
-	if err := g.labelDefinitions().prepare(ctx, labels); err != nil {
+	if err := g.labelDefinitions().prepare(ctx, labels, phase); err != nil {
 		return err
 	}
 
 	change := managedLabelChange(labels, phase)
 
 	return g.applyLabels(ctx, number, change.anchor, change.add, change.remove)
+}
+
+func (g *GitHub) PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error {
+	return g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged")
 }
 
 // applyLabels sends every addition in one request, which puts the anchor on the

@@ -75,6 +75,53 @@ func TestPrepare(t *testing.T) {
 		)
 	})
 
+	t.Run("invalid provider override is rejected", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		clearCurrentBranchEnv(t)
+		writeTestConfig(t, func(_ *config.Config) {})
+
+		_, err := prepare(t.Context(), config.DefaultFile, Options{
+			DryRun:   true,
+			Provider: new("wrongo"),
+		})
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err != nil {
+			testastic.Equal(
+				t,
+				"invalid release options: invalid config: provider must be \"auto\", \"github\", "+
+					"\"gitlab\", or \"azuredevops\", got \"wrongo\"",
+				err.Error(),
+			)
+		}
+	})
+
+	t.Run("invalid auto merge method override is rejected", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		clearCurrentBranchEnv(t)
+		writeTestConfig(t, func(_ *config.Config) {})
+
+		_, err := prepare(t.Context(), config.DefaultFile, Options{
+			AutoMerge:       new(true),
+			AutoMergeMethod: new("wrongo"),
+			DryRun:          true,
+		})
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err != nil {
+			testastic.Equal(
+				t,
+				"invalid release options: invalid config: release.auto_merge_method must be \"auto\", "+
+					"\"squash\", \"rebase\", or \"merge\", got \"wrongo\"",
+				err.Error(),
+			)
+		}
+	})
+
 	t.Run("branch fallback log explains the selected behavior", func(t *testing.T) {
 		// given: a valid config outside a git checkout with debug logging enabled
 		t.Chdir(t.TempDir())

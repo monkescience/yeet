@@ -12,6 +12,10 @@ import (
 )
 
 func (c *Config) Validate() error {
+	if err := validateProvider(c.Provider); err != nil {
+		return err
+	}
+
 	if err := validateBumpTypes(c.BumpTypes); err != nil {
 		return err
 	}
@@ -137,6 +141,16 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {
+	switch release.AutoMergeMethod {
+	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:
+	default:
+		return fmt.Errorf(
+			"%w: release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", or \"merge\", got %q",
+			ErrInvalidConfig,
+			release.AutoMergeMethod,
+		)
+	}
+
 	if err := validateReleaseLabels(release.Labels); err != nil {
 		return err
 	}

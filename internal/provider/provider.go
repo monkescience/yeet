@@ -145,6 +145,11 @@ type Provider interface {
 	// DevOps creates labels on attach and has no definition API, so an unknown
 	// extra label is created rather than rejected.
 	SetReleasePRLabels(ctx context.Context, number int, labels ReleasePRLabels, phase ReleasePRPhase) error
+	// PreflightReleasePRTagging checks known prerequisites without mutating pull
+	// requests, releases, branches, or label definitions. GitHub and GitLab check
+	// that taggedLabel exists. Azure DevOps cannot inspect label definitions and
+	// returns nil. A later mutation can still fail or race this check.
+	PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error
 	// MaxPRBodyLength returns zero when the provider has no known limit.
 	MaxPRBodyLength() int
 

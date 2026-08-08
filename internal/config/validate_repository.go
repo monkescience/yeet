@@ -5,6 +5,19 @@ import (
 	"strings"
 )
 
+func validateProvider(provider ProviderType) error {
+	switch provider {
+	case ProviderAuto, ProviderGitHub, ProviderGitLab, ProviderAzureDevOps:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%w: provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got %q",
+			ErrInvalidConfig,
+			provider,
+		)
+	}
+}
+
 // validateRepositorySubsection enforces the single-active-sub-section
 // invariant: at most one sub-section may be set, and if one is set it must
 // match the top-level provider. Called from Parse, before structural and

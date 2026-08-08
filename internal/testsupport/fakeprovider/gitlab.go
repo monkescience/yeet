@@ -377,10 +377,17 @@ func registerGitLabContent(mux *http.ServeMux, prefix string, opts GitLabOptions
 func registerGitLabLabels(t *testing.T, mux *http.ServeMux, prefix string, opts GitLabOptions) {
 	t.Helper()
 
+	labels := newLabelRegistry(opts.ExistingLabels)
+
+	if opts.MergedPendingRelease || opts.ExistingOpenReleasePRBody != "" {
+		_ = labels.create(fakePendingReleaseTag)
+		_ = labels.create("autorelease: tagged")
+	}
+
 	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue(gitlabKeyName)
 
-		if !slices.Contains(opts.ExistingLabels, name) {
+		if !labels.exists(name) {
 			http.Error(w, "not found", http.StatusNotFound)
 
 			return
@@ -390,14 +397,15 @@ func registerGitLabLabels(t *testing.T, mux *http.ServeMux, prefix string, opts 
 	})
 
 	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, r *http.Request) {
-		if name := readJSONString(t, r, gitlabKeyName); slices.Contains(opts.ExistingLabels, name) {
+		name := readJSONString(t, r, gitlabKeyName)
+		if !labels.create(name) {
 			t.Errorf("fakeprovider/gitlab: recreated existing label %q", name)
 			http.Error(w, "label already exists", http.StatusUnprocessableEntity)
 
 			return
 		}
 
-		writeJSON(w, map[string]any{gitlabKeyName: "label"})
+		writeJSON(w, map[string]any{gitlabKeyName: name})
 	})
 }
 

@@ -847,6 +847,126 @@ func TestProviderContract(t *testing.T) {
 				}, store.sorted())
 			})
 
+			t.Run("tags without validating creation-only extras", func(t *testing.T) {
+				t.Parallel()
+
+				store := newProviderContractLabelStore()
+				store.attach(
+					providerContractPendingLabel,
+					provider.ReleaseLabelYeet,
+					providerContractMissingExtraLabelName,
+				)
+
+				server := httptest.NewServer(harness.labelHandler(
+					t,
+					store,
+					providerContractLabelRegistry{undefined: []string{providerContractMissingExtraLabelName}},
+				))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+					Pending: providerContractPendingLabel,
+					Tagged:  providerContractTaggedLabel,
+					Yeet:    true,
+					Extra:   []string{providerContractMissingExtraLabelName},
+				}, provider.ReleasePRPhaseTagged)
+
+				testastic.NoError(t, err)
+				testastic.SliceEqual(t, []string{
+					providerContractMissingExtraLabelName,
+					providerContractTaggedLabel,
+					provider.ReleaseLabelYeet,
+				}, store.sorted())
+			})
+
+			t.Run("preflights tagged label existence without mutation", func(t *testing.T) {
+				t.Parallel()
+
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(t, store, providerContractLabelRegistry{}))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				err := p.PreflightReleasePRTagging(
+					context.Background(),
+					providerContractTaggedLabel,
+				)
+
+				testastic.NoError(t, err)
+				testastic.Equal(t, 0, len(store.sorted()))
+			})
+
+			t.Run("preflight rejects a missing tagged label when definitions are available", func(t *testing.T) {
+				t.Parallel()
+
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(
+					t,
+					store,
+					providerContractLabelRegistry{undefined: []string{providerContractTaggedLabel}},
+				))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				err := p.PreflightReleasePRTagging(
+					context.Background(),
+					providerContractTaggedLabel,
+				)
+
+				if harness.rejectsUnknownExtraLabels {
+					testastic.Error(t, err)
+					testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+
+					if err != nil {
+						testastic.Equal(
+							t,
+							`release PR label does not exist: tagged label "`+providerContractTaggedLabel+`"`,
+							err.Error(),
+						)
+					}
+				} else {
+					testastic.NoError(t, err)
+				}
+
+				testastic.Equal(t, 0, len(store.sorted()))
+			})
+
+			t.Run("preflight separates an unreachable tagged label from a missing one", func(t *testing.T) {
+				t.Parallel()
+
+				store := newProviderContractLabelStore()
+
+				server := httptest.NewServer(harness.labelHandler(
+					t,
+					store,
+					providerContractLabelRegistry{unreachable: []string{providerContractTaggedLabel}},
+				))
+				defer server.Close()
+
+				p := harness.newProvider(t, server)
+
+				err := p.PreflightReleasePRTagging(
+					context.Background(),
+					providerContractTaggedLabel,
+				)
+
+				if harness.rejectsUnknownExtraLabels {
+					testastic.Error(t, err)
+					testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+					testastic.ErrorContains(t, err, `get label "`+providerContractTaggedLabel+`"`)
+				} else {
+					testastic.NoError(t, err)
+				}
+
+				testastic.Equal(t, 0, len(store.sorted()))
+			})
+
 			t.Run("separates an unreachable extra label from a missing one", func(t *testing.T) {
 				t.Parallel()
 

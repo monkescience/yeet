@@ -44,8 +44,8 @@ type releasePRProvider interface {
 	MaxPRBodyLength() int
 }
 
-// releasePRLabelSetter is the whole label protocol as internal/release sees it:
-// state the phase a release PR is in and let the forge work out the labels.
+// releasePRLabelSetter states the phase a release PR is in and lets the forge
+// work out the labels.
 type releasePRLabelSetter interface {
 	SetReleasePRLabels(
 		ctx context.Context,
@@ -53,6 +53,10 @@ type releasePRLabelSetter interface {
 		labels provider.ReleasePRLabels,
 		phase provider.ReleasePRPhase,
 	) error
+}
+
+type releasePRTaggingPreflighter interface {
+	PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error
 }
 
 type releaseFileProvider interface {
@@ -65,6 +69,7 @@ type releasePublishingProvider interface {
 	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
 	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
 	releasePRLabelSetter
+	releasePRTaggingPreflighter
 }
 
 // dependencies is the provider-side capability set. Version history is

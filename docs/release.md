@@ -36,14 +36,17 @@ current labels. It does not restore the managed or extra labels when a maintaine
 it does not remove manually added labels. Finalization adds the tagged label, removes the pending
 label, and leaves every other label unchanged.
 
-GitHub and GitLab create missing lifecycle labels and the managed `yeet` label with yeet's colors
-and descriptions. Extra labels must already exist in the repository or project. Azure DevOps
-attaches all configured labels directly to the PR. A missing or rejected label fails the run rather
-than being silently dropped.
+When GitHub or GitLab opens or adopts a release PR/MR, yeet creates missing lifecycle labels and the
+managed `yeet` label with yeet's colors and descriptions. Extra labels must already exist in the
+repository or project. Before auto-merge or release publication, yeet checks that the configured
+tagged label still exists without creating it. If it was deleted, recreate it and retry the release.
+Azure DevOps cannot inspect label definitions, so it skips this check and attaches configured labels
+directly to the PR. A missing or rejected label fails the run rather than being silently dropped.
 
-Do not change lifecycle label names while a release PR/MR is open, or after merge but before
+Do not rename or delete lifecycle labels while a release PR/MR is open, or after merge but before
 finalization. Finish or close the in-flight release first. Yeet stores no lifecycle label history,
-so a new pending name cannot safely identify the old release state.
+so a new pending name cannot safely identify the old release state, and a missing tagged label stops
+finalization before publication on GitHub and GitLab.
 
 Lifecycle label names are matched case-insensitively on GitHub and Azure DevOps. GitLab matches
 them exactly, because GitLab treats labels differing only by case as distinct and filters them

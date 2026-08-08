@@ -113,9 +113,17 @@ type labelDefinitions struct {
 	isNotFound func(err error) bool
 }
 
-// prepare validates every configured extra label and creates the lifecycle and
-// marker definitions the forge is missing.
-func (d labelDefinitions) prepare(ctx context.Context, labels ReleasePRLabels) error {
+// prepare limits definition work to labels the requested phase owns. Tagged
+// finalization cannot depend on creation-only labels that it does not mutate.
+func (d labelDefinitions) prepare(
+	ctx context.Context,
+	labels ReleasePRLabels,
+	phase ReleasePRPhase,
+) error {
+	if phase == ReleasePRPhaseTagged {
+		return d.ensure(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
+	}
+
 	if err := d.validateExtras(ctx, labels.Extra); err != nil {
 		return err
 	}
@@ -138,7 +146,7 @@ func (d labelDefinitions) prepare(ctx context.Context, labels ReleasePRLabels) e
 // been mutated yet.
 func (d labelDefinitions) validateExtras(ctx context.Context, names []string) error {
 	for _, name := range names {
-		if err := d.validateExisting(ctx, name); err != nil {
+		if err := d.validateExisting(ctx, name, "extra"); err != nil {
 			return err
 		}
 	}
@@ -146,10 +154,7 @@ func (d labelDefinitions) validateExtras(ctx context.Context, names []string) er
 	return nil
 }
 
-// validateExisting rejects a label the forge does not already define. An extra
-// label is never created, so a typo in configuration fails the run instead of
-// registering a label nobody asked for.
-func (d labelDefinitions) validateExisting(ctx context.Context, name string) error {
+func (d labelDefinitions) validateExisting(ctx context.Context, name, role string) error {
 	err := d.get(ctx, name)
 	if err == nil {
 		return nil
@@ -159,7 +164,7 @@ func (d labelDefinitions) validateExisting(ctx context.Context, name string) err
 		return err
 	}
 
-	return fmt.Errorf("%w: extra label %q", ErrReleasePRLabelMissing, name)
+	return fmt.Errorf("%w: %s label %q", ErrReleasePRLabelMissing, role, name)
 }
 
 func (d labelDefinitions) ensure(ctx context.Context, name, color, description string) error {

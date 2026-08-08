@@ -496,6 +496,10 @@ func (a *AzureDevOps) SetReleasePRLabels(
 	return a.applyLabels(ctx, number, change.anchor, change.add, change.remove)
 }
 
+func (a *AzureDevOps) PreflightReleasePRTagging(context.Context, string) error {
+	return nil
+}
+
 // applyLabels attaches one label per request, since Azure DevOps has no bulk
 // label API. The anchor goes first and fails the whole call, and everything
 // after it is best effort so a single rejected label cannot strand the rest.

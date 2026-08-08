@@ -55,6 +55,10 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		return nil, err
 	}
 
+	if err := p.preflightReleasePRTagging(ctx); err != nil {
+		return nil, err
+	}
+
 	prerelease := manifest.Prerelease
 
 	releases := make([]FinalizedRelease, 0, len(manifest.Targets))
@@ -82,6 +86,15 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 	}
 
 	return releases, nil
+}
+
+func (p *releasePublisher) preflightReleasePRTagging(ctx context.Context) error {
+	taggedLabel := p.core.cfg.Release.Labels.Tagged
+	if err := p.publisher.PreflightReleasePRTagging(ctx, taggedLabel); err != nil {
+		return fmt.Errorf("preflight release PR tagging: %w", err)
+	}
+
+	return nil
 }
 
 func (p *releasePublisher) ensureReleasesForPlans(

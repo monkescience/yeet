@@ -485,6 +485,8 @@ type releasePublishingStub struct {
 	mergedPR          *provider.PullRequest
 	mergedPRResponses []*provider.PullRequest
 	findMergedPRCalls int
+	preflightErr      error
+	preflightCalls    []string
 
 	markTaggedCalls  []int
 	markTaggedLabels []provider.ReleasePRLabels
@@ -497,6 +499,15 @@ type releasePublishingStub struct {
 	getReleaseByTagCalls int
 	createReleaseCalls   int
 	createReleaseOpts    []provider.ReleaseOptions
+}
+
+func (s *releasePublishingStub) PreflightReleasePRTagging(
+	_ context.Context,
+	taggedLabel string,
+) error {
+	s.preflightCalls = append(s.preflightCalls, taggedLabel)
+
+	return s.preflightErr
 }
 
 func (s *releasePublishingStub) FindMergedReleasePR(

@@ -379,17 +379,31 @@ func (g *GitLab) SetReleasePRLabels(
 	labels ReleasePRLabels,
 	phase ReleasePRPhase,
 ) error {
-	if err := validateGitLabReleasePRLabels(labels); err != nil {
-		return err
+	if phase == ReleasePRPhaseTagged {
+		if err := validateGitLabLifecycleLabel(labels.Tagged); err != nil {
+			return err
+		}
+	} else {
+		if err := validateGitLabReleasePRLabels(labels); err != nil {
+			return err
+		}
 	}
 
-	if err := g.labelDefinitions().prepare(ctx, labels); err != nil {
+	if err := g.labelDefinitions().prepare(ctx, labels, phase); err != nil {
 		return err
 	}
 
 	change := managedLabelChange(labels, phase)
 
 	return g.applyLabels(ctx, number, change.anchor, change.add, change.remove)
+}
+
+func (g *GitLab) PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error {
+	if err := validateGitLabLifecycleLabel(taggedLabel); err != nil {
+		return err
+	}
+
+	return g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged")
 }
 
 // applyLabels sends additions and removals in one atomic update, so the anchor

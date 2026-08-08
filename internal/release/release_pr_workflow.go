@@ -241,6 +241,10 @@ func (w *releasePRWorkflow) autoMerge(
 		Method:            provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
+	if err := w.publisher.preflightReleasePRTagging(ctx); err != nil {
+		return nil, err
+	}
+
 	mergeSHA, err := w.prs.MergeReleasePR(ctx, pullRequest.Number, mergeOptions)
 	if err != nil {
 		if mergeOptions.BypassMergeChecks {

@@ -597,17 +597,26 @@ func TestGitHubEnsureLabel(t *testing.T) {
 	tests := []struct {
 		name     string
 		yeet     bool
+		phase    provider.ReleasePRPhase
 		expected []string
 	}{
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
+			phase:    provider.ReleasePRPhasePending,
 			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
+			phase:    provider.ReleasePRPhasePending,
 			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "tagged transition recreates only the tagged label",
+			yeet:     true,
+			phase:    provider.ReleasePRPhaseTagged,
+			expected: []string{testReleaseLabelTagged},
 		},
 	}
 
@@ -648,10 +657,10 @@ func TestGitHubEnsureLabel(t *testing.T) {
 			labels := defaultReleasePRLabels()
 			labels.Yeet = test.yeet
 
-			// when: the pending phase is applied
-			err := gh.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+			// when: the requested phase is applied
+			err := gh.SetReleasePRLabels(context.Background(), 42, labels, test.phase)
 
-			// then: only the enabled managed and lifecycle labels are created
+			// then: only definitions owned by that phase are created
 			testastic.NoError(t, err)
 			testastic.SliceEqual(t, test.expected, created)
 		})
@@ -969,17 +978,26 @@ func TestGitLabEnsureLabel(t *testing.T) {
 	tests := []struct {
 		name     string
 		yeet     bool
+		phase    provider.ReleasePRPhase
 		expected []string
 	}{
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
+			phase:    provider.ReleasePRPhasePending,
 			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
+			phase:    provider.ReleasePRPhasePending,
 			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "tagged transition recreates only the tagged label",
+			yeet:     true,
+			phase:    provider.ReleasePRPhaseTagged,
+			expected: []string{testReleaseLabelTagged},
 		},
 	}
 
@@ -1024,10 +1042,10 @@ func TestGitLabEnsureLabel(t *testing.T) {
 			labels := defaultReleasePRLabels()
 			labels.Yeet = test.yeet
 
-			// when: the pending phase is applied
-			err = gl.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+			// when: the requested phase is applied
+			err = gl.SetReleasePRLabels(context.Background(), 42, labels, test.phase)
 
-			// then: only the enabled managed and lifecycle labels are created
+			// then: only definitions owned by that phase are created
 			testastic.NoError(t, err)
 			testastic.SliceEqual(t, test.expected, created)
 		})

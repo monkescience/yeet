@@ -1322,6 +1322,35 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 0, len(stub.markTaggedCalls))
 	})
+
+	t.Run("preflights tagging before merge and publication", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Release.AutoMerge = true
+
+		stub := newProviderStub()
+		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.tagList = []string{"v1.2.3"}
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+		stub.preflightErr = fmt.Errorf("%w: tagged label missing", provider.ErrReleasePRLabelMissing)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result, err := r.Release(context.Background(), false)
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.SliceEqual(t, []string{cfg.Release.Labels.Tagged}, stub.preflightCalls)
+		testastic.Equal(t, 0, stub.mergePRCalls)
+		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
 }
 
 func TestReleaseReusesSinglePendingPR(t *testing.T) {
@@ -2195,6 +2224,36 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Parallel()
+
+	t.Run("preflights tagging before release lookup and publication", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		stub := newProviderStub()
+		stub.mergedPR = &provider.PullRequest{
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.releasesByTag["v1.2.3"] = &provider.Release{
+			TagName: "v1.2.3",
+			URL:     "https://example.com/releases/v1.2.3",
+		}
+		stub.preflightErr = fmt.Errorf("%w: tagged label missing", provider.ErrReleasePRLabelMissing)
+
+		r := newTestReleaser(t, cfg, stub)
+
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+		testastic.SliceEqual(t, []string{cfg.Release.Labels.Tagged}, stub.preflightCalls)
+		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
 
 	t.Run("rejects merged pull request without merge commit", func(t *testing.T) {
 		t.Parallel()

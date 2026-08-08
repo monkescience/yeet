@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -38,6 +39,42 @@ type GitHubOptions struct {
 	ExpectPRTitle             string
 	ExpectPRBodyFile          string
 	ExpectCommitSubject       string
+}
+
+type labelRegistry struct {
+	mu     sync.Mutex
+	labels map[string]struct{}
+}
+
+func newLabelRegistry(names []string) *labelRegistry {
+	labels := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		labels[name] = struct{}{}
+	}
+
+	return &labelRegistry{labels: labels}
+}
+
+func (r *labelRegistry) exists(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	_, exists := r.labels[name]
+
+	return exists
+}
+
+func (r *labelRegistry) create(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.labels[name]; exists {
+		return false
+	}
+
+	r.labels[name] = struct{}{}
+
+	return true
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -685,10 +722,17 @@ func registerGitHubLabels(
 ) {
 	t.Helper()
 
+	labels := newLabelRegistry(opts.ExistingLabels)
+
+	if opts.MergedPendingRelease || opts.ExistingOpenReleasePRBody != "" {
+		_ = labels.create(fakePendingReleaseTag)
+		_ = labels.create("autorelease: tagged")
+	}
+
 	mux.HandleFunc("GET "+prefix+"/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue(githubKeyName)
 
-		if !slices.Contains(opts.ExistingLabels, name) {
+		if !labels.exists(name) {
 			http.Error(w, "not found", http.StatusNotFound)
 
 			return
@@ -698,14 +742,15 @@ func registerGitHubLabels(
 	})
 
 	mux.HandleFunc("POST "+prefix+"/labels", func(w http.ResponseWriter, r *http.Request) {
-		if name := readJSONString(t, r, githubKeyName); slices.Contains(opts.ExistingLabels, name) {
+		name := readJSONString(t, r, githubKeyName)
+		if !labels.create(name) {
 			t.Errorf("fakeprovider/github: recreated existing label %q", name)
 			http.Error(w, "label already exists", http.StatusUnprocessableEntity)
 
 			return
 		}
 
-		writeJSON(w, map[string]any{githubKeyName: "label"})
+		writeJSON(w, map[string]any{githubKeyName: name})
 	})
 
 	mux.HandleFunc("POST "+prefix+"/issues/{number}/labels", func(w http.ResponseWriter, _ *http.Request) {
