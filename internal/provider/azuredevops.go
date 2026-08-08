@@ -33,9 +33,9 @@ type AzureDevOps struct {
 // NewAzureDevOps constructs the provider client.
 // baseURL must be the host-level base (e.g. https://dev.azure.com or a
 // self-hosted host). The collection segment is appended internally. collection
-// defaults to organization on cloud deployments. The httpClient's Timeout is
-// honored by the SDK. Retry middleware is not propagated because the SDK
-// constructs its own http.Client.
+// defaults to organization on cloud deployments. Only the httpClient's Timeout
+// is honored: the SDK constructs its own http.Client, so neither the retry
+// policy nor the HTTP tracing on the supplied transport reaches its requests.
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,

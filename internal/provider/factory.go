@@ -1,33 +1,19 @@
 package provider
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
-	"time"
-	"unicode"
 
 	"github.com/google/go-github/v89/github"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/httptrace"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 var (
-	ErrUnsupportedProvider     = errors.New("unsupported provider")
-	ErrMissingToken            = errors.New("missing auth token")
-	ErrGitHubRepoRequired      = errors.New("resolve github repository: owner and repo are required")
-	ErrGitHubOwnerInvalid      = errors.New("resolve github repository: owner must not contain '/'")
-	ErrGitLabProjectNeeded     = errors.New("resolve gitlab repository: project or owner/repo are required")
-	ErrAzureDevOpsCoordsNeeded = errors.New("resolve azuredevops repository: organization, project, and repo are required")
-	ErrRepositoryConflict      = errors.New("resolve repository: project does not match owner/repo")
-	ErrInvalidHost             = errors.New("invalid provider host")
-	ErrUntrustedHost           = errors.New("provider host is not trusted")
+	ErrUnsupportedProvider = errors.New("unsupported provider")
+	ErrMissingToken        = errors.New("missing auth token")
 )
 
 const (
@@ -36,82 +22,123 @@ const (
 	azureURLEnv  = "AZURE_DEVOPS_URL"
 )
 
-const (
-	httpClientTimeout = 30 * time.Second
-	httpRetryMax      = 3
-	httpRetryWaitMin  = 1 * time.Second
-	httpRetryWaitMax  = 10 * time.Second
-)
+//nolint:gosec // G101: an environment variable name, not a credential
+const azureDevOpsSystemAccessTokenEnv = "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN"
 
-type gitRemoteURLGetter func(context.Context, string) (string, error)
-
-func newRetryableClient() *retryablehttp.Client {
-	client := retryablehttp.NewClient()
-	client.RetryMax = httpRetryMax
-	client.RetryWaitMin = httpRetryWaitMin
-	client.RetryWaitMax = httpRetryWaitMax
-	client.Logger = nil
-
-	client.HTTPClient.Timeout = httpClientTimeout
-
-	return client
+// forgeSpec holds everything that differs between forges: where the token and
+// endpoint override are read from, how a custom host becomes an API URL, and
+// which SDK the coordinates are handed to.
+type forgeSpec struct {
+	tokenEnvVars  []string
+	urlEnvVar     string
+	apiPathSuffix string
+	defaultHost   string
+	construct     func(forgeSpec, *RepositoryDescriptor, forgeToken, *retryablehttp.Client) (Provider, error)
 }
 
-func newRetryableHTTPClient() *http.Client {
-	return newRetryableClient().StandardClient()
+// forgeToken records which environment variable supplied the token, because
+// Azure DevOps authenticates a pipeline system token differently from a PAT.
+type forgeToken struct {
+	envVar string
+	value  string
 }
 
-func newTracedRetryableHTTPClient(providerType config.ProviderType) *http.Client {
-	client := newRetryableClient()
-	trace := httptrace.New(string(providerType))
-	client.RequestLogHook = trace.RequestHook
-	client.HTTPClient.Transport = trace.Interceptor(client.HTTPClient.Transport)
-
-	return client.StandardClient()
+var forgeSpecs = map[string]forgeSpec{
+	providerNameGitHub: {
+		tokenEnvVars:  []string{"GITHUB_TOKEN", "GH_TOKEN"},
+		urlEnvVar:     githubURLEnv,
+		apiPathSuffix: "/api/v3/",
+		defaultHost:   DefaultGitHubHost,
+		construct:     newGitHubProvider,
+	},
+	providerNameGitLab: {
+		tokenEnvVars:  []string{"GITLAB_TOKEN", "GL_TOKEN"},
+		urlEnvVar:     gitlabURLEnv,
+		apiPathSuffix: "/api/v4",
+		defaultHost:   DefaultGitLabHost,
+		construct:     newGitLabProvider,
+	},
+	providerNameAzureDevOps: {
+		tokenEnvVars: []string{azureDevOpsSystemAccessTokenEnv, "AZURE_DEVOPS_EXT_PAT"},
+		urlEnvVar:    azureURLEnv,
+		defaultHost:  DefaultAzureDevOpsHost,
+		construct:    newAzureDevOpsProvider,
+	},
 }
 
 func Create(repository *RepositoryDescriptor) (Provider, error) {
-	switch config.ProviderType(repository.Provider) {
-	case config.ProviderGitHub:
-		return createGitHubProvider(repository)
-	case config.ProviderGitLab:
-		return createGitLabProvider(repository)
-	case config.ProviderAzureDevOps:
-		return createAzureDevOpsProvider(repository)
-	case config.ProviderAuto:
-		return nil, fmt.Errorf(
-			"%w: %s (provider auto must be resolved before creation)",
-			ErrUnsupportedProvider, repository.Provider,
-		)
-	default:
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
-	}
+	return createProvider(repository, newTracedRetryableClient)
 }
 
-func createGitHubProvider(repository *RepositoryDescriptor) (*GitHub, error) {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
+func createProvider(
+	repository *RepositoryDescriptor,
+	newHTTPClient func(forge string) *retryablehttp.Client,
+) (Provider, error) {
+	spec, known := forgeSpecs[repository.Provider]
+	if !known {
+		if repository.Provider == providerNameAuto {
+			return nil, fmt.Errorf(
+				"%w: %s (provider auto must be resolved before creation)",
+				ErrUnsupportedProvider, repository.Provider,
+			)
+		}
+
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
 	}
 
-	if token == "" {
-		return nil, fmt.Errorf("%w: GITHUB_TOKEN or GH_TOKEN environment variable is required", ErrMissingToken)
+	token, err := spec.resolveToken()
+	if err != nil {
+		return nil, err
 	}
 
-	baseURL := strings.TrimSpace(os.Getenv(githubURLEnv))
+	return spec.construct(spec, repository, token, newHTTPClient(repository.Provider))
+}
 
-	if baseURL == "" {
-		host := strings.TrimSpace(repository.Host)
-		if host != "" && !strings.EqualFold(host, DefaultGitHubHost) {
-			baseURL = fmt.Sprintf("https://%s/api/v3/", host)
+func (spec forgeSpec) resolveToken() (forgeToken, error) {
+	for _, envVar := range spec.tokenEnvVars {
+		if value := os.Getenv(envVar); value != "" {
+			return forgeToken{envVar: envVar, value: value}, nil
 		}
 	}
 
-	opts := []github.ClientOptionsFunc{
-		github.WithHTTPClient(newTracedRetryableHTTPClient(config.ProviderGitHub)),
-		github.WithAuthToken(token),
+	return forgeToken{}, fmt.Errorf(
+		"%w: %s environment variable is required",
+		ErrMissingToken,
+		strings.Join(spec.tokenEnvVars, " or "),
+	)
+}
+
+func (spec forgeSpec) endpointOverride() string {
+	return strings.TrimSpace(os.Getenv(spec.urlEnvVar))
+}
+
+// apiBaseURL returns the SDK base URL, or the empty string when the forge's own
+// default endpoint applies.
+func (spec forgeSpec) apiBaseURL(host string) string {
+	if override := spec.endpointOverride(); override != "" {
+		return override
 	}
-	if baseURL != "" {
+
+	host = strings.TrimSpace(host)
+	if host == "" || strings.EqualFold(host, spec.defaultHost) {
+		return ""
+	}
+
+	return "https://" + host + spec.apiPathSuffix
+}
+
+func newGitHubProvider(
+	spec forgeSpec,
+	repository *RepositoryDescriptor,
+	token forgeToken,
+	httpClient *retryablehttp.Client,
+) (Provider, error) {
+	opts := []github.ClientOptionsFunc{
+		github.WithHTTPClient(httpClient.StandardClient()),
+		github.WithAuthToken(token.value),
+	}
+
+	if baseURL := spec.apiBaseURL(repository.Host); baseURL != "" {
 		opts = append(opts, github.WithEnterpriseURLs(baseURL, baseURL))
 	}
 
@@ -123,36 +150,26 @@ func createGitHubProvider(repository *RepositoryDescriptor) (*GitHub, error) {
 	return NewGitHub(client, repository.Owner, repository.Repo), nil
 }
 
-func createGitLabProvider(repository *RepositoryDescriptor) (*GitLab, error) {
-	token := os.Getenv("GITLAB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GL_TOKEN")
-	}
-
-	if token == "" {
-		return nil, fmt.Errorf("%w: GITLAB_TOKEN or GL_TOKEN environment variable is required", ErrMissingToken)
-	}
-
-	baseURL := strings.TrimSpace(os.Getenv(gitlabURLEnv))
-
-	if baseURL == "" {
-		host := strings.TrimSpace(repository.Host)
-		if host != "" && !strings.EqualFold(host, DefaultGitLabHost) {
-			baseURL = fmt.Sprintf("https://%s/api/v4", host)
-		}
-	}
-
-	trace := httptrace.New(string(config.ProviderGitLab))
+func newGitLabProvider(
+	spec forgeSpec,
+	repository *RepositoryDescriptor,
+	token forgeToken,
+	httpClient *retryablehttp.Client,
+) (Provider, error) {
+	// client-go owns its own retryablehttp layer, so it takes the traced inner
+	// client and the same bounds rather than a second retrying round tripper.
 	opts := []gitlab.ClientOptionFunc{
-		gitlab.WithRequestLogHook(trace.RequestHook),
-		gitlab.WithInterceptor(trace.Interceptor),
+		gitlab.WithHTTPClient(httpClient.HTTPClient),
+		gitlab.WithRequestLogHook(httpClient.RequestLogHook),
+		gitlab.WithCustomRetryMax(httpClient.RetryMax),
+		gitlab.WithCustomRetryWaitMinMax(httpClient.RetryWaitMin, httpClient.RetryWaitMax),
 	}
 
-	if baseURL != "" {
+	if baseURL := spec.apiBaseURL(repository.Host); baseURL != "" {
 		opts = append(opts, gitlab.WithBaseURL(baseURL))
 	}
 
-	client, err := gitlab.NewClient(token, opts...)
+	client, err := gitlab.NewClient(token.value, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
@@ -160,43 +177,33 @@ func createGitLabProvider(repository *RepositoryDescriptor) (*GitLab, error) {
 	return NewGitLab(client, repository.Project), nil
 }
 
-func createAzureDevOpsProvider(repository *RepositoryDescriptor) (*AzureDevOps, error) {
-	systemAccessToken := os.Getenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN")
-	pat := os.Getenv("AZURE_DEVOPS_EXT_PAT")
-
-	if systemAccessToken == "" && pat == "" {
-		return nil, fmt.Errorf(
-			"%w: AZURE_DEVOPS_SYSTEM_ACCESSTOKEN or AZURE_DEVOPS_EXT_PAT environment variable is required",
-			ErrMissingToken,
-		)
-	}
-
-	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv(azureURLEnv)), "/")
-
+func newAzureDevOpsProvider(
+	spec forgeSpec,
+	repository *RepositoryDescriptor,
+	token forgeToken,
+	httpClient *retryablehttp.Client,
+) (Provider, error) {
+	baseURL := spec.endpointOverride()
 	if baseURL == "" {
-		host := strings.TrimSpace(repository.Host)
-		if host == "" || strings.HasSuffix(strings.ToLower(host), ".visualstudio.com") {
-			host = DefaultAzureDevOpsHost
-		}
-
-		baseURL = "https://" + host
-	}
-
-	collection := strings.TrimSpace(repository.Collection)
-	if collection == "" {
-		collection = strings.TrimSpace(repository.Organization)
+		baseURL = "https://" + azureDevOpsAPIHost(repository.Host)
 	}
 
 	organization := strings.TrimSpace(repository.Organization)
+
+	collection := strings.TrimSpace(repository.Collection)
+	if collection == "" {
+		collection = organization
+	}
+
 	project := strings.TrimSpace(repository.Project)
 	repo := strings.TrimSpace(repository.Repo)
-	httpClient := newRetryableHTTPClient()
+	standardClient := httpClient.StandardClient()
 
-	if systemAccessToken != "" {
+	if token.envVar == azureDevOpsSystemAccessTokenEnv {
 		return NewAzureDevOpsWithSystemAccessToken(
-			httpClient,
+			standardClient,
 			baseURL,
-			systemAccessToken,
+			token.value,
 			organization,
 			collection,
 			project,
@@ -205,394 +212,12 @@ func createAzureDevOpsProvider(repository *RepositoryDescriptor) (*AzureDevOps, 
 	}
 
 	return NewAzureDevOps(
-		httpClient,
+		standardClient,
 		baseURL,
-		pat,
+		token.value,
 		organization,
 		collection,
 		project,
 		repo,
 	), nil
-}
-
-func ResolveRepository(
-	ctx context.Context,
-	cfg *config.Config,
-	getRemoteURL gitRemoteURLGetter,
-) (*RepositoryDescriptor, error) {
-	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := resolveRepositoryProvider(repository); err != nil {
-		return nil, err
-	}
-
-	applyRepositoryProviderDefaults(repository)
-	normalizeRepositoryDescriptor(repository)
-
-	if err := validateRepositoryDescriptor(repository); err != nil {
-		return nil, err
-	}
-
-	if err := validateProviderHostTrust(ctx, repository, getRemoteURL); err != nil {
-		return nil, err
-	}
-
-	return repository, nil
-}
-
-func repositoryDescriptorFromSources(
-	ctx context.Context,
-	cfg *config.Config,
-	getRemoteURL gitRemoteURLGetter,
-) (*RepositoryDescriptor, error) {
-	repository := repositoryFromConfig(cfg)
-	if repository.Remote == "" {
-		repository.Remote = "origin"
-	}
-
-	if needsRemoteLookup(repository) {
-		remoteURL, err := getRemoteURL(ctx, repository.Remote)
-		if err != nil {
-			return nil, fmt.Errorf("get git remote %q url: %w", repository.Remote, err)
-		}
-
-		detected, err := ParseRemote(remoteURL)
-		if err != nil {
-			return nil, fmt.Errorf("parse git remote %q url: %w", repository.Remote, err)
-		}
-
-		detected.Remote = repository.Remote
-		repository = mergeRepositoryDescriptor(detected, repository)
-	}
-
-	normalizeRepositoryDescriptor(repository)
-
-	return repository, nil
-}
-
-func resolveRepositoryProvider(repository *RepositoryDescriptor) error {
-	if repository.Provider == "" {
-		providerType, err := DetectType(repository.Host)
-		if err != nil {
-			return unsupportedAutoProviderError(repository.Host, err)
-		}
-
-		repository.Provider = providerType
-	}
-
-	return nil
-}
-
-func applyRepositoryProviderDefaults(repository *RepositoryDescriptor) {
-	switch config.ProviderType(repository.Provider) {
-	case config.ProviderGitHub:
-		if repository.Host == "" {
-			repository.Host = DefaultGitHubHost
-		}
-	case config.ProviderGitLab:
-		if repository.Host == "" {
-			repository.Host = DefaultGitLabHost
-		}
-	case config.ProviderAzureDevOps:
-		if repository.Host == "" {
-			repository.Host = DefaultAzureDevOpsHost
-		}
-
-		if repository.Collection == "" {
-			repository.Collection = repository.Organization
-		}
-	case config.ProviderAuto:
-		// Auto must be resolved before provider defaults can be applied.
-	}
-}
-
-type untrustedHostError struct {
-	host   string
-	remote string
-	cause  error
-}
-
-func (e *untrustedHostError) Error() string {
-	return fmt.Sprintf(
-		"%s: %q could not be verified against git remote %q: %s",
-		ErrUntrustedHost, e.host, e.remote, e.cause,
-	)
-}
-
-func (e *untrustedHostError) Unwrap() []error {
-	return []error{ErrUntrustedHost, e.cause}
-}
-
-func validateProviderHostTrust(
-	ctx context.Context,
-	repository *RepositoryDescriptor,
-	getRemoteURL gitRemoteURLGetter,
-) error {
-	host := strings.TrimSpace(repository.Host)
-	if err := validateHostFormat(host); err != nil {
-		return err
-	}
-
-	if strings.EqualFold(providerURLEnvHost(repository.Provider), host) {
-		return nil
-	}
-
-	if _, err := DetectType(host); err == nil {
-		return nil
-	}
-
-	remoteURL, err := getRemoteURL(ctx, repository.Remote)
-	if err != nil {
-		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
-	}
-
-	detected, err := ParseRemote(remoteURL)
-	if err != nil {
-		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
-	}
-
-	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
-		return fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host)
-	}
-
-	return nil
-}
-
-func validateHostFormat(host string) error {
-	if host == "" {
-		return fmt.Errorf("%w: host must not be empty", ErrInvalidHost)
-	}
-
-	for _, r := range host {
-		if r == '/' || r == '@' || unicode.IsSpace(r) || unicode.IsControl(r) {
-			return fmt.Errorf("%w: %q must be a bare hostname without scheme, credentials, or path", ErrInvalidHost, host)
-		}
-	}
-
-	return nil
-}
-
-func providerURLEnvHost(providerType string) string {
-	var value string
-
-	switch config.ProviderType(providerType) {
-	case config.ProviderGitHub:
-		value = strings.TrimSpace(os.Getenv(githubURLEnv))
-	case config.ProviderGitLab:
-		value = strings.TrimSpace(os.Getenv(gitlabURLEnv))
-	case config.ProviderAzureDevOps:
-		value = strings.TrimSpace(os.Getenv(azureURLEnv))
-	case config.ProviderAuto:
-		return ""
-	default:
-		return ""
-	}
-
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return ""
-	}
-
-	return parsed.Hostname()
-}
-
-func unsupportedAutoProviderError(host string, err error) error {
-	return fmt.Errorf(
-		"resolve repository provider for host %q: %w. "+
-			"Auto-detection only supports github.com, gitlab.com, and dev.azure.com. "+
-			"Set provider, [repository], or pass explicit flags for custom domains",
-		host,
-		err,
-	)
-}
-
-func repositoryFromConfig(cfg *config.Config) *RepositoryDescriptor {
-	descriptor := &RepositoryDescriptor{
-		Provider: normalizedRepositoryProvider(cfg.Provider),
-		Remote:   strings.TrimSpace(cfg.Repository.Remote),
-	}
-
-	switch cfg.Provider {
-	case config.ProviderGitHub:
-		if cfg.Repository.GitHub == nil {
-			break
-		}
-
-		descriptor.Host = strings.TrimSpace(cfg.Repository.GitHub.Host)
-		descriptor.Owner = strings.TrimSpace(cfg.Repository.GitHub.Owner)
-		descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
-		descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
-	case config.ProviderGitLab:
-		if cfg.Repository.GitLab != nil {
-			descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
-			descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
-		}
-	case config.ProviderAzureDevOps:
-		if cfg.Repository.AzureDevOps == nil {
-			break
-		}
-
-		descriptor.Host = strings.TrimSpace(cfg.Repository.AzureDevOps.Host)
-		descriptor.Organization = strings.TrimSpace(cfg.Repository.AzureDevOps.Organization)
-		descriptor.Project = strings.TrimSpace(cfg.Repository.AzureDevOps.Project)
-		descriptor.Repo = strings.TrimSpace(cfg.Repository.AzureDevOps.Repo)
-		descriptor.Collection = strings.TrimSpace(cfg.Repository.AzureDevOps.Collection)
-	case config.ProviderAuto:
-	}
-
-	return descriptor
-}
-
-func normalizedRepositoryProvider(providerType config.ProviderType) string {
-	provider := strings.TrimSpace(string(providerType))
-	if config.ProviderType(provider) == config.ProviderAuto {
-		return ""
-	}
-
-	return provider
-}
-
-func needsRemoteLookup(repository *RepositoryDescriptor) bool {
-	if !hasRepositoryCoordinates(repository) {
-		return true
-	}
-
-	return repository.Provider == "" && repository.Host == ""
-}
-
-func hasRepositoryCoordinates(repository *RepositoryDescriptor) bool {
-	return repository.Project != "" || (repository.Owner != "" && repository.Repo != "")
-}
-
-func mergeRepositoryDescriptor(
-	base *RepositoryDescriptor,
-	override *RepositoryDescriptor,
-) *RepositoryDescriptor {
-	if override.Provider != "" {
-		base.Provider = override.Provider
-	}
-
-	if override.Host != "" {
-		base.Host = override.Host
-	}
-
-	mergeRepositoryCoordinates(base, override)
-
-	if override.Organization != "" {
-		base.Organization = override.Organization
-	}
-
-	if override.Collection != "" {
-		base.Collection = override.Collection
-	}
-
-	if override.Remote != "" {
-		base.Remote = override.Remote
-	}
-
-	return base
-}
-
-func mergeRepositoryCoordinates(base *RepositoryDescriptor, override *RepositoryDescriptor) {
-	switch {
-	case override.Project != "":
-		base.Project = override.Project
-		base.Owner = override.Owner
-		base.Repo = override.Repo
-	case override.Owner != "" && override.Repo != "":
-		base.Owner = override.Owner
-		base.Repo = override.Repo
-		base.Project = ""
-	default:
-		if override.Owner != "" {
-			base.Owner = override.Owner
-		}
-
-		if override.Repo != "" {
-			base.Repo = override.Repo
-		}
-	}
-}
-
-func normalizeRepositoryDescriptor(repository *RepositoryDescriptor) {
-	repository.Provider = strings.TrimSpace(repository.Provider)
-	repository.Host = strings.TrimSpace(repository.Host)
-	repository.Owner = strings.TrimSpace(repository.Owner)
-	repository.Repo = strings.TrimSpace(repository.Repo)
-	repository.Project = strings.Trim(strings.TrimSpace(repository.Project), "/")
-	repository.Organization = strings.TrimSpace(repository.Organization)
-	repository.Collection = strings.TrimSpace(repository.Collection)
-	repository.Remote = strings.TrimSpace(repository.Remote)
-
-	if repository.Project == "" && repository.Owner != "" && repository.Repo != "" {
-		repository.Project = repository.Owner + "/" + repository.Repo
-	}
-
-	if repository.Project == "" || (repository.Owner != "" && repository.Repo != "") {
-		return
-	}
-
-	owner, repo := SplitProjectPath(repository.Project)
-	if repository.Owner == "" {
-		repository.Owner = owner
-	}
-
-	if repository.Repo == "" {
-		repository.Repo = repo
-	}
-}
-
-func validateRepositoryDescriptor(repository *RepositoryDescriptor) error {
-	if err := validateRepositoryCoordinates(repository); err != nil {
-		return err
-	}
-
-	switch config.ProviderType(repository.Provider) {
-	case config.ProviderGitHub:
-		if repository.Owner == "" || repository.Repo == "" {
-			return ErrGitHubRepoRequired
-		}
-
-		if strings.Contains(repository.Owner, "/") {
-			return fmt.Errorf("%w: %q", ErrGitHubOwnerInvalid, repository.Owner)
-		}
-	case config.ProviderGitLab:
-		if repository.Project == "" {
-			return ErrGitLabProjectNeeded
-		}
-	case config.ProviderAzureDevOps:
-		if repository.Organization == "" || repository.Project == "" || repository.Repo == "" {
-			return ErrAzureDevOpsCoordsNeeded
-		}
-	case config.ProviderAuto:
-		return fmt.Errorf(
-			"%w: %s (provider auto must be resolved before validation)",
-			ErrUnsupportedProvider, repository.Provider,
-		)
-	default:
-		return fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
-	}
-
-	return nil
-}
-
-func validateRepositoryCoordinates(repository *RepositoryDescriptor) error {
-	if repository.Project == "" || repository.Owner == "" || repository.Repo == "" {
-		return nil
-	}
-
-	expectedProject := repository.Owner + "/" + repository.Repo
-	if repository.Project == expectedProject {
-		return nil
-	}
-
-	return fmt.Errorf(
-		"%w: project %q does not match owner/repo %q",
-		ErrRepositoryConflict,
-		repository.Project,
-		expectedProject,
-	)
 }

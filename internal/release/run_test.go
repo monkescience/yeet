@@ -49,6 +49,32 @@ func TestPrepare(t *testing.T) {
 		})
 	}
 
+	t.Run("configured repository coordinates under provider auto are rejected", func(t *testing.T) {
+		// given: a config file naming provider auto together with github coordinates
+		t.Chdir(t.TempDir())
+		clearCurrentBranchEnv(t)
+		writeTestConfig(t, func(cfg *config.Config) {
+			cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+				Host:  "github.com",
+				Owner: "platform",
+				Repo:  "yeet",
+			}
+		})
+
+		// when: resolving release configuration
+		_, err := prepare(t.Context(), config.DefaultFile, Options{DryRun: true})
+
+		// then: the coordinates are rejected instead of being silently discarded
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"load config: invalid config: repository.github set but provider is auto. "+
+				"Set an explicit provider",
+			err.Error(),
+		)
+	})
+
 	t.Run("branch fallback log explains the selected behavior", func(t *testing.T) {
 		// given: a valid config outside a git checkout with debug logging enabled
 		t.Chdir(t.TempDir())
@@ -220,6 +246,29 @@ func TestApplyReleaseOptions(t *testing.T) {
 				"them)",
 			err.Error(),
 		)
+	})
+
+	t.Run("provider override to auto clears coordinates instead of failing", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a github config whose provider the user overrides back to auto detection
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitHub
+		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+			Host:  "github.company.com",
+			Owner: "platform",
+			Repo:  "yeet",
+		}
+
+		// when: switching the provider to auto without repository field flags
+		err := applyOptions(cfg, Options{Provider: new(string(config.ProviderAuto))})
+
+		// then: the previous provider's sub-section is discarded so detection starts clean
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.ProviderAuto, cfg.Provider)
+		testastic.Nil(t, cfg.Repository.GitHub)
+		testastic.Nil(t, cfg.Repository.GitLab)
+		testastic.Nil(t, cfg.Repository.AzureDevOps)
 	})
 }
 
