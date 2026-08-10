@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.13.1](https://github.com/monkescience/yeet/compare/v0.13.0...v0.13.1) (2026-08-10)
+
+### Features
+
+- **release:** classify failures with actionable remediation ([6052c53](https://github.com/monkescience/yeet/commit/6052c5388db9221052ad0f574de23cc3c478263a))
+
 ## [v0.13.0](https://github.com/monkescience/yeet/compare/v0.12.1...v0.13.0) (2026-08-08)
 
 yeet now validates `.yeet.yaml` against
