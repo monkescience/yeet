@@ -3,8 +3,8 @@ package release
 import (
 	"context"
 
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 type versionHistoryProvider interface {
@@ -17,7 +17,7 @@ type versionHistoryProvider interface {
 		refs []string,
 		branch string,
 		includePaths bool,
-		knownTags []provider.TagRef,
+		knownTags []forge.TagRef,
 	) (history.CommitHistory, error)
 }
 
@@ -36,10 +36,10 @@ type releasePRProvider interface {
 	FindOpenPendingReleasePRs(
 		ctx context.Context,
 		baseBranch, pendingLabel string,
-	) ([]*provider.PullRequest, error)
-	CreateReleasePR(ctx context.Context, opts provider.ReleasePROptions) (*provider.PullRequest, error)
-	UpdateReleasePR(ctx context.Context, number int, opts provider.ReleasePROptions) error
-	MergeReleasePR(ctx context.Context, number int, opts provider.MergeReleasePROptions) (string, error)
+	) ([]*forge.PullRequest, error)
+	CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error)
+	UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error
+	MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error)
 	releasePRLabelSetter
 	MaxPRBodyLength() int
 }
@@ -50,8 +50,8 @@ type releasePRLabelSetter interface {
 	SetReleasePRLabels(
 		ctx context.Context,
 		number int,
-		labels provider.ReleasePRLabels,
-		phase provider.ReleasePRPhase,
+		labels forge.ReleasePRLabels,
+		phase forge.ReleasePRPhase,
 	) error
 }
 
@@ -61,13 +61,13 @@ type releasePRTaggingPreflighter interface {
 
 type releaseFileProvider interface {
 	GetFile(ctx context.Context, branch, path string) (string, error)
-	UpdateFiles(ctx context.Context, branch, base string, files map[string]provider.FileUpdate, message string) error
+	UpdateFiles(ctx context.Context, branch, base string, files map[string]forge.FileUpdate, message string) error
 }
 
 type releasePublishingProvider interface {
-	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*provider.PullRequest, error)
-	GetReleaseByTag(ctx context.Context, tag string) (*provider.Release, error)
-	CreateRelease(ctx context.Context, opts provider.ReleaseOptions) (*provider.Release, error)
+	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*forge.PullRequest, error)
+	GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error)
+	CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error)
 	releasePRLabelSetter
 	releasePRTaggingPreflighter
 }

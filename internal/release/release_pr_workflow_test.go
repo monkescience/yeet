@@ -9,8 +9,8 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestReleaseRefreshWritesBranchFilesBeforeTheManifest(t *testing.T) {
@@ -20,7 +20,7 @@ func TestReleaseRefreshWritesBranchFilesBeforeTheManifest(t *testing.T) {
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.openPending = []*provider.PullRequest{{
+	stub.openPending = []*forge.PullRequest{{
 		Number: 7,
 		URL:    "https://example.com/pr/7",
 		Branch: "yeet/release-main",

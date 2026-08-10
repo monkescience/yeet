@@ -1,1 +1,1 @@
-repository resolution failed: provider host is not trusted: "github.example" could not be verified against git remote "origin": open git repository: repository does not exist
+release failed: provider host trust validation failed. Align the configured host, Git remote, and provider URL override: provider setup failed: provider host is not trusted: "github.example" could not be verified against git remote "origin": open git repository: repository does not exist

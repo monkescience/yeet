@@ -8,7 +8,7 @@ import (
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const prBodyPartSeparator = "\n\n"
@@ -51,14 +51,14 @@ func (c *releaseCore) releasePROptions(
 	plans []TargetPlan,
 	releaseBranch string,
 	providerBodyLimit int,
-) (provider.ReleasePROptions, error) {
+) (forge.ReleasePROptions, error) {
 	manifest := releaseManifestForPlans(c.cfg.Branch, plans)
 	manifest.Channel = strings.TrimSpace(c.cfg.ActiveChannel)
 	manifest.Prerelease = c.isPrerelease()
 
 	manifestMarker, err := releaseManifestMarker(manifest)
 	if err != nil {
-		return provider.ReleasePROptions{}, err
+		return forge.ReleasePROptions{}, err
 	}
 
 	changelogBody := c.combinedPRChangelog(plans)
@@ -74,10 +74,10 @@ func (c *releaseCore) releasePROptions(
 
 	title, err := c.releasePRTitle(plans)
 	if err != nil {
-		return provider.ReleasePROptions{}, err
+		return forge.ReleasePROptions{}, err
 	}
 
-	return provider.ReleasePROptions{
+	return forge.ReleasePROptions{
 		Title:         title,
 		Body:          body,
 		BaseBranch:    c.cfg.Branch,
@@ -87,8 +87,8 @@ func (c *releaseCore) releasePROptions(
 	}, nil
 }
 
-func (c *releaseCore) releasePRLabels() provider.ReleasePRLabels {
-	return provider.ReleasePRLabels{
+func (c *releaseCore) releasePRLabels() forge.ReleasePRLabels {
+	return forge.ReleasePRLabels{
 		Pending: c.cfg.Release.Labels.Pending,
 		Tagged:  c.cfg.Release.Labels.Tagged,
 		Yeet:    c.cfg.Release.Labels.Yeet,

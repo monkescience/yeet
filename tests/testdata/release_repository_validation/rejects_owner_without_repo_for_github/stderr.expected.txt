@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: repository.github.owner and repository.github.repo must be set together
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.github.owner and repository.github.repo must be set together

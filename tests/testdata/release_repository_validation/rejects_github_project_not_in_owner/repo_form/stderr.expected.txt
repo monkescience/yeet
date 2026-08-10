@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: repository.github.project must be in owner/repo form
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.github.project must be in owner/repo form

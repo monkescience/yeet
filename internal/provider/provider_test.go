@@ -13,6 +13,7 @@ import (
 	githubapi "github.com/google/go-github/v89/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -32,7 +33,7 @@ func TestParseRemote(t *testing.T) {
 		url := "git@github.com:owner/repo.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: repository coordinates are extracted
 		testastic.NoError(t, err)
@@ -49,7 +50,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://ci:secret-token@"
 
 		// when: parsing the remote
-		_, err := provider.ParseRemote(url)
+		_, err := provider.ParseRemoteForTest(url)
 
 		// then: the error names the URL with the entire userinfo redacted
 		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
@@ -63,7 +64,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://ghp-secret-token@"
 
 		// when: parsing the remote
-		_, err := provider.ParseRemote(url)
+		_, err := provider.ParseRemoteForTest(url)
 
 		// then: the error hides the token
 		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
@@ -77,7 +78,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://github.com/owner/repo.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: repository coordinates are extracted
 		testastic.NoError(t, err)
@@ -94,7 +95,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://github.company.com/platform/yeet.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: host and repository are preserved
 		testastic.NoError(t, err)
@@ -110,7 +111,7 @@ func TestParseRemote(t *testing.T) {
 		url := "git@gitlab.com:group/subgroup/service.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: the full project path is preserved
 		testastic.NoError(t, err)
@@ -127,7 +128,7 @@ func TestParseRemote(t *testing.T) {
 		url := "ssh://git@gitlab.company.com/group/subgroup/service.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: the host and full project path are preserved
 		testastic.NoError(t, err)
@@ -144,7 +145,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://gitlab.com/group/service.api.git"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: the dotted name is preserved
 		testastic.NoError(t, err)
@@ -160,7 +161,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://dev.azure.com/contoso/platform/_git/yeet"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: org, project, and repo are extracted under the cloud host
 		testastic.NoError(t, err)
@@ -177,7 +178,7 @@ func TestParseRemote(t *testing.T) {
 		url := "https://contoso.visualstudio.com/platform/_git/yeet"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: the host is normalized to dev.azure.com so the API base URL
 		// resolves to dev.azure.com/{org}, not the broken {org}.visualstudio.com/{org}
@@ -195,7 +196,7 @@ func TestParseRemote(t *testing.T) {
 		url := "git@ssh.dev.azure.com:v3/contoso/platform/yeet"
 
 		// when: parsing the remote
-		info, err := provider.ParseRemote(url)
+		info, err := provider.ParseRemoteForTest(url)
 
 		// then: org, project, and repo are extracted under the cloud host
 		testastic.NoError(t, err)
@@ -212,7 +213,7 @@ func TestParseRemote(t *testing.T) {
 		url := "not-a-valid-url"
 
 		// when: parsing the remote
-		_, err := provider.ParseRemote(url)
+		_, err := provider.ParseRemoteForTest(url)
 
 		// then: error is returned
 		testastic.Error(t, err)
@@ -226,7 +227,7 @@ func TestDetectType(t *testing.T) {
 	t.Run("detects github hosts", func(t *testing.T) {
 		t.Parallel()
 
-		providerType, err := provider.DetectType("github.com")
+		providerType, err := provider.DetectTypeForTest("github.com")
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, "github", providerType)
@@ -235,7 +236,7 @@ func TestDetectType(t *testing.T) {
 	t.Run("detects gitlab hosts", func(t *testing.T) {
 		t.Parallel()
 
-		providerType, err := provider.DetectType("gitlab.com")
+		providerType, err := provider.DetectTypeForTest("gitlab.com")
 
 		testastic.NoError(t, err)
 		testastic.Equal(t, "gitlab", providerType)
@@ -244,7 +245,7 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on github custom hosts", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.DetectType("github.company.com")
+		_, err := provider.DetectTypeForTest("github.company.com")
 
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
@@ -253,7 +254,7 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on gitlab custom hosts", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.DetectType("gitlab.company.com")
+		_, err := provider.DetectTypeForTest("gitlab.company.com")
 
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
@@ -262,7 +263,7 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on unsupported hosts", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := provider.DetectType("code.company.com")
+		_, err := provider.DetectTypeForTest("code.company.com")
 
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
@@ -356,7 +357,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: creating a release with an explicit ref
-	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+	release, err := gh.CreateRelease(context.Background(), forge.ReleaseOptions{
 		TagName:    "v1.2.3",
 		Ref:        "6865616473686131323300000000000000000000",
 		Name:       "v1.2.3",
@@ -402,7 +403,7 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	gh := provider.NewGitHub(client, "o", "r")
 
 	// when: creating a release for the existing tag
-	release, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+	release, err := gh.CreateRelease(context.Background(), forge.ReleaseOptions{
 		TagName: "v1.2.3",
 		Ref:     "6865616473686131323300000000000000000000",
 		Name:    "v1.2.3",
@@ -438,7 +439,7 @@ func TestGitHubCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
 
 			// when: creating a release for a ref that is not a commit SHA
-			_, err := gh.CreateRelease(context.Background(), provider.ReleaseOptions{
+			_, err := gh.CreateRelease(context.Background(), forge.ReleaseOptions{
 				TagName: "v1.2.3",
 				Ref:     scenario.ref,
 				Name:    "v1.2.3",
@@ -446,7 +447,7 @@ func TestGitHubCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			})
 
 			// then: the sentinel for an unusable ref is returned before any request
-			testastic.ErrorIs(t, err, provider.ErrInvalidCommitSHA)
+			testastic.ErrorIs(t, err, forge.ErrInvalidCommitSHA)
 		})
 	}
 }
@@ -482,7 +483,7 @@ func TestGitLabCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			gl := provider.NewGitLab(client, "o/r")
 
 			// when: creating a release for a ref that is not a commit SHA
-			_, err = gl.CreateRelease(t.Context(), provider.ReleaseOptions{
+			_, err = gl.CreateRelease(t.Context(), forge.ReleaseOptions{
 				TagName: "v1.2.3",
 				Ref:     scenario.ref,
 				Name:    "v1.2.3",
@@ -490,7 +491,7 @@ func TestGitLabCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			})
 
 			// then: the sentinel for an unusable ref is returned before any request
-			testastic.ErrorIs(t, err, provider.ErrInvalidCommitSHA)
+			testastic.ErrorIs(t, err, forge.ErrInvalidCommitSHA)
 		})
 	}
 }
@@ -675,25 +676,25 @@ func TestGitHubEnsureLabel(t *testing.T) {
 	tests := []struct {
 		name     string
 		yeet     bool
-		phase    provider.ReleasePRPhase
+		phase    forge.ReleasePRPhase
 		expected []string
 	}{
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
-			phase:    provider.ReleasePRPhasePending,
+			phase:    forge.ReleasePRPhasePending,
 			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
-			phase:    provider.ReleasePRPhasePending,
+			phase:    forge.ReleasePRPhasePending,
 			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "tagged transition recreates only the tagged label",
 			yeet:     true,
-			phase:    provider.ReleasePRPhaseTagged,
+			phase:    forge.ReleasePRPhaseTagged,
 			expected: []string{testReleaseLabelTagged},
 		},
 	}
@@ -787,9 +788,9 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
-			Method:            provider.MergeMethodAuto,
+			Method:            forge.MergeMethodAuto,
 		})
 
 		// then: no error
@@ -833,14 +834,14 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with squash method (which is disabled)
-		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
-			Method:            provider.MergeMethodSquash,
+			Method:            forge.MergeMethodSquash,
 		})
 
 		// then: merge is blocked because squash is disabled
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	})
 
 	t.Run("auto falls back to rebase when squash disabled", func(t *testing.T) {
@@ -882,9 +883,9 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
-			Method:            provider.MergeMethodAuto,
+			Method:            forge.MergeMethodAuto,
 		})
 
 		// then: no error - auto selects rebase
@@ -928,14 +929,14 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: merging with auto method
-		_, err := gh.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
-			Method:            provider.MergeMethodAuto,
+			Method:            forge.MergeMethodAuto,
 		})
 
 		// then: merge is blocked
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	})
 }
 
@@ -1056,25 +1057,25 @@ func TestGitLabEnsureLabel(t *testing.T) {
 	tests := []struct {
 		name     string
 		yeet     bool
-		phase    provider.ReleasePRPhase
+		phase    forge.ReleasePRPhase
 		expected []string
 	}{
 		{
 			name:     "creates managed and lifecycle labels when not found",
 			yeet:     true,
-			phase:    provider.ReleasePRPhasePending,
+			phase:    forge.ReleasePRPhasePending,
 			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "does not create managed label when disabled",
 			yeet:     false,
-			phase:    provider.ReleasePRPhasePending,
+			phase:    forge.ReleasePRPhasePending,
 			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
 		},
 		{
 			name:     "tagged transition recreates only the tagged label",
 			yeet:     true,
-			phase:    provider.ReleasePRPhaseTagged,
+			phase:    forge.ReleasePRPhaseTagged,
 			expected: []string{testReleaseLabelTagged},
 		},
 	}
@@ -1187,8 +1188,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with auto method
-		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Method: provider.MergeMethodAuto,
+		_, err = gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
 		})
 
 		// then: squash is requested
@@ -1250,8 +1251,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with auto method
-		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Method: provider.MergeMethodAuto,
+		_, err = gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
 		})
 
 		// then: the project's own merge method is left untouched
@@ -1307,8 +1308,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with the project's fast-forward method
-		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Method: provider.MergeMethodAuto,
+		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
 		})
 
 		// then: the source tip is returned as the final commit on the target branch
@@ -1372,8 +1373,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r", provider.WithMergePolling(time.Millisecond, 5*time.Second))
 
 		// when: merging with the project's asynchronous fast-forward flow
-		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Method: provider.MergeMethodAuto,
+		mergeSHA, err := gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
 		})
 
 		// then: the source tip is returned once GitLab reports the MR merged
@@ -1428,12 +1429,12 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r", provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 		// when: merging with the project's asynchronous fast-forward flow
-		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
-			Method: provider.MergeMethodAuto,
+		_, err = gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
 		})
 
 		// then: the unfinalized merge is reported instead of an empty commit
-		testastic.ErrorIs(t, err, provider.ErrMergeNotFinalized)
+		testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
 	})
 
 	t.Run("squash blocked by project settings", func(t *testing.T) {
@@ -1477,14 +1478,14 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		gl := provider.NewGitLab(client, "o/r")
 
 		// when: merging with squash method
-		_, err = gl.MergeReleasePR(context.Background(), 1, provider.MergeReleasePROptions{
+		_, err = gl.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
-			Method:            provider.MergeMethodSquash,
+			Method:            forge.MergeMethodSquash,
 		})
 
 		// then: merge is blocked
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	})
 }
 
@@ -1538,8 +1539,8 @@ func TestMaxPRBodyLength(t *testing.T) {
 }
 
 var (
-	_ provider.Provider = (*provider.GitHub)(nil)
-	_ provider.Provider = (*provider.GitLab)(nil)
+	_ forge.Provider = (*provider.GitHub)(nil)
+	_ forge.Provider = (*provider.GitLab)(nil)
 )
 
 var _ commit.BumpType = commit.BumpMajor

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 var errPaginationTest = errors.New("pagination test failure")
@@ -160,7 +161,7 @@ func TestPaginateByCursor(t *testing.T) {
 		)
 
 		// then: the limit is enforced instead of looping forever
-		testastic.ErrorIs(t, err, ErrPaginationLimitExceeded)
+		testastic.ErrorIs(t, err, forge.ErrPaginationLimitExceeded)
 		testastic.Equal(t, maxPaginationPages, calls)
 	})
 }
@@ -235,7 +236,7 @@ func TestPaginateAzureDevOpsBySkip(t *testing.T) {
 		)
 
 		// then: the probe detects overflow without handling the extra item
-		testastic.ErrorIs(t, err, ErrPaginationLimitExceeded)
+		testastic.ErrorIs(t, err, forge.ErrPaginationLimitExceeded)
 		testastic.Equal(t, maxPaginationPages+1, calls)
 		testastic.Equal(t, capacity, handled)
 	})

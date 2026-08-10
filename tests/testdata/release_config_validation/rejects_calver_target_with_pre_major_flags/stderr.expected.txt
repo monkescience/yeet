@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: targets.default.pre_major_breaking_bumps_minor has no effect with calver versioning
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.default.pre_major_breaking_bumps_minor has no effect with calver versioning

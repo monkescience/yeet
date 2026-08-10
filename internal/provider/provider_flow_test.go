@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -51,7 +52,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: PR 42 is put in the pending phase
-		err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), provider.ReleasePRPhasePending)
+		err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), forge.ReleasePRPhasePending)
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
@@ -61,7 +62,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 		// when: marking the same pull request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
 		labels.Yeet = false
-		err = gh.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+		err = gh.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)
@@ -103,7 +104,7 @@ func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
 	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
 
 	// then: the guard scans only release branches and reports what the label filter did not match
-	testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
 	testastic.Equal(t, 0, len(prs))
 	testastic.Equal(t, "yeet/release-main", guardSourceBranch)
 }
@@ -133,7 +134,7 @@ func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
 	gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
 
 	// when: the pull request is moved into the tagged phase
-	err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), provider.ReleasePRPhaseTagged)
+	err := gh.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), forge.ReleasePRPhaseTagged)
 
 	// then: the failure surfaces and the pending label the next run finds it by
 	// is never removed
@@ -216,7 +217,7 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 	prs, err := gl.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
 
 	// then: the case variant is a different label, so the MR is a mismatch
-	testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
 	testastic.Equal(t, 0, len(prs))
 }
 
@@ -265,10 +266,10 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: the pending phase is applied
-		err := gl.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+		err := gl.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 			Pending: "release::pending",
 			Tagged:  "release::tagged",
-		}, provider.ReleasePRPhasePending)
+		}, forge.ReleasePRPhasePending)
 
 		// then: both sequential lifecycle states are accepted, prepared and applied
 		testastic.NoError(t, err)
@@ -288,14 +289,14 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 		defer server.Close()
 
 		gl := newGitLabProvider(t, server)
-		labels := provider.ReleasePRLabels{
+		labels := forge.ReleasePRLabels{
 			Pending: "workflow::backend::pending",
 			Tagged:  "release::tagged",
 			Extra:   []string{"workflow::backend::automated"},
 		}
 
 		// when: the pending phase is applied
-		err := gl.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+		err := gl.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
 
 		// then: the permanent label conflict is rejected before a provider request
 		testastic.ErrorContains(t, err, "share GitLab scope workflow::backend")
@@ -321,10 +322,10 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 				gl := newGitLabProvider(t, server)
 
 				// when: the pending phase is applied
-				err := gl.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+				err := gl.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 					Pending: reserved,
 					Tagged:  "release::tagged",
-				}, provider.ReleasePRPhasePending)
+				}, forge.ReleasePRPhasePending)
 
 				// then: the reserved filter value is rejected before a provider request
 				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
@@ -372,11 +373,11 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MergeReleasePR is invoked without the force option
-		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+		_, err := gh.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
 
-		// then: ErrMergeBlocked is returned with the blocked mergeable state in the message
+		// then: forge.ErrMergeBlocked is returned with the blocked mergeable state in the message
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 		testastic.Equal(t, "release PR merge blocked: pull request #42 mergeable_state=blocked", err.Error())
 	})
 
@@ -424,14 +425,14 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		gh := provider.NewGitHub(client, "o", "r")
 
 		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
-		_, err := gh.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+		_, err := gh.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 			BypassMergeChecks: true,
-			Method:            provider.MergeMethodAuto,
+			Method:            forge.MergeMethodAuto,
 		})
 
 		// then: the squash merge method is chosen and the head SHA is sent in the merge request
 		testastic.NoError(t, err)
-		testastic.Equal(t, string(provider.MergeMethodSquash), mergeRequest.MergeMethod)
+		testastic.Equal(t, string(forge.MergeMethodSquash), mergeRequest.MergeMethod)
 		testastic.Equal(t, "6865616473686100000000000000000000000000", mergeRequest.SHA)
 	})
 }
@@ -499,7 +500,7 @@ func TestGitHubUpdateFiles(t *testing.T) {
 
 	gh := provider.NewGitHub(client, "o", "r")
 
-	err := gh.UpdateFiles(context.Background(), "release-main", "main", map[string]provider.FileUpdate{
+	err := gh.UpdateFiles(context.Background(), "release-main", "main", map[string]forge.FileUpdate{
 		"VERSION.txt":  {Content: "version=1.2.3"},
 		"CHANGELOG.md": {Content: "# Changelog", Exists: true},
 	}, "chore: release 1.2.3")
@@ -548,7 +549,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MR 12 is put in the pending phase
-		err := gl.SetReleasePRLabels(context.Background(), 12, defaultReleasePRLabels(), provider.ReleasePRPhasePending)
+		err := gl.SetReleasePRLabels(context.Background(), 12, defaultReleasePRLabels(), forge.ReleasePRPhasePending)
 
 		// then: the managed and pending labels are added and the tagged label is removed
 		testastic.NoError(t, err)
@@ -558,7 +559,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 		// when: marking the same merge request pending with the managed label disabled
 		labels := defaultReleasePRLabels()
 		labels.Yeet = false
-		err = gl.SetReleasePRLabels(context.Background(), 12, labels, provider.ReleasePRPhasePending)
+		err = gl.SetReleasePRLabels(context.Background(), 12, labels, forge.ReleasePRPhasePending)
 
 		// then: only the pending label is added
 		testastic.NoError(t, err)
@@ -612,7 +613,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 			gl := newGitLabProvider(t, server)
 
 			// when: MergeReleasePR is invoked without force while readiness is recomputed
-			_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+			_, err := gl.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
 
 			// then: the transient status does not prevent the merge request
 			testastic.NoError(t, err)
@@ -647,11 +648,11 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MergeReleasePR is invoked without the force option
-		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+		_, err := gl.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
 
-		// then: ErrMergeBlocked is returned with the detailed merge status in the message
+		// then: forge.ErrMergeBlocked is returned with the detailed merge status in the message
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 		testastic.Equal(t, "release PR merge blocked: merge request !8 detailed_merge_status=not_approved", err.Error())
 	})
 
@@ -702,9 +703,9 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		gl := newGitLabProvider(t, server)
 
 		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
-		_, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{
+		_, err := gl.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
 			BypassMergeChecks: true,
-			Method:            provider.MergeMethodSquash,
+			Method:            forge.MergeMethodSquash,
 		})
 
 		// then: the head SHA is forwarded and the squash flag is set on the merge request
@@ -794,9 +795,9 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 	gl := newGitLabProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 	// when: MergeReleasePR is invoked on the refused merge request
-	mergeSHA, err := gl.MergeReleasePR(context.Background(), 8, provider.MergeReleasePROptions{})
+	mergeSHA, err := gl.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
 
-	testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	testastic.Equal(t, "", mergeSHA)
 
 	return polls
@@ -839,12 +840,12 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 	// when: MergeReleasePR is invoked on the refused pull request
-	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-		Method: provider.MergeMethodSquash,
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+		Method: forge.MergeMethodSquash,
 	})
 
 	// then: the refusal is reported as a blocked merge without waiting for the forge
-	testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	testastic.Equal(t, "", mergeSHA)
 	testastic.Equal(t, int32(0), polls.Load())
 }
@@ -856,25 +857,25 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 		name        string
 		mergeStatus string
 		message     string
-		reason      provider.MergeBlockedReason
+		reason      forge.MergeBlockedReason
 	}{
 		{
 			name:        "policy rejection",
 			mergeStatus: "rejectedByPolicy",
 			message:     "the merge was rejected by a branch policy",
-			reason:      provider.MergeBlockedReasonPolicy,
+			reason:      forge.MergeBlockedReasonPolicy,
 		},
 		{
 			name:        "conflicts",
 			mergeStatus: "conflicts",
 			message:     "the source branch conflicts with the target branch",
-			reason:      provider.MergeBlockedReasonConflicts,
+			reason:      forge.MergeBlockedReasonConflicts,
 		},
 		{
 			name:        "provider failure",
 			mergeStatus: "failure",
 			message:     "the provider could not create the merge commit",
-			reason:      provider.MergeBlockedReasonFailure,
+			reason:      forge.MergeBlockedReasonFailure,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -925,17 +926,17 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 			)
 
 			// when: MergeReleasePR polls a completion that Azure later refuses
-			mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-				Method: provider.MergeMethodSquash,
+			mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+				Method: forge.MergeMethodSquash,
 			})
 
 			// then: the terminal refusal is preserved instead of becoming a polling timeout
-			var blocked *provider.MergeBlockedError
+			var blocked *forge.MergeBlockedError
 			if !errors.As(err, &blocked) {
-				t.Fatalf("expected MergeBlockedError, got %v", err)
+				t.Fatalf("expected forge.MergeBlockedError, got %v", err)
 			}
 
-			testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 			testastic.Equal(t, string(testCase.reason), string(blocked.Reason))
 			testastic.Equal(t, "was refused: "+testCase.message, blocked.Detail)
 			testastic.Equal(t, "", mergeSHA)
@@ -974,7 +975,7 @@ func TestGitLabUpdateFiles(t *testing.T) {
 
 	gl := newGitLabProvider(t, server)
 
-	err := gl.UpdateFiles(context.Background(), "release-main", "main", map[string]provider.FileUpdate{
+	err := gl.UpdateFiles(context.Background(), "release-main", "main", map[string]forge.FileUpdate{
 		"VERSION.txt":  {Content: "version=1.2.3"},
 		"CHANGELOG.md": {Content: "# Changelog", Exists: true},
 	}, "chore: release 1.2.3")

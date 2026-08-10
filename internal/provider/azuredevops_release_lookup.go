@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
-func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return nil, ErrNoRelease
+		return nil, forge.ErrNoRelease
 	}
 
 	slog.DebugContext(ctx, "azure devops: looking up release by tag", slog.String("tag", tag))
@@ -30,7 +31,7 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 				slog.String("object_id", objectID),
 			)
 
-			return &Release{TagName: tag, Name: tag, URL: a.tagWebURL(tag)}, nil
+			return &forge.Release{TagName: tag, Name: tag, URL: a.tagWebURL(tag)}, nil
 		}
 
 		return nil, fmt.Errorf("get annotated tag %q: %w", tag, err)
@@ -44,10 +45,10 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*Release
 	return a.azureDevOpsAnnotatedTagRelease(tag, annotated), nil
 }
 
-func (a *AzureDevOps) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
+func (a *AzureDevOps) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
 	ref := opts.Ref
 	if !isFullCommitSHA(ref) {
-		return nil, fmt.Errorf("create release: %w: %q", ErrInvalidCommitSHA, ref)
+		return nil, fmt.Errorf("create release: %w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
 	slog.DebugContext(ctx, "azure devops: creating annotated tag",
@@ -100,7 +101,7 @@ func (a *AzureDevOps) lookupTagObjectID(ctx context.Context, tag string) (string
 
 	objectID := strings.TrimSpace(derefString(ref.ObjectId))
 	if !found || objectID == "" {
-		return "", ErrNoRelease
+		return "", forge.ErrNoRelease
 	}
 
 	return objectID, nil
@@ -108,7 +109,7 @@ func (a *AzureDevOps) lookupTagObjectID(ctx context.Context, tag string) (string
 
 func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*git.GitAnnotatedTag, error) {
 	if objectID == "" {
-		return nil, fmt.Errorf("%w: empty annotated tag object id", ErrEmptyCommitID)
+		return nil, fmt.Errorf("%w: empty annotated tag object id", forge.ErrEmptyCommitID)
 	}
 
 	gitClient, err := a.client(ctx)
@@ -128,13 +129,13 @@ func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*gi
 	return tag, nil
 }
 
-func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *Release {
+func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *forge.Release {
 	name := derefString(tag.Name)
 	if name == "" {
 		name = tagName
 	}
 
-	return &Release{
+	return &forge.Release{
 		TagName: tagName,
 		Name:    name,
 		Body:    derefString(tag.Message),

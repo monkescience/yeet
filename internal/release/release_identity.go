@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const (
@@ -34,10 +34,10 @@ var errInvalidReleaseManifest = errors.New("invalid release manifest")
 
 var releaseManifestMarkerOpenRE = regexp.MustCompile(`<!--\s*yeet-release-manifest\b\s*`)
 
-func releaseRefForPullRequest(pullRequest *provider.PullRequest) (string, error) {
+func releaseRefForPullRequest(pullRequest *forge.PullRequest) (string, error) {
 	mergeCommitSHA := strings.TrimSpace(pullRequest.MergeCommitSHA)
 	if mergeCommitSHA == "" {
-		return "", fmt.Errorf("merged release pull request #%d: %w", pullRequest.Number, provider.ErrEmptyCommitSHA)
+		return "", fmt.Errorf("merged release pull request #%d: %w", pullRequest.Number, forge.ErrEmptyCommitSHA)
 	}
 
 	return mergeCommitSHA, nil
@@ -78,7 +78,7 @@ func releaseManifestMarker(manifest releaseManifest) (string, error) {
 	return fmt.Sprintf("%s\n%s\n%s", releaseManifestMarkerPrefix, string(manifestData), releaseManifestMarkerSuffix), nil
 }
 
-func releaseManifestFromPullRequest(pullRequest *provider.PullRequest) (releaseManifest, error) {
+func releaseManifestFromPullRequest(pullRequest *forge.PullRequest) (releaseManifest, error) {
 	manifest, ok, err := releaseManifestFromBody(pullRequest.Body)
 	if !ok && err == nil {
 		return releaseManifest{}, fmt.Errorf(
@@ -129,7 +129,7 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 }
 
 func (c *releaseCore) validateReleaseManifest(
-	pullRequest *provider.PullRequest,
+	pullRequest *forge.PullRequest,
 	manifest releaseManifest,
 ) error {
 	if pullRequest == nil {

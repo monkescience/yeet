@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const azureDevOpsTagRefPrefix = "refs/tags/"
 
 const azureDevOpsRefPageSize = 100
 
-func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]TagRef, error) {
+func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 	slog.DebugContext(ctx, "azure devops: listing tags")
 
 	refs, err := foldTagRefs(
@@ -34,7 +35,7 @@ func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 func (a *AzureDevOps) GetBranchHead(ctx context.Context, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
-		return "", fmt.Errorf("%w: empty branch", ErrRefNotFound)
+		return "", fmt.Errorf("%w: empty branch", forge.ErrRefNotFound)
 	}
 
 	ref, found, err := findRefByName(
@@ -48,7 +49,7 @@ func (a *AzureDevOps) GetBranchHead(ctx context.Context, branch string) (string,
 
 	head := strings.TrimSpace(derefString(ref.ObjectId))
 	if !found || head == "" {
-		return "", fmt.Errorf("%w: branch %q", ErrRefNotFound, branch)
+		return "", fmt.Errorf("%w: branch %q", forge.ErrRefNotFound, branch)
 	}
 
 	return head, nil

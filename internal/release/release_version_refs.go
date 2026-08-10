@@ -9,7 +9,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
@@ -196,6 +196,6 @@ func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref 
 		ref,
 		a.core.cfg.Branch,
 		target.ID,
-		&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
+		&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
 	)
 }

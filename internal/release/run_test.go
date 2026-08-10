@@ -3,7 +3,6 @@ package release //nolint:testpackage // validates unexported release option prec
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -37,7 +35,7 @@ func TestPrepare(t *testing.T) {
 			writeTestConfig(t, func(cfg *config.Config) {})
 
 			// when: resolving release configuration for a dry run
-			cfg, err := prepare(context.Background(), config.DefaultFile, Options{DryRun: true})
+			cfg, err := prepare(context.Background(), Options{DryRun: true})
 
 			// then: stable preview mode is selected despite the synthetic PR ref
 			testastic.NoError(t, err)
@@ -62,14 +60,14 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration
-		_, err := prepare(t.Context(), config.DefaultFile, Options{DryRun: true})
+		_, err := prepare(t.Context(), Options{DryRun: true})
 
 		// then: the coordinates are rejected instead of being silently discarded
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(
 			t,
-			"load config: invalid config: repository.github set but provider is auto. "+
+			"load release config: load config: invalid config: repository.github set but provider is auto. "+
 				"Set an explicit provider",
 			err.Error(),
 		)
@@ -80,7 +78,7 @@ func TestPrepare(t *testing.T) {
 		clearCurrentBranchEnv(t)
 		writeTestConfig(t, func(_ *config.Config) {})
 
-		_, err := prepare(t.Context(), config.DefaultFile, Options{
+		_, err := prepare(t.Context(), Options{
 			DryRun:   true,
 			Provider: new("wrongo"),
 		})
@@ -103,7 +101,7 @@ func TestPrepare(t *testing.T) {
 		clearCurrentBranchEnv(t)
 		writeTestConfig(t, func(_ *config.Config) {})
 
-		_, err := prepare(t.Context(), config.DefaultFile, Options{
+		_, err := prepare(t.Context(), Options{
 			AutoMerge:       new(true),
 			AutoMergeMethod: new("wrongo"),
 			DryRun:          true,
@@ -138,7 +136,7 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration without a detectable branch
-		_, err := prepare(t.Context(), config.DefaultFile, Options{DryRun: true})
+		_, err := prepare(t.Context(), Options{DryRun: true})
 
 		// then: the fallback is logged without compressed punctuation
 		testastic.NoError(t, err)
@@ -211,41 +209,6 @@ func TestApplyReleaseOptions(t *testing.T) {
 		testastic.NotNil(t, cfg.Repository.GitHub)
 		testastic.Equal(t, "platform", cfg.Repository.GitHub.Owner)
 		testastic.Equal(t, "yeet", cfg.Repository.GitHub.Repo)
-	})
-
-	t.Run("provider override without host falls back to provider default host", func(t *testing.T) {
-		t.Parallel()
-
-		// given: gitlab config overridden to github without an explicit host override
-		cfg := config.Default()
-		cfg.Provider = config.ProviderGitLab
-		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
-			Host:    "gitlab.company.com",
-			Project: "group/subgroup/service",
-		}
-
-		err := applyOptions(cfg, Options{
-			Provider:        new(string(config.ProviderGitHub)),
-			RepositoryOwner: new("platform"),
-			RepositoryRepo:  new("yeet"),
-		})
-		testastic.NoError(t, err)
-
-		// when: resolving the repository after applying overrides
-		repository, err := provider.ResolveRepository(
-			context.Background(),
-			cfg,
-			func(context.Context, string) (string, error) {
-				return "", errors.New("git remote lookup should not run")
-			},
-		)
-
-		// then: yeet uses the github default host instead of the stale gitlab host
-		testastic.NoError(t, err)
-		testastic.Equal(t, string(config.ProviderGitHub), repository.Provider)
-		testastic.Equal(t, provider.DefaultGitHubHost, repository.Host)
-		testastic.Equal(t, "platform", repository.Owner)
-		testastic.Equal(t, "yeet", repository.Repo)
 	})
 
 	t.Run("project override on github clears stale owner and repo", func(t *testing.T) {

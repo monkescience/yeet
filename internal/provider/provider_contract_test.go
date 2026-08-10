@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -23,7 +24,7 @@ type providerContractProviderFactory func(
 	t *testing.T,
 	server *httptest.Server,
 	options ...provider.MergePollingOption,
-) provider.Provider
+) forge.Provider
 
 type providerContractLabelHandlerFactory func(
 	t *testing.T,
@@ -163,16 +164,16 @@ func splitProviderContractLabels(joined string) []string {
 
 type providerContractScenario string
 
-func defaultReleasePRLabels() provider.ReleasePRLabels {
-	return provider.ReleasePRLabels{
+func defaultReleasePRLabels() forge.ReleasePRLabels {
+	return forge.ReleasePRLabels{
 		Pending: testReleaseLabelPending,
 		Tagged:  testReleaseLabelTagged,
 		Yeet:    true,
 	}
 }
 
-func providerContractManagedLabels() provider.ReleasePRLabels {
-	return provider.ReleasePRLabels{
+func providerContractManagedLabels() forge.ReleasePRLabels {
+	return forge.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Yeet:    true,
@@ -180,8 +181,8 @@ func providerContractManagedLabels() provider.ReleasePRLabels {
 	}
 }
 
-func providerContractPagedTagRefs() []provider.TagRef {
-	return []provider.TagRef{
+func providerContractPagedTagRefs() []forge.TagRef {
+	return []forge.TagRef{
 		{Name: providerContractTag, CommitSHA: providerContractTagCommitSHA},
 		{Name: providerContractPreviousTag, CommitSHA: providerContractPreviousTagCommitSHA},
 		{Name: providerContractOlderTag, CommitSHA: providerContractOlderTagCommitSHA},
@@ -348,7 +349,7 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the sentinel ref-not-found error is surfaced
 				testastic.Error(t, err)
-				testastic.True(t, errors.Is(err, provider.ErrRefNotFound))
+				testastic.True(t, errors.Is(err, forge.ErrRefNotFound))
 			})
 
 			t.Run("gets release by tag", func(t *testing.T) {
@@ -380,7 +381,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: CreateReleasePR is invoked with the contract title, body, and branches
-				pr, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+				pr, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 					Title:         providerContractReleaseTitle,
 					Body:          providerContractReleaseBody,
 					BaseBranch:    providerContractBaseBranch,
@@ -406,7 +407,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: CreateReleasePR is invoked with two reviewers
-				pr, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+				pr, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 					Title:         providerContractReleaseTitle,
 					Body:          providerContractReleaseBody,
 					BaseBranch:    providerContractBaseBranch,
@@ -429,7 +430,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: CreateReleasePR is invoked with an unknown reviewer
-				_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+				_, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 					Title:         providerContractReleaseTitle,
 					Body:          providerContractReleaseBody,
 					BaseBranch:    providerContractBaseBranch,
@@ -439,7 +440,7 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the error names the reviewer and wraps the not-found sentinel
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrReviewerNotFound)
+				testastic.ErrorIs(t, err, forge.ErrReviewerNotFound)
 				testastic.Equal(t, harness.expectedReviewerError, err.Error())
 			})
 
@@ -453,7 +454,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: UpdateReleasePR is invoked with a new body and reviewers for PR 42
-				err := p.UpdateReleasePR(context.Background(), 42, provider.ReleasePROptions{
+				err := p.UpdateReleasePR(context.Background(), 42, forge.ReleasePROptions{
 					Title:     providerContractReleaseTitle,
 					Body:      "updated release body",
 					Reviewers: []string{providerContractReviewerAlice},
@@ -504,7 +505,7 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the run aborts with the lifecycle mismatch sentinel instead of skipping the PR
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMismatch)
+				testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
 				testastic.Equal(t, 0, len(prs))
 			})
 
@@ -569,7 +570,7 @@ func TestProviderContract(t *testing.T) {
 				labels := providerContractManagedLabels()
 
 				// when: the pull request is put in the pending phase
-				err := p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+				err := p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
 
 				// then: it carries the pending label, the extras and the yeet marker, and not tagged
 				testastic.NoError(t, err)
@@ -581,7 +582,7 @@ func TestProviderContract(t *testing.T) {
 				}, store.sorted())
 
 				// when: the pull request is put in the tagged phase
-				err = p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhaseTagged)
+				err = p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhaseTagged)
 
 				// then: the lifecycle label flips and everything else stays put
 				testastic.NoError(t, err)
@@ -603,8 +604,8 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
-				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-					Method: provider.MergeMethodAuto,
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+					Method: forge.MergeMethodAuto,
 				})
 
 				// then: the merge completes and returns the merge commit
@@ -622,8 +623,8 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
-				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-					Method: provider.MergeMethodAuto,
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+					Method: forge.MergeMethodAuto,
 				})
 
 				// then: no provisional commit is returned before the merge is applied
@@ -657,7 +658,7 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: CreateRelease is invoked with the contract tag and release notes
-				release, err := p.CreateRelease(context.Background(), provider.ReleaseOptions{
+				release, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
 					TagName:    providerContractTag,
 					Ref:        providerContractHeadSHA,
 					Name:       providerContractTag,
@@ -703,7 +704,7 @@ func TestProviderContract(t *testing.T) {
 					context.Background(),
 					providerContractReleaseBranch,
 					providerContractBaseBranch,
-					map[string]provider.FileUpdate{
+					map[string]forge.FileUpdate{
 						"CHANGELOG.md": {Content: "# Changelog\n", Exists: true},
 						"VERSION.txt":  {Content: "version=1.2.3\n"},
 					},
@@ -726,9 +727,9 @@ func TestProviderContract(t *testing.T) {
 				// when: GetFile is invoked for MISSING.md on the base branch
 				_, err := p.GetFile(context.Background(), providerContractBaseBranch, "MISSING.md")
 
-				// then: ErrFileNotFound is returned
+				// then: forge.ErrFileNotFound is returned
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+				testastic.ErrorIs(t, err, forge.ErrFileNotFound)
 			})
 
 			t.Run("returns release not found error", func(t *testing.T) {
@@ -743,9 +744,9 @@ func TestProviderContract(t *testing.T) {
 				// when: GetReleaseByTag is invoked for the contract tag
 				_, err := p.GetReleaseByTag(context.Background(), providerContractTag)
 
-				// then: ErrNoRelease is returned
+				// then: forge.ErrNoRelease is returned
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrNoRelease)
+				testastic.ErrorIs(t, err, forge.ErrNoRelease)
 			})
 
 			t.Run("returns release pull request not found error", func(t *testing.T) {
@@ -764,9 +765,9 @@ func TestProviderContract(t *testing.T) {
 					providerContractPendingLabel,
 				)
 
-				// then: ErrNoPR is returned
+				// then: forge.ErrNoPR is returned
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrNoPR)
+				testastic.ErrorIs(t, err, forge.ErrNoPR)
 			})
 
 			t.Run("returns blocked merge error", func(t *testing.T) {
@@ -779,11 +780,11 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked without the force option on PR 42
-				_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+				_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
 
-				// then: ErrMergeBlocked is returned
+				// then: forge.ErrMergeBlocked is returned
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+				testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 			})
 
 			t.Run("returns unsupported merge method error", func(t *testing.T) {
@@ -796,13 +797,13 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with the unsupported "octopus" merge method
-				_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-					Method: provider.MergeMethod("octopus"),
+				_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+					Method: forge.MergeMethod("octopus"),
 				})
 
-				// then: ErrMergeMethodUnsupported is returned
+				// then: forge.ErrMergeMethodUnsupported is returned
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrMergeMethodUnsupported)
+				testastic.ErrorIs(t, err, forge.ErrMergeMethodUnsupported)
 			})
 
 			t.Run("resolves a configured extra label the forge does not define", func(t *testing.T) {
@@ -820,20 +821,20 @@ func TestProviderContract(t *testing.T) {
 
 				p := harness.newProvider(t, server)
 
-				labels := provider.ReleasePRLabels{
+				labels := forge.ReleasePRLabels{
 					Pending: providerContractPendingLabel,
 					Tagged:  providerContractTaggedLabel,
 					Extra:   []string{providerContractMissingExtraLabelName},
 				}
 
 				// when: the pull request is put in the pending phase
-				err := p.SetReleasePRLabels(context.Background(), 42, labels, provider.ReleasePRPhasePending)
+				err := p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
 
 				// then: a forge that exposes label definitions rejects the unknown label
 				// and mutates nothing, and one that creates labels on attach carries it
 				if harness.rejectsUnknownExtraLabels {
 					testastic.Error(t, err)
-					testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+					testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 					testastic.Equal(t, 0, len(store.sorted()))
 
 					return
@@ -865,12 +866,12 @@ func TestProviderContract(t *testing.T) {
 
 				p := harness.newProvider(t, server)
 
-				err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+				err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 					Pending: providerContractPendingLabel,
 					Tagged:  providerContractTaggedLabel,
 					Yeet:    true,
 					Extra:   []string{providerContractMissingExtraLabelName},
-				}, provider.ReleasePRPhaseTagged)
+				}, forge.ReleasePRPhaseTagged)
 
 				testastic.NoError(t, err)
 				testastic.SliceEqual(t, []string{
@@ -920,7 +921,7 @@ func TestProviderContract(t *testing.T) {
 
 				if harness.rejectsUnknownExtraLabels {
 					testastic.Error(t, err)
-					testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+					testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 
 					if err != nil {
 						testastic.Equal(
@@ -957,7 +958,7 @@ func TestProviderContract(t *testing.T) {
 
 				if harness.rejectsUnknownExtraLabels {
 					testastic.Error(t, err)
-					testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+					testastic.False(t, errors.Is(err, forge.ErrReleasePRLabelMissing))
 					testastic.ErrorContains(t, err, `get label "`+providerContractTaggedLabel+`"`)
 				} else {
 					testastic.NoError(t, err)
@@ -982,11 +983,11 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: the pending phase is applied with an extra label the forge cannot report on
-				err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+				err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 					Pending: providerContractPendingLabel,
 					Tagged:  providerContractTaggedLabel,
 					Extra:   []string{providerContractUnreachableLabelName},
-				}, provider.ReleasePRPhasePending)
+				}, forge.ReleasePRPhasePending)
 
 				// then: an unreachable label is never reported as one the operator must create
 				if !harness.rejectsUnknownExtraLabels {
@@ -996,7 +997,7 @@ func TestProviderContract(t *testing.T) {
 				}
 
 				testastic.Error(t, err)
-				testastic.False(t, errors.Is(err, provider.ErrReleasePRLabelMissing))
+				testastic.False(t, errors.Is(err, forge.ErrReleasePRLabelMissing))
 				testastic.ErrorContains(t, err, `get label "`+providerContractUnreachableLabelName+`"`)
 			})
 
@@ -1014,7 +1015,7 @@ func TestProviderContract(t *testing.T) {
 
 				// then: the pagination limit is enforced instead of looping forever
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrPaginationLimitExceeded)
+				testastic.ErrorIs(t, err, forge.ErrPaginationLimitExceeded)
 			})
 
 			t.Run("refuses an untrusted release pull request even when merge checks are bypassed", func(t *testing.T) {
@@ -1027,13 +1028,13 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
-				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 					BypassMergeChecks: true,
 				})
 
 				// then: the trust check refuses the merge and no commit is reported
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
+				testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
 				testastic.Equal(t, "", mergeSHA)
 			})
 
@@ -1048,13 +1049,13 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
-				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
+				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 					BypassMergeChecks: true,
 				})
 
 				// then: bypassing policy never bypasses conflicts and no commit is reported
 				testastic.Error(t, err)
-				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+				testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 				testastic.Equal(t, "", mergeSHA)
 			})
 		})

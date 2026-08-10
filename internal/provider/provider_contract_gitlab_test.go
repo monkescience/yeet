@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -19,7 +20,7 @@ func newGitLabContractProvider(
 	t *testing.T,
 	server *httptest.Server,
 	options ...provider.MergePollingOption,
-) provider.Provider {
+) forge.Provider {
 	t.Helper()
 
 	client, err := gitlabapi.NewClient(
@@ -271,7 +272,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 	p := newGitLabContractProvider(t, server)
 
 	// when: creating a release MR with two reviewers
-	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+	_, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 		Title:         providerContractReleaseTitle,
 		Body:          providerContractReleaseBody,
 		BaseBranch:    providerContractBaseBranch,
@@ -282,7 +283,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 
 	// then: the run fails naming the reviewer GitLab silently dropped
 	testastic.Error(t, err)
-	testastic.ErrorIs(t, err, provider.ErrReviewerNotApplied)
+	testastic.ErrorIs(t, err, forge.ErrReviewerNotApplied)
 	testastic.Equal(
 		t,
 		"reviewer not applied: [bob] (multiple merge request reviewers require GitLab Premium or "+
@@ -333,7 +334,7 @@ func TestGitLabFindsReviewerOnLaterMemberPage(t *testing.T) {
 	p := newGitLabContractProvider(t, server)
 
 	// when: creating a release MR with that reviewer
-	pr, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+	pr, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 		Title:         providerContractReleaseTitle,
 		Body:          providerContractReleaseBody,
 		BaseBranch:    providerContractBaseBranch,

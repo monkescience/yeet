@@ -1,1 +1,1 @@
-invalid configuration: invalid config: release.pr_title: field is unavailable: $plan.Target
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: invalid config: release.pr_title: field is unavailable: $plan.Target

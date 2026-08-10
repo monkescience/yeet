@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 // testReleaserDeps is the stub-side capability set: provider dependencies
@@ -109,12 +109,12 @@ type fileUpdate struct {
 	message string
 }
 
-func pendingPhaseOnly() []provider.ReleasePRPhase {
-	return []provider.ReleasePRPhase{provider.ReleasePRPhasePending}
+func pendingPhaseOnly() []forge.ReleasePRPhase {
+	return []forge.ReleasePRPhase{forge.ReleasePRPhasePending}
 }
 
-func taggedPhaseOnly() []provider.ReleasePRPhase {
-	return []provider.ReleasePRPhase{provider.ReleasePRPhaseTagged}
+func taggedPhaseOnly() []forge.ReleasePRPhase {
+	return []forge.ReleasePRPhase{forge.ReleasePRPhaseTagged}
 }
 
 // callSequence records the order stub methods were called in, so a test can
@@ -146,10 +146,10 @@ type providerStub struct {
 func (s *providerStub) SetReleasePRLabels(
 	ctx context.Context,
 	number int,
-	labels provider.ReleasePRLabels,
-	phase provider.ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
-	if phase == provider.ReleasePRPhaseTagged {
+	if phase == forge.ReleasePRPhaseTagged {
 		return s.releasePublishingStub.SetReleasePRLabels(ctx, number, labels, phase)
 	}
 
@@ -166,7 +166,7 @@ func newProviderStub() *providerStub {
 			commitsErrByRef: make(map[string]error),
 		},
 		releasePRWorkflowStub: &releasePRWorkflowStub{
-			pullRequests: make(map[string]*provider.PullRequest),
+			pullRequests: make(map[string]*forge.PullRequest),
 			mergePRSHA:   "merged-sha",
 			sequence:     sequence,
 		},
@@ -176,7 +176,7 @@ func newProviderStub() *providerStub {
 			sequence:          sequence,
 		},
 		releasePublishingStub: &releasePublishingStub{
-			releasesByTag: make(map[string]*provider.Release),
+			releasesByTag: make(map[string]*forge.Release),
 			tags:          make(map[string]bool),
 		},
 	}
@@ -232,7 +232,7 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 	refs []string,
 	branch string,
 	includePaths bool,
-	_ []provider.TagRef,
+	_ []forge.TagRef,
 ) (history.CommitHistory, error) {
 	s.getCommitsSinceRefsCalls++
 	s.getCommitsSinceRefsOf = append(s.getCommitsSinceRefsOf, append([]string(nil), refs...))
@@ -241,7 +241,7 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 
 	scanned := history.CommitHistory{EntriesByRef: make(map[string][]history.CommitEntry, len(refs))}
 
-	if errors.Is(s.commitsErr, provider.ErrCommitBoundaryNotFound) {
+	if errors.Is(s.commitsErr, forge.ErrCommitBoundaryNotFound) {
 		scanned.MissingRefs = append(scanned.MissingRefs, refs...)
 
 		return scanned, nil
@@ -253,7 +253,7 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 
 	for _, ref := range refs {
 		if err, exists := s.commitsErrByRef[ref]; exists {
-			if errors.Is(err, provider.ErrCommitBoundaryNotFound) {
+			if errors.Is(err, forge.ErrCommitBoundaryNotFound) {
 				scanned.MissingRefs = append(scanned.MissingRefs, ref)
 
 				continue
@@ -308,23 +308,23 @@ func (s *versionHistoryStub) entriesForRef(ref string) []history.CommitEntry {
 }
 
 type releasePRWorkflowStub struct {
-	pullRequests map[string]*provider.PullRequest
-	openPending  []*provider.PullRequest
+	pullRequests map[string]*forge.PullRequest
+	openPending  []*forge.PullRequest
 
 	maxPRBodyLength int
 
 	createPRCalls   int
-	createPROptions []provider.ReleasePROptions
+	createPROptions []forge.ReleasePROptions
 	updatePRCalls   int
-	updatePROptions []provider.ReleasePROptions
+	updatePROptions []forge.ReleasePROptions
 
 	markPendingCalls  []int
-	markPendingLabels []provider.ReleasePRLabels
-	setLabelPhases    []provider.ReleasePRPhase
+	markPendingLabels []forge.ReleasePRLabels
+	setLabelPhases    []forge.ReleasePRPhase
 
 	mergePRCalls   int
 	mergePRNumbers []int
-	mergePROptions []provider.MergeReleasePROptions
+	mergePROptions []forge.MergeReleasePROptions
 	mergePRSHA     string
 	mergePRErr     error
 
@@ -333,14 +333,14 @@ type releasePRWorkflowStub struct {
 
 func (s *releasePRWorkflowStub) CreateReleasePR(
 	_ context.Context,
-	opts provider.ReleasePROptions,
-) (*provider.PullRequest, error) {
+	opts forge.ReleasePROptions,
+) (*forge.PullRequest, error) {
 	s.createPRCalls++
 	s.createPROptions = append(s.createPROptions, opts)
 
 	number := s.createPRCalls
 
-	pr := &provider.PullRequest{
+	pr := &forge.PullRequest{
 		Number: number,
 		Title:  opts.Title,
 		Body:   opts.Body,
@@ -353,7 +353,7 @@ func (s *releasePRWorkflowStub) CreateReleasePR(
 	return pr, nil
 }
 
-func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts provider.ReleasePROptions) error {
+func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts forge.ReleasePROptions) error {
 	s.sequence.record("UpdateReleasePR")
 
 	s.updatePRCalls++
@@ -366,12 +366,12 @@ func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(
 	context.Context,
 	string,
 	string,
-) ([]*provider.PullRequest, error) {
+) ([]*forge.PullRequest, error) {
 	if s.openPending != nil {
 		return s.openPending, nil
 	}
 
-	pending := make([]*provider.PullRequest, 0, len(s.pullRequests))
+	pending := make([]*forge.PullRequest, 0, len(s.pullRequests))
 
 	for _, pullRequest := range s.pullRequests {
 		pending = append(pending, pullRequest)
@@ -383,7 +383,7 @@ func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(
 func (s *releasePRWorkflowStub) MergeReleasePR(
 	_ context.Context,
 	number int,
-	opts provider.MergeReleasePROptions,
+	opts forge.MergeReleasePROptions,
 ) (string, error) {
 	s.mergePRCalls++
 	s.mergePRNumbers = append(s.mergePRNumbers, number)
@@ -399,8 +399,8 @@ func (s *releasePRWorkflowStub) MergeReleasePR(
 func (s *releasePRWorkflowStub) SetReleasePRLabels(
 	_ context.Context,
 	number int,
-	labels provider.ReleasePRLabels,
-	phase provider.ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
 	s.setLabelPhases = append(s.setLabelPhases, phase)
 	s.markPendingCalls = append(s.markPendingCalls, number)
@@ -431,7 +431,7 @@ func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (strin
 
 	content, exists := s.files[providerFileKey(branch, path)]
 	if !exists {
-		return "", provider.ErrFileNotFound
+		return "", forge.ErrFileNotFound
 	}
 
 	return content, nil
@@ -440,7 +440,7 @@ func (s *releaseFileStub) GetFile(_ context.Context, branch, path string) (strin
 func (s *releaseFileStub) UpdateFiles(
 	_ context.Context,
 	branch, base string,
-	files map[string]provider.FileUpdate,
+	files map[string]forge.FileUpdate,
 	message string,
 ) error {
 	s.sequence.record("UpdateFiles")
@@ -482,23 +482,23 @@ func (s *releaseFileStub) UpdateFiles(
 }
 
 type releasePublishingStub struct {
-	mergedPR          *provider.PullRequest
-	mergedPRResponses []*provider.PullRequest
+	mergedPR          *forge.PullRequest
+	mergedPRResponses []*forge.PullRequest
 	findMergedPRCalls int
 	preflightErr      error
 	preflightCalls    []string
 
 	markTaggedCalls  []int
-	markTaggedLabels []provider.ReleasePRLabels
-	setLabelPhases   []provider.ReleasePRPhase
+	markTaggedLabels []forge.ReleasePRLabels
+	setLabelPhases   []forge.ReleasePRPhase
 
-	latestRelease *provider.Release
-	releasesByTag map[string]*provider.Release
+	latestRelease *forge.Release
+	releasesByTag map[string]*forge.Release
 	tags          map[string]bool
 
 	getReleaseByTagCalls int
 	createReleaseCalls   int
-	createReleaseOpts    []provider.ReleaseOptions
+	createReleaseOpts    []forge.ReleaseOptions
 }
 
 func (s *releasePublishingStub) PreflightReleasePRTagging(
@@ -514,25 +514,25 @@ func (s *releasePublishingStub) FindMergedReleasePR(
 	context.Context,
 	string,
 	string,
-) (*provider.PullRequest, error) {
+) (*forge.PullRequest, error) {
 	s.findMergedPRCalls++
 	if len(s.mergedPRResponses) >= s.findMergedPRCalls {
 		mergedPR := s.mergedPRResponses[s.findMergedPRCalls-1]
 		if mergedPR == nil {
-			return nil, provider.ErrNoPR
+			return nil, forge.ErrNoPR
 		}
 
 		return mergedPR, nil
 	}
 
 	if s.mergedPR == nil {
-		return nil, provider.ErrNoPR
+		return nil, forge.ErrNoPR
 	}
 
 	return s.mergedPR, nil
 }
 
-func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (*provider.Release, error) {
+func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (*forge.Release, error) {
 	s.getReleaseByTagCalls++
 
 	if releaseInfo, exists := s.releasesByTag[tag]; exists {
@@ -543,17 +543,17 @@ func (s *releasePublishingStub) GetReleaseByTag(_ context.Context, tag string) (
 		return s.latestRelease, nil
 	}
 
-	return nil, provider.ErrNoRelease
+	return nil, forge.ErrNoRelease
 }
 
 func (s *releasePublishingStub) CreateRelease(
 	_ context.Context,
-	opts provider.ReleaseOptions,
-) (*provider.Release, error) {
+	opts forge.ReleaseOptions,
+) (*forge.Release, error) {
 	s.createReleaseCalls++
 	s.createReleaseOpts = append(s.createReleaseOpts, opts)
 
-	release := &provider.Release{
+	release := &forge.Release{
 		TagName: opts.TagName,
 		Name:    opts.Name,
 		Body:    opts.Body,
@@ -570,8 +570,8 @@ func (s *releasePublishingStub) CreateRelease(
 func (s *releasePublishingStub) SetReleasePRLabels(
 	_ context.Context,
 	number int,
-	labels provider.ReleasePRLabels,
-	phase provider.ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
 	s.setLabelPhases = append(s.setLabelPhases, phase)
 	s.markTaggedCalls = append(s.markTaggedCalls, number)

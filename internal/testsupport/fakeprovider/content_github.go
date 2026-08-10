@@ -12,12 +12,13 @@ import (
 
 	"github.com/google/go-github/v89/github"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
 // NewGitHubContentProvider returns a real GitHub adapter wired to a stateful
 // content fake over content.
-func NewGitHubContentProvider(t *testing.T, content *RepoContent) provider.Provider {
+func NewGitHubContentProvider(t *testing.T, content *RepoContent) forge.Provider {
 	t.Helper()
 
 	server := httptest.NewServer(newGitHubContentHandler(t, content))

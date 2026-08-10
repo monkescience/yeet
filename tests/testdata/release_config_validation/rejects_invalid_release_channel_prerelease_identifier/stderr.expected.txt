@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: release.channels.beta.prerelease: invalid semver prerelease identifier "bad value": invalid prerelease string
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.channels.beta.prerelease: invalid semver prerelease identifier "bad value": invalid prerelease string

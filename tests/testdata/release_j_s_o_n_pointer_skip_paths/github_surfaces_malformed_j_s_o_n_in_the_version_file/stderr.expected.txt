@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: update version file broken.json: apply json pointer: invalid json
+release failed: unexpected failure: update version file broken.json: apply json pointer: invalid json

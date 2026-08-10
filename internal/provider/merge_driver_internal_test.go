@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 type fakeForgeMerge struct {
@@ -25,10 +26,10 @@ func (f *fakeForgeMerge) state(context.Context) (mergeState, error) {
 	return current, nil
 }
 
-func (f *fakeForgeMerge) resolveMethod(context.Context, MergeMethod) (any, error) {
+func (f *fakeForgeMerge) resolveMethod(context.Context, forge.MergeMethod) (any, error) {
 	f.methodCalls++
 
-	return MergeMethodSquash, nil
+	return forge.MergeMethodSquash, nil
 }
 
 func (f *fakeForgeMerge) execute(context.Context, mergeState, any) (string, bool, error) {
@@ -61,7 +62,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 		name     string
 		current  func() mergeState
 		bypass   bool
-		expected MergeBlockedReason
+		expected forge.MergeBlockedReason
 	}{
 		{
 			name: "draft",
@@ -71,7 +72,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 
 				return current
 			},
-			expected: MergeBlockedReasonDraft,
+			expected: forge.MergeBlockedReasonDraft,
 		},
 		{
 			name: "conflicted while bypassing merge checks",
@@ -83,7 +84,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 				return current
 			},
 			bypass:   true,
-			expected: MergeBlockedReasonConflicts,
+			expected: forge.MergeBlockedReasonConflicts,
 		},
 		{
 			name: "closed and unmerged",
@@ -94,7 +95,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 
 				return current
 			},
-			expected: MergeBlockedReasonClosed,
+			expected: forge.MergeBlockedReasonClosed,
 		},
 		{
 			name: "readiness blocked",
@@ -105,29 +106,29 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 
 				return current
 			},
-			expected: MergeBlockedReasonPolicy,
+			expected: forge.MergeBlockedReasonPolicy,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			// given: a forge reporting a release PR the merge policy must refuse
-			forge := &fakeForgeMerge{states: []mergeState{testCase.current()}}
+			adapter := &fakeForgeMerge{states: []mergeState{testCase.current()}}
 
 			// when: the merge driver runs
-			mergeSHA, err := newTestMergeDriver(forge).run(
+			mergeSHA, err := newTestMergeDriver(adapter).run(
 				context.Background(),
-				MergeReleasePROptions{BypassMergeChecks: testCase.bypass},
+				forge.MergeReleasePROptions{BypassMergeChecks: testCase.bypass},
 			)
 
 			// then: the reason is named and no merge is attempted
-			var blocked *MergeBlockedError
+			var blocked *forge.MergeBlockedError
 			testastic.True(t, errors.As(err, &blocked))
 			testastic.Equal(t, string(testCase.expected), string(blocked.Reason))
-			testastic.ErrorIs(t, err, ErrMergeBlocked)
+			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 			testastic.Equal(t, "", mergeSHA)
-			testastic.Equal(t, 0, forge.methodCalls)
-			testastic.Equal(t, 0, forge.executeCalls)
+			testastic.Equal(t, 0, adapter.methodCalls)
+			testastic.Equal(t, 0, adapter.executeCalls)
 		})
 	}
 }
@@ -139,16 +140,16 @@ func TestMergeDriverRefusesAnUntrustedRequestBeforeMutating(t *testing.T) {
 	current := mergeableState()
 	current.SameRepository = false
 
-	forge := &fakeForgeMerge{states: []mergeState{current}}
+	adapter := &fakeForgeMerge{states: []mergeState{current}}
 
 	// when: the merge driver runs
-	mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+	mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 	// then: the trust check refuses before the merge method is even resolved
-	testastic.ErrorIs(t, err, ErrUntrustedReleasePR)
+	testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
 	testastic.Equal(t, "", mergeSHA)
-	testastic.Equal(t, 0, forge.methodCalls)
-	testastic.Equal(t, 0, forge.executeCalls)
+	testastic.Equal(t, 0, adapter.methodCalls)
+	testastic.Equal(t, 0, adapter.executeCalls)
 }
 
 func TestMergeDriverAnswersAnAlreadyMergedRequestWithoutMerging(t *testing.T) {
@@ -160,16 +161,16 @@ func TestMergeDriverAnswersAnAlreadyMergedRequestWithoutMerging(t *testing.T) {
 	current.IsMerged = true
 	current.MergeCommitSHA = "6d65726765736861000000000000000000000000"
 
-	forge := &fakeForgeMerge{states: []mergeState{current}}
+	adapter := &fakeForgeMerge{states: []mergeState{current}}
 
 	// when: the merge driver runs
-	mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+	mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 	// then: the existing merge commit is returned without a second merge
 	testastic.NoError(t, err)
 	testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
-	testastic.Equal(t, 1, forge.stateCalls)
-	testastic.Equal(t, 0, forge.executeCalls)
+	testastic.Equal(t, 1, adapter.stateCalls)
+	testastic.Equal(t, 0, adapter.executeCalls)
 }
 
 func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
@@ -179,19 +180,19 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		t.Parallel()
 
 		// given: a forge that applies the merge on the completion response
-		forge := &fakeForgeMerge{
+		adapter := &fakeForgeMerge{
 			states:       []mergeState{mergeableState()},
 			executeSHA:   "6d65726765736861000000000000000000000000",
 			executeEnded: true,
 		}
 
 		// when: the merge driver runs
-		mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+		mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 		// then: the reported commit is returned and the forge is not read again
 		testastic.NoError(t, err)
 		testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
-		testastic.Equal(t, 1, forge.stateCalls)
+		testastic.Equal(t, 1, adapter.stateCalls)
 	})
 
 	t.Run("a pending merge is polled until it lands", func(t *testing.T) {
@@ -203,16 +204,16 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		merged.IsMerged = true
 		merged.MergeCommitSHA = "6d65726765736861000000000000000000000000"
 
-		forge := &fakeForgeMerge{states: []mergeState{mergeableState(), merged}}
+		adapter := &fakeForgeMerge{states: []mergeState{mergeableState(), merged}}
 
 		// when: the merge driver runs
-		mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+		mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 		// then: the commit comes from the poll rather than the completion response
 		testastic.NoError(t, err)
 		testastic.Equal(t, "6d65726765736861000000000000000000000000", mergeSHA)
-		testastic.Equal(t, 2, forge.stateCalls)
-		testastic.Equal(t, 1, forge.executeCalls)
+		testastic.Equal(t, 2, adapter.stateCalls)
+		testastic.Equal(t, 1, adapter.executeCalls)
 	})
 
 	t.Run("a terminal refusal stops polling", func(t *testing.T) {
@@ -221,26 +222,26 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 		// given: a forge that accepts the merge and later reports a terminal failure
 		refused := mergeableState()
 		refused.Refusal = &mergeRefusal{
-			reason: MergeBlockedReasonFailure,
+			reason: forge.MergeBlockedReasonFailure,
 			detail: "was refused: provider failure",
 		}
 
-		forge := &fakeForgeMerge{states: []mergeState{mergeableState(), refused}}
+		adapter := &fakeForgeMerge{states: []mergeState{mergeableState(), refused}}
 
 		// when: the merge driver polls the accepted merge
-		mergeSHA, err := newTestMergeDriver(forge).run(context.Background(), MergeReleasePROptions{})
+		mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 		// then: the normalized refusal is returned after one read
-		var blocked *MergeBlockedError
+		var blocked *forge.MergeBlockedError
 		if !errors.As(err, &blocked) {
-			t.Fatalf("expected MergeBlockedError, got %v", err)
+			t.Fatalf("expected forge.MergeBlockedError, got %v", err)
 		}
 
-		testastic.ErrorIs(t, err, ErrMergeBlocked)
-		testastic.Equal(t, string(MergeBlockedReasonFailure), string(blocked.Reason))
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+		testastic.Equal(t, string(forge.MergeBlockedReasonFailure), string(blocked.Reason))
 		testastic.Equal(t, "was refused: provider failure", blocked.Detail)
 		testastic.Equal(t, "", mergeSHA)
-		testastic.Equal(t, 2, forge.stateCalls)
-		testastic.Equal(t, 1, forge.executeCalls)
+		testastic.Equal(t, 2, adapter.stateCalls)
+		testastic.Equal(t, 1, adapter.executeCalls)
 	})
 }

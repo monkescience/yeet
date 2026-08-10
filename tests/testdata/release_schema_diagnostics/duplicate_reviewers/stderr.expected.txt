@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: release.reviewers contains duplicate "alice"
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.reviewers contains duplicate "alice"

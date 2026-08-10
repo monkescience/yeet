@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: targets.worker.version_files entry "services/api/VERSION.txt" duplicates targets.api.version_files entry
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.worker.version_files entry "services/api/VERSION.txt" duplicates targets.api.version_files entry

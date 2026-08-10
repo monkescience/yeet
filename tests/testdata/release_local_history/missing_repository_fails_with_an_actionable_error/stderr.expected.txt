@@ -1,1 +1,1 @@
-release execution failed: local checkout cannot serve release history: no git repository found. Run yeet inside a full checkout of branch "main" (repository does not exist)
+release failed: the local checkout is unusable or stale. Check out and fetch the configured release branch: validate checkout: local checkout cannot serve release history: no git repository found. Run yeet inside a full checkout of branch "main" (repository does not exist)

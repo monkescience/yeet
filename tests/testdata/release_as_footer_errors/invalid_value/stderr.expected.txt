@@ -1,1 +1,1 @@
-release execution failed: invalid release-as footer: invalid version "not-a-version": invalid semantic version
+release failed: unexpected failure: invalid release-as footer: invalid version "not-a-version": invalid semantic version

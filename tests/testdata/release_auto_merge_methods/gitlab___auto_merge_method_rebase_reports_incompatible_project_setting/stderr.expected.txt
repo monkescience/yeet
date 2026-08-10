@@ -1,3 +1,3 @@
 INFO release analysis complete targets=1
 INFO created release PR url=https://example.test/mr/42
-release execution failed: merge blocked by merge method. Enable the requested method in the forge settings, or choose another --auto-merge-method: merge release PR: release PR merge blocked: merge method "rebase" incompatible with project merge_method=merge
+release failed: merge is blocked by the requested method. Enable it in the forge settings, or choose another --auto-merge-method: merge release PR: release PR merge blocked: merge method "rebase" incompatible with project merge_method=merge

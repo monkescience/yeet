@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 type releaseAnalyzer struct {
@@ -34,7 +34,7 @@ func analyze(
 	core *releaseCore,
 	source releaseSource,
 	selection releaseSelection,
-	extraTags []provider.TagRef,
+	extraTags []forge.TagRef,
 ) ([]TargetPlan, error) {
 	a := newReleaseAnalyzer(core, source)
 
@@ -66,7 +66,7 @@ func analyze(
 func (a *releaseAnalyzer) scanHistory(
 	ctx context.Context,
 	selection releaseSelection,
-	extraTags []provider.TagRef,
+	extraTags []forge.TagRef,
 ) (*historyScan, error) {
 	tags, err := a.history.ListTags(ctx)
 	if err != nil {
@@ -93,7 +93,7 @@ func (a *releaseAnalyzer) scanHistory(
 // withExtraTags folds in tags this run published itself. They come from the
 // operation that created them, so they are known even when a forge tag listing
 // has not caught up yet.
-func withExtraTags(tags []string, extraTags []provider.TagRef) []string {
+func withExtraTags(tags []string, extraTags []forge.TagRef) []string {
 	if len(extraTags) == 0 {
 		return tags
 	}
@@ -122,15 +122,15 @@ func withExtraTags(tags []string, extraTags []provider.TagRef) []string {
 	return merged
 }
 
-func publishedTagRefs(releases []FinalizedRelease) []provider.TagRef {
-	refs := make([]provider.TagRef, 0, len(releases))
+func publishedTagRefs(releases []FinalizedRelease) []forge.TagRef {
+	refs := make([]forge.TagRef, 0, len(releases))
 
 	for _, release := range releases {
 		if release.Release == nil {
 			continue
 		}
 
-		refs = append(refs, provider.TagRef{Name: release.Release.TagName, CommitSHA: release.CommitSHA})
+		refs = append(refs, forge.TagRef{Name: release.Release.TagName, CommitSHA: release.CommitSHA})
 	}
 
 	return refs

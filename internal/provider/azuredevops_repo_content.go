@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error {
@@ -137,7 +138,7 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 				slog.String("ref", branch),
 			)
 
-			return "", ErrFileNotFound
+			return "", forge.ErrFileNotFound
 		}
 
 		return "", fmt.Errorf("get file %q on branch %q: %w", path, branch, err)
@@ -176,7 +177,7 @@ func readAzureDevOpsFileBody(body io.Reader, path, branch string) (string, error
 func (a *AzureDevOps) UpdateFiles(
 	ctx context.Context,
 	branch, base string,
-	files map[string]FileUpdate,
+	files map[string]forge.FileUpdate,
 	message string,
 ) error {
 	slog.DebugContext(ctx, "azure devops: updating files",
@@ -282,7 +283,7 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 	return baseTip, nil
 }
 
-func (a *AzureDevOps) buildPushChanges(files map[string]FileUpdate) []any {
+func (a *AzureDevOps) buildPushChanges(files map[string]forge.FileUpdate) []any {
 	paths := make([]string, 0, len(files))
 	for path := range files {
 		paths = append(paths, path)

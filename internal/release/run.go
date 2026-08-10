@@ -32,63 +32,38 @@ type Options struct {
 	Targets           []string
 }
 
-type ConfigError struct {
-	path string
-	err  error
-}
-
-func (e *ConfigError) Error() string {
-	return e.err.Error()
-}
-
-func (e *ConfigError) Unwrap() error {
-	return e.err
-}
-
-func (e *ConfigError) Path() string {
-	return e.path
-}
-
-type ExecutionError struct {
-	err error
-}
-
-func (e *ExecutionError) Error() string {
-	return e.err.Error()
-}
-
-func (e *ExecutionError) Unwrap() error {
-	return e.err
-}
-
 func Run(ctx context.Context, configPath string, options Options) (*Result, error) {
-	cfg, err := prepare(ctx, configPath, options)
+	result, resolvedConfigPath, err := rawRun(ctx, configPath, options)
 	if err != nil {
-		return nil, err
+		return nil, classifyFailure(resolvedConfigPath, err)
 	}
 
-	repository, err := provider.ResolveRepository(ctx, cfg, provider.GitRemoteURL)
+	return result, nil
+}
+
+func rawRun(ctx context.Context, configPath string, options Options) (*Result, string, error) {
+	cfg, resolvedConfigPath, err := prepareWithPath(ctx, configPath, options)
 	if err != nil {
-		return nil, fmt.Errorf("repository resolution failed: %w", err)
+		return nil, resolvedConfigPath, err
 	}
 
-	p, err := provider.Create(repository)
+	p, err := provider.Open(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("provider setup failed: %w", err)
+		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
 
 	core, err := newReleaseCore(ctx, cfg, p)
 	if err != nil {
-		return nil, &ConfigError{path: configPath, err: err}
+		return nil, resolvedConfigPath, err
 	}
 
 	if _, err := selectTargets(core, options.Targets); err != nil {
-		return nil, &ExecutionError{err: err}
+		return nil, resolvedConfigPath, err
 	}
 
 	historySource := history.New(p, cfg.Branch, ".")
 	if err := historySource.Validate(ctx); err != nil {
-		return nil, &ExecutionError{err: err}
+		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
 
 	r, err := newReleaser(core, dependencies{
@@ -98,37 +73,47 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 		publisher: p,
 	}, historySource)
 	if err != nil {
-		return nil, &ConfigError{path: configPath, err: err}
+		return nil, resolvedConfigPath, err
 	}
 
 	result, err := r.releaseTargets(ctx, options.DryRun, options.Targets)
 	if err != nil {
-		return nil, &ExecutionError{err: err}
+		return nil, resolvedConfigPath, err
 	}
 
-	return result, nil
+	return result, resolvedConfigPath, nil
 }
 
-func prepare(ctx context.Context, configPath string, options Options) (*config.Config, error) {
+func prepare(ctx context.Context, options Options) (*config.Config, error) {
+	cfg, _, err := prepareWithPath(ctx, config.DefaultFile, options)
+
+	return cfg, err
+}
+
+func prepareWithPath(
+	ctx context.Context,
+	configPath string,
+	options Options,
+) (*config.Config, string, error) {
 	cfg, resolvedConfigPath, err := config.LoadResolved(ctx, configPath)
 	if err != nil {
-		return nil, &ConfigError{path: resolvedConfigPath, err: err}
+		return nil, resolvedConfigPath, fmt.Errorf("load release config: %w", err)
 	}
 
 	logRun(ctx, resolvedConfigPath, options)
 
 	if err := applyOptions(cfg, options); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
+		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
+		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
 	currentBranch, branchErr := currentGitBranch(ctx)
 	if branchErr != nil {
 		if !options.DryRun && (errors.Is(branchErr, errCINonBranchRef) || len(cfg.Release.Channels) > 0) {
-			return nil, fmt.Errorf("resolve current branch: %w", branchErr)
+			return nil, resolvedConfigPath, fmt.Errorf("resolve current branch: %w", branchErr)
 		}
 
 		slog.DebugContext(ctx, "could not determine current branch (using configured default branch)",
@@ -137,10 +122,10 @@ func prepare(ctx context.Context, configPath string, options Options) (*config.C
 	}
 
 	if err := resolveMode(cfg, currentBranch, options); err != nil {
-		return nil, fmt.Errorf("invalid release options: %w", err)
+		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	return cfg, nil
+	return cfg, resolvedConfigPath, nil
 }
 
 func resolveMode(cfg *config.Config, currentBranch string, options Options) error {

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/monkescience/yeet/internal/changelog"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 type releasePublisher struct {
@@ -125,7 +125,7 @@ func (p *releasePublisher) releaseForTag(
 	ctx context.Context,
 	tag, changelogFile, ref string,
 	prerelease bool,
-) (*provider.Release, error) {
+) (*forge.Release, error) {
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -147,8 +147,8 @@ func (p *releasePublisher) createReleaseForTag(
 	ctx context.Context,
 	tag, ref, releaseBody string,
 	prerelease bool,
-) (*provider.Release, error) {
-	releaseInfo, err := p.publisher.CreateRelease(ctx, provider.ReleaseOptions{
+) (*forge.Release, error) {
+	releaseInfo, err := p.publisher.CreateRelease(ctx, forge.ReleaseOptions{
 		TagName:    tag,
 		Ref:        ref,
 		Name:       tag,
@@ -171,7 +171,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 	ctx context.Context,
 	tag, ref, releaseBody string,
 	prerelease bool,
-) (*provider.Release, error) {
+) (*forge.Release, error) {
 	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
 	if err != nil {
 		return nil, err
@@ -184,10 +184,10 @@ func (p *releasePublisher) ensureReleaseForTag(
 	return p.createReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
-func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*provider.Release, bool, error) {
+func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*forge.Release, bool, error) {
 	releaseInfo, err := p.publisher.GetReleaseByTag(ctx, tag)
 	if err != nil {
-		if !errors.Is(err, provider.ErrNoRelease) {
+		if !errors.Is(err, forge.ErrNoRelease) {
 			return nil, false, fmt.Errorf("get release by tag %q: %w", tag, err)
 		}
 
@@ -199,7 +199,7 @@ func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string
 	return releaseInfo, true, nil
 }
 
-func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest *provider.PullRequest) error {
+func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest *forge.PullRequest) error {
 	if err := p.labels.published(ctx, pullRequest.Number); err != nil {
 		return err
 	}

@@ -1,1 +1,1 @@
-repository resolution failed: parse git remote "origin" url: unable to parse remote URL: https://***@code.example
+release failed: repository resolution failed. Check provider settings and the configured Git remote: provider setup failed: parse git remote "origin" url: unable to parse remote URL: https://***@code.example

@@ -10,11 +10,12 @@ import (
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const azureDevOpsZeroObjectID = "0000000000000000000000000000000000000000"
 
-var _ Provider = (*AzureDevOps)(nil)
+var _ forge.Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
 	conn         *azuredevops.Connection

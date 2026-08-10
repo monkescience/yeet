@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -17,7 +18,7 @@ func newGitHubContractProvider(
 	t *testing.T,
 	server *httptest.Server,
 	options ...provider.MergePollingOption,
-) provider.Provider {
+) forge.Provider {
 	t.Helper()
 
 	client := newGitHubTestClient(t, server)
@@ -265,7 +266,7 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 	p := newGitHubContractProvider(t, server)
 
 	// when: creating a release PR with a reviewer GitHub ends up rejecting
-	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+	_, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 		Title:         providerContractReleaseTitle,
 		Body:          providerContractReleaseBody,
 		BaseBranch:    providerContractBaseBranch,
@@ -400,7 +401,7 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 			SHA         string `json:"sha"`
 		}
 		decodeJSONRequest(t, r, &request)
-		testastic.Equal(t, string(provider.MergeMethodSquash), request.MergeMethod)
+		testastic.Equal(t, string(forge.MergeMethodSquash), request.MergeMethod)
 		testastic.Equal(t, providerContractHeadSHA, request.SHA)
 		writeJSONFixture(t, w, "contracts/github/merge_release_pr/result.json")
 	default:

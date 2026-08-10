@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {
 	slog.DebugContext(ctx, "gitlab: looking up release by tag", slog.String("tag", tag))
 
 	release, _, err := g.client.Releases.GetRelease(g.projectID, tag, gitlab.WithContext(ctx))
@@ -17,7 +18,7 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 		if errors.Is(err, gitlab.ErrNotFound) {
 			slog.DebugContext(ctx, "gitlab: release not found", slog.String("tag", tag))
 
-			return nil, ErrNoRelease
+			return nil, forge.ErrNoRelease
 		}
 
 		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
@@ -31,10 +32,10 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 	return gitLabRelease(release), nil
 }
 
-func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
+func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
 	ref := opts.Ref
 	if !isFullCommitSHA(ref) {
-		return nil, fmt.Errorf("create release: %w: %q", ErrInvalidCommitSHA, ref)
+		return nil, fmt.Errorf("create release: %w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
 	slog.DebugContext(ctx, "gitlab: creating release",
@@ -63,8 +64,8 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 	return gitLabRelease(release), nil
 }
 
-func gitLabRelease(release *gitlab.Release) *Release {
-	return &Release{
+func gitLabRelease(release *gitlab.Release) *forge.Release {
+	return &forge.Release{
 		TagName: release.TagName,
 		Name:    release.Name,
 		Body:    release.Description,

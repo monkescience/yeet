@@ -11,8 +11,8 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
@@ -41,14 +41,14 @@ func (baseFileSource) GetCommitsSinceRefs(
 	[]string,
 	string,
 	bool,
-	[]provider.TagRef,
+	[]forge.TagRef,
 ) (history.CommitHistory, error) {
 	return history.CommitHistory{}, errUnexpectedHistoryScan
 }
 
 type updateFilesForge struct {
 	name        string
-	newProvider func(t *testing.T, content *fakeprovider.RepoContent) provider.Provider
+	newProvider func(t *testing.T, content *fakeprovider.RepoContent) forge.Provider
 }
 
 func updateFilesForges() []updateFilesForge {
@@ -59,7 +59,7 @@ func updateFilesForges() []updateFilesForge {
 	}
 }
 
-func newUpdateFilesUpdater(t *testing.T, cfg *config.Config, forge provider.Provider) *releaseBranchUpdater {
+func newUpdateFilesUpdater(t *testing.T, cfg *config.Config, forge forge.Provider) *releaseBranchUpdater {
 	t.Helper()
 
 	return newUpdateFilesUpdaterWithSource(t, cfg, forge, baseFileSource{files: forge})
@@ -68,7 +68,7 @@ func newUpdateFilesUpdater(t *testing.T, cfg *config.Config, forge provider.Prov
 func newUpdateFilesUpdaterWithSource(
 	t *testing.T,
 	cfg *config.Config,
-	forge provider.Provider,
+	forge forge.Provider,
 	source releaseSource,
 ) *releaseBranchUpdater {
 	t.Helper()
@@ -111,8 +111,8 @@ func assertUpdateFilesCommit(
 func TestUpdateReleaseBranchFiles(t *testing.T) {
 	t.Parallel()
 
-	for _, forge := range updateFilesForges() {
-		t.Run(forge.name, func(t *testing.T) {
+	for _, adapter := range updateFilesForges() {
+		t.Run(adapter.name, func(t *testing.T) {
 			t.Parallel()
 
 			t.Run("creates missing changelog with top-level header", func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				// given: a base branch without a changelog file
 				cfg := config.Default()
 				content := fakeprovider.NewRepoContent(cfg.Branch)
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-v0.1.0"
 				plans := []TargetPlan{{
@@ -162,7 +162,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				content := fakeprovider.NewRepoContent(cfg.Branch)
 				content.Seed(cfg.Branch, "VERSION.txt", "version=1.2.3 # x-yeet-version")
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-v1.2.4"
 				plans := []TargetPlan{{
@@ -212,7 +212,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				content.Seed(cfg.Branch, "shared.md", "version=1.2.3 # x-yeet-version")
 				content.Seed(cfg.Branch, "api/CHANGELOG.md", "# Changelog\n")
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				plans := []TargetPlan{
 					{
@@ -258,8 +258,8 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				updater := newUpdateFilesUpdaterWithSource(
 					t,
 					cfg,
-					forge.newProvider(t, remote),
-					baseFileSource{files: forge.newProvider(t, local)},
+					adapter.newProvider(t, remote),
+					baseFileSource{files: adapter.newProvider(t, local)},
 				)
 
 				branch := "yeet/release-v1.2.4"
@@ -303,7 +303,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 					`}`,
 				}, "\n"))
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-v1.2.4"
 				plans := []TargetPlan{{
@@ -348,7 +348,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				content := fakeprovider.NewRepoContent(cfg.Branch)
 				content.Seed(cfg.Branch, "package.json", `{"name":"app","version":"2026.02.7"}`)
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-v2026.03.1"
 				plans := []TargetPlan{{
@@ -383,7 +383,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				content := fakeprovider.NewRepoContent(cfg.Branch)
 				content.Seed(cfg.Branch, "VERSION.txt", "version=1.2.3")
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				plans := []TargetPlan{{
 					ID:          "default",
@@ -414,7 +414,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 						"existing_changelog.input.md",
 				)))
 
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-v0.1.1"
 				plans := []TargetPlan{{
@@ -460,7 +460,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				}
 
 				content := fakeprovider.NewRepoContent(cfg.Branch)
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				branch := "yeet/release-wave"
 				plans := []TargetPlan{
@@ -504,7 +504,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				cfg.VersionFiles = []config.VersionFile{{Path: "VERSION.txt"}}
 
 				content := fakeprovider.NewRepoContent(cfg.Branch)
-				updater := newUpdateFilesUpdater(t, cfg, forge.newProvider(t, content))
+				updater := newUpdateFilesUpdater(t, cfg, adapter.newProvider(t, content))
 
 				plans := []TargetPlan{{
 					ID:          "default",
@@ -517,7 +517,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 				err := updater.updateFiles(t.Context(), "yeet/release-v1.2.4", plans, updateFilesCommitSubject)
 
 				// then: the missing file is reported and nothing is written
-				testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+				testastic.ErrorIs(t, err, forge.ErrFileNotFound)
 				testastic.Equal(t, 0, len(content.Commits()))
 			})
 		})

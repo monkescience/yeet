@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
 const gitLabPageSize = 100
 
-var _ Provider = (*GitLab)(nil)
+var _ forge.Provider = (*GitLab)(nil)
 
 type GitLab struct {
 	client    *gitlab.Client

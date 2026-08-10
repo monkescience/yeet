@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: update version file VERSION.txt: apply markers: nested x-yeet-start inside open block: open at line 1, nested at line 3
+release failed: unexpected failure: update version file VERSION.txt: apply markers: nested x-yeet-start inside open block: open at line 1, nested at line 3

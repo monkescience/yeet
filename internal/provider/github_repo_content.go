@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/google/go-github/v89/github"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
@@ -70,14 +71,14 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 				slog.Int("status", resp.StatusCode),
 			)
 
-			return "", ErrFileNotFound
+			return "", forge.ErrFileNotFound
 		}
 
 		return "", fmt.Errorf("get file %s on branch %s: %w", path, branch, err)
 	}
 
 	if content == nil {
-		return "", fmt.Errorf("%w: %s", ErrFileNotFound, path)
+		return "", fmt.Errorf("%w: %s", forge.ErrFileNotFound, path)
 	}
 
 	decoded, err := content.GetContent()
@@ -91,7 +92,7 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 func (g *GitHub) UpdateFiles(
 	ctx context.Context,
 	branch, base string,
-	files map[string]FileUpdate,
+	files map[string]forge.FileUpdate,
 	message string,
 ) error {
 	slog.DebugContext(ctx, "github: updating files",
@@ -147,7 +148,7 @@ func (g *GitHub) baseBranchCommit(ctx context.Context, base string) (*github.Com
 func (g *GitHub) createTreeForFiles(
 	ctx context.Context,
 	baseTreeSHA string,
-	files map[string]FileUpdate,
+	files map[string]forge.FileUpdate,
 ) (*github.Tree, error) {
 	entries := make([]*github.TreeEntry, 0, len(files))
 
@@ -199,7 +200,7 @@ func (g *GitHub) createCommitFromBase(
 
 func (g *GitHub) upsertBranchRef(ctx context.Context, branch, sha string) error {
 	if sha == "" {
-		return fmt.Errorf("%w: branch %q", ErrEmptyCommitSHA, branch)
+		return fmt.Errorf("%w: branch %q", forge.ErrEmptyCommitSHA, branch)
 	}
 
 	refName := "refs/heads/" + branch

@@ -1,1 +1,1 @@
-provider setup failed: missing auth token: GITLAB_TOKEN or GL_TOKEN environment variable is required
+release failed: provider authentication is unavailable. Export a reported token environment variable: provider setup failed: missing auth token: GITLAB_TOKEN or GL_TOKEN environment variable is required

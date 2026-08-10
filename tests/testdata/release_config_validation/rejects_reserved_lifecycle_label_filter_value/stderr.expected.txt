@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: release.labels.pending "none" is a reserved label filter value
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.labels.pending "none" is a reserved label filter value

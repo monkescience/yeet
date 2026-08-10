@@ -1,1 +1,1 @@
-provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable is required
+release failed: provider authentication is unavailable. Export a reported token environment variable: provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable is required

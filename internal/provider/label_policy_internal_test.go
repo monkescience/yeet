@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
-func policyTestLabels() ReleasePRLabels {
-	return ReleasePRLabels{
+func policyTestLabels() forge.ReleasePRLabels {
+	return forge.ReleasePRLabels{
 		Pending: "autorelease: pending",
 		Tagged:  "autorelease: tagged",
 		Yeet:    true,
@@ -98,8 +99,8 @@ func TestManagedLabelChangeAnchorsTheDiscoverableLabel(t *testing.T) {
 	labels := policyTestLabels()
 
 	// when: the change for each phase is computed
-	pending := managedLabelChange(labels, ReleasePRPhasePending)
-	tagged := managedLabelChange(labels, ReleasePRPhaseTagged)
+	pending := managedLabelChange(labels, forge.ReleasePRPhasePending)
+	tagged := managedLabelChange(labels, forge.ReleasePRPhaseTagged)
 
 	// then: each phase anchors on the label that keeps the pull request findable
 	testastic.Equal(t, labels.Pending, pending.anchor)
@@ -126,7 +127,7 @@ func TestManagedLabelChangeMovesAnEmptyPullRequestThroughBothPhases(t *testing.T
 	labels := policyTestLabels()
 
 	// when: the pending phase is applied
-	pending := applyLabelChange(nil, managedLabelChange(labels, ReleasePRPhasePending), foldedLabelMatch)
+	pending := applyLabelChange(nil, managedLabelChange(labels, forge.ReleasePRPhasePending), foldedLabelMatch)
 
 	// then: it carries pending, the extras and the yeet marker, and not tagged
 	testastic.SliceEqual(
@@ -136,7 +137,7 @@ func TestManagedLabelChangeMovesAnEmptyPullRequestThroughBothPhases(t *testing.T
 	)
 
 	// when: the tagged phase is applied to that result
-	tagged := applyLabelChange(pending, managedLabelChange(labels, ReleasePRPhaseTagged), foldedLabelMatch)
+	tagged := applyLabelChange(pending, managedLabelChange(labels, forge.ReleasePRPhaseTagged), foldedLabelMatch)
 
 	// then: the lifecycle label flips and nothing else moves
 	testastic.SliceEqual(
@@ -154,8 +155,8 @@ func TestManagedLabelChangeLeavesMaintainerLabelsAlone(t *testing.T) {
 	current := []string{labels.Pending, "priority/high", "area/api"}
 
 	// when: both phases are applied in turn
-	pending := applyLabelChange(current, managedLabelChange(labels, ReleasePRPhasePending), foldedLabelMatch)
-	tagged := applyLabelChange(pending, managedLabelChange(labels, ReleasePRPhaseTagged), foldedLabelMatch)
+	pending := applyLabelChange(current, managedLabelChange(labels, forge.ReleasePRPhasePending), foldedLabelMatch)
+	tagged := applyLabelChange(pending, managedLabelChange(labels, forge.ReleasePRPhaseTagged), foldedLabelMatch)
 
 	// then: the maintainer's labels survive both transitions
 	for _, phase := range [][]string{pending, tagged} {

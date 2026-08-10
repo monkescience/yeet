@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/google/go-github/v89/github"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
-func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {
 	slog.DebugContext(ctx, "github: looking up release by tag", slog.String("tag", tag))
 
 	release, resp, err := g.client.Repositories.GetReleaseByTag(ctx, g.repo.Owner, g.repo.Name, tag)
@@ -23,7 +24,7 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*Release, err
 				slog.Int("status", resp.StatusCode),
 			)
 
-			return nil, ErrNoRelease
+			return nil, forge.ErrNoRelease
 		}
 
 		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
@@ -50,7 +51,7 @@ func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
 	return true, nil
 }
 
-func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error) {
+func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
 	targetCommitish := strings.TrimSpace(opts.Ref)
 
 	slog.DebugContext(ctx, "github: creating release",
@@ -95,11 +96,11 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts ReleaseOptions) (*Relea
 // ref already exists the call is a no-op.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
 	if strings.TrimSpace(tagName) == "" {
-		return ErrEmptyTagName
+		return forge.ErrEmptyTagName
 	}
 
 	if !isFullCommitSHA(ref) {
-		return fmt.Errorf("%w: %q", ErrInvalidCommitSHA, ref)
+		return fmt.Errorf("%w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
 	exists, err := g.tagExists(ctx, tagName)
@@ -177,8 +178,8 @@ func (g *GitHub) resolveTaggerIdentity(ctx context.Context) *github.CommitAuthor
 	}
 }
 
-func gitHubRelease(release *github.RepositoryRelease) *Release {
-	return &Release{
+func gitHubRelease(release *github.RepositoryRelease) *forge.Release {
+	return &forge.Release{
 		TagName: release.GetTagName(),
 		Name:    release.GetName(),
 		Body:    release.GetBody(),

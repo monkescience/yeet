@@ -12,8 +12,8 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestLogParsedCommits(t *testing.T) {
@@ -277,9 +277,9 @@ func TestReleaseAnalyzerSharedHistoryFallsBackBeyondTopRefs(t *testing.T) {
 		"api-v1.0.0",
 		"web-v1.0.0",
 	}
-	stub.commitsErrByRef["api-v1.1.0"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsErrByRef["api-v1.0.2"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsErrByRef["api-v1.0.1"] = provider.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.1.0"] = forge.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.2"] = forge.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.1"] = forge.ErrCommitBoundaryNotFound
 	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},
@@ -358,7 +358,7 @@ func TestReleaseAnalyzerFallbackScansEachBoundaryRefOnce(t *testing.T) {
 		"api-v1.3.0", "api-v1.2.0", "api-v1.1.0",
 		"web-v1.3.0", "web-v1.2.0", "web-v1.1.0",
 	} {
-		stub.commitsErrByRef[unreachableRef] = provider.ErrCommitBoundaryNotFound
+		stub.commitsErrByRef[unreachableRef] = forge.ErrCommitBoundaryNotFound
 	}
 
 	stub.commitsByRef = map[string][]history.CommitEntry{
@@ -410,9 +410,9 @@ func TestReleaseAnalyzerSharedHistoryFallbackReusesScan(t *testing.T) {
 		"api-v1.0.0",
 		"web-v1.0.0",
 	}
-	stub.commitsErrByRef["api-v1.1.0"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsErrByRef["api-v1.0.2"] = provider.ErrCommitBoundaryNotFound
-	stub.commitsErrByRef["api-v1.0.1"] = provider.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.1.0"] = forge.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.2"] = forge.ErrCommitBoundaryNotFound
+	stub.commitsErrByRef["api-v1.0.1"] = forge.ErrCommitBoundaryNotFound
 	stub.commitsByRef = map[string][]history.CommitEntry{
 		"api-v1.0.0": {
 			{Hash: "api-new", Message: "fix: patch api", Paths: []string{"services/api/main.go"}},

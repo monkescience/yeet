@@ -9,7 +9,7 @@ import (
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/version"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
@@ -35,7 +35,7 @@ func (u *releaseBranchUpdater) updateFiles(
 	commitSubject string,
 ) error {
 	r := u.core
-	files := map[string]provider.FileUpdate{}
+	files := map[string]forge.FileUpdate{}
 	changelogFiles := map[string]struct{}{}
 
 	for _, plan := range plans {
@@ -73,7 +73,7 @@ func (u *releaseBranchUpdater) updateFiles(
 
 func (u *releaseBranchUpdater) updateVersionFiles(
 	ctx context.Context,
-	files map[string]provider.FileUpdate,
+	files map[string]forge.FileUpdate,
 	target config.ResolvedTarget,
 	targetID string,
 	nextVersion string,
@@ -106,7 +106,7 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 			slog.String("next_version", nextVersion),
 		)
 
-		if setErr := setBranchFileContent(files, versionFile.Path, provider.FileUpdate{
+		if setErr := setBranchFileContent(files, versionFile.Path, forge.FileUpdate{
 			Content: updatedContent,
 			Exists:  true,
 		}); setErr != nil {
@@ -142,16 +142,16 @@ func applyVersionFile(
 
 func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	ctx context.Context,
-	pendingFiles map[string]provider.FileUpdate,
+	pendingFiles map[string]forge.FileUpdate,
 	changelogFiles map[string]struct{},
 	target config.ResolvedTarget,
 	changelogEntry string,
-) (provider.FileUpdate, error) {
+) (forge.FileUpdate, error) {
 	r := u.core
 
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
 		if _, isChangelog := changelogFiles[target.Changelog.File]; !isChangelog {
-			return provider.FileUpdate{}, fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File)
+			return forge.FileUpdate{}, fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File)
 		}
 
 		existing.Content = prependChangelogEntry(existing.Content, changelogEntry)
@@ -161,17 +161,17 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 
 	existing, err := u.source.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
 	if err != nil {
-		if errors.Is(err, provider.ErrFileNotFound) {
-			return provider.FileUpdate{Content: changelog.Prepend("", changelogEntry)}, nil
+		if errors.Is(err, forge.ErrFileNotFound) {
+			return forge.FileUpdate{Content: changelog.Prepend("", changelogEntry)}, nil
 		}
 
-		return provider.FileUpdate{}, fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
+		return forge.FileUpdate{}, fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
 	}
 
-	return provider.FileUpdate{Content: prependChangelogEntry(existing, changelogEntry), Exists: true}, nil
+	return forge.FileUpdate{Content: prependChangelogEntry(existing, changelogEntry), Exists: true}, nil
 }
 
-func setBranchFileContent(files map[string]provider.FileUpdate, path string, update provider.FileUpdate) error {
+func setBranchFileContent(files map[string]forge.FileUpdate, path string, update forge.FileUpdate) error {
 	if existingUpdate, exists := files[path]; exists && existingUpdate != update {
 		return fmt.Errorf("%w: %s", errConflictingFileUpdate, path)
 	}

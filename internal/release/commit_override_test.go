@@ -8,8 +8,8 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestCommitOverrideMessages(t *testing.T) {
@@ -116,7 +116,7 @@ func TestReleaseCommitOverrides(t *testing.T) {
 		cfg.PreMajorFeaturesBumpPatch = false
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash: "abcdef1234567890",
@@ -152,7 +152,7 @@ END_COMMIT_OVERRIDE`,
 		cfg.PreMajorBreakingBumpsMinor = false
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash: "abcdef1234567890",

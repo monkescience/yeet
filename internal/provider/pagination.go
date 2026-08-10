@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // paginate walks page-number APIs until fetch returns nextPage zero or handle stops.
@@ -124,5 +126,5 @@ func paginateAzureDevOpsBySkip[T any](
 }
 
 func paginationLimitExceeded(resource string) error {
-	return fmt.Errorf("%w: exceeded %d pages %s", ErrPaginationLimitExceeded, maxPaginationPages, resource)
+	return fmt.Errorf("%w: exceeded %d pages %s", forge.ErrPaginationLimitExceeded, maxPaginationPages, resource)
 }

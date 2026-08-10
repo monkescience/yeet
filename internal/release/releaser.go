@@ -11,7 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/version"
 )
 
@@ -27,7 +27,7 @@ var (
 type Result struct {
 	BaseBranch  string
 	Plans       []TargetPlan
-	PullRequest *provider.PullRequest
+	PullRequest *forge.PullRequest
 	Releases    []FinalizedRelease
 }
 
@@ -37,7 +37,7 @@ type Result struct {
 type FinalizedRelease struct {
 	TargetID  string
 	CommitSHA string
-	Release   *provider.Release
+	Release   *forge.Release
 }
 
 type TargetPlan struct {
@@ -208,7 +208,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTarg
 func (r *releaser) publishReleaseWave(
 	ctx context.Context,
 	plans []TargetPlan,
-) (*provider.PullRequest, []FinalizedRelease, error) {
+) (*forge.PullRequest, []FinalizedRelease, error) {
 	if len(plans) == 0 {
 		return nil, nil, nil
 	}
@@ -235,7 +235,7 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 	analysisErr error,
 ) ([]TargetPlan, []FinalizedRelease, error) {
 	finalized, err := r.finalizeMergedReleasePRs(ctx)
-	if errors.Is(err, provider.ErrNoPR) {
+	if errors.Is(err, forge.ErrNoPR) {
 		if analysisErr != nil {
 			return nil, nil, analysisErr
 		}
@@ -296,7 +296,7 @@ func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]FinalizedRel
 	return newReleasePublisher(r.core, r.publisher, r.source).finalizeMergedReleasePR(ctx)
 }
 
-func multiplePendingReleasePRError(pendingPRs []*provider.PullRequest) error {
+func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {
 	prReferences := make([]string, 0, len(pendingPRs))
 
 	for _, pendingPR := range pendingPRs {

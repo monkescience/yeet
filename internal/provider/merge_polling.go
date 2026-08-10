@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const (
@@ -99,7 +101,7 @@ func (p mergePolling) awaitMergedCommit(
 }
 
 func (p mergePolling) notFinalized(reference string) error {
-	return fmt.Errorf("%w: %s after %s", ErrMergeNotFinalized, reference, p.timeout)
+	return fmt.Errorf("%w: %s after %s", forge.ErrMergeNotFinalized, reference, p.timeout)
 }
 
 // notFinalizedFrom keeps the cause that ended the wait alongside the sentinel,
@@ -115,9 +117,9 @@ type mergeNotFinalizedError struct {
 }
 
 func (e *mergeNotFinalizedError) Error() string {
-	return fmt.Sprintf("%s: %s after %s: %s", ErrMergeNotFinalized, e.reference, e.timeout, e.cause)
+	return fmt.Sprintf("%s: %s after %s: %s", forge.ErrMergeNotFinalized, e.reference, e.timeout, e.cause)
 }
 
 func (e *mergeNotFinalizedError) Unwrap() []error {
-	return []error{ErrMergeNotFinalized, e.cause}
+	return []error{forge.ErrMergeNotFinalized, e.cause}
 }

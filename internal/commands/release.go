@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
@@ -165,17 +163,12 @@ func changedFlag[T any](cmd *cobra.Command, name string, value *T) *T {
 func runRelease(ctx context.Context, output io.Writer, configPath string, options release.Options) error {
 	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
-		var configErr *release.ConfigError
-		if errors.As(err, &configErr) {
-			return wrapReleaseConfigError(configErr.Path(), err)
+		var failure *release.Failure
+		if errors.As(err, &failure) {
+			return wrapReleaseFailure(failure)
 		}
 
-		var executionErr *release.ExecutionError
-		if errors.As(err, &executionErr) {
-			return wrapReleaseExecutionError(err)
-		}
-
-		return err //nolint:wrapcheck // preserve stage-specific user-facing error verbatim
+		return fmt.Errorf("release failed: unexpected failure: %w", err)
 	}
 
 	return handleReleaseResult(ctx, output, result, options.DryRun)
@@ -203,64 +196,86 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 	return nil
 }
 
-func wrapReleaseConfigError(configPath string, err error) error {
-	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf(
-			"configuration file not found: %s. Run `yeet init` or pass --config: %w",
+func wrapReleaseFailure(failure *release.Failure) error {
+	message := releaseFailureMessage(failure.Kind(), failure.ConfigPath(), failure.MergeReason())
+
+	return fmt.Errorf("%s: %w", message, failure)
+}
+
+func releaseFailureMessage(kind release.FailureKind, configPath string, mergeReason release.MergeReason) string {
+	const unexpectedFailureMessage = "release failed: unexpected failure"
+
+	switch kind {
+	case release.FailureConfigMissing:
+		return fmt.Sprintf(
+			"release failed: configuration file %q was not found. Run `yeet init` or pass --config",
 			configPath,
-			err,
 		)
-	}
-
-	if errors.Is(err, config.ErrInvalidConfig) {
-		return fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	return fmt.Errorf("configuration failed: %w", err)
-}
-
-func wrapReleaseExecutionError(err error) error {
-	var blocked *provider.MergeBlockedError
-	if errors.As(err, &blocked) {
-		return fmt.Errorf("release execution failed: %s: %w", mergeBlockedRemediation(blocked.Reason), err)
-	}
-
-	if errors.Is(err, release.ErrMultiplePendingReleasePRs) {
-		return fmt.Errorf(
-			"release execution failed: multiple pending release changes found "+
-				"(pull requests or merge requests). Close or relabel stale entries: %w",
-			err,
+	case release.FailureConfigInvalid:
+		return fmt.Sprintf(
+			"release failed: configuration file %q is invalid. Fix the reported values",
+			configPath,
 		)
-	}
-
-	return fmt.Errorf("release execution failed: %w", err)
-}
-
-const mergeBlockedReadinessRemediation = "merge blocked. Resolve pull request or merge request readiness, " +
-	"or use --auto-merge-force when appropriate"
-
-func mergeBlockedRemediation(reason provider.MergeBlockedReason) string {
-	switch reason {
-	case provider.MergeBlockedReasonConflicts:
-		return "merge blocked by conflicts. Resolve the conflicts on the release branch, " +
-			"which --auto-merge-force never bypasses"
-	case provider.MergeBlockedReasonDraft:
-		return "merge blocked: the release pull request or merge request is a draft. Mark it ready to merge"
-	case provider.MergeBlockedReasonClosed:
-		return "merge blocked: the release pull request or merge request is no longer open. " +
-			"Reopen it, or let the next run open a new one"
-	case provider.MergeBlockedReasonPolicy:
-		return "merge blocked by repository policy. Satisfy the required approvals and checks, " +
-			"or use --auto-merge-force when appropriate"
-	case provider.MergeBlockedReasonMethod:
-		return "merge blocked by merge method. Enable the requested method in the forge settings, " +
-			"or choose another --auto-merge-method"
-	case provider.MergeBlockedReasonFailure:
-		return "merge failed at the provider. Resolve the reported provider failure before retrying"
-	case provider.MergeBlockedReasonUnknown:
-		return mergeBlockedReadinessRemediation
+	case release.FailureAuthentication:
+		return "release failed: provider authentication is unavailable. " +
+			"Export a reported token environment variable"
+	case release.FailureRepository:
+		return "release failed: repository resolution failed. " +
+			"Check provider settings and the configured Git remote"
+	case release.FailureHostTrust:
+		return "release failed: provider host trust validation failed. " +
+			"Align the configured host, Git remote, and provider URL override"
+	case release.FailureCheckout:
+		return "release failed: the local checkout is unusable or stale. " +
+			"Check out and fetch the configured release branch"
+	case release.FailureReleaseBranch:
+		return "release failed: the release branch or prerelease channel is invalid. " +
+			"Use the configured branch or channel"
+	case release.FailureReleaseState:
+		return "release failed: multiple pending release changes were found. " +
+			"Close or relabel stale pending release changes"
+	case release.FailureMergeBlocked:
+		return mergeBlockedMessage(mergeReason)
+	case release.FailureMergeTimeout:
+		return "release failed: merge finalization timed out. Inspect provider state before retrying"
+	case release.FailureReviewer:
+		return "release failed: release reviewers could not be applied. " +
+			"Check identity, membership, permissions, and provider limits"
+	case release.FailureLabels:
+		return "release failed: release labels are missing, mismatched, or rejected. " +
+			"Restore or create the configured labels"
+	case release.FailureUnexpected:
+		return unexpectedFailureMessage
 	default:
-		return mergeBlockedReadinessRemediation
+		return unexpectedFailureMessage
+	}
+}
+
+func mergeBlockedMessage(reason release.MergeReason) string {
+	switch reason {
+	case release.MergeReasonConflicts:
+		return "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch, " +
+			"which --auto-merge-force never bypasses"
+	case release.MergeReasonDraft:
+		return "release failed: merge is blocked because the release pull request or merge request is a draft. " +
+			"Mark it ready to merge"
+	case release.MergeReasonClosed:
+		return "release failed: merge is blocked because the release pull request or merge request is closed. " +
+			"Reopen it, or let the next run open a new one"
+	case release.MergeReasonPolicy:
+		return "release failed: merge is blocked by repository policy. Satisfy required approvals and checks, " +
+			"or use --auto-merge-force when appropriate"
+	case release.MergeReasonMethod:
+		return "release failed: merge is blocked by the requested method. Enable it in the forge settings, " +
+			"or choose another --auto-merge-method"
+	case release.MergeReasonProvider:
+		return "release failed: the provider refused the merge. Resolve the reported provider failure before retrying"
+	case release.MergeReasonUnknown:
+		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
+			"or use --auto-merge-force when appropriate"
+	default:
+		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
+			"or use --auto-merge-force when appropriate"
 	}
 }
 

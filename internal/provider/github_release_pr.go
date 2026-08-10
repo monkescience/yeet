@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v89/github"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
-func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
 	if err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra); err != nil {
-		return nil, err
+		return nil, wrapReleasePRLabelsError(err)
 	}
 
 	if err := g.validateReviewers(ctx, opts.Reviewers); err != nil {
@@ -53,7 +54,7 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		)
 	}
 
-	return &PullRequest{
+	return &forge.PullRequest{
 		Number: pr.GetNumber(),
 		Title:  pr.GetTitle(),
 		Body:   pr.GetBody(),
@@ -80,7 +81,7 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 		}
 
 		if !isCollaborator {
-			return fmt.Errorf("%w: %q is not a repository collaborator", ErrReviewerNotFound, reviewer)
+			return fmt.Errorf("%w: %q is not a repository collaborator", forge.ErrReviewerNotFound, reviewer)
 		}
 	}
 
@@ -93,7 +94,7 @@ func (g *GitHub) MaxPRBodyLength() int {
 	return 0
 }
 
-func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
+func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error {
 	slog.DebugContext(ctx, "github: updating pull request", slog.Int("pr_number", number))
 
 	_, _, err := g.client.PullRequests.Edit(ctx, g.repo.Owner, g.repo.Name, number, &github.PullRequest{
@@ -113,7 +114,7 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 func (g *GitHub) FindOpenPendingReleasePRs(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
-) ([]*PullRequest, error) {
+) ([]*forge.PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
 		Base:      baseBranch,
@@ -129,7 +130,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 		slog.String("label", pendingLabel),
 	)
 
-	pendingPRs := make([]*PullRequest, 0)
+	pendingPRs := make([]*forge.PullRequest, 0)
 
 	err := paginate(ctx, "listing open pending release PRs",
 		func(page int) ([]*github.PullRequest, int, error) {
@@ -158,7 +159,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 				)
 			}
 
-			pendingPRs = append(pendingPRs, &PullRequest{
+			pendingPRs = append(pendingPRs, &forge.PullRequest{
 				Number:            pr.GetNumber(),
 				Title:             pr.GetTitle(),
 				Body:              pr.GetBody(),
@@ -183,7 +184,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 func (g *GitHub) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
-) (*PullRequest, error) {
+) (*forge.PullRequest, error) {
 	query := fmt.Sprintf("repo:%s/%s is:pr is:merged base:%s label:%q",
 		g.repo.Owner, g.repo.Name, baseBranch, pendingLabel)
 	options := &github.SearchOptions{
@@ -199,7 +200,7 @@ func (g *GitHub) FindMergedReleasePR(
 		slog.String("label", pendingLabel),
 	)
 
-	var found *PullRequest
+	var found *forge.PullRequest
 
 	err := paginate(ctx, "searching merged release PRs",
 		func(page int) ([]*github.Issue, int, error) {
@@ -224,7 +225,7 @@ func (g *GitHub) FindMergedReleasePR(
 
 			branch := fullPR.GetHead().GetRef()
 
-			found = &PullRequest{
+			found = &forge.PullRequest{
 				Number:         fullPR.GetNumber(),
 				Title:          fullPR.GetTitle(),
 				Body:           fullPR.GetBody(),
@@ -241,7 +242,7 @@ func (g *GitHub) FindMergedReleasePR(
 	}
 
 	if found == nil {
-		return nil, ErrNoPR
+		return nil, forge.ErrNoPR
 	}
 
 	slog.DebugContext(ctx, "github: found merged release PR",
@@ -256,20 +257,20 @@ func (g *GitHub) FindMergedReleasePR(
 func (g *GitHub) SetReleasePRLabels(
 	ctx context.Context,
 	number int,
-	labels ReleasePRLabels,
-	phase ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
 	if err := g.labelDefinitions().prepare(ctx, labels, phase); err != nil {
-		return err
+		return wrapReleasePRLabelsError(err)
 	}
 
 	change := managedLabelChange(labels, phase)
 
-	return g.applyLabels(ctx, number, change.anchor, change.add, change.remove)
+	return wrapReleasePRLabelsError(g.applyLabels(ctx, number, change.anchor, change.add, change.remove))
 }
 
 func (g *GitHub) PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error {
-	return g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged")
+	return wrapReleasePRLabelsError(g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged"))
 }
 
 // applyLabels sends every addition in one request, which puts the anchor on the
@@ -288,7 +289,7 @@ func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add
 	return nil
 }
 
-func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
+func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 
 	driver := mergeDriver{forge: &gitHubMerge{provider: g, number: number}, polling: g.polling}
@@ -315,7 +316,7 @@ func (m *gitHubMerge) state(ctx context.Context) (mergeState, error) {
 	return gitHubMergeState(m.provider.repo, m.number, pullRequest), nil
 }
 
-func (m *gitHubMerge) resolveMethod(ctx context.Context, requested MergeMethod) (any, error) {
+func (m *gitHubMerge) resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error) {
 	method, err := m.provider.resolveGitHubMergeMethod(ctx, requested)
 	if err != nil {
 		return nil, err
@@ -325,7 +326,7 @@ func (m *gitHubMerge) resolveMethod(ctx context.Context, requested MergeMethod) 
 }
 
 func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
-	mergeMethod, ok := method.(MergeMethod)
+	mergeMethod, ok := method.(forge.MergeMethod)
 	if !ok {
 		return "", false, unsupportedResolvedMethod(method)
 	}
@@ -353,7 +354,7 @@ func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method an
 			detail = "merge not completed"
 		}
 
-		return "", false, blockedMerge(current.Reference, MergeBlockedReasonUnknown, detail)
+		return "", false, blockedMerge(current.Reference, forge.MergeBlockedReasonUnknown, detail)
 	}
 
 	slog.DebugContext(ctx, "github: merged pull request",
@@ -369,7 +370,7 @@ func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method an
 	return mergeSHA, mergeSHA == "", nil
 }
 
-func gitHubMergeState(repo RepoInfo, number int, pullRequest *github.PullRequest) mergeState {
+func gitHubMergeState(repo repoInfo, number int, pullRequest *github.PullRequest) mergeState {
 	head := pullRequest.GetHead()
 	state := pullRequest.GetState()
 	mergeableState := strings.TrimSpace(pullRequest.GetMergeableState())
@@ -401,7 +402,7 @@ func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch 
 	return isExpectedReleaseBranch(head.GetRef(), baseBranch) && isGitHubSameRepository(g.repo, head)
 }
 
-func isGitHubSameRepository(repo RepoInfo, head *github.PullRequestBranch) bool {
+func isGitHubSameRepository(repo repoInfo, head *github.PullRequestBranch) bool {
 	return strings.EqualFold(strings.TrimSpace(head.GetRepo().GetFullName()), repo.Owner+"/"+repo.Name)
 }
 
@@ -479,7 +480,7 @@ func isGitHubMergeStateConflicted(state string) bool {
 	return state == "dirty"
 }
 
-func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested MergeMethod) (MergeMethod, error) {
+func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested forge.MergeMethod) (forge.MergeMethod, error) {
 	repo, _, err := g.client.Repositories.Get(ctx, g.repo.Owner, g.repo.Name)
 	if err != nil {
 		return "", fmt.Errorf("get repository merge settings: %w", err)
@@ -490,47 +491,47 @@ func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested MergeMe
 	allowMerge := repo.GetAllowMergeCommit()
 
 	if requested == "" {
-		requested = MergeMethodAuto
+		requested = forge.MergeMethodAuto
 	}
 
 	switch requested {
-	case MergeMethodAuto:
+	case forge.MergeMethodAuto:
 		if allowSquash {
-			return MergeMethodSquash, nil
+			return forge.MergeMethodSquash, nil
 		}
 
 		if allowRebase {
-			return MergeMethodRebase, nil
+			return forge.MergeMethodRebase, nil
 		}
 
 		if allowMerge {
-			return MergeMethodMerge, nil
+			return forge.MergeMethodMerge, nil
 		}
 
 		return "", gitHubMergeMethodBlocked("no merge methods enabled in repository settings")
-	case MergeMethodSquash:
+	case forge.MergeMethodSquash:
 		if !allowSquash {
 			return "", gitHubMergeMethodDisabled(requested)
 		}
-	case MergeMethodRebase:
+	case forge.MergeMethodRebase:
 		if !allowRebase {
 			return "", gitHubMergeMethodDisabled(requested)
 		}
-	case MergeMethodMerge:
+	case forge.MergeMethodMerge:
 		if !allowMerge {
 			return "", gitHubMergeMethodDisabled(requested)
 		}
 	default:
-		return "", fmt.Errorf("%w: unknown merge method %q", ErrMergeMethodUnsupported, requested)
+		return "", fmt.Errorf("%w: unknown merge method %q", forge.ErrMergeMethodUnsupported, requested)
 	}
 
 	return requested, nil
 }
 
-func gitHubMergeMethodDisabled(requested MergeMethod) error {
+func gitHubMergeMethodDisabled(requested forge.MergeMethod) error {
 	return gitHubMergeMethodBlocked(fmt.Sprintf("merge method %q disabled by repository settings", requested))
 }
 
 func gitHubMergeMethodBlocked(detail string) error {
-	return blockedMerge("", MergeBlockedReasonMethod, detail)
+	return blockedMerge("", forge.MergeBlockedReasonMethod, detail)
 }

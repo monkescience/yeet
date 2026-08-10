@@ -9,8 +9,8 @@ import (
 	"sort"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 type commitCacheKey struct {
@@ -24,7 +24,7 @@ type commitCacheKey struct {
 // the reachability and range results later per-target lookups reuse.
 type historyScan struct {
 	tags         []string
-	extraTags    []provider.TagRef
+	extraTags    []forge.TagRef
 	includePaths bool
 	index        map[string]targetHistory
 	reachable    map[string]bool
@@ -227,7 +227,7 @@ func (a *releaseAnalyzer) commitsSince(
 				"Verify the latest tag or release and branch ancestry: %w",
 			ref,
 			branch,
-			&provider.CommitBoundaryNotFoundError{Ref: ref, Branch: branch},
+			&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: branch},
 		)
 	}
 

@@ -1,1 +1,1 @@
-repository resolution failed: invalid provider host: "https://github.example" must be a bare hostname without scheme, credentials, or path
+release failed: provider host trust validation failed. Align the configured host, Git remote, and provider URL override: provider setup failed: invalid provider host: "https://github.example" must be a bare hostname without scheme, credentials, or path

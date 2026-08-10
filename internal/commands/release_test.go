@@ -3,8 +3,6 @@ package commands //nolint:testpackage // validates unexported release helpers di
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,7 +14,7 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/release"
 	"go.yaml.in/yaml/v4"
 )
@@ -37,8 +35,10 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.Equal(
 			t,
-			"invalid configuration: load config: invalid config: versioning must be \"semver\" or "+
-				"\"calver\", got \"broken\"",
+			"release failed: configuration file \""+filepath.Join(tempDir, config.DefaultFile)+
+				"\" is invalid. Fix the reported values: load release config: load config: invalid config: "+
+				"versioning must be "+
+				"\"semver\" or \"calver\", got \"broken\"",
 			err.Error(),
 		)
 	})
@@ -72,7 +72,8 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.Equal(
 			t,
-			"invalid configuration: load config: invalid config: versioning must be \"semver\" or "+
+			"release failed: configuration file \""+configPath+"\" is invalid. Fix the reported values: "+
+				"load release config: load config: invalid config: versioning must be \"semver\" or "+
 				"\"calver\", got \"broken\"",
 			err.Error(),
 		)
@@ -103,8 +104,9 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.Equal(
 			t,
-			"provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable "+
-				"is required",
+			"release failed: provider authentication is unavailable. Export a reported token environment "+
+				"variable: provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment "+
+				"variable is required",
 			err.Error(),
 		)
 	})
@@ -131,8 +133,9 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.Equal(
 			t,
-			"provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment variable "+
-				"is required",
+			"release failed: provider authentication is unavailable. Export a reported token environment "+
+				"variable: provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment "+
+				"variable is required",
 			err.Error(),
 		)
 	})
@@ -149,7 +152,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
-		testastic.Equal(t, "resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"", err.Error())
+		testastic.Equal(
+			t,
+			"release failed: the release branch or prerelease channel is invalid. Use the configured branch "+
+				"or channel: resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("rejects GitHub Actions non-branch ref without channels", func(t *testing.T) {
@@ -165,7 +173,12 @@ func TestReleaseCommand(t *testing.T) {
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
-		testastic.Equal(t, "resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"", err.Error())
+		testastic.Equal(
+			t,
+			"release failed: the release branch or prerelease channel is invalid. Use the configured branch "+
+				"or channel: resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
@@ -192,8 +205,9 @@ func TestReleaseCommand(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.Equal(
 			t,
-			"invalid release options: invalid config: --owner/--repo are not valid for provider "+
-				"gitlab. Use --project",
+			"release failed: configuration file \""+filepath.Join(tempDir, config.DefaultFile)+
+				"\" is invalid. Fix the reported values: invalid release options: invalid config: "+
+				"--owner/--repo are not valid for provider gitlab. Use --project",
 			err.Error(),
 		)
 	})
@@ -226,7 +240,7 @@ func TestHandleReleaseResult(t *testing.T) {
 			Releases: []release.FinalizedRelease{{
 				TargetID:  "default",
 				CommitSHA: "abc1234",
-				Release:   &provider.Release{TagName: "v1.2.3"},
+				Release:   &forge.Release{TagName: "v1.2.3"},
 			}},
 		}
 
@@ -300,111 +314,168 @@ func TestHandleReleaseResult(t *testing.T) {
 	})
 }
 
-func TestWrapReleaseExecutionError(t *testing.T) {
+func TestReleaseFailureMessage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("merge blocked advises per reason", func(t *testing.T) {
-		t.Parallel()
+	testCases := []struct {
+		name       string
+		kind       release.FailureKind
+		configPath string
+		reason     release.MergeReason
+		expected   string
+	}{
+		{
+			name:       "missing config",
+			kind:       release.FailureConfigMissing,
+			configPath: ".yeet.yaml",
+			expected:   "release failed: configuration file \".yeet.yaml\" was not found. Run `yeet init` or pass --config",
+		},
+		{
+			name:       "invalid config",
+			kind:       release.FailureConfigInvalid,
+			configPath: "config/release.yaml",
+			expected:   "release failed: configuration file \"config/release.yaml\" is invalid. Fix the reported values",
+		},
+		{
+			name:     "authentication",
+			kind:     release.FailureAuthentication,
+			expected: "release failed: provider authentication is unavailable. Export a reported token environment variable",
+		},
+		{
+			name:     "repository",
+			kind:     release.FailureRepository,
+			expected: "release failed: repository resolution failed. Check provider settings and the configured Git remote",
+		},
+		{
+			name: "host trust",
+			kind: release.FailureHostTrust,
+			expected: "release failed: provider host trust validation failed. Align the configured host, " +
+				"Git remote, and provider URL override",
+		},
+		{
+			name: "checkout",
+			kind: release.FailureCheckout,
+			expected: "release failed: the local checkout is unusable or stale. Check out and fetch the " +
+				"configured release branch",
+		},
+		{
+			name: "release branch",
+			kind: release.FailureReleaseBranch,
+			expected: "release failed: the release branch or prerelease channel is invalid. Use the configured " +
+				"branch or channel",
+		},
+		{
+			name: "release state",
+			kind: release.FailureReleaseState,
+			expected: "release failed: multiple pending release changes were found. Close or relabel stale " +
+				"pending release changes",
+		},
+		{
+			name:   "merge blocked",
+			kind:   release.FailureMergeBlocked,
+			reason: release.MergeReasonPolicy,
+			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and " +
+				"checks, or use --auto-merge-force when appropriate",
+		},
+		{
+			name:     "merge timeout",
+			kind:     release.FailureMergeTimeout,
+			expected: "release failed: merge finalization timed out. Inspect provider state before retrying",
+		},
+		{
+			name: "reviewer",
+			kind: release.FailureReviewer,
+			expected: "release failed: release reviewers could not be applied. Check identity, membership, " +
+				"permissions, and provider limits",
+		},
+		{
+			name: "labels",
+			kind: release.FailureLabels,
+			expected: "release failed: release labels are missing, mismatched, or rejected. Restore or create " +
+				"the configured labels",
+		},
+		{
+			name:     "unexpected",
+			kind:     release.FailureUnexpected,
+			expected: "release failed: unexpected failure",
+		},
+	}
 
-		for _, testCase := range []struct {
-			name     string
-			reason   provider.MergeBlockedReason
-			expected string
-		}{
-			{
-				name:   "conflicts",
-				reason: provider.MergeBlockedReasonConflicts,
-				expected: "release execution failed: merge blocked by conflicts. Resolve the conflicts on the " +
-					"release branch, which --auto-merge-force never bypasses: " +
-					"release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "draft",
-				reason: provider.MergeBlockedReasonDraft,
-				expected: "release execution failed: merge blocked: the release pull request or merge request is " +
-					"a draft. Mark it ready to merge: release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "closed",
-				reason: provider.MergeBlockedReasonClosed,
-				expected: "release execution failed: merge blocked: the release pull request or merge request is " +
-					"no longer open. Reopen it, or let the next run open a new one: " +
-					"release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "policy",
-				reason: provider.MergeBlockedReasonPolicy,
-				expected: "release execution failed: merge blocked by repository policy. Satisfy the required " +
-					"approvals and checks, or use --auto-merge-force when appropriate: " +
-					"release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "method",
-				reason: provider.MergeBlockedReasonMethod,
-				expected: "release execution failed: merge blocked by merge method. Enable the requested method " +
-					"in the forge settings, or choose another --auto-merge-method: " +
-					"release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "provider failure",
-				reason: provider.MergeBlockedReasonFailure,
-				expected: "release execution failed: merge failed at the provider. Resolve the reported provider " +
-					"failure before retrying: release PR merge blocked: pull request #42 has conflicts",
-			},
-			{
-				name:   "unknown",
-				reason: provider.MergeBlockedReasonUnknown,
-				expected: "release execution failed: merge blocked. Resolve pull request or merge request " +
-					"readiness, or use --auto-merge-force when appropriate: " +
-					"release PR merge blocked: pull request #42 has conflicts",
-			},
-		} {
-			t.Run(testCase.name, func(t *testing.T) {
-				t.Parallel()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-				// given: an auto-merge attempt the forge refused for a known reason
-				blockedErr := &provider.MergeBlockedError{
-					Reference: "pull request #42",
-					Reason:    testCase.reason,
-					Detail:    "has conflicts",
-				}
+			// when: formatting one release-owned failure kind
+			actual := releaseFailureMessage(testCase.kind, testCase.configPath, testCase.reason)
 
-				// when: the execution error is wrapped for CLI output
-				err := wrapReleaseExecutionError(blockedErr)
+			// then: the command owns the exact problem and remediation text
+			testastic.Equal(t, testCase.expected, actual)
+		})
+	}
+}
 
-				// then: the top-level message names the action that clears this reason
-				testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
-				testastic.Equal(t, testCase.expected, err.Error())
-			})
-		}
-	})
+func TestMergeBlockedMessage(t *testing.T) {
+	t.Parallel()
 
-	t.Run("multiple pending PRs advises cleanup", func(t *testing.T) {
-		t.Parallel()
+	testCases := []struct {
+		name     string
+		reason   release.MergeReason
+		expected string
+	}{
+		{
+			name:   "conflicts",
+			reason: release.MergeReasonConflicts,
+			expected: "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch, " +
+				"which --auto-merge-force never bypasses",
+		},
+		{
+			name:   "draft",
+			reason: release.MergeReasonDraft,
+			expected: "release failed: merge is blocked because the release pull request or merge request is a " +
+				"draft. Mark it ready to merge",
+		},
+		{
+			name:   "closed",
+			reason: release.MergeReasonClosed,
+			expected: "release failed: merge is blocked because the release pull request or merge request is " +
+				"closed. Reopen it, or let the next run open a new one",
+		},
+		{
+			name:   "policy",
+			reason: release.MergeReasonPolicy,
+			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and " +
+				"checks, or use --auto-merge-force when appropriate",
+		},
+		{
+			name:   "method",
+			reason: release.MergeReasonMethod,
+			expected: "release failed: merge is blocked by the requested method. Enable it in the forge settings, " +
+				"or choose another --auto-merge-method",
+		},
+		{
+			name:     "provider",
+			reason:   release.MergeReasonProvider,
+			expected: "release failed: the provider refused the merge. Resolve the reported provider failure before retrying",
+		},
+		{
+			name:   "unknown",
+			reason: release.MergeReasonUnknown,
+			expected: "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
+				"or use --auto-merge-force when appropriate",
+		},
+	}
 
-		// given: multiple pending release PRs found
-		err := wrapReleaseExecutionError(fmt.Errorf("%w: found 2", release.ErrMultiplePendingReleasePRs))
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-		// then: the message advises closing stale entries
-		testastic.ErrorIs(t, err, release.ErrMultiplePendingReleasePRs)
-		testastic.Equal(
-			t,
-			"release execution failed: multiple pending release changes found "+
-				"(pull requests or merge requests). Close or relabel stale entries: "+
-				"multiple pending release PRs found: found 2",
-			err.Error(),
-		)
-	})
+			// when: formatting one release-owned merge reason
+			actual := mergeBlockedMessage(testCase.reason)
 
-	t.Run("generic error wraps with execution prefix", func(t *testing.T) {
-		t.Parallel()
-
-		// given: an unrecognized error
-		err := wrapReleaseExecutionError(errors.New("unexpected failure"))
-
-		// then: the message wraps with the generic prefix
-		testastic.Equal(t, "release execution failed: unexpected failure", err.Error())
-	})
+			// then: the command gives reason-specific remediation
+			testastic.Equal(t, testCase.expected, actual)
+		})
+	}
 }
 
 func TestReleaseLogMessages(t *testing.T) {
@@ -414,7 +485,7 @@ func TestReleaseLogMessages(t *testing.T) {
 			Releases: []release.FinalizedRelease{{
 				TargetID:  "default",
 				CommitSHA: "abc1234",
-				Release:   &provider.Release{TagName: "v1.2.3"},
+				Release:   &forge.Release{TagName: "v1.2.3"},
 			}},
 		}
 

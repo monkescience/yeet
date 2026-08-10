@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // labelChange is the managed-set diff for one phase. The anchor is attached
@@ -21,8 +23,8 @@ type labelChange struct {
 // Tagged, Yeet and Extra. Every other label on the pull request is left where it
 // is, so a phase is idempotent for the managed set and says nothing about the
 // rest. See ADR 0006.
-func managedLabelChange(labels ReleasePRLabels, phase ReleasePRPhase) labelChange {
-	if phase == ReleasePRPhaseTagged {
+func managedLabelChange(labels forge.ReleasePRLabels, phase forge.ReleasePRPhase) labelChange {
+	if phase == forge.ReleasePRPhaseTagged {
 		return labelChange{
 			anchor: labels.Tagged,
 			remove: []string{labels.Pending},
@@ -94,7 +96,7 @@ func classifyReleasePRLabels(found []string, pendingLabel string, match labelMat
 func releasePRLabelMismatch(reference, branch, pendingLabel string) error {
 	return fmt.Errorf(
 		"%w: trusted %s on branch %q is missing configured pending label %q",
-		ErrReleasePRLabelMismatch,
+		forge.ErrReleasePRLabelMismatch,
 		reference,
 		branch,
 		pendingLabel,
@@ -117,10 +119,10 @@ type labelDefinitions struct {
 // finalization cannot depend on creation-only labels that it does not mutate.
 func (d labelDefinitions) prepare(
 	ctx context.Context,
-	labels ReleasePRLabels,
-	phase ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
-	if phase == ReleasePRPhaseTagged {
+	if phase == forge.ReleasePRPhaseTagged {
 		return d.ensure(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	}
 
@@ -164,7 +166,7 @@ func (d labelDefinitions) validateExisting(ctx context.Context, name, role strin
 		return err
 	}
 
-	return fmt.Errorf("%w: %s label %q", ErrReleasePRLabelMissing, role, name)
+	return fmt.Errorf("%w: %s label %q", forge.ErrReleasePRLabelMissing, role, name)
 }
 
 func (d labelDefinitions) ensure(ctx context.Context, name, color, description string) error {

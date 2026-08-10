@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: release.labels.pending and release.labels.tagged must differ
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.labels.pending and release.labels.tagged must differ

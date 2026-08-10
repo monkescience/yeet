@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: create release PR: invalid GitLab release PR labels: labels "release::pending" and "release::extra" share GitLab scope release
+release failed: release labels are missing, mismatched, or rejected. Restore or create the configured labels: create release PR: invalid GitLab release PR labels: labels "release::pending" and "release::extra" share GitLab scope release

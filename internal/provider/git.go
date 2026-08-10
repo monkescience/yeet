@@ -16,7 +16,7 @@ var (
 	ErrGitRemoteURLBlank = errors.New("git remote url is blank")
 )
 
-func GitRemoteURL(_ context.Context, remote string) (string, error) {
+func gitRemoteURL(_ context.Context, remote string) (string, error) {
 	repository, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{
 		DetectDotGit: true,
 	})

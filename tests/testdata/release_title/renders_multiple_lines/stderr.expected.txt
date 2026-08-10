@@ -1,1 +1,1 @@
-release execution failed: invalid config: rendered release.pr_title must be one line
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: invalid config: rendered release.pr_title must be one line

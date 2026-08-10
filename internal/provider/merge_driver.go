@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // mergeState is a forge pull request reduced to the fields the merge policy
@@ -31,7 +33,7 @@ type mergeState struct {
 }
 
 type mergeRefusal struct {
-	reason MergeBlockedReason
+	reason forge.MergeBlockedReason
 	detail string
 }
 
@@ -44,7 +46,7 @@ type mergeRefusal struct {
 // reveals a refusal immediately returns an error instead.
 type forgeMerge interface {
 	state(ctx context.Context) (mergeState, error)
-	resolveMethod(ctx context.Context, requested MergeMethod) (any, error)
+	resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error)
 	execute(ctx context.Context, current mergeState, method any) (string, bool, error)
 }
 
@@ -53,7 +55,7 @@ type mergeDriver struct {
 	polling mergePolling
 }
 
-func (d mergeDriver) run(ctx context.Context, opts MergeReleasePROptions) (string, error) {
+func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) (string, error) {
 	current, err := d.forge.state(ctx)
 	if err != nil {
 		return "", err
@@ -68,7 +70,7 @@ func (d mergeDriver) run(ctx context.Context, opts MergeReleasePROptions) (strin
 	}
 
 	if !current.SameRepository || !isExpectedReleaseBranch(current.SourceBranch, current.BaseBranch) {
-		return "", fmt.Errorf("%w: %s", ErrUntrustedReleasePR, current.Reference)
+		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 	}
 
 	if err := checkMergeReadiness(current, opts.BypassMergeChecks); err != nil {
@@ -107,9 +109,9 @@ func (d mergeDriver) awaitMergeCommit(ctx context.Context, reference string) (st
 		case current.IsMerged:
 			return current.MergeCommitSHA, nil
 		case current.IsClosedUnmerged:
-			return "", blockedMerge(reference, MergeBlockedReasonClosed, "was closed")
+			return "", blockedMerge(reference, forge.MergeBlockedReasonClosed, "was closed")
 		case current.HasConflicts:
-			return "", blockedMerge(reference, MergeBlockedReasonConflicts, "has conflicts")
+			return "", blockedMerge(reference, forge.MergeBlockedReasonConflicts, "has conflicts")
 		default:
 			return "", nil
 		}
@@ -122,22 +124,22 @@ func (d mergeDriver) awaitMergeCommit(ctx context.Context, reference string) (st
 func checkMergeReadiness(current mergeState, bypassMergeChecks bool) error {
 	switch {
 	case !current.IsOpen:
-		return blockedMerge(current.Reference, MergeBlockedReasonClosed, "is closed")
+		return blockedMerge(current.Reference, forge.MergeBlockedReasonClosed, "is closed")
 	case current.IsDraft:
-		return blockedMerge(current.Reference, MergeBlockedReasonDraft, "is draft")
+		return blockedMerge(current.Reference, forge.MergeBlockedReasonDraft, "is draft")
 	case current.HasConflicts:
-		return blockedMerge(current.Reference, MergeBlockedReasonConflicts, "has conflicts")
+		return blockedMerge(current.Reference, forge.MergeBlockedReasonConflicts, "has conflicts")
 	case !bypassMergeChecks && current.ReadinessBlocked:
-		return blockedMerge(current.Reference, MergeBlockedReasonPolicy, current.RawReadiness)
+		return blockedMerge(current.Reference, forge.MergeBlockedReasonPolicy, current.RawReadiness)
 	default:
 		return nil
 	}
 }
 
-func blockedMerge(reference string, reason MergeBlockedReason, detail string) error {
-	return &MergeBlockedError{Reference: reference, Reason: reason, Detail: detail}
+func blockedMerge(reference string, reason forge.MergeBlockedReason, detail string) error {
+	return &forge.MergeBlockedError{Reference: reference, Reason: reason, Detail: detail}
 }
 
 func unsupportedResolvedMethod(method any) error {
-	return fmt.Errorf("%w: %T", ErrMergeMethodUnsupported, method)
+	return fmt.Errorf("%w: %T", forge.ErrMergeMethodUnsupported, method)
 }

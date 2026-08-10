@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 var errMergePollingProbe = errors.New("forge is unreachable")
@@ -27,6 +28,6 @@ func TestAwaitMergedCommitReportsTheCauseThatEndedTheWait(t *testing.T) {
 	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
 
 	// then: a real failure stays distinguishable from a slow forge
-	testastic.ErrorIs(t, err, ErrMergeNotFinalized)
+	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
 	testastic.ErrorIs(t, err, errMergePollingProbe)
 }

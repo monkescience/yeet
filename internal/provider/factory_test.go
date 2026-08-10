@@ -17,7 +17,7 @@ func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := Create(&RepositoryDescriptor{
+	githubProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitHub,
 		Host:     "github.company.com",
 		Owner:    "platform",
@@ -35,7 +35,7 @@ func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "")
 
 	// when: creating the github provider
-	githubProvider, err := Create(&RepositoryDescriptor{
+	githubProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitHub,
 		Host:     "github.company.com",
 		Owner:    "platform",
@@ -54,7 +54,7 @@ func TestCreateGitHubProviderFallsBackToGHToken(t *testing.T) {
 	t.Setenv("GITHUB_URL", "")
 
 	// when: creating the github provider
-	githubProvider, err := Create(&RepositoryDescriptor{
+	githubProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitHub,
 		Host:     DefaultGitHubHost,
 		Owner:    "platform",
@@ -72,7 +72,7 @@ func TestCreateGitHubProviderReportsBothTokenNames(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 
 	// when: creating the github provider
-	_, err := Create(&RepositoryDescriptor{
+	_, err := create(&repositoryDescriptor{
 		Provider: providerNameGitHub,
 		Host:     DefaultGitHubHost,
 		Owner:    "platform",
@@ -95,7 +95,7 @@ func TestCreateGitLabProviderFallsBackToGLToken(t *testing.T) {
 	t.Setenv("GITLAB_URL", "")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := Create(&RepositoryDescriptor{
+	gitlabProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitLab,
 		Host:     DefaultGitLabHost,
 		Project:  "group/subgroup/service",
@@ -112,7 +112,7 @@ func TestCreateGitLabProviderReportsBothTokenNames(t *testing.T) {
 	t.Setenv("GL_TOKEN", "")
 
 	// when: creating the gitlab provider
-	_, err := Create(&RepositoryDescriptor{
+	_, err := create(&repositoryDescriptor{
 		Provider: providerNameGitLab,
 		Host:     DefaultGitLabHost,
 		Project:  "group/subgroup/service",
@@ -133,7 +133,7 @@ func TestCreateGitLabProviderPrefersGitLabURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://gitlab-proxy.example/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := Create(&RepositoryDescriptor{
+	gitlabProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitLab,
 		Host:     "gitlab.company.com",
 		Project:  "group/subgroup/service",
@@ -150,7 +150,7 @@ func TestCreateGitLabProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := Create(&RepositoryDescriptor{
+	gitlabProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitLab,
 		Host:     "gitlab.company.com",
 		Project:  "group/subgroup/service",
@@ -167,7 +167,7 @@ func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://example.test/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := Create(&RepositoryDescriptor{
+	githubProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitHub,
 		Host:     DefaultGitHubHost,
 		Owner:    "platform",
@@ -185,7 +185,7 @@ func TestCreateGitLabProviderHonorsGitLabURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://example.test/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := Create(&RepositoryDescriptor{
+	gitlabProvider, err := create(&repositoryDescriptor{
 		Provider: providerNameGitLab,
 		Host:     DefaultGitLabHost,
 		Project:  "group/subgroup/service",
@@ -201,7 +201,7 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := Create(&RepositoryDescriptor{
+	azureDevOpsProvider, err := create(&repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -220,7 +220,7 @@ func TestCreateAzureDevOpsProviderNormalizesLegacyHost(t *testing.T) {
 	t.Setenv(azureURLEnv, "")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := Create(&RepositoryDescriptor{
+	azureDevOpsProvider, err := create(&repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         "contoso.visualstudio.com",
 		Organization: "contoso",
@@ -238,7 +238,7 @@ func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := Create(&RepositoryDescriptor{
+	azureDevOpsProvider, err := create(&repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -257,7 +257,7 @@ func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
 
 	// when: creating the Azure DevOps provider
-	_, err := Create(&RepositoryDescriptor{
+	_, err := create(&repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         "dev.azure.com",
 		Organization: "platform",
@@ -283,7 +283,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, err := GitRemoteURL(context.Background(), "origin")
+		remoteURL, err := gitRemoteURL(context.Background(), "origin")
 
 		// then: the configured URL is returned
 		testastic.NoError(t, err)
@@ -301,7 +301,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: reading the custom remote URL
-		remoteURL, getErr := GitRemoteURL(context.Background(), "upstream")
+		remoteURL, getErr := gitRemoteURL(context.Background(), "upstream")
 
 		// then: the repository is discovered automatically
 		testastic.NoError(t, getErr)
@@ -328,7 +328,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := gitRemoteURL(context.Background(), "origin")
 
 		// then: the rewritten URL matches git behavior
 		testastic.NoError(t, getErr)
@@ -349,7 +349,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading the remote URL
-		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := gitRemoteURL(context.Background(), "origin")
 
 		// then: worktreeConfig does not block repository discovery
 		testastic.NoError(t, getErr)
@@ -364,7 +364,7 @@ func TestGetGitRemoteURL(t *testing.T) {
 		t.Chdir(repositoryPath)
 
 		// when: reading an unknown remote
-		remoteURL, getErr := GitRemoteURL(context.Background(), "origin")
+		remoteURL, getErr := gitRemoteURL(context.Background(), "origin")
 
 		// then: a clear error is returned
 		testastic.Equal(t, "", remoteURL)

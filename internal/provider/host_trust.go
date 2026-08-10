@@ -33,7 +33,7 @@ func (e *untrustedHostError) Unwrap() []error {
 
 func validateProviderHostTrust(
 	ctx context.Context,
-	repository *RepositoryDescriptor,
+	repository *repositoryDescriptor,
 	getRemoteURL gitRemoteURLGetter,
 ) error {
 	host := strings.TrimSpace(repository.Host)
@@ -45,7 +45,7 @@ func validateProviderHostTrust(
 		return nil
 	}
 
-	if _, err := DetectType(host); err == nil {
+	if _, err := detectType(host); err == nil {
 		return nil
 	}
 
@@ -54,7 +54,7 @@ func validateProviderHostTrust(
 		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
 	}
 
-	detected, err := ParseRemote(remoteURL)
+	detected, err := parseRemote(remoteURL)
 	if err != nil {
 		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
 	}

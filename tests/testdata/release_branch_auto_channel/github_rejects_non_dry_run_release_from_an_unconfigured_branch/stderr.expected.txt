@@ -1,1 +1,1 @@
-invalid release options: branch is not configured for releases: "feature/random". Configure it as branch or release.channels.<name>.branch, or run --dry-run
+release failed: the release branch or prerelease channel is invalid. Use the configured branch or channel: invalid release options: branch is not configured for releases: "feature/random". Configure it as branch or release.channels.<name>.branch, or run --dry-run

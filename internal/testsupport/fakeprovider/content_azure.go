@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
 // NewAzureContentProvider returns a real Azure DevOps adapter wired to a
 // stateful content fake over content.
-func NewAzureContentProvider(t *testing.T, content *RepoContent) provider.Provider {
+func NewAzureContentProvider(t *testing.T, content *RepoContent) forge.Provider {
 	t.Helper()
 
 	server := httptest.NewServer(newAzureContentHandler(t, content))

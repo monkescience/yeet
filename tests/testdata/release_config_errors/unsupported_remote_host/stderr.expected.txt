@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: repository.github set but provider is auto. Set an explicit provider
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.github set but provider is auto. Set an explicit provider

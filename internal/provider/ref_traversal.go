@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // pageFetcher walks every page of a forge listing, handing each item to handle
@@ -18,8 +19,8 @@ func foldTagRefs[T any](
 	ctx context.Context,
 	fetch pageFetcher[T],
 	read func(T) (string, string, bool),
-) ([]TagRef, error) {
-	refs := make([]TagRef, 0)
+) ([]forge.TagRef, error) {
+	refs := make([]forge.TagRef, 0)
 
 	err := fetch(ctx, func(item T) (bool, error) {
 		rawName, rawCommitSHA, ok := read(item)
@@ -34,10 +35,10 @@ func foldTagRefs[T any](
 
 		commitSHA := strings.TrimSpace(rawCommitSHA)
 		if commitSHA == "" {
-			return false, fmt.Errorf("%w: tag %q", ErrEmptyCommitSHA, name)
+			return false, fmt.Errorf("%w: tag %q", forge.ErrEmptyCommitSHA, name)
 		}
 
-		refs = append(refs, TagRef{Name: name, CommitSHA: commitSHA})
+		refs = append(refs, forge.TagRef{Name: name, CommitSHA: commitSHA})
 
 		return false, nil
 	})

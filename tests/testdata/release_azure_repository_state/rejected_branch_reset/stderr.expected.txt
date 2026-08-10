@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: update release branch files: reset branch "yeet/release-main" to base: ref update failed: branch policy rejected the update
+release failed: unexpected failure: update release branch files: reset branch "yeet/release-main" to base: ref update failed: branch policy rejected the update

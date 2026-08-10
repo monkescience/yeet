@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: create release PR: release PR label does not exist: extra label "needs-review"
+release failed: release labels are missing, mismatched, or rejected. Restore or create the configured labels: create release PR: release PR label does not exist: extra label "needs-review"

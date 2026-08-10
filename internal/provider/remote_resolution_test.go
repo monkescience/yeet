@@ -26,7 +26,7 @@ func TestResolveRepository(t *testing.T) {
 		remoteLookedUp := false
 
 		// when: resolving the repository against a remote on the same host
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -61,7 +61,7 @@ func TestResolveRepository(t *testing.T) {
 		remoteLookedUp := false
 
 		// when: resolving the repository
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -89,7 +89,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg.Repository.Remote = "upstream"
 
 		// when: resolving the repository
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(_ context.Context, remote string) (string, error) {
@@ -116,7 +116,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg := config.Default()
 
 		// when: resolving the repository
-		_, err := ResolveRepository(
+		_, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -143,7 +143,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg := config.Default()
 
 		// when: resolving the repository
-		_, err := ResolveRepository(
+		_, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -171,7 +171,7 @@ func TestResolveRepository(t *testing.T) {
 		cfg.Provider = config.ProviderGitLab
 
 		// when: resolving the repository
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -200,7 +200,7 @@ func TestResolveRepository(t *testing.T) {
 		}
 
 		// when: resolving the repository
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -228,7 +228,7 @@ func TestResolveRepositoryRejectsConfiguredCoordinatesUnderAutoProvider(t *testi
 	}
 
 	// when: resolving the repository
-	_, err := ResolveRepository(
+	_, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {
@@ -258,7 +258,7 @@ func TestResolveRepositoryAcceptsMixedCaseProjectAndOwner(t *testing.T) {
 	}
 
 	// when: resolving the repository
-	repository, err := ResolveRepository(
+	repository, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {

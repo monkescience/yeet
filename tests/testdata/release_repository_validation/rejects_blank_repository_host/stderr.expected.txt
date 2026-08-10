@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: repository.github.host must not be blank
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.github.host must not be blank

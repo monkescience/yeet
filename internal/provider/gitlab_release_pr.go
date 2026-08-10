@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
@@ -22,9 +23,9 @@ const gitLabLabelColorPrefix = "#"
 
 var errGitLabReleasePRLabelsInvalid = errors.New("invalid GitLab release PR labels")
 
-func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error) {
+func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
 	if err := g.validateReleasePRLabels(ctx, opts.Labels); err != nil {
-		return nil, err
+		return nil, wrapReleasePRLabelsError(err)
 	}
 
 	slog.DebugContext(ctx, "gitlab: creating merge request",
@@ -53,7 +54,7 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 	}
 
 	if err := verifyGitLabReviewers(opts.Reviewers, reviewerIDs, mr.Reviewers); err != nil {
-		if markErr := g.SetReleasePRLabels(ctx, int(mr.IID), opts.Labels, ReleasePRPhasePending); markErr != nil {
+		if markErr := g.SetReleasePRLabels(ctx, int(mr.IID), opts.Labels, forge.ReleasePRPhasePending); markErr != nil {
 			return nil, errors.Join(err, markErr)
 		}
 
@@ -65,7 +66,7 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*P
 		slog.String("url", mr.WebURL),
 	)
 
-	return &PullRequest{
+	return &forge.PullRequest{
 		Number: int(mr.IID),
 		Title:  mr.Title,
 		Body:   mr.Description,
@@ -145,7 +146,7 @@ func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int6
 	}
 
 	if !found {
-		return 0, fmt.Errorf("%w: %q is not a project member", ErrReviewerNotFound, username)
+		return 0, fmt.Errorf("%w: %q is not a project member", forge.ErrReviewerNotFound, username)
 	}
 
 	return id, nil
@@ -171,7 +172,7 @@ func verifyGitLabReviewers(usernames []string, requestedIDs []int64, applied []*
 	if len(missing) > 0 {
 		return fmt.Errorf(
 			"%w: %v (multiple merge request reviewers require GitLab Premium or Ultimate)",
-			ErrReviewerNotApplied,
+			forge.ErrReviewerNotApplied,
 			missing,
 		)
 	}
@@ -185,7 +186,7 @@ func (g *GitLab) MaxPRBodyLength() int {
 	return 0
 }
 
-func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error {
+func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error {
 	slog.DebugContext(ctx, "gitlab: updating merge request", slog.Int("iid", number))
 
 	_, _, err := g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
@@ -205,7 +206,7 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts ReleasePR
 func (g *GitLab) FindOpenPendingReleasePRs(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
-) ([]*PullRequest, error) {
+) ([]*forge.PullRequest, error) {
 	if err := validateGitLabLifecycleLabel(pendingLabel); err != nil {
 		return nil, err
 	}
@@ -229,7 +230,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 		slog.String("label", pendingLabel),
 	)
 
-	pendingMRs := make([]*PullRequest, 0)
+	pendingMRs := make([]*forge.PullRequest, 0)
 
 	err := paginate(ctx, "listing open pending release MRs",
 		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
@@ -261,7 +262,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 				)
 			}
 
-			pendingMRs = append(pendingMRs, &PullRequest{
+			pendingMRs = append(pendingMRs, &forge.PullRequest{
 				Number:            int(mr.IID),
 				Title:             mr.Title,
 				Body:              mr.Description,
@@ -286,7 +287,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 func (g *GitLab) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
-) (*PullRequest, error) {
+) (*forge.PullRequest, error) {
 	if err := validateGitLabLifecycleLabel(pendingLabel); err != nil {
 		return nil, err
 	}
@@ -352,10 +353,10 @@ func (g *GitLab) FindMergedReleasePR(
 	}
 
 	if bestMR == nil {
-		return nil, ErrNoPR
+		return nil, forge.ErrNoPR
 	}
 
-	found := &PullRequest{
+	found := &forge.PullRequest{
 		Number:         int(bestMR.IID),
 		Title:          bestMR.Title,
 		Body:           bestMR.Description,
@@ -376,34 +377,34 @@ func (g *GitLab) FindMergedReleasePR(
 func (g *GitLab) SetReleasePRLabels(
 	ctx context.Context,
 	number int,
-	labels ReleasePRLabels,
-	phase ReleasePRPhase,
+	labels forge.ReleasePRLabels,
+	phase forge.ReleasePRPhase,
 ) error {
-	if phase == ReleasePRPhaseTagged {
+	if phase == forge.ReleasePRPhaseTagged {
 		if err := validateGitLabLifecycleLabel(labels.Tagged); err != nil {
-			return err
+			return wrapReleasePRLabelsError(err)
 		}
 	} else {
 		if err := validateGitLabReleasePRLabels(labels); err != nil {
-			return err
+			return wrapReleasePRLabelsError(err)
 		}
 	}
 
 	if err := g.labelDefinitions().prepare(ctx, labels, phase); err != nil {
-		return err
+		return wrapReleasePRLabelsError(err)
 	}
 
 	change := managedLabelChange(labels, phase)
 
-	return g.applyLabels(ctx, number, change.anchor, change.add, change.remove)
+	return wrapReleasePRLabelsError(g.applyLabels(ctx, number, change.anchor, change.add, change.remove))
 }
 
 func (g *GitLab) PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error {
 	if err := validateGitLabLifecycleLabel(taggedLabel); err != nil {
-		return err
+		return wrapReleasePRLabelsError(err)
 	}
 
-	return g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged")
+	return wrapReleasePRLabelsError(g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged"))
 }
 
 // applyLabels sends additions and removals in one atomic update, so the anchor
@@ -457,7 +458,7 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 	return ""
 }
 
-func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error) {
+func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
 	driver := mergeDriver{forge: &gitLabMerge{provider: g, number: number}, polling: g.polling}
@@ -489,7 +490,7 @@ func (m *gitLabMerge) state(ctx context.Context) (mergeState, error) {
 	return gitLabMergeState(reference, mergeRequest), nil
 }
 
-func (m *gitLabMerge) resolveMethod(ctx context.Context, requested MergeMethod) (any, error) {
+func (m *gitLabMerge) resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error) {
 	project, err := m.provider.projectMergeSettings(ctx)
 	if err != nil {
 		return nil, err
@@ -556,7 +557,7 @@ func (m *gitLabMerge) execute(ctx context.Context, current mergeState, method an
 }
 
 func gitLabAcceptRefused(reference, detail string) error {
-	return blockedMerge(reference, MergeBlockedReasonUnknown, "was refused: "+detail)
+	return blockedMerge(reference, forge.MergeBlockedReasonUnknown, "was refused: "+detail)
 }
 
 func gitLabMergeState(reference string, mergeRequest *gitlab.MergeRequest) mergeState {
@@ -595,7 +596,7 @@ func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, 
 // validateReleasePRLabels runs before the merge request exists, so a label
 // configuration GitLab or yeet rejects cannot leave an unlabelled merge request
 // behind.
-func (g *GitLab) validateReleasePRLabels(ctx context.Context, labels ReleasePRLabels) error {
+func (g *GitLab) validateReleasePRLabels(ctx context.Context, labels forge.ReleasePRLabels) error {
 	if err := validateGitLabReleasePRLabels(labels); err != nil {
 		return err
 	}
@@ -629,7 +630,7 @@ func (g *GitLab) labelDefinitions() labelDefinitions {
 	}
 }
 
-func validateGitLabReleasePRLabels(labels ReleasePRLabels) error {
+func validateGitLabReleasePRLabels(labels forge.ReleasePRLabels) error {
 	for _, lifecycle := range []string{labels.Pending, labels.Tagged} {
 		if err := validateGitLabLifecycleLabel(lifecycle); err != nil {
 			return err
@@ -721,22 +722,22 @@ func (g *GitLab) projectMergeSettings(ctx context.Context) (*gitlab.Project, err
 
 func gitLabAcceptMergeOptions(
 	project *gitlab.Project,
-	requested MergeMethod,
+	requested forge.MergeMethod,
 ) (*gitlab.AcceptMergeRequestOptions, error) {
 	if requested == "" {
-		requested = MergeMethodAuto
+		requested = forge.MergeMethodAuto
 	}
 
 	options := &gitlab.AcceptMergeRequestOptions{}
 
 	switch requested {
-	case MergeMethodAuto:
+	case forge.MergeMethodAuto:
 		if project.SquashOption != gitlab.SquashOptionNever {
 			options.Squash = new(true)
 		}
 
 		return options, nil
-	case MergeMethodSquash:
+	case forge.MergeMethodSquash:
 		if project.SquashOption == gitlab.SquashOptionNever {
 			return nil, gitLabMergeMethodBlocked(fmt.Sprintf(
 				"merge method %q disabled by project squash_option=%s",
@@ -748,24 +749,24 @@ func gitLabAcceptMergeOptions(
 		options.Squash = new(true)
 
 		return options, nil
-	case MergeMethodRebase:
+	case forge.MergeMethodRebase:
 		if project.MergeMethod != gitlab.RebaseMerge {
 			return nil, gitLabMergeMethodIncompatible(requested, project.MergeMethod)
 		}
 
 		return options, nil
-	case MergeMethodMerge:
+	case forge.MergeMethodMerge:
 		if project.MergeMethod != gitlab.NoFastForwardMerge {
 			return nil, gitLabMergeMethodIncompatible(requested, project.MergeMethod)
 		}
 
 		return options, nil
 	default:
-		return nil, fmt.Errorf("%w: unknown merge method %q", ErrMergeMethodUnsupported, requested)
+		return nil, fmt.Errorf("%w: unknown merge method %q", forge.ErrMergeMethodUnsupported, requested)
 	}
 }
 
-func gitLabMergeMethodIncompatible(requested MergeMethod, configured gitlab.MergeMethodValue) error {
+func gitLabMergeMethodIncompatible(requested forge.MergeMethod, configured gitlab.MergeMethodValue) error {
 	return gitLabMergeMethodBlocked(fmt.Sprintf(
 		"merge method %q incompatible with project merge_method=%s",
 		requested,
@@ -774,5 +775,5 @@ func gitLabMergeMethodIncompatible(requested MergeMethod, configured gitlab.Merg
 }
 
 func gitLabMergeMethodBlocked(detail string) error {
-	return blockedMerge("", MergeBlockedReasonMethod, detail)
+	return blockedMerge("", forge.MergeBlockedReasonMethod, detail)
 }

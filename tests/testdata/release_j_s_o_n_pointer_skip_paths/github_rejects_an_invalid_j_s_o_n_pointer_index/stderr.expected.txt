@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: update version file manifest.json: apply json pointer: json pointer not found
+release failed: unexpected failure: update version file manifest.json: apply json pointer: json pointer not found

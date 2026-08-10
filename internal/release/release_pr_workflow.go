@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 type releasePRWorkflow struct {
@@ -39,7 +39,7 @@ func newReleasePRWorkflow(
 	}
 }
 
-func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPlan) (*provider.PullRequest, error) {
+func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPlan) (*forge.PullRequest, error) {
 	r := w.core
 
 	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
@@ -88,7 +88,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPl
 // adoptUnlabeledReleasePR recovers a release PR that was created but never
 // labelled, which happens when a run is interrupted between CreateReleasePR and
 // MarkReleasePRPending.
-func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existing *provider.PullRequest) error {
+func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existing *forge.PullRequest) error {
 	if !existing.NeedsPendingLabel {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existin
 
 func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	ctx context.Context,
-	existing *provider.PullRequest,
+	existing *forge.PullRequest,
 	plans []TargetPlan,
 ) error {
 	r := w.core
@@ -159,7 +159,7 @@ func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 ) error {
 	existingChangelog, err := w.releaseBranchChangelog(ctx, branch, changelogFile)
 	if err != nil {
-		if errors.Is(err, provider.ErrFileNotFound) {
+		if errors.Is(err, forge.ErrFileNotFound) {
 			return nil
 		}
 
@@ -226,7 +226,7 @@ func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef s
 
 func (w *releasePRWorkflow) autoMerge(
 	ctx context.Context,
-	pullRequest *provider.PullRequest,
+	pullRequest *forge.PullRequest,
 	plans []TargetPlan,
 ) ([]FinalizedRelease, error) {
 	r := w.core
@@ -236,9 +236,9 @@ func (w *releasePRWorkflow) autoMerge(
 		return nil, nil
 	}
 
-	mergeOptions := provider.MergeReleasePROptions{
+	mergeOptions := forge.MergeReleasePROptions{
 		BypassMergeChecks: r.cfg.Release.AutoMergeForce,
-		Method:            provider.MergeMethod(r.cfg.Release.AutoMergeMethod),
+		Method:            forge.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
 	if err := w.publisher.preflightReleasePRTagging(ctx); err != nil {
@@ -270,12 +270,12 @@ func (w *releasePRWorkflow) autoMerge(
 
 func (w *releasePRWorkflow) updateExisting(
 	ctx context.Context,
-	existing *provider.PullRequest,
+	existing *forge.PullRequest,
 	releaseBranch string,
-	prOpts provider.ReleasePROptions,
+	prOpts forge.ReleasePROptions,
 	commitSubject string,
 	plans []TargetPlan,
-) (*provider.PullRequest, error) {
+) (*forge.PullRequest, error) {
 	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
 
 	// The branch is written before the body, because the manifest marker in the
@@ -301,10 +301,10 @@ func (w *releasePRWorkflow) updateExisting(
 func (w *releasePRWorkflow) createNew(
 	ctx context.Context,
 	releaseBranch string,
-	prOpts provider.ReleasePROptions,
+	prOpts forge.ReleasePROptions,
 	commitSubject string,
 	plans []TargetPlan,
-) (*provider.PullRequest, error) {
+) (*forge.PullRequest, error) {
 	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
 		return nil, err
 	}

@@ -1,1 +1,1 @@
-invalid release options: branch is not configured for releases: channel "beta" must run on branch "beta", got "main"
+release failed: the release branch or prerelease channel is invalid. Use the configured branch or channel: invalid release options: branch is not configured for releases: channel "beta" must run on branch "beta", got "main"

@@ -11,8 +11,8 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 func (r *releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
@@ -29,7 +29,7 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -55,7 +55,7 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -87,7 +87,7 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 		cfg.PreMajorFeaturesBumpPatch = false
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -115,7 +115,7 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 		cfg.PreMajorFeaturesBumpPatch = false
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -142,7 +142,7 @@ func TestReleaseSemVerPreMajorOptionsDisabled(t *testing.T) {
 		cfg.PreMajorBreakingBumpsMinor = false
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -315,7 +315,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -422,7 +422,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.files[providerFileKey("beta", "VERSION")] = "version = \"1.2.3\" # x-yeet-version\n"
 		stub.commits = []history.CommitEntry{{
@@ -468,7 +468,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -496,7 +496,7 @@ func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T)
 
 	stub := newProviderStub()
 	stub.tagList = []string{"v1.2.3", "v2.0.0"}
-	stub.commitsErrByRef["v2.0.0"] = &provider.CommitBoundaryNotFoundError{Ref: "v2.0.0", Branch: cfg.Branch}
+	stub.commitsErrByRef["v2.0.0"] = &forge.CommitBoundaryNotFoundError{Ref: "v2.0.0", Branch: cfg.Branch}
 	stub.commitsByRef = map[string][]history.CommitEntry{
 		"v1.2.3": {{
 			Hash:    "abcdef1234567890",
@@ -584,7 +584,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -611,7 +611,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -637,7 +637,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -662,7 +662,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -686,7 +686,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -710,7 +710,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{
 			{
@@ -740,7 +740,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.4.2"}
+		stub.latestRelease = &forge.Release{TagName: "v0.4.2"}
 		stub.tagList = []string{"v0.4.2"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -764,7 +764,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -817,9 +817,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         2,
 			URL:            "https://example.com/pr/2",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -848,9 +848,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         3,
 			URL:            "https://example.com/pr/3",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -885,9 +885,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         4,
 			URL:            "https://example.com/pr/4",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -910,7 +910,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, "v0.1.0", result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
 		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
 	})
 
@@ -923,7 +923,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         7,
 			URL:            "https://example.com/pr/7",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -962,9 +962,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.mergePRSHA = "second-merged-sha"
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         4,
 			URL:            "https://example.com/pr/4",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -999,9 +999,9 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         6,
 			URL:            "https://example.com/pr/6",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -1039,7 +1039,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
 		stub.commits = []history.CommitEntry{
 			{Hash: "abcdef1234567890", Message: "feat: change\n\nRelease-As: 0.1.0"},
@@ -1097,9 +1097,9 @@ func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
 		changelogBody := readTestFile(t, "testdata/release_after_finalize_merged_release/changelog.input.md")
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v0.0.9"}
+		stub.latestRelease = &forge.Release{TagName: "v0.0.9"}
 		stub.tagList = []string{"v0.0.9"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         5,
 			URL:            "https://example.com/pr/5",
 			Body:           testManifestBody(t, "v0.1.0", cfg.Changelog.File),
@@ -1134,9 +1134,9 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+	stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 	stub.tagList = []string{"v1.2.3"}
-	stub.commitsErr = &provider.CommitBoundaryNotFoundError{Ref: "v1.2.3", Branch: cfg.Branch}
+	stub.commitsErr = &forge.CommitBoundaryNotFoundError{Ref: "v1.2.3", Branch: cfg.Branch}
 
 	r := newTestReleaser(t, cfg, stub)
 
@@ -1146,7 +1146,7 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	// then: release stops before creating a PR, tag, or release
 	testastic.Error(t, err)
 	testastic.Equal(t, (*Result)(nil), result)
-	testastic.ErrorIs(t, err, provider.ErrCommitBoundaryNotFound)
+	testastic.ErrorIs(t, err, forge.ErrCommitBoundaryNotFound)
 	testastic.Equal(
 		t,
 		"previous release ref \"v1.2.3\" is not reachable from release branch \"main\" for target "+
@@ -1174,7 +1174,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMerge = true
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1188,7 +1188,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		// then: release PR is merged, tagged, and release is created immediately
 		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
 		testastic.True(t, len(result.Releases) > 0)
 		testastic.Equal(t, result.Plans[0].NextTag, result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, stub.createPRCalls)
@@ -1197,7 +1197,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, result.PullRequest.Number, stub.mergePRNumbers[0])
 		testastic.Equal(t, 1, len(stub.mergePROptions))
 		testastic.False(t, stub.mergePROptions[0].BypassMergeChecks)
-		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
+		testastic.Equal(t, forge.MergeMethodAuto, stub.mergePROptions[0].Method)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
@@ -1213,7 +1213,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMerge = true
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1241,7 +1241,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMergeForce = true
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1255,12 +1255,12 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		// then: merge is attempted in force mode and release is finalized
 		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
 		testastic.True(t, len(result.Releases) > 0)
 		testastic.Equal(t, 1, stub.mergePRCalls)
 		testastic.Equal(t, 1, len(stub.mergePROptions))
 		testastic.True(t, stub.mergePROptions[0].BypassMergeChecks)
-		testastic.Equal(t, provider.MergeMethodAuto, stub.mergePROptions[0].Method)
+		testastic.Equal(t, forge.MergeMethodAuto, stub.mergePROptions[0].Method)
 	})
 
 	t.Run("passes configured merge method to provider", func(t *testing.T) {
@@ -1272,7 +1272,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMergeMethod = config.AutoMergeMethodSquash
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1288,7 +1288,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, stub.mergePRCalls)
 		testastic.Equal(t, 1, len(stub.mergePROptions))
-		testastic.Equal(t, provider.MergeMethodSquash, stub.mergePROptions[0].Method)
+		testastic.Equal(t, forge.MergeMethodSquash, stub.mergePROptions[0].Method)
 	})
 
 	t.Run("returns error when auto-merge is blocked", func(t *testing.T) {
@@ -1299,13 +1299,13 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMerge = true
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
-		stub.mergePRErr = fmt.Errorf("%w: required checks pending", provider.ErrMergeBlocked)
+		stub.mergePRErr = fmt.Errorf("%w: required checks pending", forge.ErrMergeBlocked)
 
 		r := newTestReleaser(t, cfg, stub)
 
@@ -1314,7 +1314,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		// then: release fails after PR creation and no tag/release is created
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrMergeBlocked)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.Equal(t, 1, stub.mergePRCalls)
@@ -1330,20 +1330,20 @@ func TestReleaseAutoMerge(t *testing.T) {
 		cfg.Release.AutoMerge = true
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
 			Message: "fix: patch bug",
 		}}
-		stub.preflightErr = fmt.Errorf("%w: tagged label missing", provider.ErrReleasePRLabelMissing)
+		stub.preflightErr = fmt.Errorf("%w: tagged label missing", forge.ErrReleasePRLabelMissing)
 
 		r := newTestReleaser(t, cfg, stub)
 
 		result, err := r.Release(context.Background(), false)
 
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+		testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.SliceEqual(t, []string{cfg.Release.Labels.Tagged}, stub.preflightCalls)
 		testastic.Equal(t, 0, stub.mergePRCalls)
@@ -1361,7 +1361,7 @@ func TestReleaseReusesSinglePendingPR(t *testing.T) {
 	cfg.Release.PRTitle = "release {{ .Tag }}"
 
 	stub := newProviderStub()
-	stub.openPending = []*provider.PullRequest{{
+	stub.openPending = []*forge.PullRequest{{
 		Number: 7,
 		URL:    "https://example.com/pr/7",
 		Branch: "yeet/release-v0.0.1",
@@ -1398,7 +1398,7 @@ func TestReleaseAdoptsUnlabelledPendingPR(t *testing.T) {
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.openPending = []*provider.PullRequest{{
+	stub.openPending = []*forge.PullRequest{{
 		Number:            7,
 		URL:               "https://example.com/pr/7",
 		Branch:            "yeet/release-main",
@@ -1492,7 +1492,7 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 	cfg := config.Default()
 
 	stub := newProviderStub()
-	stub.openPending = []*provider.PullRequest{
+	stub.openPending = []*forge.PullRequest{
 		{Number: 1, URL: "https://example.com/pr/1", Branch: "yeet/release-v0.0.1"},
 		{Number: 2, URL: "https://example.com/pr/2", Branch: "yeet/release-v0.1.0"},
 	}
@@ -1624,7 +1624,7 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 		cfg.Release.CommitSubject = "{{ if .Channel }}release {{ .Channel }}{{ end }}"
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{{
+		stub.openPending = []*forge.PullRequest{{
 			Number: 7,
 			URL:    "https://example.com/pr/7",
 			Branch: "yeet/release-main",
@@ -1703,7 +1703,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		existing := &provider.PullRequest{Branch: "yeet/release-main"}
+		existing := &forge.PullRequest{Branch: "yeet/release-main"}
 		existingChangelog := strings.TrimSpace(readTestFile(
 			t,
 			"testdata/release_changelog_source_of_truth/"+
@@ -1747,7 +1747,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		existing := &provider.PullRequest{Branch: "yeet/release-main"}
+		existing := &forge.PullRequest{Branch: "yeet/release-main"}
 		r := newTestReleaser(t, cfg, stub)
 		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 		result := &Result{Plans: []TargetPlan{
@@ -1778,7 +1778,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		existing := &provider.PullRequest{
+		existing := &forge.PullRequest{
 			Branch: "yeet/release-main",
 			Body:   testManifestBody(t, "v1.2.3", "CHANGELOG.md"),
 		}
@@ -1869,7 +1869,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 				"manual_notes.input.md",
 		))
 
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
 			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
@@ -1880,8 +1880,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1926,7 +1926,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// given: an existing pending release PR whose release branch changelog was manually edited
 		cfg := config.Default()
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
 			Body:   "## Release\n\nPreview only.",
@@ -1935,8 +1935,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -1986,7 +1986,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		t.Parallel()
 
 		cfg := config.Default()
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
 			Body:   "## Release\n\nPreview only.",
@@ -1995,8 +1995,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -2027,7 +2027,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// given: a patch release PR with manual notes and a new feature commit that raises the planned version
 		cfg := config.Default()
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
 			Body:   testManifestBody(t, "v1.2.4", cfg.Changelog.File),
@@ -2036,8 +2036,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -2080,7 +2080,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// given: a pending release PR whose manifest tag was already published
 		cfg := config.Default()
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.4",
 			Body:   testManifestBody(t, "v1.2.4", cfg.Changelog.File),
@@ -2089,8 +2089,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.4"}
 		stub.tagList = []string{"v1.2.4"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -2120,7 +2120,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		// given: a release branch entry for the planned tag carrying sections this release does not produce
 		cfg := config.Default()
-		existingPR := &provider.PullRequest{
+		existingPR := &forge.PullRequest{
 			Number: 42,
 			Title:  "chore: release 1.2.5",
 			Body:   testManifestBody(t, "v1.2.5", cfg.Changelog.File),
@@ -2129,8 +2129,8 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.openPending = []*provider.PullRequest{existingPR}
-		stub.latestRelease = &provider.Release{TagName: "v1.2.4"}
+		stub.openPending = []*forge.PullRequest{existingPR}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.4"}
 		stub.tagList = []string{"v1.2.4"}
 		stub.commits = []history.CommitEntry{{
 			Hash:    "abcdef1234567890",
@@ -2168,7 +2168,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.repoURL = "https://github.example.com/owner/repo"
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 
 		const headSHA = "abcdef1234567890abcdef1234567890abcdef12"
@@ -2185,7 +2185,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
 		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
 
 		testastic.AssertFile(
 			t,
@@ -2219,7 +2219,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 		stub := newProviderStub()
 		stub.repoURL = "https://gitlab.example.com/group/repo"
 		stub.pathPrefix = "/-"
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
 
 		const headSHA = "1234567890abcdef1234567890abcdef12345678"
@@ -2236,7 +2236,7 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 
 		// then: changelog keeps tag-to-tag compare while PR body links tag-to-head sha
 		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*provider.PullRequest)(nil), result.PullRequest)
+		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
 
 		testastic.AssertFile(
 			t,
@@ -2270,25 +2270,25 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		cfg := config.Default()
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         42,
 			URL:            "https://example.com/pr/42",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
 			Branch:         "yeet/release-main",
 			MergeCommitSHA: "merged-sha",
 		}
-		stub.releasesByTag["v1.2.3"] = &provider.Release{
+		stub.releasesByTag["v1.2.3"] = &forge.Release{
 			TagName: "v1.2.3",
 			URL:     "https://example.com/releases/v1.2.3",
 		}
-		stub.preflightErr = fmt.Errorf("%w: tagged label missing", provider.ErrReleasePRLabelMissing)
+		stub.preflightErr = fmt.Errorf("%w: tagged label missing", forge.ErrReleasePRLabelMissing)
 
 		r := newTestReleaser(t, cfg, stub)
 
 		_, err := r.finalizeMergedReleasePRs(context.Background())
 
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrReleasePRLabelMissing)
+		testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 		testastic.SliceEqual(t, []string{cfg.Release.Labels.Tagged}, stub.preflightCalls)
 		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
@@ -2302,7 +2302,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
 			Body:   testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2321,7 +2321,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		_, err := r.finalizeMergedReleasePRs(context.Background())
 
 		// then: finalization stops before resolving a mutable branch or publishing a release
-		testastic.ErrorIs(t, err, provider.ErrEmptyCommitSHA)
+		testastic.ErrorIs(t, err, forge.ErrEmptyCommitSHA)
 		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 0, len(stub.markTaggedCalls))
@@ -2357,7 +2357,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.NoError(t, err)
 
 		deps := newProviderStub()
-		deps.mergedPR = &provider.PullRequest{
+		deps.mergedPR = &forge.PullRequest{
 			Number:         42,
 			URL:            "https://example.com/pr/42",
 			Body:           manifest,
@@ -2410,7 +2410,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         42,
 			URL:            "https://example.com/pr/42",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2469,7 +2469,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		manifest := testManifestBody(t, "v1.2.3", cfg.Changelog.File)
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
 			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
@@ -2511,7 +2511,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		manifest := gitLabNormalizeYeetMarkers(testManifestBody(t, "v1.2.3", cfg.Changelog.File))
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         42,
 			URL:            "https://example.com/pr/42",
 			Body:           "## Release\n\n" + manifest,
@@ -2551,7 +2551,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		manifest := testManifestBody(t, "v1.2.3", cfg.Changelog.File)
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number: 42,
 			URL:    "https://example.com/pr/42",
 			Body: "## Release\n\n<!-- BEGIN_YEET_RELEASE_NOTES -->\n" +
@@ -2589,7 +2589,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         33,
 			URL:            "https://example.com/pr/33",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2622,9 +2622,9 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
 		stub.tagList = []string{"v1.2.3"}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         9,
 			URL:            "https://example.com/pr/9",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2653,13 +2653,13 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &provider.Release{TagName: "v1.2.4", URL: "https://example.com/releases/v1.2.4"}
+		stub.latestRelease = &forge.Release{TagName: "v1.2.4", URL: "https://example.com/releases/v1.2.4"}
 		stub.tagList = []string{"v1.2.4"}
-		stub.releasesByTag["v1.2.3"] = &provider.Release{
+		stub.releasesByTag["v1.2.3"] = &forge.Release{
 			TagName: "v1.2.3",
 			URL:     "https://example.com/releases/v1.2.3",
 		}
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         10,
 			URL:            "https://example.com/pr/10",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2690,7 +2690,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		stub := newProviderStub()
 		stub.tags["v1.2.3"] = true
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         11,
 			URL:            "https://example.com/pr/11",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2726,7 +2726,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         13,
 			URL:            "https://example.com/pr/13",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
@@ -2765,7 +2765,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// then: nothing is finalized
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, provider.ErrNoPR)
+		testastic.ErrorIs(t, err, forge.ErrNoPR)
 		testastic.Equal(t, 0, len(releases))
 	})
 
@@ -2776,7 +2776,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number: 25,
 			URL:    "https://example.com/pr/25",
 			Branch: "yeet/release-main",
@@ -2800,7 +2800,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.mergedPR = &provider.PullRequest{
+		stub.mergedPR = &forge.PullRequest{
 			Number:         12,
 			URL:            "https://example.com/pr/12",
 			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),

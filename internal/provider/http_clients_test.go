@@ -46,7 +46,7 @@ func TestCreateProviderBuildsEveryForgeOnOneHTTPPolicy(t *testing.T) {
 	t.Setenv(gitlabURLEnv, "")
 	t.Setenv(azureURLEnv, "")
 
-	descriptors := map[string]*RepositoryDescriptor{
+	descriptors := map[string]*repositoryDescriptor{
 		providerNameGitHub: {
 			Provider: providerNameGitHub,
 			Owner:    "platform",

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-github/v89/github"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
@@ -33,7 +34,7 @@ type forgeSpec struct {
 	urlEnvVar     string
 	apiPathSuffix string
 	defaultHost   string
-	construct     func(forgeSpec, *RepositoryDescriptor, forgeToken, *retryablehttp.Client) (Provider, error)
+	construct     func(forgeSpec, *repositoryDescriptor, forgeToken, *retryablehttp.Client) (forge.Provider, error)
 }
 
 // forgeToken records which environment variable supplied the token, because
@@ -66,14 +67,14 @@ var forgeSpecs = map[string]forgeSpec{
 	},
 }
 
-func Create(repository *RepositoryDescriptor) (Provider, error) {
+func create(repository *repositoryDescriptor) (forge.Provider, error) {
 	return createProvider(repository, newTracedRetryableClient)
 }
 
 func createProvider(
-	repository *RepositoryDescriptor,
+	repository *repositoryDescriptor,
 	newHTTPClient func(forge string) *retryablehttp.Client,
-) (Provider, error) {
+) (forge.Provider, error) {
 	spec, known := forgeSpecs[repository.Provider]
 	if !known {
 		if repository.Provider == providerNameAuto {
@@ -129,10 +130,10 @@ func (spec forgeSpec) apiBaseURL(host string) string {
 
 func newGitHubProvider(
 	spec forgeSpec,
-	repository *RepositoryDescriptor,
+	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
-) (Provider, error) {
+) (forge.Provider, error) {
 	opts := []github.ClientOptionsFunc{
 		github.WithHTTPClient(httpClient.StandardClient()),
 		github.WithAuthToken(token.value),
@@ -152,10 +153,10 @@ func newGitHubProvider(
 
 func newGitLabProvider(
 	spec forgeSpec,
-	repository *RepositoryDescriptor,
+	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
-) (Provider, error) {
+) (forge.Provider, error) {
 	// client-go owns its own retryablehttp layer, so it takes the traced inner
 	// client and the same bounds rather than a second retrying round tripper.
 	opts := []gitlab.ClientOptionFunc{
@@ -179,10 +180,10 @@ func newGitLabProvider(
 
 func newAzureDevOpsProvider(
 	spec forgeSpec,
-	repository *RepositoryDescriptor,
+	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
-) (Provider, error) {
+) (forge.Provider, error) {
 	baseURL := spec.endpointOverride()
 	if baseURL == "" {
 		baseURL = "https://" + azureDevOpsAPIHost(repository.Host)

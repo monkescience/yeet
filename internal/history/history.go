@@ -14,7 +14,7 @@ import (
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // ErrCheckoutUnusable marks a checkout that cannot reliably serve release history.
@@ -40,7 +40,7 @@ type CommitHistory struct {
 // Remote provides authoritative tag targets and the branch head used to
 // validate the local checkout.
 type Remote interface {
-	ListTagRefs(ctx context.Context) ([]provider.TagRef, error)
+	ListTagRefs(ctx context.Context) ([]forge.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
 
@@ -110,7 +110,7 @@ func (s *Source) GetFile(ctx context.Context, branch, path string) (string, erro
 
 	file, err := commit.File(path)
 	if errors.Is(err, object.ErrFileNotFound) {
-		return "", provider.ErrFileNotFound
+		return "", forge.ErrFileNotFound
 	}
 
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *Source) GetCommitsSinceRefs(
 	refs []string,
 	branch string,
 	includePaths bool,
-	knownTags []provider.TagRef,
+	knownTags []forge.TagRef,
 ) (CommitHistory, error) {
 	local, err := s.eligibleLocal(ctx, branch)
 	if err != nil {
@@ -203,7 +203,7 @@ func (s *Source) loadRemoteTags(ctx context.Context) ([]string, map[string]strin
 func (s *Source) remoteBoundaries(
 	ctx context.Context,
 	refs []string,
-	knownTags []provider.TagRef,
+	knownTags []forge.TagRef,
 ) (map[string]plumbing.Hash, error) {
 	_, remoteCommits, err := s.loadRemoteTags(ctx)
 	if err != nil {
@@ -242,7 +242,7 @@ func (s *Source) remoteBoundaries(
 	return boundaries, nil
 }
 
-func knownTagCommit(knownTags []provider.TagRef, ref string) (string, bool) {
+func knownTagCommit(knownTags []forge.TagRef, ref string) (string, bool) {
 	for _, knownTag := range knownTags {
 		if strings.TrimSpace(knownTag.Name) != ref {
 			continue

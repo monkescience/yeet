@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: parse config: go-yaml load error in parser (while parsing a flow node) at L2.C1: did not find expected node content
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: parse config: go-yaml load error in parser (while parsing a flow node) at L2.C1: did not find expected node content

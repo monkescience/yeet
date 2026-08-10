@@ -13,8 +13,8 @@ import (
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
-	"github.com/monkescience/yeet/internal/provider"
 )
 
 const fixtureBranch = "main"
@@ -22,13 +22,13 @@ const fixtureBranch = "main"
 type remoteStub struct {
 	branchHead    string
 	branchHeadErr error
-	tagRefs       []provider.TagRef
+	tagRefs       []forge.TagRef
 
 	branchHeadCalls int
 	tagRefCalls     int
 }
 
-func (r *remoteStub) ListTagRefs(_ context.Context) ([]provider.TagRef, error) {
+func (r *remoteStub) ListTagRefs(_ context.Context) ([]forge.TagRef, error) {
 	r.tagRefCalls++
 
 	return slices.Clone(r.tagRefs), nil
@@ -206,7 +206,7 @@ func (f *repoFixture) source() (*history.Source, *remoteStub) {
 			return resolveErr
 		}
 
-		remote.tagRefs = append(remote.tagRefs, provider.TagRef{
+		remote.tagRefs = append(remote.tagRefs, forge.TagRef{
 			Name:      ref.Name().Short(),
 			CommitSHA: hash.String(),
 		})
@@ -418,7 +418,7 @@ func TestSourceLocalRanges(t *testing.T) {
 
 		remote := &remoteStub{
 			branchHead: c2.String(),
-			tagRefs:    []provider.TagRef{{Name: "v1.0.0", CommitSHA: c1.String()}},
+			tagRefs:    []forge.TagRef{{Name: "v1.0.0", CommitSHA: c1.String()}},
 		}
 		source := history.New(remote, fixtureBranch, fx.dir)
 
@@ -660,7 +660,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
 		source, remote := fx.source()
-		remote.tagRefs = append(remote.tagRefs, provider.TagRef{
+		remote.tagRefs = append(remote.tagRefs, forge.TagRef{
 			Name:      "v9.9.9",
 			CommitSHA: fx.head().String(),
 		})
@@ -683,7 +683,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		c2 := fx.commit("feat: two", map[string]string{"a.txt": "two"})
 
 		source, remote := fx.source()
-		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: c2.String()}}
+		remote.tagRefs = []forge.TagRef{{Name: "v1.0.0", CommitSHA: c2.String()}}
 
 		// when: the tag is used as a release boundary
 		result, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
@@ -701,7 +701,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
 		source, remote := fx.source()
-		remote.tagRefs = []provider.TagRef{{Name: "v1.0.0", CommitSHA: "not-a-commit"}}
+		remote.tagRefs = []forge.TagRef{{Name: "v1.0.0", CommitSHA: "not-a-commit"}}
 
 		// when: the malformed target is used as a release boundary
 		_, err := source.GetCommitsSinceRefs(t.Context(), []string{"v1.0.0"}, fixtureBranch, false, nil)
@@ -785,7 +785,7 @@ func TestSourceDelegation(t *testing.T) {
 	fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
 	source, remote := fx.source()
-	remote.tagRefs = []provider.TagRef{
+	remote.tagRefs = []forge.TagRef{
 		{Name: "v3.0.0", CommitSHA: "3333333333333333333333333333333333333333"},
 		{Name: "v2.0.0", CommitSHA: "2222222222222222222222222222222222222222"},
 	}
@@ -808,7 +808,7 @@ func TestSourceKnownTagBoundaries(t *testing.T) {
 	c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
 
 	source, remote := fx.source()
-	remote.tagRefs = []provider.TagRef{}
+	remote.tagRefs = []forge.TagRef{}
 
 	_, err := source.ListTags(t.Context())
 	testastic.NoError(t, err)
@@ -819,7 +819,7 @@ func TestSourceKnownTagBoundaries(t *testing.T) {
 		[]string{"v2.0.0"},
 		fixtureBranch,
 		false,
-		[]provider.TagRef{{Name: "v2.0.0", CommitSHA: c1.String()}},
+		[]forge.TagRef{{Name: "v2.0.0", CommitSHA: c1.String()}},
 	)
 
 	// then: the boundary resolves without a second remote tag listing
@@ -861,6 +861,6 @@ func TestSourceGetFile(t *testing.T) {
 		_, err := source.GetFile(t.Context(), fixtureBranch, "missing.txt")
 
 		// then: callers receive the shared missing-file sentinel
-		testastic.ErrorIs(t, err, provider.ErrFileNotFound)
+		testastic.ErrorIs(t, err, forge.ErrFileNotFound)
 	})
 }

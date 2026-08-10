@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
@@ -64,7 +65,7 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 				slog.String("ref", ref),
 			)
 
-			return "", ErrFileNotFound
+			return "", forge.ErrFileNotFound
 		}
 
 		return "", fmt.Errorf("get file %s on branch %s: %w", path, branch, err)
@@ -76,7 +77,7 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 func (g *GitLab) UpdateFiles(
 	ctx context.Context,
 	branch, base string,
-	files map[string]FileUpdate,
+	files map[string]forge.FileUpdate,
 	message string,
 ) error {
 	paths := make([]string, 0, len(files))

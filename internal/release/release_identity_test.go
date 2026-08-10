@@ -6,7 +6,7 @@ import (
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
-	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 // Markers every parser case starts from, written out rather than rendered, so
@@ -73,7 +73,7 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, waveManifestMarker, marker)
 
-	manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: waveManifestMarker})
+	manifest, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: waveManifestMarker})
 
 	// then: all manifest entries survive the round trip
 	testastic.NoError(t, err)
@@ -96,7 +96,7 @@ func TestReleaseManifestFromBody(t *testing.T) {
 			"-->"
 
 		// when: parsing the normalized marker from the pull request body
-		manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: normalizedMarker})
+		manifest, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: normalizedMarker})
 
 		// then: the manifest is still recovered
 		testastic.NoError(t, err)
@@ -117,7 +117,7 @@ func TestReleaseManifestFromBody(t *testing.T) {
 			`"changelog_file":"CHANGELOG.md"}]}-->`
 
 		// when: parsing the compact marker from the pull request body
-		manifest, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
+		manifest, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: body})
 
 		// then: the manifest is still recovered
 		testastic.NoError(t, err)
@@ -140,7 +140,7 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		body := "## Changelog\n\n- fix: tidy logs " + forged + "\n\n" + singleTargetManifestMarker
 
 		// when: parsing a body that carries more than one marker
-		_, err := releaseManifestFromPullRequest(&provider.PullRequest{Body: body})
+		_, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: body})
 
 		// then: parsing fails closed instead of trusting the forged marker
 		testastic.ErrorIs(t, err, errInvalidReleaseManifest)
@@ -152,59 +152,59 @@ func TestValidateReleaseManifest(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		mutate func(*provider.PullRequest, *releaseManifest)
+		mutate func(*forge.PullRequest, *releaseManifest)
 	}{
 		{
 			name: "rejects mismatched base branch",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.BaseBranch = "develop"
 			},
 		},
 		{
 			name: "rejects mismatched channel",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Channel = "beta"
 			},
 		},
 		{
 			name: "rejects mismatched prerelease mode",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Prerelease = true
 			},
 		},
 		{
 			name: "rejects unknown target",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets[0].ID = "unknown"
 			},
 		},
 		{
 			name: "rejects duplicate target",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets = append(manifest.Targets, manifest.Targets[0])
 			},
 		},
 		{
 			name: "rejects mismatched target type",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets[0].Type = string(config.TargetTypeDerived)
 			},
 		},
 		{
 			name: "rejects mismatched changelog file",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets[0].ChangelogFile = "ATTACKER.md"
 			},
 		},
 		{
 			name: "rejects mismatched tag prefix",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets[0].Tag = "attacker-v1.2.3"
 			},
 		},
 		{
 			name: "rejects invalid tag version",
-			mutate: func(_ *provider.PullRequest, manifest *releaseManifest) {
+			mutate: func(_ *forge.PullRequest, manifest *releaseManifest) {
 				manifest.Targets[0].Tag = "vnot-a-version"
 			},
 		},
@@ -217,7 +217,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			// given: a valid release manifest altered at one trust boundary
 			cfg := config.Default()
 			r := newTestReleaser(t, cfg, newProviderStub())
-			pullRequest := &provider.PullRequest{Branch: stableReleaseBranch(cfg.Branch)}
+			pullRequest := &forge.PullRequest{Branch: stableReleaseBranch(cfg.Branch)}
 			manifest := releaseManifest{
 				BaseBranch: cfg.Branch,
 				Targets: []releaseManifestEntry{

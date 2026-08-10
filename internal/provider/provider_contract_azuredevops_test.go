@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 )
 
@@ -59,7 +60,7 @@ func newAzureDevOpsContractProvider(
 	t *testing.T,
 	server *httptest.Server,
 	options ...provider.MergePollingOption,
-) provider.Provider {
+) forge.Provider {
 	t.Helper()
 
 	return provider.NewAzureDevOps(
@@ -164,7 +165,7 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 		context.Background(),
 		providerContractReleaseBranch,
 		providerContractBaseBranch,
-		map[string]provider.FileUpdate{"VERSION.txt": {Content: "version=1.2.3\n"}},
+		map[string]forge.FileUpdate{"VERSION.txt": {Content: "version=1.2.3\n"}},
 		"chore: release v1.2.3",
 	)
 
@@ -349,8 +350,8 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
 
 	// when: the release pull request is submitted for completion
-	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-		Method: provider.MergeMethodSquash,
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+		Method: forge.MergeMethodSquash,
 	})
 
 	// then: the provisional commit is skipped and the applied merge commit is returned
@@ -389,10 +390,10 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 	// when: completion is retried for the already completed pull request
-	_, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{})
+	_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
 
 	// then: the queued preview commit is never exposed as the final merge commit
-	testastic.ErrorIs(t, err, provider.ErrMergeNotFinalized)
+	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
 }
 
 func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *testing.T) {
@@ -443,12 +444,12 @@ func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *tes
 	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
 
 	// when: the foreign pull request is submitted for completion
-	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, provider.MergeReleasePROptions{
-		Method: provider.MergeMethodSquash,
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+		Method: forge.MergeMethodSquash,
 	})
 
 	// then: it is refused as untrusted before any completion is attempted
-	testastic.ErrorIs(t, err, provider.ErrUntrustedReleasePR)
+	testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
 	testastic.Equal(t, "", mergeSHA)
 	testastic.Equal(t, int32(0), completionAttempts.Load())
 }
@@ -605,11 +606,11 @@ func TestAzureDevOpsSetReleasePRLabelsKeepsPartialFailureRetryable(t *testing.T)
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking a release pull request pending with the rejected extra label
-	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Extra:   []string{"rejected"},
-	}, provider.ReleasePRPhasePending)
+	}, forge.ReleasePRPhasePending)
 
 	// then: the failure is returned after attaching the pending marker for retry discovery
 	testastic.Error(t, err)
@@ -659,12 +660,12 @@ func TestAzureDevOpsSetReleasePRLabelsAttachesLabelsAfterARejectedOne(t *testing
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking pending with a rejected label positioned before other labels
-	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Extra:   []string{"rejected", "kept"},
 		Yeet:    true,
-	}, provider.ReleasePRPhasePending)
+	}, forge.ReleasePRPhasePending)
 
 	// then: the rejection surfaces but the labels queued behind it are still attached
 	testastic.Error(t, err)
@@ -719,21 +720,21 @@ func TestAzureDevOpsSetReleasePRLabelsKeepsManagedFailureRetryable(t *testing.T)
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: marking a release pull request pending with the managed label enabled
-	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
 		Yeet:    true,
-	}, provider.ReleasePRPhasePending)
+	}, forge.ReleasePRPhasePending)
 
 	// then: the failure is returned after attaching the pending marker for retry discovery
 	testastic.Error(t, err)
 	testastic.True(t, pendingAttached.Load())
 
 	// when: marking the release pull request pending with the managed label disabled
-	err = p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+	err = p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 		Pending: providerContractPendingLabel,
 		Tagged:  providerContractTaggedLabel,
-	}, provider.ReleasePRPhasePending)
+	}, forge.ReleasePRPhasePending)
 
 	// then: Azure attaches the pending marker without requesting the managed label
 	testastic.NoError(t, err)
@@ -771,10 +772,10 @@ func TestAzureDevOpsLifecycleLabelRemovalMatchesCaseInsensitively(t *testing.T) 
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: transitioning a differently cased configured label to tagged
-	err := p.SetReleasePRLabels(context.Background(), 42, provider.ReleasePRLabels{
+	err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
 		Pending: "release pending",
 		Tagged:  providerContractTaggedLabel,
-	}, provider.ReleasePRPhaseTagged)
+	}, forge.ReleasePRPhaseTagged)
 
 	// then: the case-variant tag is recognised as the configured label and removed
 	testastic.NoError(t, err)
@@ -1096,7 +1097,7 @@ func TestAzureDevOpsRejectsAmbiguousReviewer(t *testing.T) {
 	p := newAzureDevOpsContractProvider(t, server)
 
 	// when: creating a release PR with a reviewer name matching two identities
-	_, err := p.CreateReleasePR(context.Background(), provider.ReleasePROptions{
+	_, err := p.CreateReleasePR(context.Background(), forge.ReleasePROptions{
 		Title:         providerContractReleaseTitle,
 		Body:          providerContractReleaseBody,
 		BaseBranch:    providerContractBaseBranch,
@@ -1106,7 +1107,7 @@ func TestAzureDevOpsRejectsAmbiguousReviewer(t *testing.T) {
 
 	// then: the run fails before any PR is created, flagging the ambiguity
 	testastic.Error(t, err)
-	testastic.ErrorIs(t, err, provider.ErrReviewerAmbiguous)
+	testastic.ErrorIs(t, err, forge.ErrReviewerAmbiguous)
 	testastic.Equal(t, "reviewer is ambiguous: \"alex\" matches 2 identities", err.Error())
 }
 

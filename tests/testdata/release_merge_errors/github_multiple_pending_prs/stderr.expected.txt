@@ -1,2 +1,2 @@
 INFO release analysis complete targets=1
-release execution failed: multiple pending release changes found (pull requests or merge requests). Close or relabel stale entries: multiple pending release PRs found: #43 https://example.test/pulls/42, #44 https://example.test/pulls/42
+release failed: multiple pending release changes were found. Close or relabel stale pending release changes: multiple pending release PRs found: #43 https://example.test/pulls/42, #44 https://example.test/pulls/42

@@ -1,1 +1,1 @@
-release execution failed: conflicting release-as footers: "2.0.0" and "3.0.0"
+release failed: unexpected failure: conflicting release-as footers: "2.0.0" and "3.0.0"

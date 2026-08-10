@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/go-github/v89/github"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 const (
@@ -16,11 +17,11 @@ const (
 	gitHubPageSize            = 100
 )
 
-var _ Provider = (*GitHub)(nil)
+var _ forge.Provider = (*GitHub)(nil)
 
 type GitHub struct {
 	client  *github.Client
-	repo    RepoInfo
+	repo    repoInfo
 	baseURL string
 	polling mergePolling
 
@@ -41,7 +42,7 @@ func NewGitHub(client *github.Client, owner, repo string, options ...MergePollin
 
 	return &GitHub{
 		client:  client,
-		repo:    RepoInfo{Owner: owner, Name: repo},
+		repo:    repoInfo{Owner: owner, Name: repo},
 		baseURL: baseURL,
 		polling: newMergePolling(options...),
 	}

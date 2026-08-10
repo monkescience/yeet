@@ -1,3 +1,3 @@
 INFO release analysis complete targets=1
 INFO created release PR url=http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42
-release execution failed: merge blocked: the release pull request or merge request is a draft. Mark it ready to merge: merge release PR: release PR merge blocked: pull request !42 is draft
+release failed: merge is blocked because the release pull request or merge request is a draft. Mark it ready to merge: merge release PR: release PR merge blocked: pull request !42 is draft

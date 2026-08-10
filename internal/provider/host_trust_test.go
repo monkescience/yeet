@@ -148,7 +148,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.company.com")
 
 		// when: resolving with a remote on the same host
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -168,7 +168,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("evil.example")
 
 		// when: resolving with a remote on github.com
-		_, err := ResolveRepository(
+		_, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -192,7 +192,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig(DefaultGitHubHost)
 
 		// when: resolving with a getter that fails if called
-		repository, err := ResolveRepository(
+		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -212,7 +212,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.com@evil.example")
 
 		// when: resolving
-		_, err := ResolveRepository(
+		_, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -237,7 +237,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 		cfg := githubTrustConfig("github.company.com")
 
 		// when: resolving with a getter that errors
-		_, err := ResolveRepository(
+		_, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
@@ -263,7 +263,7 @@ func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
 	cfg := githubTrustConfig("github.company.com")
 
 	// when: resolving with a remote on a different host
-	repository, err := ResolveRepository(
+	repository, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {
@@ -289,7 +289,7 @@ func TestResolveRepositoryRejectsHostUnrelatedToProviderURLEnv(t *testing.T) {
 	}
 
 	// when: resolving the repository
-	_, err := ResolveRepository(
+	_, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {
@@ -320,7 +320,7 @@ func TestResolveRepositoryTrustsHostOfProviderURLEnv(t *testing.T) {
 	}
 
 	// when: resolving the repository
-	repository, err := ResolveRepository(
+	repository, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {
@@ -345,7 +345,7 @@ func TestResolveRepositoryWrapsGitRemoteFailure(t *testing.T) {
 	}
 
 	// when: resolving the repository
-	_, err := ResolveRepository(
+	_, err := resolveRepository(
 		context.Background(),
 		cfg,
 		func(context.Context, string) (string, error) {

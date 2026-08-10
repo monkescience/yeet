@@ -26,11 +26,11 @@ const (
 
 type gitRemoteURLGetter func(context.Context, string) (string, error)
 
-func ResolveRepository(
+func resolveRepository(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
-) (*RepositoryDescriptor, error) {
+) (*repositoryDescriptor, error) {
 	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func repositoryDescriptorFromSources(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
-) (*RepositoryDescriptor, error) {
+) (*repositoryDescriptor, error) {
 	if err := validateAutoProviderCoordinates(cfg); err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func repositoryDescriptorFromSources(
 			return nil, fmt.Errorf("get git remote %q url: %w", repository.Remote, err)
 		}
 
-		detected, err := ParseRemote(remoteURL)
+		detected, err := parseRemote(remoteURL)
 		if err != nil {
 			return nil, fmt.Errorf("parse git remote %q url: %w", repository.Remote, err)
 		}
@@ -88,9 +88,9 @@ func repositoryDescriptorFromSources(
 	return repository, nil
 }
 
-func resolveRepositoryProvider(repository *RepositoryDescriptor) error {
+func resolveRepositoryProvider(repository *repositoryDescriptor) error {
 	if repository.Provider == "" {
-		providerType, err := DetectType(repository.Host)
+		providerType, err := detectType(repository.Host)
 		if err != nil {
 			return unsupportedAutoProviderError(repository.Host, err)
 		}
@@ -101,7 +101,7 @@ func resolveRepositoryProvider(repository *RepositoryDescriptor) error {
 	return nil
 }
 
-func applyRepositoryProviderDefaults(repository *RepositoryDescriptor) {
+func applyRepositoryProviderDefaults(repository *repositoryDescriptor) {
 	spec, known := forgeSpecs[repository.Provider]
 	if !known {
 		return
@@ -151,8 +151,8 @@ func validateAutoProviderCoordinates(cfg *config.Config) error {
 	)
 }
 
-func repositoryFromConfig(cfg *config.Config) *RepositoryDescriptor {
-	descriptor := &RepositoryDescriptor{
+func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
+	descriptor := &repositoryDescriptor{
 		Provider: normalizedRepositoryProvider(cfg.Provider),
 		Remote:   strings.TrimSpace(cfg.Repository.Remote),
 	}
@@ -197,7 +197,7 @@ func normalizedRepositoryProvider(providerType config.ProviderType) string {
 	return provider
 }
 
-func needsRemoteLookup(repository *RepositoryDescriptor) bool {
+func needsRemoteLookup(repository *repositoryDescriptor) bool {
 	if !hasRepositoryCoordinates(repository) {
 		return true
 	}
@@ -205,14 +205,14 @@ func needsRemoteLookup(repository *RepositoryDescriptor) bool {
 	return repository.Provider == "" && repository.Host == ""
 }
 
-func hasRepositoryCoordinates(repository *RepositoryDescriptor) bool {
+func hasRepositoryCoordinates(repository *repositoryDescriptor) bool {
 	return repository.Project != "" || (repository.Owner != "" && repository.Repo != "")
 }
 
 func mergeRepositoryDescriptor(
-	base *RepositoryDescriptor,
-	override *RepositoryDescriptor,
-) *RepositoryDescriptor {
+	base *repositoryDescriptor,
+	override *repositoryDescriptor,
+) *repositoryDescriptor {
 	if override.Provider != "" {
 		base.Provider = override.Provider
 	}
@@ -238,7 +238,7 @@ func mergeRepositoryDescriptor(
 	return base
 }
 
-func mergeRepositoryCoordinates(base *RepositoryDescriptor, override *RepositoryDescriptor) {
+func mergeRepositoryCoordinates(base *repositoryDescriptor, override *repositoryDescriptor) {
 	switch {
 	case override.Project != "":
 		base.Project = override.Project
@@ -259,7 +259,7 @@ func mergeRepositoryCoordinates(base *RepositoryDescriptor, override *Repository
 	}
 }
 
-func normalizeRepositoryDescriptor(repository *RepositoryDescriptor) {
+func normalizeRepositoryDescriptor(repository *repositoryDescriptor) {
 	repository.Provider = strings.TrimSpace(repository.Provider)
 	repository.Host = strings.TrimSpace(repository.Host)
 	repository.Owner = strings.TrimSpace(repository.Owner)
@@ -277,7 +277,7 @@ func normalizeRepositoryDescriptor(repository *RepositoryDescriptor) {
 		return
 	}
 
-	owner, repo := SplitProjectPath(repository.Project)
+	owner, repo := splitProjectPath(repository.Project)
 	if repository.Owner == "" {
 		repository.Owner = owner
 	}
@@ -287,7 +287,7 @@ func normalizeRepositoryDescriptor(repository *RepositoryDescriptor) {
 	}
 }
 
-func validateRepositoryDescriptor(repository *RepositoryDescriptor) error {
+func validateRepositoryDescriptor(repository *repositoryDescriptor) error {
 	if err := validateRepositoryCoordinates(repository); err != nil {
 		return err
 	}
@@ -321,7 +321,7 @@ func validateRepositoryDescriptor(repository *RepositoryDescriptor) error {
 	return nil
 }
 
-func validateRepositoryCoordinates(repository *RepositoryDescriptor) error {
+func validateRepositoryCoordinates(repository *repositoryDescriptor) error {
 	if repository.Project == "" || repository.Owner == "" || repository.Repo == "" {
 		return nil
 	}
@@ -343,7 +343,7 @@ var scpLikeRemotePattern = regexp.MustCompile(`^(?:[^@]+@)?([^:]+):(.+)$`)
 
 const minimumProjectSegments = 2
 
-type RepositoryDescriptor struct {
+type repositoryDescriptor struct {
 	Provider     string
 	Host         string
 	Owner        string
@@ -354,7 +354,7 @@ type RepositoryDescriptor struct {
 	Remote       string
 }
 
-func ParseRemote(remoteURL string) (*RepositoryDescriptor, error) {
+func parseRemote(remoteURL string) (*repositoryDescriptor, error) {
 	remoteURL = strings.TrimSpace(remoteURL)
 	if remoteURL == "" {
 		return nil, fmt.Errorf("%w: %s", ErrUnknownRemote, remoteURL)
@@ -387,7 +387,7 @@ func redactRemoteURL(remoteURL string) string {
 	return remoteURLUserinfoPattern.ReplaceAllString(remoteURL, "://***@")
 }
 
-func DetectType(host string) (string, error) {
+func detectType(host string) (string, error) {
 	host = strings.ToLower(strings.TrimSpace(host))
 	if host == "" {
 		return "", fmt.Errorf("%w: empty host", ErrUnsupportedHost)
@@ -416,7 +416,7 @@ func isAzureDevOpsHost(host string) bool {
 		strings.HasSuffix(host, azureDevOpsLegacyHostSuffix)
 }
 
-func parseRemoteURL(remoteURL string) (*RepositoryDescriptor, error) {
+func parseRemoteURL(remoteURL string) (*repositoryDescriptor, error) {
 	parsedURL, err := url.Parse(remoteURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return nil, ErrUnknownRemote
@@ -425,7 +425,7 @@ func parseRemoteURL(remoteURL string) (*RepositoryDescriptor, error) {
 	return newRepositoryDescriptor(parsedURL.Host, parsedURL.Path)
 }
 
-func parseSCPRemote(remoteURL string) (*RepositoryDescriptor, error) {
+func parseSCPRemote(remoteURL string) (*repositoryDescriptor, error) {
 	matches := scpLikeRemotePattern.FindStringSubmatch(remoteURL)
 	if matches == nil {
 		return nil, ErrUnknownRemote
@@ -434,7 +434,7 @@ func parseSCPRemote(remoteURL string) (*RepositoryDescriptor, error) {
 	return newRepositoryDescriptor(matches[1], matches[2])
 }
 
-func newRepositoryDescriptor(host, rawPath string) (*RepositoryDescriptor, error) {
+func newRepositoryDescriptor(host, rawPath string) (*repositoryDescriptor, error) {
 	host = strings.TrimSpace(host)
 
 	project := normalizeRemotePath(rawPath)
@@ -442,12 +442,12 @@ func newRepositoryDescriptor(host, rawPath string) (*RepositoryDescriptor, error
 		return nil, ErrUnknownRemote
 	}
 
-	owner, repo := SplitProjectPath(project)
+	owner, repo := splitProjectPath(project)
 	if owner == "" || repo == "" {
 		return nil, ErrUnknownRemote
 	}
 
-	return &RepositoryDescriptor{
+	return &repositoryDescriptor{
 		Host:    host,
 		Owner:   owner,
 		Repo:    repo,
@@ -464,7 +464,7 @@ func normalizeRemotePath(rawPath string) string {
 	return path
 }
 
-func SplitProjectPath(project string) (string, string) {
+func splitProjectPath(project string) (string, string) {
 	parts := strings.Split(project, "/")
 	if len(parts) < minimumProjectSegments {
 		return "", ""
@@ -481,7 +481,7 @@ func SplitProjectPath(project string) (string, string) {
 //
 // Returns ErrUnknownRemote when the URL is not an ADO remote so callers can fall
 // through to the generic parsers.
-func parseAzureDevOpsRemote(remoteURL string) (*RepositoryDescriptor, error) {
+func parseAzureDevOpsRemote(remoteURL string) (*repositoryDescriptor, error) {
 	parsed, err := parseAzureDevOpsHTTPRemote(remoteURL)
 	if err == nil {
 		return parsed, nil
@@ -495,7 +495,7 @@ func parseAzureDevOpsRemote(remoteURL string) (*RepositoryDescriptor, error) {
 	return nil, ErrUnknownRemote
 }
 
-func parseAzureDevOpsHTTPRemote(remoteURL string) (*RepositoryDescriptor, error) {
+func parseAzureDevOpsHTTPRemote(remoteURL string) (*repositoryDescriptor, error) {
 	parsedURL, err := url.Parse(remoteURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return nil, ErrUnknownRemote
@@ -520,7 +520,7 @@ func parseAzureDevOpsHTTPRemote(remoteURL string) (*RepositoryDescriptor, error)
 	return azureDevOpsDescriptorFromCloudSegments(host, segments)
 }
 
-func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*RepositoryDescriptor, error) {
+func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*repositoryDescriptor, error) {
 	gitIdx := indexOf(segments, "_git")
 	if gitIdx < 2 || gitIdx != len(segments)-2 {
 		return nil, ErrUnknownRemote
@@ -534,7 +534,7 @@ func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*Re
 		return nil, ErrUnknownRemote
 	}
 
-	return &RepositoryDescriptor{
+	return &repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         host,
 		Organization: org,
@@ -543,7 +543,7 @@ func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*Re
 	}, nil
 }
 
-func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*RepositoryDescriptor, error) {
+func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*repositoryDescriptor, error) {
 	// Legacy subdomain form: org is the host subdomain, path is {project}/_git/{repo}.
 	org := strings.TrimSuffix(host, azureDevOpsLegacyHostSuffix)
 	if org == "" {
@@ -562,7 +562,7 @@ func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*R
 		return nil, ErrUnknownRemote
 	}
 
-	return &RepositoryDescriptor{
+	return &repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         azureDevOpsAPIHost(host),
 		Organization: org,
@@ -585,7 +585,7 @@ func azureDevOpsAPIHost(host string) string {
 	return host
 }
 
-func parseAzureDevOpsSSHRemote(remoteURL string) (*RepositoryDescriptor, error) {
+func parseAzureDevOpsSSHRemote(remoteURL string) (*repositoryDescriptor, error) {
 	matches := scpLikeRemotePattern.FindStringSubmatch(remoteURL)
 	if matches == nil {
 		return nil, ErrUnknownRemote
@@ -612,7 +612,7 @@ func parseAzureDevOpsSSHRemote(remoteURL string) (*RepositoryDescriptor, error) 
 		return nil, ErrUnknownRemote
 	}
 
-	return &RepositoryDescriptor{
+	return &repositoryDescriptor{
 		Provider:     providerNameAzureDevOps,
 		Host:         DefaultAzureDevOpsHost,
 		Organization: org,

@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v89/github"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
-func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
+func (g *GitHub) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 	slog.DebugContext(ctx, "github: listing tags")
 
 	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *github.RepositoryTag) (string, string, bool) {
@@ -31,7 +32,7 @@ func (g *GitHub) ListTagRefs(ctx context.Context) ([]TagRef, error) {
 func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
-		return "", fmt.Errorf("%w: empty branch", ErrRefNotFound)
+		return "", fmt.Errorf("%w: empty branch", forge.ErrRefNotFound)
 	}
 
 	sha, err := g.resolveCommitSHA(ctx, "heads/"+branch)
@@ -64,7 +65,7 @@ func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, erro
 	commit, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return "", fmt.Errorf("%w: ref %q", ErrRefNotFound, ref)
+			return "", fmt.Errorf("%w: ref %q", forge.ErrRefNotFound, ref)
 		}
 
 		return "", fmt.Errorf("get commit for ref %q: %w", ref, err)
@@ -72,7 +73,7 @@ func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, erro
 
 	sha := commit.GetSHA()
 	if sha == "" {
-		return "", fmt.Errorf("%w: ref %q", ErrEmptyCommitSHA, ref)
+		return "", fmt.Errorf("%w: ref %q", forge.ErrEmptyCommitSHA, ref)
 	}
 
 	return sha, nil

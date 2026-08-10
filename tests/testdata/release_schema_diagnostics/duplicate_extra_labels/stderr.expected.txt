@@ -1,1 +1,1 @@
-invalid configuration: load config: invalid config: release.labels.extra entry "docs" duplicates release.labels.extra
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.labels.extra entry "docs" duplicates release.labels.extra
