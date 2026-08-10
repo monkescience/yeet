@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -25,11 +25,11 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 		slog.String("base", opts.BaseBranch),
 	)
 
-	pr, _, err := g.client.PullRequests.Create(ctx, g.repo.Owner, g.repo.Name, &github.NewPullRequest{
+	pr, _, err := g.client.PullRequests.Create(ctx, g.repo.Owner, g.repo.Name, github.CreatePullRequest{
 		Title: new(opts.Title),
 		Body:  new(opts.Body),
-		Head:  new(opts.ReleaseBranch),
-		Base:  new(opts.BaseBranch),
+		Head:  opts.ReleaseBranch,
+		Base:  opts.BaseBranch,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create pull request: %w", err)
@@ -417,8 +417,8 @@ func (g *GitHub) labelDefinitions() labelDefinitions {
 			return nil
 		},
 		create: func(ctx context.Context, name, color, description string) error {
-			_, _, err := g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, &github.Label{
-				Name:        new(name),
+			_, _, err := g.client.Issues.CreateLabel(ctx, g.repo.Owner, g.repo.Name, github.CreateIssueLabelRequest{
+				Name:        name,
 				Color:       new(color),
 				Description: new(description),
 			})
