@@ -80,6 +80,10 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", err
 	}
 
+	if !format.sameCalendarPeriod(parts, nowParts) && compareCalVerParts(format, nowParts, parts) < 0 {
+		return "", fmt.Errorf("%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
+	}
+
 	nowParts.Micro = 1
 	if format.sameCalendarPeriod(parts, nowParts) {
 		nowParts.Micro = parts.Micro + 1

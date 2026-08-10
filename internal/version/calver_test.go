@@ -290,6 +290,62 @@ func TestCalVerNext(t *testing.T) {
 		testastic.Equal(t, "2026.02.1", next)
 	})
 
+	t.Run("rejects current version from a future calendar period", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name    string
+			format  string
+			current string
+			now     func() time.Time
+		}{
+			{
+				name:    "default month format",
+				current: "2026.09.5",
+				now:     fixedDate(2026, time.August, 10),
+			},
+			{
+				name:    "short year format",
+				format:  "YY.MM.MICRO",
+				current: "26.9.5",
+				now:     fixedDate(2026, time.August, 10),
+			},
+			{
+				name:    "day format",
+				format:  "YYYY.0M.0D.MICRO",
+				current: "2026.08.11.5",
+				now:     fixedDate(2026, time.August, 10),
+			},
+			{
+				name:    "week format",
+				format:  "YYYY.0W.MICRO",
+				current: "2026.06.5",
+				now:     fixedDate(2026, time.February, 4),
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: the current version belongs to a calendar period after the fixed clock
+				cv := &version.CalVer{
+					Format: testCase.format,
+					Prefix: "v",
+					Now:    testCase.now,
+				}
+
+				// when: calculating the next version
+				_, err := cv.Next(testCase.current, commit.BumpPatch)
+
+				// then: the future version is rejected before a lower version is produced
+				testastic.Error(t, err)
+				testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+				testastic.ErrorContains(t, err, "future calendar period")
+			})
+		}
+	})
+
 	t.Run("no bump returns same", func(t *testing.T) {
 		t.Parallel()
 
