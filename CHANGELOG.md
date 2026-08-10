@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.13.2](https://github.com/monkescience/yeet/compare/v0.13.1...v0.13.2) (2026-08-10)
+
+### Bug Fixes
+
+- **deps:** update module github.com/google/go-github/v89 to v90 (#217) ([e206dc9](https://github.com/monkescience/yeet/commit/e206dc975f774db9d2175ba5e2481f7a2d43fdbb))
+- **version:** compare calver periods chronologically ([62268ed](https://github.com/monkescience/yeet/commit/62268ed8cc07fa6d4d4daa062f9b299e4a385200))
+- **config:** reject blank changelog headings ([f8d76f2](https://github.com/monkescience/yeet/commit/f8d76f2d848ada39853f5bbf5fa79c6a83ef5911))
+- **config:** reject duplicate changelog includes ([988b262](https://github.com/monkescience/yeet/commit/988b2620a1522cca28db66ebbc14562c110023ab))
+- **changelog:** normalize closing heading hashes ([09a2de0](https://github.com/monkescience/yeet/commit/09a2de0778dcda939c41fe1a04acf8103c18b9ff))
+- **changelog:** ignore indented code headings ([486b59a](https://github.com/monkescience/yeet/commit/486b59a6519afd061c8dad8d72af38c6a3bd4cb9))
+- **release:** enforce PR body character limits ([187a648](https://github.com/monkescience/yeet/commit/187a64845b6a376c2f5c644ed59facd2c7bf3cc0))
+- **changelog:** ignore fenced release headings ([958043b](https://github.com/monkescience/yeet/commit/958043bfbdef38f2f78fdffef4551820876a1ef1))
+- **version:** reject future calver periods ([4e34fb7](https://github.com/monkescience/yeet/commit/4e34fb7615b1187b3d9bb4919a1d52653a046d73))
+
 ## [v0.13.1](https://github.com/monkescience/yeet/compare/v0.13.0...v0.13.1) (2026-08-10)
 
 ### Features
