@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-const markdownFenceSize = 3
+const (
+	markdownFenceSize        = 3
+	markdownHeadingMaxIndent = 3
+)
 
 // ParseEntry reads a rendered changelog entry back into structure. It is the
 // one seam foreign text enters: an entry read off a release branch, written by
@@ -33,9 +36,13 @@ func ParseEntry(text string) Entry {
 
 func parseEntryHeading(lines []string) (Entry, int) {
 	for idx, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
+		}
+
+		trimmed, validIndent := trimHeadingIndent(line)
+		if !validIndent {
+			return Entry{}, idx
 		}
 
 		heading, isEntryHeading := strings.CutPrefix(trimmed, "## ")
@@ -129,12 +136,26 @@ func findHeadingStarts(lines []string, prefix string) []int {
 			continue
 		}
 
-		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+		trimmed, validIndent := trimHeadingIndent(line)
+		if validIndent && strings.HasPrefix(trimmed, prefix) {
 			starts = append(starts, idx)
 		}
 	}
 
 	return starts
+}
+
+func trimHeadingIndent(line string) (string, bool) {
+	indent := 0
+	for indent < len(line) && line[indent] == ' ' {
+		indent++
+	}
+
+	if indent > markdownHeadingMaxIndent || (indent < len(line) && line[indent] == '\t') {
+		return "", false
+	}
+
+	return line[indent:], true
 }
 
 func markdownFence(line string) (byte, int, string, bool) {

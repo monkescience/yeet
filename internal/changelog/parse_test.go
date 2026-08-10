@@ -56,6 +56,39 @@ func TestParseEntry(t *testing.T) {
 		testastic.Equal(t, "Features", entry.Sections[0].Heading)
 	})
 
+	t.Run("keeps indented code headings as content", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release entry containing heading-shaped lines in indented code
+		text := "## v1.2.3 (2026-03-21)\n\n" +
+			"    ### Migration Notes\n" +
+			"\t### Deployment Notes\n\n" +
+			"### Bug Fixes\n\n- patch issue (abc1234)\n"
+
+		// when: parsing the entry
+		entry := changelog.ParseEntry(text)
+
+		// then: only the CommonMark heading starts a section
+		testastic.SliceEqual(t, []string{"    ### Migration Notes", "\t### Deployment Notes"}, entry.Intro)
+		testastic.Equal(t, 1, len(entry.Sections))
+		testastic.Equal(t, "Bug Fixes", entry.Sections[0].Heading)
+	})
+
+	t.Run("does not read an indented code line as the entry heading", func(t *testing.T) {
+		t.Parallel()
+
+		// given: heading-shaped indented code before a real section
+		text := "    ## v1.2.3 (2026-03-21)\n\n### Bug Fixes\n\n- patch issue (abc1234)\n"
+
+		// when: parsing the text
+		entry := changelog.ParseEntry(text)
+
+		// then: the code stays in the intro and no release version is inferred
+		testastic.Equal(t, "", entry.Version)
+		testastic.SliceEqual(t, []string{"    ## v1.2.3 (2026-03-21)"}, entry.Intro)
+		testastic.Equal(t, 1, len(entry.Sections))
+	})
+
 	t.Run("round-trips a rendered entry", func(t *testing.T) {
 		t.Parallel()
 

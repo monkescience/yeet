@@ -49,3 +49,29 @@ func TestEntryByTagIgnoresFencedHeadings(t *testing.T) {
 		testastic.Equal(t, "## v1.2.3 (2026-08-10)\n\nReal release notes.", entry)
 	})
 }
+
+func TestEntryByTagIgnoresIndentedCodeHeadings(t *testing.T) {
+	t.Parallel()
+
+	// given: a changelog containing matching and boundary-shaped lines in indented code
+	document := "# Changelog\n\n" +
+		"    ## v1.2.3 (example)\n" +
+		"\t## v1.2.3 (tabbed example)\n\n" +
+		"## v1.2.3 (2026-08-10)\n\n" +
+		"Before the example.\n\n" +
+		"    ## Example\n" +
+		"\t## Tabbed example\n\n" +
+		"After the example.\n\n" +
+		"## v1.2.2 (2026-08-09)\n\nPrevious release.\n"
+
+	// when: extracting the release entry
+	entry, err := changelog.EntryByTag(document, "v1.2.3")
+
+	// then: indented code neither matches nor truncates the release
+	testastic.NoError(t, err)
+	testastic.Equal(
+		t,
+		"## v1.2.3 (2026-08-10)\n\nBefore the example.\n\n    ## Example\n\t## Tabbed example\n\nAfter the example.",
+		entry,
+	)
+}
