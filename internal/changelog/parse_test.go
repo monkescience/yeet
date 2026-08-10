@@ -1,6 +1,8 @@
 package changelog_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -178,6 +180,58 @@ func TestParseEntry(t *testing.T) {
 		testastic.Equal(t, "", entry.Version)
 		testastic.Equal(t, 1, len(entry.Sections))
 		testastic.Equal(t, "Features", entry.Sections[0].Heading)
+	})
+
+	t.Run("ignores headings nested in blockquotes and lists", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an entry with heading-shaped content inside Markdown containers
+		text := "## v1.2.3 (2026-03-21)\n\n" +
+			"> ### Quoted Notes\n> Keep quoted.\n\n" +
+			"- item\n  ### Listed Notes\n  Keep listed.\n\n" +
+			"### Bug Fixes\n\n- patch issue (abc1234)\n"
+
+		// when: parsing the entry
+		entry := changelog.ParseEntry(text)
+
+		// then: only the document-level heading starts a section
+		testastic.SliceEqual(
+			t,
+			[]string{
+				"> ### Quoted Notes",
+				"> Keep quoted.",
+				"",
+				"- item",
+				"  ### Listed Notes",
+				"  Keep listed.",
+			},
+			entry.Intro,
+		)
+		testastic.Equal(t, 1, len(entry.Sections))
+		testastic.Equal(t, "Bug Fixes", entry.Sections[0].Heading)
+	})
+
+	t.Run("recognizes zero through three leading spaces", func(t *testing.T) {
+		t.Parallel()
+
+		for indent := range 4 {
+			t.Run(fmt.Sprintf("indent %d", indent), func(t *testing.T) {
+				t.Parallel()
+
+				// given: an ATX entry and section heading with valid CommonMark indentation
+				spaces := strings.Repeat(" ", indent)
+				text := spaces + "## v1.2.3 (2026-03-21)\n\n" +
+					spaces + "### Café Notes\n\n- preserve Unicode\n"
+
+				// when: parsing the entry
+				entry := changelog.ParseEntry(text)
+
+				// then: both headings remain structural and their text stays exact
+				testastic.Equal(t, "v1.2.3", entry.Version)
+				testastic.Equal(t, 1, len(entry.Sections))
+				testastic.Equal(t, "Café Notes", entry.Sections[0].Heading)
+			})
+		}
 	})
 }
 

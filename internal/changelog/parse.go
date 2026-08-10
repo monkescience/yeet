@@ -5,11 +5,6 @@ import (
 	"time"
 )
 
-const (
-	markdownFenceSize        = 3
-	markdownHeadingMaxIndent = 3
-)
-
 // ParseEntry reads a rendered changelog entry back into structure. It is the
 // one seam foreign text enters: an entry read off a release branch, written by
 // an older version of yeet, hand-edited, or imported from another tool.
@@ -17,11 +12,18 @@ const (
 // Freeform text before the first level-3 section is recovered as the intro.
 // Level-3 headings inside fenced code blocks remain part of that freeform text.
 func ParseEntry(text string) Entry {
-	lines := splitLines(text)
+	document := newMarkdownIndex(text)
+	lines := document.lines
 
-	entry, bodyStart := parseEntryHeading(lines)
+	entry, bodyStart := parseEntryHeading(document)
 	body := lines[bodyStart:]
-	sectionStarts := findSectionStarts(body)
+	sectionStarts := make([]int, 0)
+
+	for _, heading := range document.headingsAtLevel(sectionHeadingLevel) {
+		if heading.line >= bodyStart {
+			sectionStarts = append(sectionStarts, heading.line-bodyStart)
+		}
+	}
 
 	introEnd := len(body)
 	if len(sectionStarts) > 0 {
@@ -34,29 +36,24 @@ func ParseEntry(text string) Entry {
 	return entry
 }
 
-func parseEntryHeading(lines []string) (Entry, int) {
-	for idx, line := range lines {
+func parseEntryHeading(document markdownIndex) (Entry, int) {
+	for idx, line := range document.lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		trimmed, validIndent := trimHeadingIndent(line)
-		if !validIndent {
-			return Entry{}, idx
-		}
-
-		heading, isEntryHeading := strings.CutPrefix(trimmed, "## ")
-		if !isEntryHeading {
+		headings := document.headingsAtLevel(releaseHeadingLevel)
+		if len(headings) == 0 || headings[0].line != idx {
 			return Entry{}, idx
 		}
 
 		entry := Entry{}
-		parseHeadingFields(strings.TrimSpace(heading), &entry)
+		parseHeadingFields(strings.TrimSpace(headings[0].text), &entry)
 
 		return entry, idx + 1
 	}
 
-	return Entry{}, len(lines)
+	return Entry{}, len(document.lines)
 }
 
 func parseHeadingFields(heading string, entry *Entry) {
@@ -105,79 +102,6 @@ func parseLinkedHeading(heading string) (string, string, string, bool) {
 	return version, compareURL, strings.TrimSpace(remaining), true
 }
 
-func findSectionStarts(lines []string) []int {
-	return findHeadingStarts(lines, "### ")
-}
-
-func findEntryStarts(lines []string) []int {
-	return findHeadingStarts(lines, "## ")
-}
-
-func findHeadingStarts(lines []string, prefix string) []int {
-	starts := make([]int, 0)
-	fenceMarker := byte(0)
-	fenceSize := 0
-
-	for idx, line := range lines {
-		marker, size, rest, isFence := markdownFence(line)
-		if fenceMarker != 0 {
-			if isFence && marker == fenceMarker && size >= fenceSize && strings.TrimSpace(rest) == "" {
-				fenceMarker = 0
-				fenceSize = 0
-			}
-
-			continue
-		}
-
-		if isFence {
-			fenceMarker = marker
-			fenceSize = size
-
-			continue
-		}
-
-		trimmed, validIndent := trimHeadingIndent(line)
-		if validIndent && strings.HasPrefix(trimmed, prefix) {
-			starts = append(starts, idx)
-		}
-	}
-
-	return starts
-}
-
-func trimHeadingIndent(line string) (string, bool) {
-	indent := 0
-	for indent < len(line) && line[indent] == ' ' {
-		indent++
-	}
-
-	if indent > markdownHeadingMaxIndent || (indent < len(line) && line[indent] == '\t') {
-		return "", false
-	}
-
-	return line[indent:], true
-}
-
-func markdownFence(line string) (byte, int, string, bool) {
-	trimmed := strings.TrimLeft(line, " \t")
-	if trimmed == "" || (trimmed[0] != '`' && trimmed[0] != '~') {
-		return 0, 0, "", false
-	}
-
-	marker := trimmed[0]
-
-	size := 0
-	for size < len(trimmed) && trimmed[size] == marker {
-		size++
-	}
-
-	if size < markdownFenceSize {
-		return 0, 0, "", false
-	}
-
-	return marker, size, trimmed[size:], true
-}
-
 func parseSections(lines []string, starts []int) []Section {
 	sections := make([]Section, 0, len(starts))
 
@@ -187,8 +111,7 @@ func parseSections(lines []string, starts []int) []Section {
 			end = starts[idx+1]
 		}
 
-		trimmed, _ := trimHeadingIndent(lines[start])
-		heading := strings.TrimPrefix(trimmed, "### ")
+		heading, _ := atxHeadingText(lines[start], sectionHeadingLevel)
 
 		sections = append(sections, Section{
 			Heading: trimClosingHeadingHashes(heading),
@@ -233,11 +156,6 @@ func trimBlankEdges(lines []string) []string {
 	}
 
 	return append([]string(nil), lines[first:last]...)
-}
-
-// splitLines normalizes CRLF to LF and splits the text into lines.
-func splitLines(text string) []string {
-	return strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 }
 
 // bracketTag extracts the tag from a "[tag]..." prefix, returning the tag and

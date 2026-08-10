@@ -14,14 +14,14 @@ var ErrEntryNotFound = errors.New("changelog entry not found")
 // its consumers publish it as release notes, and re-rendering it would reformat
 // entries this process did not write.
 func EntryByTag(document, tag string) (string, error) {
-	lines := splitLines(document)
+	index := newMarkdownIndex(document)
 
-	start, end := entryHeadingRange(lines, tag)
+	start, end := entryHeadingRange(index, tag)
 	if start == -1 {
 		return "", fmt.Errorf("%w: %s", ErrEntryNotFound, tag)
 	}
 
-	entry := strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+	entry := strings.TrimSpace(strings.Join(index.lines[start:end], "\n"))
 	if entry == "" {
 		return "", fmt.Errorf("%w: %s", ErrEntryNotFound, tag)
 	}
@@ -29,11 +29,11 @@ func EntryByTag(document, tag string) (string, error) {
 	return entry, nil
 }
 
-func entryHeadingRange(lines []string, tag string) (int, int) {
-	starts := findEntryStarts(lines)
+func entryHeadingRange(document markdownIndex, tag string) (int, int) {
+	headings := document.headingsAtLevel(releaseHeadingLevel)
 
-	for pos, start := range starts {
-		entryTag, ok := headingTag(strings.TrimSpace(lines[start]))
+	for pos, heading := range headings {
+		entryTag, ok := headingTag(heading.text)
 		if !ok {
 			continue
 		}
@@ -42,19 +42,19 @@ func entryHeadingRange(lines []string, tag string) (int, int) {
 			continue
 		}
 
-		end := len(lines)
-		if pos+1 < len(starts) {
-			end = starts[pos+1]
+		end := len(document.lines)
+		if pos+1 < len(headings) {
+			end = headings[pos+1].line
 		}
 
-		return start, end
+		return heading.line, end
 	}
 
 	return -1, -1
 }
 
-func headingTag(line string) (string, bool) {
-	rest := strings.TrimSpace(strings.TrimPrefix(line, "## "))
+func headingTag(heading string) (string, bool) {
+	rest := strings.TrimSpace(heading)
 	if rest == "" {
 		return "", false
 	}

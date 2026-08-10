@@ -90,8 +90,8 @@ func Prepend(existing, newEntry string) string {
 	}
 
 	releaseStart := -1
-	if starts := findEntryStarts(splitLines(existing)); len(starts) > 0 {
-		releaseStart = lineStartOffset(existing, starts[0])
+	if headings := newMarkdownIndex(existing).headingsAtLevel(releaseHeadingLevel); len(headings) > 0 {
+		releaseStart = lineStartOffset(existing, headings[0].line)
 	}
 
 	if strings.HasPrefix(existing, "# ") {
