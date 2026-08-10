@@ -80,6 +80,21 @@ func TestSchemaTightenings(t *testing.T) {
 	}
 }
 
+func TestSchemaRejectsDuplicateChangelogIncludes(t *testing.T) {
+	t.Parallel()
+
+	// given: a YAML config with the same changelog commit type twice
+	input := "changelog:\n  include:\n    - fix\n    - fix\n" + schemaTestTarget
+
+	// when: parsing the config
+	_, err := parse([]byte(input))
+
+	// then: schema validation rejects the duplicate by name
+	testastic.Error(t, err)
+	testastic.ErrorIs(t, err, ErrInvalidConfig)
+	testastic.Equal(t, "invalid config: changelog.include contains duplicate \"fix\"", err.Error())
+}
+
 func TestSchemaKeepsGoOwnedRules(t *testing.T) {
 	t.Parallel()
 

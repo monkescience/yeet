@@ -68,6 +68,13 @@ func changelogRules(prefix []string) []schemaRule {
 		emptyRule(append(slices.Clone(changelog), "file"), keywordMinLength),
 		emptyRule(include, keywordMinItems),
 		containerRule(append(slices.Clone(include), anySegment), keywordMinLength, "must not contain empty strings"),
+		{
+			path:    slices.Clone(include),
+			keyword: keywordUniqueItems,
+			message: func(found violation) string {
+				return fmt.Sprintf("%s contains duplicate %q", dotted(found.location), duplicateValue(found))
+			},
+		},
 		keysRule(append(slices.Clone(changelog), "sections")),
 		indexedRule(append(slices.Clone(pattern), "pattern"), keywordMinLength, "must not be empty"),
 		indexedRule(append(slices.Clone(pattern), "pattern"), keywordRequired, "must not be empty"),

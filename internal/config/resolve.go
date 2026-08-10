@@ -165,6 +165,20 @@ func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
 		return fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
 
+	seen := make(map[string]struct{}, len(changelog.Include))
+	for _, commitType := range changelog.Include {
+		if _, exists := seen[commitType]; exists {
+			return fmt.Errorf(
+				"%w: targets.%s.changelog.include contains duplicate %q",
+				ErrInvalidConfig,
+				targetID,
+				commitType,
+			)
+		}
+
+		seen[commitType] = struct{}{}
+	}
+
 	return validateReferencesConfig("targets."+targetID+".changelog.references", changelog.References)
 }
 

@@ -441,6 +441,7 @@
           "type": "array",
           "description": "Conventional commit types to include in changelog.",
           "minItems": 1,
+          "uniqueItems": true,
           "items": {
             "type": "string",
             "minLength": 1

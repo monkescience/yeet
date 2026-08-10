@@ -199,6 +199,29 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
+	t.Run("duplicate changelog include fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target inheriting duplicate changelog include entries
+		cfg := config.Default()
+		cfg.Changelog.Include = []string{"fix", "fix"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the duplicate before release planning
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.include contains duplicate \"fix\"",
+			err.Error(),
+		)
+	})
+
 	t.Run("empty changelog file fails", func(t *testing.T) {
 		t.Parallel()
 
