@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/google/go-github/v89/github"
+	"github.com/google/go-github/v90/github"
 	"github.com/monkescience/yeet/internal/forge"
 )
 

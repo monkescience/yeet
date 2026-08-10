@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	githubapi "github.com/google/go-github/v89/github"
+	githubapi "github.com/google/go-github/v90/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/forge"
