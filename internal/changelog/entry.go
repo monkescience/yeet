@@ -89,9 +89,9 @@ func Prepend(existing, newEntry string) string {
 		return header + entry + "\n"
 	}
 
-	releaseStart := strings.Index(existing, "\n## ")
-	if releaseStart >= 0 {
-		releaseStart++
+	releaseStart := -1
+	if starts := findEntryStarts(splitLines(existing)); len(starts) > 0 {
+		releaseStart = lineStartOffset(existing, starts[0])
 	}
 
 	if strings.HasPrefix(existing, "# ") {
@@ -106,6 +106,21 @@ func Prepend(existing, newEntry string) string {
 	}
 
 	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")
+}
+
+func lineStartOffset(text string, line int) int {
+	offset := 0
+
+	for range line {
+		newline := strings.IndexByte(text[offset:], '\n')
+		if newline == -1 {
+			return len(text)
+		}
+
+		offset += newline + 1
+	}
+
+	return offset
 }
 
 func renderSections(sections []Section) string {

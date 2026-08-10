@@ -817,6 +817,28 @@ func TestPrepend(t *testing.T) {
 			result,
 		)
 	})
+
+	t.Run("preserves fenced headings in the preamble", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog preamble containing a level-two heading in a code fence
+		existing := "# Changelog\n\n" +
+			"Example format:\n\n" +
+			"```markdown\n## v0.0.0 (example)\nExample notes.\n```\n\n" +
+			"## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: the complete preamble remains above the new release
+		testastic.Equal(
+			t,
+			"# Changelog\n\nExample format:\n\n```markdown\n## v0.0.0 (example)\nExample notes.\n```\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
 }
 
 func TestGenerateSanitizesCommitText(t *testing.T) {

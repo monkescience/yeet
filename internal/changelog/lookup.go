@@ -16,19 +16,9 @@ var ErrEntryNotFound = errors.New("changelog entry not found")
 func EntryByTag(document, tag string) (string, error) {
 	lines := splitLines(document)
 
-	start := entryHeadingIndex(lines, tag)
+	start, end := entryHeadingRange(lines, tag)
 	if start == -1 {
 		return "", fmt.Errorf("%w: %s", ErrEntryNotFound, tag)
-	}
-
-	end := len(lines)
-
-	for idx := start + 1; idx < len(lines); idx++ {
-		if strings.HasPrefix(strings.TrimSpace(lines[idx]), "## ") {
-			end = idx
-
-			break
-		}
 	}
 
 	entry := strings.TrimSpace(strings.Join(lines[start:end], "\n"))
@@ -39,24 +29,28 @@ func EntryByTag(document, tag string) (string, error) {
 	return entry, nil
 }
 
-func entryHeadingIndex(lines []string, tag string) int {
-	for idx, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "## ") {
-			continue
-		}
+func entryHeadingRange(lines []string, tag string) (int, int) {
+	starts := findEntryStarts(lines)
 
-		entryTag, ok := headingTag(trimmed)
+	for pos, start := range starts {
+		entryTag, ok := headingTag(strings.TrimSpace(lines[start]))
 		if !ok {
 			continue
 		}
 
-		if entryTag == tag {
-			return idx
+		if entryTag != tag {
+			continue
 		}
+
+		end := len(lines)
+		if pos+1 < len(starts) {
+			end = starts[pos+1]
+		}
+
+		return start, end
 	}
 
-	return -1
+	return -1, -1
 }
 
 func headingTag(line string) (string, bool) {

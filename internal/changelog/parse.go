@@ -99,6 +99,14 @@ func parseLinkedHeading(heading string) (string, string, string, bool) {
 }
 
 func findSectionStarts(lines []string) []int {
+	return findHeadingStarts(lines, "### ")
+}
+
+func findEntryStarts(lines []string) []int {
+	return findHeadingStarts(lines, "## ")
+}
+
+func findHeadingStarts(lines []string, prefix string) []int {
 	starts := make([]int, 0)
 	fenceMarker := byte(0)
 	fenceSize := 0
@@ -121,7 +129,7 @@ func findSectionStarts(lines []string) []int {
 			continue
 		}
 
-		if strings.HasPrefix(strings.TrimSpace(line), "### ") {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
 			starts = append(starts, idx)
 		}
 	}
