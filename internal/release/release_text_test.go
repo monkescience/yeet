@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/monkescience/testastic"
 	changelogpkg "github.com/monkescience/yeet/internal/changelog"
@@ -26,9 +27,10 @@ func TestReleasePRBody(t *testing.T) {
 		)
 
 		// when: building PR body
-		body, truncated := r.core.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.core.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: changelog is wrapped by default header, manifest, and footer notes
+		testastic.NoError(t, err)
 		testastic.False(t, truncated)
 		testastic.AssertFile(
 			t,
@@ -48,9 +50,10 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body, truncated := r.core.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.core.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: body contains header, changelog, manifest, and footer in order
+		testastic.NoError(t, err)
 		testastic.False(t, truncated)
 		testastic.AssertFile(
 			t,
@@ -70,9 +73,10 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body, truncated := r.core.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.core.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: body keeps only changelog and manifest, no wrapper text
+		testastic.NoError(t, err)
 		testastic.False(t, truncated)
 		testastic.AssertFile(
 			t,
@@ -89,13 +93,14 @@ func TestReleasePRBody(t *testing.T) {
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
 
 		// when: building the body with a generous limit
-		body, truncated := r.core.releasePRBody(readTestFile(
+		body, truncated, err := r.core.releasePRBody(readTestFile(
 			t,
 			"testdata/release_p_r_body/body_within_limit_is_not_truncated/"+
 				"changelog.input.md",
 		), marker, 4000)
 
 		// then: nothing is truncated and the marker survives
+		testastic.NoError(t, err)
 		testastic.False(t, truncated)
 		testastic.AssertFile(
 			t,
@@ -125,11 +130,12 @@ func TestReleasePRBody(t *testing.T) {
 		}
 
 		// when: building the body with the Azure DevOps limit
-		body, omitted := r.core.releasePRBody(changelog.String(), marker, 4000)
+		body, omitted, err := r.core.releasePRBody(changelog.String(), marker, 4000)
 
 		// then: the body fits, no changelog lines survive, and the wrapper text plus notice remain
+		testastic.NoError(t, err)
 		testastic.True(t, omitted)
-		testastic.True(t, len(body) <= 4000)
+		testastic.True(t, utf8.RuneCountInString(body) <= 4000)
 		testastic.AssertFile(
 			t,
 			"testdata/release_p_r_body/"+
@@ -140,10 +146,10 @@ func TestReleasePRBody(t *testing.T) {
 		assertSingleManifestTag(t, body, "v1.2.4")
 	})
 
-	t.Run("body one byte over the limit drops the changelog entirely", func(t *testing.T) {
+	t.Run("body one character over the limit drops the changelog entirely", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a config with no header or footer and a short changelog
+		// given: a config with no header or footer and a changelog longer than the omission notice
 		cfg := config.Default()
 		cfg.Release.PRBodyHeader = ""
 		cfg.Release.PRBodyFooter = ""
@@ -155,15 +161,16 @@ func TestReleasePRBody(t *testing.T) {
 			"testdata/release_p_r_body/"+
 				"body_one_byte_over_the_limit_drops_the_changelog_entirely/"+
 				"changelog.input.md",
-		)
+		) + strings.Repeat("x", utf8.RuneCountInString(prBodyOmittedNotice))
 
 		full := changelog + "\n\n" + marker
-		limit := len(full) - 1
+		limit := utf8.RuneCountInString(full) - 1
 
-		// when: building the body with a limit one byte under the full body
-		body, omitted := r.core.releasePRBody(changelog, marker, limit)
+		// when: building the body with a limit one character under the full body
+		body, omitted, err := r.core.releasePRBody(changelog, marker, limit)
 
 		// then: the changelog is dropped wholesale, the notice and marker remain
+		testastic.NoError(t, err)
 		testastic.True(t, omitted)
 		testastic.AssertFile(
 			t,
@@ -171,6 +178,49 @@ func TestReleasePRBody(t *testing.T) {
 			body,
 		)
 		assertSingleManifestTag(t, body, "v1.2.4")
+	})
+
+	t.Run("body limit counts Unicode characters", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a body whose byte length exceeds its character length
+		cfg := config.Default()
+		cfg.Release.PRBodyHeader = ""
+		cfg.Release.PRBodyFooter = ""
+
+		r := newTestReleaser(t, cfg, newProviderStub())
+		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
+		changelog := strings.Repeat("é", 2000)
+		fullBody := joinPRBodyParts(changelog, marker)
+		limit := utf8.RuneCountInString(fullBody)
+
+		// when: building the body at its exact character limit
+		body, omitted, err := r.core.releasePRBody(changelog, marker, limit)
+
+		// then: the changelog is preserved because the character limit is not exceeded
+		testastic.NoError(t, err)
+		testastic.False(t, omitted)
+		testastic.Equal(t, fullBody, body)
+	})
+
+	t.Run("fallback cannot exceed the body limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: configured wrapper text that cannot fit beside the required manifest
+		cfg := config.Default()
+		cfg.Release.PRBodyHeader = strings.Repeat("h", 4001)
+		cfg.Release.PRBodyFooter = ""
+
+		r := newTestReleaser(t, cfg, newProviderStub())
+		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
+
+		// when: building the body at the provider limit
+		body, omitted, err := r.core.releasePRBody("release notes", marker, 4000)
+
+		// then: validation rejects the impossible fallback without returning an oversized body
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.False(t, omitted)
+		testastic.Equal(t, "", body)
 	})
 }
 

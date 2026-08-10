@@ -42,6 +42,32 @@ func TestReleaseRefreshWritesBranchFilesBeforeTheManifest(t *testing.T) {
 	testastic.SliceEqual(t, []string{"UpdateFiles", "UpdateReleasePR"}, stub.sequence.calls)
 }
 
+func TestReleaseRejectsOversizedPRBodyBeforeUpdatingFiles(t *testing.T) {
+	t.Parallel()
+
+	// given: provider limits that the configured header cannot satisfy
+	cfg := config.Default()
+	cfg.Release.PRBodyHeader = strings.Repeat("h", 4001)
+	cfg.Release.PRBodyFooter = ""
+
+	stub := newProviderStub()
+	stub.maxPRBodyLength = 4000
+	stub.commits = []history.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "fix: patch bug",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: creating a release pull request
+	_, err := r.Release(t.Context(), false)
+
+	// then: validation fails before the release branch or pull request is created
+	testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+	testastic.Equal(t, 0, stub.updateFilesCalls)
+	testastic.Equal(t, 0, stub.createPRCalls)
+}
+
 func TestPreserveTargetChangelogEdits(t *testing.T) {
 	t.Parallel()
 

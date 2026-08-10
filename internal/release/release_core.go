@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
@@ -64,11 +65,15 @@ func (c *releaseCore) releasePROptions(
 	changelogBody := c.combinedPRChangelog(plans)
 	limit := c.effectivePRBodyLimit(providerBodyLimit)
 
-	body, omitted := c.releasePRBody(changelogBody, manifestMarker, limit)
+	body, omitted, err := c.releasePRBody(changelogBody, manifestMarker, limit)
+	if err != nil {
+		return forge.ReleasePROptions{}, err
+	}
+
 	if omitted {
 		slog.WarnContext(ctx, "omitted release notes from PR body to fit provider limit",
 			slog.Int("limit", limit),
-			slog.Int("body_length", len(body)),
+			slog.Int("body_length", utf8.RuneCountInString(body)),
 		)
 	}
 
@@ -141,18 +146,31 @@ func (c *releaseCore) combinedPRChangelog(plans []TargetPlan) string {
 	return body.String()
 }
 
-func (c *releaseCore) releasePRBody(changelogBody, manifestMarker string, limit int) (string, bool) {
+func (c *releaseCore) releasePRBody(
+	changelogBody, manifestMarker string,
+	limit int,
+) (string, bool, error) {
 	header := strings.TrimSpace(c.cfg.Release.PRBodyHeader)
 	notes := strings.TrimSpace(changelogBody)
 	marker := strings.TrimSpace(manifestMarker)
 	footer := strings.TrimSpace(c.cfg.Release.PRBodyFooter)
 
 	body := joinPRBodyParts(header, notes, marker, footer)
-	if limit <= 0 || len(body) <= limit {
-		return body, false
+	if limit <= 0 || utf8.RuneCountInString(body) <= limit {
+		return body, false, nil
 	}
 
-	return joinPRBodyParts(header, prBodyOmittedNotice, marker, footer), true
+	body = joinPRBodyParts(header, prBodyOmittedNotice, marker, footer)
+	if bodyLength := utf8.RuneCountInString(body); bodyLength > limit {
+		return "", false, fmt.Errorf(
+			"%w: release PR body requires %d characters after omitting release notes, limit is %d",
+			config.ErrInvalidConfig,
+			bodyLength,
+			limit,
+		)
+	}
+
+	return body, true, nil
 }
 
 func joinPRBodyParts(parts ...string) string {
