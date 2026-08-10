@@ -461,10 +461,9 @@
             "minLength": 1
           },
           "additionalProperties": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "default": {
             "breaking": "Breaking Changes",

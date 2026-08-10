@@ -179,6 +179,17 @@ func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
 		seen[commitType] = struct{}{}
 	}
 
+	for _, commitType := range slices.Sorted(maps.Keys(changelog.Sections)) {
+		if strings.TrimSpace(changelog.Sections[commitType]) == "" {
+			return fmt.Errorf(
+				"%w: targets.%s.changelog.sections.%s must not be blank",
+				ErrInvalidConfig,
+				targetID,
+				commitType,
+			)
+		}
+	}
+
 	return validateReferencesConfig("targets."+targetID+".changelog.references", changelog.References)
 }
 

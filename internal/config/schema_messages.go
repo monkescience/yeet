@@ -63,6 +63,7 @@ func changelogRules(prefix []string) []schemaRule {
 	references := append(slices.Clone(changelog), "references")
 	pattern := append(slices.Clone(references), "patterns", anySegment)
 	include := append(slices.Clone(changelog), "include")
+	section := append(slices.Clone(changelog), "sections", anySegment)
 
 	return []schemaRule{
 		emptyRule(append(slices.Clone(changelog), "file"), keywordMinLength),
@@ -76,6 +77,15 @@ func changelogRules(prefix []string) []schemaRule {
 			},
 		},
 		keysRule(append(slices.Clone(changelog), "sections")),
+		blankRule(section, keywordMinLength),
+		blankRule(section, keywordPattern),
+		{
+			path:    slices.Clone(section),
+			keyword: keywordType,
+			message: func(found violation) string {
+				return dotted(found.location) + " must be a string"
+			},
+		},
 		indexedRule(append(slices.Clone(pattern), "pattern"), keywordMinLength, "must not be empty"),
 		indexedRule(append(slices.Clone(pattern), "pattern"), keywordRequired, "must not be empty"),
 		indexedRule(append(slices.Clone(pattern), "url"), keywordType, "must be a string"),

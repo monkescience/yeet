@@ -51,6 +51,27 @@ func TestSchemaTightenings(t *testing.T) {
 			want:  "invalid config: changelog.sections keys must not be empty",
 		},
 		{
+			name:  "changelog section headings must not be empty",
+			input: "changelog:\n  sections:\n    fix: \"\"\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must not be blank",
+		},
+		{
+			name:  "changelog section headings must not be whitespace only",
+			input: "changelog:\n  sections:\n    fix: \"   \"\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must not be blank",
+		},
+		{
+			name:  "changelog section headings must be strings",
+			input: "changelog:\n  sections:\n    fix: null\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must be a string",
+		},
+		{
+			name: "target changelog section headings must not be blank",
+			input: "targets:\n  app:\n    type: path\n    path: .\n    tag_prefix: v\n" +
+				"    changelog:\n      sections:\n        fix: \"  \"\n",
+			want: "invalid config: targets.app.changelog.sections.fix must not be blank",
+		},
+		{
 			name:  "reference footer keys must not be empty",
 			input: "changelog:\n  references:\n    footers:\n      \"\": https://tracker/{value}\n" + schemaTestTarget,
 			want:  "invalid config: changelog.references.footers keys must not be empty",

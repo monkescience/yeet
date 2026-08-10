@@ -222,6 +222,56 @@ func TestValidate(t *testing.T) {
 		)
 	})
 
+	t.Run("target inherits blank changelog section heading fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target inheriting a blank top-level changelog section heading
+		cfg := config.Default()
+		cfg.Changelog.Sections["fix"] = "   "
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the effective heading before release planning
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.sections.fix must not be blank",
+			err.Error(),
+		)
+	})
+
+	t.Run("target blank changelog section heading override fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target overriding an inherited changelog section with a blank heading
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{Sections: map[string]string{"fix": ""}},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the effective heading before release planning
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.sections.fix must not be blank",
+			err.Error(),
+		)
+	})
+
 	t.Run("empty changelog file fails", func(t *testing.T) {
 		t.Parallel()
 
