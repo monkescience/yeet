@@ -48,6 +48,25 @@ func TestMerge(t *testing.T) {
 		testastic.SliceEqual(t, []string{"- patch issue (abc1234)"}, merged.Sections[0].Lines)
 	})
 
+	t.Run("skips a regenerated section with optional closing hashes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing generated section written with a valid closing hash sequence
+		generated := generatedEntry(changelog.Section{
+			Heading: "Bug Fixes",
+			Lines:   []string{"- patch issue (abc1234)"},
+		})
+		foreign := changelog.ParseEntry("## v1.2.4 (2026-03-01)\n\n" +
+			"### Bug Fixes ###\n\n- stale edited note (abc1234)\n")
+
+		// when: merging
+		merged := changelog.Merge(generated, foreign)
+
+		// then: the equivalent owned heading is regenerated without a stale duplicate
+		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(merged.Sections))
+		testastic.SliceEqual(t, []string{"- patch issue (abc1234)"}, merged.Sections[0].Lines)
+	})
+
 	t.Run("skips an owned section absent from this entry", func(t *testing.T) {
 		t.Parallel()
 

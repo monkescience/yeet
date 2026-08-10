@@ -187,15 +187,34 @@ func parseSections(lines []string, starts []int) []Section {
 			end = starts[idx+1]
 		}
 
-		heading := strings.TrimPrefix(strings.TrimSpace(lines[start]), "### ")
+		trimmed, _ := trimHeadingIndent(lines[start])
+		heading := strings.TrimPrefix(trimmed, "### ")
 
 		sections = append(sections, Section{
-			Heading: strings.TrimSpace(heading),
+			Heading: trimClosingHeadingHashes(heading),
 			Lines:   trimBlankEdges(lines[start+1 : end]),
 		})
 	}
 
 	return sections
+}
+
+func trimClosingHeadingHashes(heading string) string {
+	trimmed := strings.TrimRight(heading, " \t")
+
+	hashStart := len(trimmed)
+	for hashStart > 0 && trimmed[hashStart-1] == '#' {
+		hashStart--
+	}
+
+	hasClosingSequence := hashStart < len(trimmed)
+
+	isDetached := hashStart == 0 || trimmed[hashStart-1] == ' ' || trimmed[hashStart-1] == '\t'
+	if !hasClosingSequence || !isDetached {
+		return strings.TrimSpace(heading)
+	}
+
+	return strings.TrimSpace(trimmed[:hashStart])
 }
 
 func trimBlankEdges(lines []string) []string {

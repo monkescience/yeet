@@ -123,6 +123,22 @@ func TestParseEntry(t *testing.T) {
 		testastic.SliceEqual(t, []string{"Run migrations.", "", "Then restart workers."}, entry.Sections[0].Lines)
 	})
 
+	t.Run("normalizes optional closing hashes in section headings", func(t *testing.T) {
+		t.Parallel()
+
+		// given: section headings with closing hashes and literal trailing hashes
+		text := "## v1.2.3 (2026-03-21)\n\n" +
+			"### Bug Fixes ###   \n\n- patch issue (abc1234)\n\n" +
+			"### C# Integration\n\n- support C# clients (def5678)\n\n" +
+			"### Release###\n\n- keep attached hashes literal (fed4321)\n"
+
+		// when: parsing the entry
+		entry := changelog.ParseEntry(text)
+
+		// then: only the whitespace-delimited closing sequence is removed
+		testastic.SliceEqual(t, []string{"Bug Fixes", "C# Integration", "Release###"}, sectionHeadings(entry.Sections))
+	})
+
 	t.Run("round-trips a freeform intro containing fenced headings", func(t *testing.T) {
 		t.Parallel()
 
