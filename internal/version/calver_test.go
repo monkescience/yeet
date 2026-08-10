@@ -346,6 +346,156 @@ func TestCalVerNext(t *testing.T) {
 		}
 	})
 
+	t.Run("calendar token order does not affect period comparison", func(t *testing.T) {
+		t.Parallel()
+
+		type comparisonCase struct {
+			name   string
+			future string
+			past   string
+		}
+
+		testCases := []struct {
+			name        string
+			format      string
+			wantNext    string
+			comparisons []comparisonCase
+		}{
+			{
+				name:     "year",
+				format:   "YYYY.MICRO",
+				wantNext: "2026.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "2027.5", past: "2025.7"},
+				},
+			},
+			{
+				name:     "year month",
+				format:   "YYYY.0M.MICRO",
+				wantNext: "2026.08.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "2027.01.5", past: "2025.12.7"},
+					{name: "month", future: "2026.09.5", past: "2026.07.7"},
+				},
+			},
+			{
+				name:     "month year",
+				format:   "0M.YYYY.MICRO",
+				wantNext: "08.2026.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.2027.5", past: "12.2025.7"},
+					{name: "month", future: "09.2026.5", past: "07.2026.7"},
+				},
+			},
+			{
+				name:     "year week",
+				format:   "YYYY.0W.MICRO",
+				wantNext: "2026.32.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "2027.01.5", past: "2025.53.7"},
+					{name: "week", future: "2026.33.5", past: "2026.31.7"},
+				},
+			},
+			{
+				name:     "week year",
+				format:   "0W.YYYY.MICRO",
+				wantNext: "32.2026.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.2027.5", past: "53.2025.7"},
+					{name: "week", future: "33.2026.5", past: "31.2026.7"},
+				},
+			},
+			{
+				name:     "year month day",
+				format:   "YYYY.0M.0D.MICRO",
+				wantNext: "2026.08.10.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "2027.01.01.5", past: "2025.12.31.7"},
+					{name: "month", future: "2026.09.01.5", past: "2026.07.31.7"},
+					{name: "day", future: "2026.08.11.5", past: "2026.08.09.7"},
+				},
+			},
+			{
+				name:     "year day month",
+				format:   "YYYY.0D.0M.MICRO",
+				wantNext: "2026.10.08.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "2027.01.01.5", past: "2025.31.12.7"},
+					{name: "month", future: "2026.01.09.5", past: "2026.31.07.7"},
+					{name: "day", future: "2026.11.08.5", past: "2026.09.08.7"},
+				},
+			},
+			{
+				name:     "month year day",
+				format:   "0M.YYYY.0D.MICRO",
+				wantNext: "08.2026.10.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.2027.01.5", past: "12.2025.31.7"},
+					{name: "month", future: "09.2026.01.5", past: "07.2026.31.7"},
+					{name: "day", future: "08.2026.11.5", past: "08.2026.09.7"},
+				},
+			},
+			{
+				name:     "month day year",
+				format:   "0M.0D.YYYY.MICRO",
+				wantNext: "08.10.2026.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.01.2027.5", past: "12.31.2025.7"},
+					{name: "month", future: "09.01.2026.5", past: "07.31.2026.7"},
+					{name: "day", future: "08.11.2026.5", past: "08.09.2026.7"},
+				},
+			},
+			{
+				name:     "day year month",
+				format:   "0D.YYYY.0M.MICRO",
+				wantNext: "10.2026.08.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.2027.01.5", past: "31.2025.12.7"},
+					{name: "month", future: "01.2026.09.5", past: "31.2026.07.7"},
+					{name: "day", future: "11.2026.08.5", past: "09.2026.08.7"},
+				},
+			},
+			{
+				name:     "day month year",
+				format:   "0D.0M.YYYY.MICRO",
+				wantNext: "10.08.2026.1",
+				comparisons: []comparisonCase{
+					{name: "year", future: "01.01.2027.5", past: "31.12.2025.7"},
+					{name: "month", future: "01.09.2026.5", past: "31.07.2026.7"},
+					{name: "day", future: "11.08.2026.5", past: "09.08.2026.7"},
+				},
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				cv := &version.CalVer{
+					Format: testCase.format,
+					Prefix: "v",
+					Now:    fixedDate(2026, time.August, 10),
+				}
+
+				for _, comparison := range testCase.comparisons {
+					t.Run(comparison.name, func(t *testing.T) {
+						t.Parallel()
+
+						// given: future and past values in one chronological component
+						// when: calculating the next version from each value
+						_, futureErr := cv.Next(comparison.future, commit.BumpPatch)
+						next, pastErr := cv.Next(comparison.past, commit.BumpPatch)
+
+						// then: chronological order wins independently of display order
+						testastic.ErrorIs(t, futureErr, version.ErrInvalidVersion)
+						testastic.NoError(t, pastErr)
+						testastic.Equal(t, testCase.wantNext, next)
+					})
+				}
+			})
+		}
+	})
+
 	t.Run("no bump returns same", func(t *testing.T) {
 		t.Parallel()
 

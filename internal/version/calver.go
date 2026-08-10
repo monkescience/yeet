@@ -80,7 +80,7 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", err
 	}
 
-	if !format.sameCalendarPeriod(parts, nowParts) && compareCalVerParts(format, nowParts, parts) < 0 {
+	if compareCalVerPeriods(format, parts, nowParts) > 0 {
 		return "", fmt.Errorf("%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
 	}
 
@@ -525,6 +525,26 @@ func (f calverFormat) sameCalendarPeriod(left, right calverParts) bool {
 	}
 
 	return true
+}
+
+func compareCalVerPeriods(format calverFormat, left, right calverParts) int {
+	if left.Year != right.Year {
+		return left.Year - right.Year
+	}
+
+	if format.hasMonth && left.Month != right.Month {
+		return left.Month - right.Month
+	}
+
+	if format.hasWeek && left.Week != right.Week {
+		return left.Week - right.Week
+	}
+
+	if format.hasDay && left.Day != right.Day {
+		return left.Day - right.Day
+	}
+
+	return 0
 }
 
 func compareCalVerParts(format calverFormat, left, right calverParts) int {
