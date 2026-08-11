@@ -420,6 +420,7 @@ func handleGitLabFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
 		testastic.Equal(t, "merged", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("target_branch"))
+		testastic.Equal(t, providerContractPendingBranch, r.URL.Query().Get("source_branch"))
 		writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr/prs.json")
 
 		return
@@ -462,6 +463,45 @@ func newGitLabContractLabelHandler(
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
 	})
+}
+
+func TestGitLabCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab label registry containing every managed label
+	lookups := make(map[string]int)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
+			name := decodedPathTail(t, r)
+			lookups[name]++
+			writeJSON(t, w, map[string]any{"name": name})
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+			writeJSON(t, w, map[string]any{"iid": 42})
+		default:
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+	labels := providerContractManagedLabels()
+
+	// when: validation, pending application, preflight, and tagged application share one provider
+	err := p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
+	testastic.NoError(t, err)
+	err = p.PreflightReleasePRTagging(context.Background(), labels.Tagged)
+	testastic.NoError(t, err)
+	err = p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhaseTagged)
+	testastic.NoError(t, err)
+
+	// then: each distinct successful definition is fetched once
+	testastic.Len(t, lookups, 5)
+
+	for _, count := range lookups {
+		testastic.Equal(t, 1, count)
+	}
 }
 
 func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -551,6 +591,39 @@ func handleGitLabCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	testastic.Equal(t, "release notes", request.Description)
 
 	writeJSONFixture(t, w, "contracts/gitlab/create_release/release.json")
+}
+
+func TestGitLabCreateReleaseRejectsConflictingCommit(t *testing.T) {
+	t.Parallel()
+
+	// given: GitLab creates a release for a pre-existing tag at another commit
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isGitLabCreateReleaseRequest(r) {
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+			return
+		}
+
+		writeJSON(t, w, map[string]any{
+			"tag_name": providerContractTag,
+			"commit":   map[string]any{"id": providerContractTagCommitSHA},
+		})
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: creating the release for the expected branch-head commit
+	release, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
+		TagName: providerContractTag,
+		Ref:     providerContractHeadSHA,
+		Name:    providerContractTag,
+		Body:    "release notes",
+	})
+
+	// then: the conflicting tag target is rejected
+	testastic.ErrorIs(t, err, forge.ErrReleaseTagMismatch)
+	testastic.True(t, release == nil)
 }
 
 func handleGitLabGetFileContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

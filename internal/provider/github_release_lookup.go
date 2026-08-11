@@ -35,20 +35,12 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 		slog.String("url", release.GetHTMLURL()),
 	)
 
-	return gitHubRelease(release), nil
-}
-
-func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
-	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
-	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return false, nil
-		}
-
-		return false, fmt.Errorf("get tag ref %q: %w", tag, err)
+	commitSHA, resolveErr := g.resolveCommitSHA(ctx, "tags/"+tag)
+	if resolveErr != nil && !errors.Is(resolveErr, forge.ErrRefNotFound) {
+		return nil, fmt.Errorf("resolve release tag %q: %w", tag, resolveErr)
 	}
 
-	return true, nil
+	return gitHubRelease(release, commitSHA), nil
 }
 
 func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
@@ -88,12 +80,11 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 		slog.String("url", rel.GetHTMLURL()),
 	)
 
-	return gitHubRelease(rel), nil
+	return gitHubRelease(rel, targetCommitish), nil
 }
 
 // Creates an annotated tag carrying the release body so the changelog lives in
-// portable git data, mirroring release-please behavior. Idempotent: if the tag
-// ref already exists the call is a no-op.
+// portable git data, mirroring release-please behavior.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
 	if strings.TrimSpace(tagName) == "" {
 		return forge.ErrEmptyTagName
@@ -103,13 +94,13 @@ func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message s
 		return fmt.Errorf("%w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
-	exists, err := g.tagExists(ctx, tagName)
-	if err != nil {
-		return fmt.Errorf("check tag %q: %w", tagName, err)
+	existingCommitSHA, err := g.resolveCommitSHA(ctx, "tags/"+tagName)
+	if err == nil {
+		return validateReleaseTagCommit(tagName, existingCommitSHA, ref)
 	}
 
-	if exists {
-		return nil
+	if !errors.Is(err, forge.ErrRefNotFound) {
+		return fmt.Errorf("check tag %q: %w", tagName, err)
 	}
 
 	tagger := g.resolveTaggerIdentity(ctx)
@@ -132,10 +123,30 @@ func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message s
 	if err != nil {
 		var ghErr *github.ErrorResponse
 		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
-			return nil
+			concurrentCommitSHA, resolveErr := g.resolveCommitSHA(ctx, "tags/"+tagName)
+			if resolveErr != nil {
+				return fmt.Errorf("re-read concurrently created tag %q: %w", tagName, resolveErr)
+			}
+
+			return validateReleaseTagCommit(tagName, concurrentCommitSHA, ref)
 		}
 
 		return fmt.Errorf("create tag ref %q: %w", tagName, err)
+	}
+
+	return nil
+}
+
+func validateReleaseTagCommit(tagName, actualCommitSHA, expectedCommitSHA string) error {
+	if strings.TrimSpace(actualCommitSHA) == "" ||
+		!strings.EqualFold(strings.TrimSpace(actualCommitSHA), strings.TrimSpace(expectedCommitSHA)) {
+		return fmt.Errorf(
+			"%w: tag %q resolves to %q, expected %q",
+			forge.ErrReleaseTagMismatch,
+			tagName,
+			actualCommitSHA,
+			expectedCommitSHA,
+		)
 	}
 
 	return nil
@@ -178,11 +189,12 @@ func (g *GitHub) resolveTaggerIdentity(ctx context.Context) *github.CommitAuthor
 	}
 }
 
-func gitHubRelease(release *github.RepositoryRelease) *forge.Release {
+func gitHubRelease(release *github.RepositoryRelease, commitSHA string) *forge.Release {
 	return &forge.Release{
-		TagName: release.GetTagName(),
-		Name:    release.GetName(),
-		Body:    release.GetBody(),
-		URL:     release.GetHTMLURL(),
+		TagName:   release.GetTagName(),
+		CommitSHA: commitSHA,
+		Name:      release.GetName(),
+		Body:      release.GetBody(),
+		URL:       release.GetHTMLURL(),
 	}
 }

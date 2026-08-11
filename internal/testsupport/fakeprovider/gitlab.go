@@ -430,17 +430,17 @@ func registerGitLabReleases(
 			return
 		}
 
+		var request struct {
+			Ref string `json:"ref"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid release request", http.StatusBadRequest)
+
+			return
+		}
+
 		if opts.FastForwardMerge {
-			var request struct {
-				Ref string `json:"ref"`
-			}
-
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				http.Error(w, "invalid release request", http.StatusBadRequest)
-
-				return
-			}
-
 			if request.Ref != opts.BranchHeadSHA {
 				http.Error(w, "release ref is not the fast-forward commit", http.StatusConflict)
 
@@ -450,6 +450,7 @@ func registerGitLabReleases(
 
 		writeJSON(w, map[string]any{
 			gitlabKeyTagName: fakeNextTag,
+			gitlabKeyCommit:  map[string]any{gitlabKeyID: request.Ref},
 			"_links":         map[string]any{"self": "https://example.test/releases/v1.1.0"},
 		})
 	})

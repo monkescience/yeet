@@ -28,6 +28,7 @@ type GitHub struct {
 	taggerOnce  sync.Once
 	taggerName  string
 	taggerEmail string
+	labels      labelDefinitionCache
 }
 
 func NewGitHub(client *github.Client, owner, repo string, options ...MergePollingOption) *GitHub {

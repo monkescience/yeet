@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
@@ -160,7 +161,12 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 		slog.String("label", pendingLabel),
 	)
 
-	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Active, baseBranch)
+	prs, err := a.listPullRequests(
+		ctx,
+		git.PullRequestStatusValues.Active,
+		baseBranch,
+		releaseBranchName(baseBranch),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -208,58 +214,114 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		slog.String("label", pendingLabel),
 	)
 
-	prs, err := a.listPullRequests(ctx, git.PullRequestStatusValues.Completed, baseBranch)
+	prs, err := a.listPullRequests(
+		ctx,
+		git.PullRequestStatusValues.Completed,
+		baseBranch,
+		releaseBranchName(baseBranch),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, pr := range prs {
-		if !a.isTrustedReleasePR(&pr, baseBranch) {
-			continue
-		}
+	candidates := a.azureDevOpsMergedCandidates(prs, baseBranch, pendingLabel)
 
-		if !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
-			continue
-		}
-
-		number := derefInt(pr.PullRequestId)
-
-		full, err := a.getPullRequest(ctx, number)
-		if err != nil {
-			return nil, err
-		}
-
-		if !a.isTrustedReleasePR(full, baseBranch) {
-			continue
-		}
-
-		branch := azureDevOpsRefToBranch(derefString(full.SourceRefName))
-
-		result := &forge.PullRequest{
-			Number:         number,
-			Title:          derefString(full.Title),
-			Body:           derefString(full.Description),
-			URL:            a.pullRequestWebURL(number),
-			Branch:         branch,
-			MergeCommitSHA: azureDevOpsCompletedMergeCommit(full),
-		}
-
-		slog.DebugContext(ctx, "azure devops: found merged release PR",
-			slog.Int("pr_number", result.Number),
-			slog.String("url", result.URL),
-			slog.String("merge_sha", result.MergeCommitSHA),
-		)
-
-		return result, nil
+	full, err := a.latestAzureDevOpsMergedPR(ctx, candidates)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, forge.ErrNoPR
+	if !a.isTrustedReleasePR(full, baseBranch) {
+		return nil, forge.ErrNoPR
+	}
+
+	number := derefInt(full.PullRequestId)
+	result := &forge.PullRequest{
+		Number:         number,
+		Title:          derefString(full.Title),
+		Body:           derefString(full.Description),
+		URL:            a.pullRequestWebURL(number),
+		Branch:         azureDevOpsRefToBranch(derefString(full.SourceRefName)),
+		MergeCommitSHA: azureDevOpsCompletedMergeCommit(full),
+	}
+
+	slog.DebugContext(ctx, "azure devops: found merged release PR",
+		slog.Int("pr_number", result.Number),
+		slog.String("url", result.URL),
+		slog.String("merge_sha", result.MergeCommitSHA),
+	)
+
+	return result, nil
+}
+
+func (a *AzureDevOps) azureDevOpsMergedCandidates(
+	prs []git.GitPullRequest,
+	baseBranch, pendingLabel string,
+) []git.GitPullRequest {
+	candidates := make([]git.GitPullRequest, 0)
+
+	for _, pr := range prs {
+		if !a.isTrustedReleasePR(&pr, baseBranch) || !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
+			continue
+		}
+
+		candidates = append(candidates, pr)
+	}
+
+	return candidates
+}
+
+func (a *AzureDevOps) latestAzureDevOpsMergedPR(
+	ctx context.Context,
+	candidates []git.GitPullRequest,
+) (*git.GitPullRequest, error) {
+	if len(candidates) == 0 {
+		return nil, forge.ErrNoPR
+	}
+
+	fullByNumber := make(map[int]*git.GitPullRequest)
+
+	if len(candidates) > 1 {
+		for index := range candidates {
+			if candidates[index].ClosedDate != nil {
+				continue
+			}
+
+			number := derefInt(candidates[index].PullRequestId)
+
+			full, err := a.getPullRequest(ctx, number)
+			if err != nil {
+				return nil, err
+			}
+
+			if full.ClosedDate == nil {
+				return nil, fmt.Errorf("%w: pull request !%d", errMergeTimeMissing, number)
+			}
+
+			candidates[index] = *full
+			fullByNumber[number] = full
+		}
+	}
+
+	best := &candidates[0]
+	for index := 1; index < len(candidates); index++ {
+		if azureDevOpsClosedAt(&candidates[index]).After(azureDevOpsClosedAt(best)) {
+			best = &candidates[index]
+		}
+	}
+
+	number := derefInt(best.PullRequestId)
+	if full := fullByNumber[number]; full != nil {
+		return full, nil
+	}
+
+	return a.getPullRequest(ctx, number)
 }
 
 func (a *AzureDevOps) listPullRequests(
 	ctx context.Context,
 	status git.PullRequestStatus,
-	baseBranch string,
+	baseBranch, sourceBranch string,
 ) ([]git.GitPullRequest, error) {
 	gitClient, err := a.client(ctx)
 	if err != nil {
@@ -269,12 +331,14 @@ func (a *AzureDevOps) listPullRequests(
 	all := make([]git.GitPullRequest, 0)
 	top := azureDevOpsPRPageSize
 	targetRef := "refs/heads/" + baseBranch
+	sourceRef := "refs/heads/" + sourceBranch
 
 	err = paginateAzureDevOpsBySkip(ctx, "listing pull requests", top,
 		func(skip int) ([]git.GitPullRequest, error) {
 			pageStatus := status
 			criteria := &git.GitPullRequestSearchCriteria{
 				Status:        &pageStatus,
+				SourceRefName: &sourceRef,
 				TargetRefName: &targetRef,
 			}
 
@@ -306,6 +370,14 @@ func (a *AzureDevOps) listPullRequests(
 	}
 
 	return all, nil
+}
+
+func azureDevOpsClosedAt(pr *git.GitPullRequest) time.Time {
+	if pr.ClosedDate == nil {
+		return time.Time{}
+	}
+
+	return pr.ClosedDate.Time
 }
 
 func (a *AzureDevOps) MergeReleasePR(

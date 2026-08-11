@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/forge"
@@ -126,7 +127,7 @@ func (p *releasePublisher) releaseForTag(
 	tag, changelogFile, ref string,
 	prerelease bool,
 ) (*forge.Release, error) {
-	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
+	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +157,11 @@ func (p *releasePublisher) createReleaseForTag(
 		Prerelease: prerelease,
 	})
 	if err != nil {
+		recovered, exists, recoveryErr := p.existingReleaseForTag(ctx, tag, ref)
+		if recoveryErr == nil && exists {
+			return recovered, nil
+		}
+
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
@@ -172,7 +178,7 @@ func (p *releasePublisher) ensureReleaseForTag(
 	tag, ref, releaseBody string,
 	prerelease bool,
 ) (*forge.Release, error) {
-	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag)
+	existingRelease, exists, err := p.existingReleaseForTag(ctx, tag, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +190,10 @@ func (p *releasePublisher) ensureReleaseForTag(
 	return p.createReleaseForTag(ctx, tag, ref, releaseBody, prerelease)
 }
 
-func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string) (*forge.Release, bool, error) {
+func (p *releasePublisher) existingReleaseForTag(
+	ctx context.Context,
+	tag, expectedCommitSHA string,
+) (*forge.Release, bool, error) {
 	releaseInfo, err := p.publisher.GetReleaseByTag(ctx, tag)
 	if err != nil {
 		if !errors.Is(err, forge.ErrNoRelease) {
@@ -192,6 +201,17 @@ func (p *releasePublisher) existingReleaseForTag(ctx context.Context, tag string
 		}
 
 		return nil, false, nil
+	}
+
+	actualCommitSHA := strings.TrimSpace(releaseInfo.CommitSHA)
+	if actualCommitSHA == "" || !strings.EqualFold(actualCommitSHA, strings.TrimSpace(expectedCommitSHA)) {
+		return nil, false, fmt.Errorf(
+			"%w: tag %q resolves to %q, expected %q",
+			forge.ErrReleaseTagMismatch,
+			tag,
+			actualCommitSHA,
+			expectedCommitSHA,
+		)
 	}
 
 	slog.InfoContext(ctx, "release already exists", slog.String("tag", tag))

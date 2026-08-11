@@ -8,6 +8,7 @@
   "sourceRefName": "refs/heads/yeet/release-main",
   "targetRefName": "refs/heads/main",
   "status": "completed",
+  "closedDate": "2026-08-11T10:00:00Z",
   "lastMergeCommit": {
     "commitId": "6d65726765736861000000000000000000000000"
   },

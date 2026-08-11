@@ -499,6 +499,8 @@ type releasePublishingStub struct {
 	getReleaseByTagCalls int
 	createReleaseCalls   int
 	createReleaseOpts    []forge.ReleaseOptions
+	createReleaseErr     error
+	releaseOnCreateError *forge.Release
 }
 
 func (s *releasePublishingStub) PreflightReleasePRTagging(
@@ -553,11 +555,20 @@ func (s *releasePublishingStub) CreateRelease(
 	s.createReleaseCalls++
 	s.createReleaseOpts = append(s.createReleaseOpts, opts)
 
+	if s.createReleaseErr != nil {
+		if s.releaseOnCreateError != nil {
+			s.releasesByTag[opts.TagName] = s.releaseOnCreateError
+		}
+
+		return nil, s.createReleaseErr
+	}
+
 	release := &forge.Release{
-		TagName: opts.TagName,
-		Name:    opts.Name,
-		Body:    opts.Body,
-		URL:     "https://example.com/releases/" + opts.TagName,
+		TagName:   opts.TagName,
+		CommitSHA: opts.Ref,
+		Name:      opts.Name,
+		Body:      opts.Body,
+		URL:       "https://example.com/releases/" + opts.TagName,
 	}
 
 	s.latestRelease = release

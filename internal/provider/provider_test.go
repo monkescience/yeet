@@ -276,7 +276,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	// given: a GitHub provider backed by a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/v1.2.3":
 			http.NotFound(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			writeJSON(t, w, map[string]any{
@@ -368,6 +368,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	// then: target_commitish and prerelease flag are forwarded to GitHub
 	testastic.NoError(t, err)
 	testastic.Equal(t, "v1.2.3", release.TagName)
+	testastic.Equal(t, "6865616473686131323300000000000000000000", release.CommitSHA)
 	testastic.Equal(t, "release notes", release.Body)
 	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
 }
@@ -378,13 +379,9 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	// given: a GitHub repository where the target tag already exists
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/v1.2.3":
 			writeJSON(t, w, map[string]any{
-				"ref": "refs/tags/v1.2.3",
-				"object": map[string]any{
-					"sha":  "6578697374696e67746167736861000000000000",
-					"type": "tag",
-				},
+				"sha": "6865616473686131323300000000000000000000",
 			})
 		case isGitHubCreateReleaseRequest(r):
 			writeJSON(t, w, map[string]any{
@@ -413,6 +410,7 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	// then: the existing tag is reused without another tag creation request
 	testastic.NoError(t, err)
 	testastic.Equal(t, "v1.2.3", release.TagName)
+	testastic.Equal(t, "6865616473686131323300000000000000000000", release.CommitSHA)
 	testastic.Equal(t, "https://example.com/releases/v1.2.3", release.URL)
 }
 

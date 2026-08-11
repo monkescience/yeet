@@ -367,6 +367,7 @@ func TestProviderContract(t *testing.T) {
 				// then: the release metadata matches the harness expectations
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractTag, release.TagName)
+				testastic.Equal(t, providerContractTagCommitSHA, release.CommitSHA)
 				testastic.Equal(t, "release notes", release.Body)
 				testastic.Equal(t, harness.expectedReleaseURL(server.URL), release.URL)
 			})
@@ -669,6 +670,7 @@ func TestProviderContract(t *testing.T) {
 				// then: the returned release matches the requested tag, body, and harness URL
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractTag, release.TagName)
+				testastic.Equal(t, providerContractHeadSHA, release.CommitSHA)
 				testastic.Equal(t, "release notes", release.Body)
 				testastic.Equal(t, harness.expectedReleaseURL(server.URL), release.URL)
 			})

@@ -1,7 +1,10 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -118,6 +121,179 @@ func TestManagedLabelChangeAnchorsTheDiscoverableLabel(t *testing.T) {
 		labelsAnchoredFirst(pending.anchor, pending.add),
 	)
 	testastic.SliceEqual(t, []string{labels.Tagged}, labelsAnchoredFirst(tagged.anchor, tagged.add))
+}
+
+func TestLabelDefinitionCache(t *testing.T) {
+	t.Parallel()
+
+	t.Run("caches successful folded lookups", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitHub-style case-folded label definitions
+		lookups := 0
+		cache := &labelDefinitionCache{}
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return nil
+			},
+			cache:     cache,
+			normalize: strings.ToLower,
+		}
+
+		// when: the same label is validated with different casing
+		firstErr := definitions.validateExisting(context.Background(), "Release", "extra")
+		secondErr := definitions.validateExisting(context.Background(), "release", "extra")
+
+		// then: one successful lookup satisfies both requests
+		testastic.NoError(t, firstErr)
+		testastic.NoError(t, secondErr)
+		testastic.Equal(t, 1, lookups)
+	})
+
+	t.Run("preserves exact-case lookup keys", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab-style exact-case label definitions
+		lookups := 0
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return nil
+			},
+			cache: &labelDefinitionCache{},
+		}
+
+		// when: labels differing only by case are validated
+		firstErr := definitions.validateExisting(context.Background(), "Release", "extra")
+		secondErr := definitions.validateExisting(context.Background(), "release", "extra")
+
+		// then: both exact definitions are looked up
+		testastic.NoError(t, firstErr)
+		testastic.NoError(t, secondErr)
+		testastic.Equal(t, 2, lookups)
+	})
+
+	t.Run("does not cache failed or missing lookups", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a label lookup that remains unavailable
+		lookupErr := errors.New("lookup unavailable")
+		lookups := 0
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return lookupErr
+			},
+			isNotFound: func(error) bool { return false },
+			cache:      &labelDefinitionCache{},
+		}
+
+		// when: the failed lookup is attempted twice
+		firstErr := definitions.validateExisting(context.Background(), "release", "extra")
+		secondErr := definitions.validateExisting(context.Background(), "release", "extra")
+
+		// then: both attempts reach the provider and preserve the failure
+		testastic.ErrorIs(t, firstErr, lookupErr)
+		testastic.ErrorIs(t, secondErr, lookupErr)
+		testastic.Equal(t, 2, lookups)
+	})
+
+	t.Run("does not cache not-found validation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a label definition that remains absent
+		notFoundErr := errors.New("not found")
+		lookups := 0
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return notFoundErr
+			},
+			isNotFound: func(err error) bool { return errors.Is(err, notFoundErr) },
+			cache:      &labelDefinitionCache{},
+		}
+
+		// when: the missing definition is validated twice
+		firstErr := definitions.validateExisting(context.Background(), "release", "extra")
+		secondErr := definitions.validateExisting(context.Background(), "release", "extra")
+
+		// then: neither not-found response suppresses the next lookup
+		testastic.ErrorIs(t, firstErr, forge.ErrReleasePRLabelMissing)
+		testastic.ErrorIs(t, secondErr, forge.ErrReleasePRLabelMissing)
+		testastic.Equal(t, 2, lookups)
+	})
+
+	t.Run("caches successful creation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a missing definition that can be created
+		notFoundErr := errors.New("not found")
+		lookups := 0
+		creations := 0
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return notFoundErr
+			},
+			create: func(context.Context, string, string, string) error {
+				creations++
+
+				return nil
+			},
+			isNotFound: func(err error) bool { return errors.Is(err, notFoundErr) },
+			cache:      &labelDefinitionCache{},
+		}
+
+		// when: the definition is ensured twice
+		firstErr := definitions.ensure(context.Background(), "release", "ffffff", "release")
+		secondErr := definitions.ensure(context.Background(), "release", "ffffff", "release")
+
+		// then: one successful creation satisfies the second request
+		testastic.NoError(t, firstErr)
+		testastic.NoError(t, secondErr)
+		testastic.Equal(t, 1, lookups)
+		testastic.Equal(t, 1, creations)
+	})
+
+	t.Run("does not cache failed creation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a missing definition whose creation remains unavailable
+		notFoundErr := errors.New("not found")
+		createErr := errors.New("creation unavailable")
+		lookups := 0
+		creations := 0
+		definitions := labelDefinitions{
+			get: func(context.Context, string) error {
+				lookups++
+
+				return notFoundErr
+			},
+			create: func(context.Context, string, string, string) error {
+				creations++
+
+				return createErr
+			},
+			isNotFound: func(err error) bool { return errors.Is(err, notFoundErr) },
+			cache:      &labelDefinitionCache{},
+		}
+
+		// when: ensuring the definition is attempted twice
+		firstErr := definitions.ensure(context.Background(), "release", "ffffff", "release")
+		secondErr := definitions.ensure(context.Background(), "release", "ffffff", "release")
+
+		// then: both attempts reach the provider and preserve the creation failure
+		testastic.ErrorIs(t, firstErr, createErr)
+		testastic.ErrorIs(t, secondErr, createErr)
+		testastic.Equal(t, 2, lookups)
+		testastic.Equal(t, 2, creations)
+	})
 }
 
 func TestManagedLabelChangeMovesAnEmptyPullRequestThroughBothPhases(t *testing.T) {

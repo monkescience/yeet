@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/monkescience/yeet/internal/forge"
@@ -117,6 +118,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 ) ([]*forge.PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
+		Head:      g.repo.Owner + ":" + releaseBranchName(baseBranch),
 		Base:      baseBranch,
 		Sort:      "updated",
 		Direction: sortDirectionDesc,
@@ -180,69 +182,51 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 	return pendingPRs, nil
 }
 
-//nolint:funlen // Pagination closures keep the search and candidate handling together.
+type gitHubMergedCandidate struct {
+	listed *github.PullRequest
+	full   *github.PullRequest
+}
+
 func (g *GitHub) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
 ) (*forge.PullRequest, error) {
-	query := fmt.Sprintf("repo:%s/%s is:pr is:merged base:%s label:%q",
-		g.repo.Owner, g.repo.Name, baseBranch, pendingLabel)
-	options := &github.SearchOptions{
-		Sort:  "updated",
-		Order: sortDirectionDesc,
-		ListOptions: github.ListOptions{
-			PerPage: gitHubPageSize,
-		},
-	}
-
-	slog.DebugContext(ctx, "github: searching merged release PRs",
+	slog.DebugContext(ctx, "github: listing merged release PRs",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
 
-	var found *forge.PullRequest
-
-	err := paginate(ctx, "searching merged release PRs",
-		func(page int) ([]*github.Issue, int, error) {
-			options.Page = page
-
-			result, resp, err := g.client.Search.Issues(ctx, query, options)
-			if err != nil {
-				return nil, 0, fmt.Errorf("search pull requests: %w", err)
-			}
-
-			return result.Issues, gitHubNextPage(resp), nil
-		},
-		func(issue *github.Issue) (bool, error) {
-			fullPR, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, issue.GetNumber())
-			if err != nil {
-				return false, fmt.Errorf("get pull request #%d: %w", issue.GetNumber(), err)
-			}
-
-			if !g.isTrustedReleasePR(fullPR, baseBranch) {
-				return false, nil
-			}
-
-			branch := fullPR.GetHead().GetRef()
-
-			found = &forge.PullRequest{
-				Number:         fullPR.GetNumber(),
-				Title:          fullPR.GetTitle(),
-				Body:           fullPR.GetBody(),
-				URL:            fullPR.GetHTMLURL(),
-				Branch:         branch,
-				MergeCommitSHA: fullPR.GetMergeCommitSHA(),
-			}
-
-			return true, nil
-		},
-	)
+	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, pendingLabel)
 	if err != nil {
 		return nil, err
 	}
 
-	if found == nil {
+	best, err := g.resolveLatestGitHubMergedCandidate(ctx, candidates)
+	if err != nil {
+		return nil, err
+	}
+
+	full := best.full
+	if full == nil {
+		var getErr error
+
+		full, _, getErr = g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, best.listed.GetNumber())
+		if getErr != nil {
+			return nil, fmt.Errorf("get pull request #%d: %w", best.listed.GetNumber(), getErr)
+		}
+	}
+
+	if !full.GetMerged() || !g.isTrustedReleasePR(full, baseBranch) {
 		return nil, forge.ErrNoPR
+	}
+
+	found := &forge.PullRequest{
+		Number:         full.GetNumber(),
+		Title:          full.GetTitle(),
+		Body:           full.GetBody(),
+		URL:            full.GetHTMLURL(),
+		Branch:         full.GetHead().GetRef(),
+		MergeCommitSHA: full.GetMergeCommitSHA(),
 	}
 
 	slog.DebugContext(ctx, "github: found merged release PR",
@@ -252,6 +236,143 @@ func (g *GitHub) FindMergedReleasePR(
 	)
 
 	return found, nil
+}
+
+func (g *GitHub) listGitHubMergedCandidates(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]gitHubMergedCandidate, error) {
+	options := &github.PullRequestListOptions{
+		State: "closed",
+		Head:  g.repo.Owner + ":" + releaseBranchName(baseBranch),
+		Base:  baseBranch,
+		ListOptions: github.ListOptions{
+			PerPage: gitHubPageSize,
+		},
+	}
+
+	candidates := make([]gitHubMergedCandidate, 0)
+
+	err := paginate(ctx, "listing merged release PRs",
+		func(page int) ([]*github.PullRequest, int, error) {
+			options.Page = page
+
+			prs, resp, err := g.client.PullRequests.List(ctx, g.repo.Owner, g.repo.Name, options)
+			if err != nil {
+				return nil, 0, fmt.Errorf("list pull requests: %w", err)
+			}
+
+			return prs, gitHubNextPage(resp), nil
+		},
+		func(pr *github.PullRequest) (bool, error) {
+			if !g.isTrustedReleasePR(pr, baseBranch) || !gitHubHasLabel(pr.Labels, pendingLabel) {
+				return false, nil
+			}
+
+			candidates = append(candidates, gitHubMergedCandidate{listed: pr})
+
+			return false, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return candidates, nil
+}
+
+func (g *GitHub) resolveLatestGitHubMergedCandidate(
+	ctx context.Context,
+	candidates []gitHubMergedCandidate,
+) (*gitHubMergedCandidate, error) {
+	if len(candidates) == 0 {
+		return nil, forge.ErrNoPR
+	}
+
+	if err := g.hydrateGitHubMergeTimes(ctx, candidates); err != nil {
+		return nil, err
+	}
+
+	validCandidates := 0
+
+	for index := range candidates {
+		if candidates[index].listed != nil {
+			validCandidates++
+		}
+	}
+
+	var best *gitHubMergedCandidate
+
+	for index := range candidates {
+		current := &candidates[index]
+		if current.listed == nil {
+			continue
+		}
+
+		if current.listed.MergedAt == nil && validCandidates > 1 {
+			return nil, fmt.Errorf("%w: pull request #%d", errMergeTimeMissing, current.listed.GetNumber())
+		}
+
+		if best == nil || gitHubMergedAt(current.listed).After(gitHubMergedAt(best.listed)) {
+			best = current
+		}
+	}
+
+	if best == nil {
+		return nil, forge.ErrNoPR
+	}
+
+	return best, nil
+}
+
+func (g *GitHub) hydrateGitHubMergeTimes(
+	ctx context.Context,
+	candidates []gitHubMergedCandidate,
+) error {
+	for index := range candidates {
+		if candidates[index].listed.MergedAt != nil {
+			continue
+		}
+
+		full, _, err := g.client.PullRequests.Get(
+			ctx,
+			g.repo.Owner,
+			g.repo.Name,
+			candidates[index].listed.GetNumber(),
+		)
+		if err != nil {
+			return fmt.Errorf("get pull request #%d: %w", candidates[index].listed.GetNumber(), err)
+		}
+
+		if !full.GetMerged() {
+			candidates[index].listed = nil
+
+			continue
+		}
+
+		candidates[index].listed = full
+		candidates[index].full = full
+	}
+
+	return nil
+}
+
+func gitHubHasLabel(labels []*github.Label, target string) bool {
+	for _, label := range labels {
+		if strings.EqualFold(label.GetName(), target) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func gitHubMergedAt(pr *github.PullRequest) time.Time {
+	if pr.MergedAt == nil {
+		return time.Time{}
+	}
+
+	return pr.MergedAt.Time
 }
 
 func (g *GitHub) SetReleasePRLabels(
@@ -429,6 +550,8 @@ func (g *GitHub) labelDefinitions() labelDefinitions {
 			return nil
 		},
 		isNotFound: isGitHubNotFound,
+		cache:      &g.labels,
+		normalize:  strings.ToLower,
 	}
 }
 

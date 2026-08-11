@@ -17,6 +17,7 @@ type GitLab struct {
 	projectID string
 	repoURL   string
 	polling   mergePolling
+	labels    labelDefinitionCache
 }
 
 func NewGitLab(client *gitlab.Client, project string, options ...MergePollingOption) *GitLab {

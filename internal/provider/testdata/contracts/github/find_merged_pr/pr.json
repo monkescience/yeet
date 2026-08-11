@@ -3,6 +3,8 @@
   "title": "chore: release v1.2.3",
   "body": "release body",
   "html_url": "https://example.com/pulls/42",
+  "merged": true,
+  "merged_at": "2026-08-11T10:00:00Z",
   "merge_commit_sha": "6d65726765736861000000000000000000000000",
   "head": {
     "ref": "yeet/release-main",

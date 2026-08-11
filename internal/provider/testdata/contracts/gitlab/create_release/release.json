@@ -2,6 +2,9 @@
   "tag_name": "v1.2.3",
   "name": "v1.2.3",
   "description": "release notes",
+  "commit": {
+    "id": "6865616473686100000000000000000000000000"
+  },
   "_links": {
     "self": "https://example.com/releases/v1.2.3"
   }

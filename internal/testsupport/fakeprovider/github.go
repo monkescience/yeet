@@ -114,7 +114,7 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubSearch(mux, opts, merged)
-	registerGitHubPullsRead(mux, prefix, opts)
+	registerGitHubPullsRead(mux, prefix, opts, merged)
 	registerGitHubWritePath(t, mux, prefix, opts, merged, reviewersRequested)
 	registerGitHubUser(mux)
 
@@ -229,6 +229,18 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 			return
 		}
 
+		if strings.HasPrefix(ref, "tags/") {
+			if opts.ExistingRelease {
+				writeJSON(w, map[string]any{githubKeySHA: opts.BranchHeadSHA})
+
+				return
+			}
+
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
 		writeJSON(w, githubCommitDetail(ref, opts))
 	})
 }
@@ -302,7 +314,12 @@ func githubComparisonPayload(commits []GitHubCommit, total int, status string) m
 	}
 }
 
-func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubPullsRead(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	merged *atomic.Bool,
+) {
 	mux.HandleFunc("GET "+prefix+"/commits/{sha}/pulls", func(w http.ResponseWriter, r *http.Request) {
 		sha := r.PathValue("sha")
 		for _, c := range opts.Commits {
@@ -325,6 +342,11 @@ func registerGitHubPullsRead(mux *http.ServeMux, prefix string, opts GitHubOptio
 
 	mux.HandleFunc("GET "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
 		state := r.URL.Query().Get("state")
+		if state == "closed" && (opts.MergedPendingRelease || merged.Load()) {
+			writeJSON(w, []map[string]any{githubMergedPendingPR(opts)})
+
+			return
+		}
 
 		if state == fakeStateOpen && opts.MultipleOpenPRs {
 			const (

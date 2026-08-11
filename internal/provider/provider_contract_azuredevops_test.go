@@ -563,6 +563,51 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 	testastic.Equal(t, "", pr.MergeCommitSHA)
 }
 
+func TestAzureDevOpsFindMergedReleasePRSelectsGreatestClosedDate(t *testing.T) {
+	t.Parallel()
+
+	// given: two completed candidates whose newer close time belongs to PR 42
+	var detailRequests atomic.Int32
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsPullRequestsListRequest(r):
+			testastic.Equal(
+				t,
+				"refs/heads/"+providerContractPendingBranch,
+				r.URL.Query().Get("searchCriteria.sourceRefName"),
+			)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			detailRequests.Add(1)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_request.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: finding the merged release pull request
+	pr, err := p.FindMergedReleasePR(
+		context.Background(),
+		providerContractBaseBranch,
+		providerContractPendingLabel,
+	)
+
+	// then: only the candidate with the greatest ClosedDate is fetched
+	testastic.NoError(t, err)
+	testastic.Equal(t, 42, pr.Number)
+	testastic.Equal(t, int32(1), detailRequests.Load())
+}
+
 func TestAzureDevOpsSetReleasePRLabelsKeepsPartialFailureRetryable(t *testing.T) {
 	t.Parallel()
 
@@ -1144,6 +1189,11 @@ func azureDevOpsFindOpenPRsHandler(t *testing.T) http.HandlerFunc {
 		}
 
 		testastic.Equal(t, "active", r.URL.Query().Get("searchCriteria.status"))
+		testastic.Equal(
+			t,
+			"refs/heads/"+providerContractPendingBranch,
+			r.URL.Query().Get("searchCriteria.sourceRefName"),
+		)
 		testastic.Equal(t, "refs/heads/"+providerContractBaseBranch, r.URL.Query().Get("searchCriteria.targetRefName"))
 		writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_requests.json"))
 	}
@@ -1170,6 +1220,11 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 		switch {
 		case isAzureDevOpsPullRequestsListRequest(r):
 			testastic.Equal(t, "completed", r.URL.Query().Get("searchCriteria.status"))
+			testastic.Equal(
+				t,
+				"refs/heads/"+providerContractPendingBranch,
+				r.URL.Query().Get("searchCriteria.sourceRefName"),
+			)
 			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
 			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_request.json"))

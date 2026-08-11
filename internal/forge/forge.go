@@ -10,10 +10,11 @@ import (
 )
 
 type Release struct {
-	TagName string
-	Name    string
-	Body    string
-	URL     string
+	TagName   string
+	CommitSHA string
+	Name      string
+	Body      string
+	URL       string
 }
 
 type PullRequest struct {
@@ -122,6 +123,7 @@ type Provider interface {
 
 var (
 	ErrNoRelease               = errors.New("no release found")
+	ErrReleaseTagMismatch      = errors.New("release tag commit mismatch")
 	ErrReleasePRLabelMismatch  = errors.New("release PR lifecycle label mismatch")
 	ErrReleasePRLabelMissing   = errors.New("release PR label does not exist")
 	ErrReleasePRLabelsRejected = errors.New("release PR labels rejected")

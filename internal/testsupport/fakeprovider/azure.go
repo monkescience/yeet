@@ -119,6 +119,9 @@ func registerAzureHistory(
 				azureKeyObjectID: r.PathValue("id"),
 				gitlabKeyName:    opts.ExistingReleaseTag,
 				"message":        "existing release notes",
+				"taggedObject": map[string]any{
+					azureKeyObjectID: opts.BranchHeadSHA,
+				},
 			})
 
 			return

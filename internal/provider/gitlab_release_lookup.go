@@ -29,7 +29,7 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 		slog.String("url", release.Links.Self),
 	)
 
-	return gitLabRelease(release), nil
+	return gitLabRelease(release, release.Commit.ID), nil
 }
 
 func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
@@ -61,14 +61,20 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 		slog.String("url", release.Links.Self),
 	)
 
-	return gitLabRelease(release), nil
+	commitSHA := release.Commit.ID
+	if err := validateReleaseTagCommit(opts.TagName, commitSHA, ref); err != nil {
+		return nil, err
+	}
+
+	return gitLabRelease(release, commitSHA), nil
 }
 
-func gitLabRelease(release *gitlab.Release) *forge.Release {
+func gitLabRelease(release *gitlab.Release, commitSHA string) *forge.Release {
 	return &forge.Release{
-		TagName: release.TagName,
-		Name:    release.Name,
-		Body:    release.Description,
-		URL:     release.Links.Self,
+		TagName:   release.TagName,
+		CommitSHA: commitSHA,
+		Name:      release.Name,
+		Body:      release.Description,
+		URL:       release.Links.Self,
 	}
 }

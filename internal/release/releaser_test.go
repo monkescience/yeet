@@ -3,6 +3,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -2622,7 +2623,11 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		cfg := config.Default()
 
 		stub := newProviderStub()
-		stub.latestRelease = &forge.Release{TagName: "v1.2.3", URL: "https://example.com/releases/v1.2.3"}
+		stub.latestRelease = &forge.Release{
+			TagName:   "v1.2.3",
+			CommitSHA: "MERGED-SHA",
+			URL:       "https://example.com/releases/v1.2.3",
+		}
 		stub.tagList = []string{"v1.2.3"}
 		stub.mergedPR = &forge.PullRequest{
 			Number:         9,
@@ -2656,8 +2661,9 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		stub.latestRelease = &forge.Release{TagName: "v1.2.4", URL: "https://example.com/releases/v1.2.4"}
 		stub.tagList = []string{"v1.2.4"}
 		stub.releasesByTag["v1.2.3"] = &forge.Release{
-			TagName: "v1.2.3",
-			URL:     "https://example.com/releases/v1.2.3",
+			TagName:   "v1.2.3",
+			CommitSHA: "merged-sha",
+			URL:       "https://example.com/releases/v1.2.3",
 		}
 		stub.mergedPR = &forge.PullRequest{
 			Number:         10,
@@ -2680,6 +2686,99 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 10, stub.markTaggedCalls[0])
+	})
+
+	t.Run("rejects existing release at another commit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged release PR whose existing tag resolves elsewhere
+		cfg := config.Default()
+		stub := newProviderStub()
+		stub.releasesByTag["v1.2.3"] = &forge.Release{
+			TagName:   "v1.2.3",
+			CommitSHA: "different-sha",
+			URL:       "https://example.com/releases/v1.2.3",
+		}
+		stub.mergedPR = &forge.PullRequest{
+			Number:         10,
+			URL:            "https://example.com/pr/10",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing the release
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: the mismatch is returned before the PR is marked tagged
+		testastic.ErrorIs(t, err, forge.ErrReleaseTagMismatch)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+	})
+
+	t.Run("accepts concurrent same commit release creation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: release creation fails after another actor publishes the same commit
+		cfg := config.Default()
+		stub := newProviderStub()
+		stub.createReleaseErr = errors.New("concurrent create conflict")
+		stub.releaseOnCreateError = &forge.Release{
+			TagName:   "v1.2.3",
+			CommitSHA: "merged-sha",
+			URL:       "https://example.com/releases/v1.2.3",
+		}
+		stub.mergedPR = &forge.PullRequest{
+			Number:         10,
+			URL:            "https://example.com/pr/10",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.3\n\nRelease notes."
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing the release
+		releases, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: the recovered same-commit release is accepted
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(releases))
+		testastic.Equal(t, 2, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
+	})
+
+	t.Run("rejects concurrent conflicting release creation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: release creation fails after another actor publishes another commit
+		cfg := config.Default()
+		createErr := errors.New("concurrent create conflict")
+		stub := newProviderStub()
+		stub.createReleaseErr = createErr
+		stub.releaseOnCreateError = &forge.Release{
+			TagName:   "v1.2.3",
+			CommitSHA: "different-sha",
+			URL:       "https://example.com/releases/v1.2.3",
+		}
+		stub.mergedPR = &forge.PullRequest{
+			Number:         10,
+			URL:            "https://example.com/pr/10",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = "# Changelog\n\n## v1.2.3\n\nRelease notes."
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing the release
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		// then: the original creation failure is preserved and the PR stays pending
+		testastic.ErrorIs(t, err, createErr)
+		testastic.Equal(t, 2, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 0, len(stub.markTaggedCalls))
 	})
 
 	t.Run("creates missing release when tag already exists", func(t *testing.T) {

@@ -1,22 +1,25 @@
 {
-  "count": 1,
+  "count": 2,
   "value": [
     {
-      "pullRequestId": 42,
-      "repository": {
-        "name": "contoso-repo"
-      },
-      "title": "chore: release v1.2.3",
-      "url": "https://example.com/pulls/42",
+      "pullRequestId": 41,
+      "repository": {"name": "contoso-repo"},
+      "title": "older release",
       "sourceRefName": "refs/heads/yeet/release-main",
       "targetRefName": "refs/heads/main",
       "status": "completed",
-      "labels": [
-        {
-          "name": "release: waiting",
-          "active": true
-        }
-      ]
+      "closedDate": "2026-08-10T10:00:00Z",
+      "labels": [{"name": "release: waiting", "active": true}]
+    },
+    {
+      "pullRequestId": 42,
+      "repository": {"name": "contoso-repo"},
+      "title": "chore: release v1.2.3",
+      "sourceRefName": "refs/heads/yeet/release-main",
+      "targetRefName": "refs/heads/main",
+      "status": "completed",
+      "closedDate": "2026-08-11T10:00:00Z",
+      "labels": [{"name": "release: waiting", "active": true}]
     }
   ]
 }

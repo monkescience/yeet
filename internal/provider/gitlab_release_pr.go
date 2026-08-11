@@ -293,6 +293,7 @@ func (g *GitLab) FindMergedReleasePR(
 	}
 
 	state := gitlabMergeRequestMergedState
+	sourceBranch := releaseBranchName(baseBranch)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
 	labels := gitlab.LabelOptions{pendingLabel}
@@ -300,6 +301,7 @@ func (g *GitLab) FindMergedReleasePR(
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
 		TargetBranch: new(baseBranch),
+		SourceBranch: new(sourceBranch),
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
 		Labels:       &labels,
@@ -311,10 +313,7 @@ func (g *GitLab) FindMergedReleasePR(
 		slog.String("label", pendingLabel),
 	)
 
-	var (
-		bestMR       *gitlab.BasicMergeRequest
-		bestMergedAt time.Time
-	)
+	candidates := make([]*gitlab.BasicMergeRequest, 0)
 
 	err := paginate(ctx, "listing merged release MRs",
 		func(page int) ([]*gitlab.BasicMergeRequest, int, error) {
@@ -337,13 +336,7 @@ func (g *GitLab) FindMergedReleasePR(
 				return false, nil
 			}
 
-			mergedAt := gitLabMergedAt(mr)
-			if bestMR != nil && !mergedAt.After(bestMergedAt) {
-				return false, nil
-			}
-
-			bestMR = mr
-			bestMergedAt = mergedAt
+			candidates = append(candidates, mr)
 
 			return false, nil
 		},
@@ -352,8 +345,43 @@ func (g *GitLab) FindMergedReleasePR(
 		return nil, err
 	}
 
-	if bestMR == nil {
+	if len(candidates) == 0 {
 		return nil, forge.ErrNoPR
+	}
+
+	if len(candidates) > 1 {
+		for index, candidate := range candidates {
+			if candidate.MergedAt != nil {
+				continue
+			}
+
+			full, _, getErr := g.client.MergeRequests.GetMergeRequest(
+				g.projectID,
+				candidate.IID,
+				nil,
+				gitlab.WithContext(ctx),
+			)
+			if getErr != nil {
+				return nil, fmt.Errorf("get merge request !%d: %w", candidate.IID, getErr)
+			}
+
+			if full.MergedAt == nil {
+				return nil, fmt.Errorf("%w: merge request !%d", errMergeTimeMissing, candidate.IID)
+			}
+
+			candidates[index] = &full.BasicMergeRequest
+		}
+	}
+
+	bestMR := candidates[0]
+	bestMergedAt := gitLabMergedAt(bestMR)
+
+	for _, candidate := range candidates[1:] {
+		mergedAt := gitLabMergedAt(candidate)
+		if mergedAt.After(bestMergedAt) {
+			bestMR = candidate
+			bestMergedAt = mergedAt
+		}
 	}
 
 	found := &forge.PullRequest{
@@ -627,6 +655,7 @@ func (g *GitLab) labelDefinitions() labelDefinitions {
 			return nil
 		},
 		isNotFound: func(err error) bool { return errors.Is(err, gitlab.ErrNotFound) },
+		cache:      &g.labels,
 	}
 }
 

@@ -164,6 +164,7 @@ func newGitLabProvider(
 		gitlab.WithRequestLogHook(httpClient.RequestLogHook),
 		gitlab.WithCustomRetryMax(httpClient.RetryMax),
 		gitlab.WithCustomRetryWaitMinMax(httpClient.RetryWaitMin, httpClient.RetryWaitMax),
+		gitlab.WithOnlyIdempotentRetries(),
 	}
 
 	if baseURL := spec.apiBaseURL(repository.Host); baseURL != "" {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/monkescience/yeet/internal/forge"
 )
@@ -113,6 +114,41 @@ type labelDefinitions struct {
 	get        func(ctx context.Context, name string) error
 	create     func(ctx context.Context, name, color, description string) error
 	isNotFound func(err error) bool
+	cache      *labelDefinitionCache
+	normalize  func(name string) string
+}
+
+type labelDefinitionCache struct {
+	mu    sync.Mutex
+	names map[string]struct{}
+}
+
+func (c *labelDefinitionCache) contains(name string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	_, exists := c.names[name]
+
+	return exists
+}
+
+func (c *labelDefinitionCache) add(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.names == nil {
+		c.names = make(map[string]struct{})
+	}
+
+	c.names[name] = struct{}{}
+}
+
+func (d labelDefinitions) cacheKey(name string) string {
+	if d.normalize == nil {
+		return name
+	}
+
+	return d.normalize(name)
 }
 
 // prepare limits definition work to labels the requested phase owns. Tagged
@@ -157,8 +193,17 @@ func (d labelDefinitions) validateExtras(ctx context.Context, names []string) er
 }
 
 func (d labelDefinitions) validateExisting(ctx context.Context, name, role string) error {
+	cacheKey := d.cacheKey(name)
+	if d.cache != nil && d.cache.contains(cacheKey) {
+		return nil
+	}
+
 	err := d.get(ctx, name)
 	if err == nil {
+		if d.cache != nil {
+			d.cache.add(cacheKey)
+		}
+
 		return nil
 	}
 
@@ -170,8 +215,17 @@ func (d labelDefinitions) validateExisting(ctx context.Context, name, role strin
 }
 
 func (d labelDefinitions) ensure(ctx context.Context, name, color, description string) error {
+	cacheKey := d.cacheKey(name)
+	if d.cache != nil && d.cache.contains(cacheKey) {
+		return nil
+	}
+
 	err := d.get(ctx, name)
 	if err == nil {
+		if d.cache != nil {
+			d.cache.add(cacheKey)
+		}
+
 		return nil
 	}
 
@@ -179,5 +233,13 @@ func (d labelDefinitions) ensure(ctx context.Context, name, color, description s
 		return err
 	}
 
-	return d.create(ctx, name, color, description)
+	if err := d.create(ctx, name, color, description); err != nil {
+		return err
+	}
+
+	if d.cache != nil {
+		d.cache.add(cacheKey)
+	}
+
+	return nil
 }

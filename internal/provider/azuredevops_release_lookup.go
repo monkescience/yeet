@@ -31,7 +31,12 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.R
 				slog.String("object_id", objectID),
 			)
 
-			return &forge.Release{TagName: tag, Name: tag, URL: a.tagWebURL(tag)}, nil
+			return &forge.Release{
+				TagName:   tag,
+				CommitSHA: objectID,
+				Name:      tag,
+				URL:       a.tagWebURL(tag),
+			}, nil
 		}
 
 		return nil, fmt.Errorf("get annotated tag %q: %w", tag, err)
@@ -42,7 +47,7 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.R
 		slog.String("object_id", objectID),
 	)
 
-	return a.azureDevOpsAnnotatedTagRelease(tag, annotated), nil
+	return a.azureDevOpsAnnotatedTagRelease(tag, objectID, annotated), nil
 }
 
 func (a *AzureDevOps) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
@@ -78,7 +83,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts forge.ReleaseOptio
 		return nil, fmt.Errorf("create annotated tag: %w", err)
 	}
 
-	release := a.azureDevOpsAnnotatedTagRelease(opts.TagName, created)
+	release := a.azureDevOpsAnnotatedTagRelease(opts.TagName, ref, created)
 	release.Name = opts.Name
 
 	slog.DebugContext(ctx, "azure devops: created annotated tag",
@@ -129,17 +134,26 @@ func (a *AzureDevOps) getAnnotatedTag(ctx context.Context, objectID string) (*gi
 	return tag, nil
 }
 
-func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(tagName string, tag *git.GitAnnotatedTag) *forge.Release {
+func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(
+	tagName, fallbackCommitSHA string,
+	tag *git.GitAnnotatedTag,
+) *forge.Release {
 	name := derefString(tag.Name)
 	if name == "" {
 		name = tagName
 	}
 
+	commitSHA := fallbackCommitSHA
+	if tag.TaggedObject != nil && strings.TrimSpace(derefString(tag.TaggedObject.ObjectId)) != "" {
+		commitSHA = derefString(tag.TaggedObject.ObjectId)
+	}
+
 	return &forge.Release{
-		TagName: tagName,
-		Name:    name,
-		Body:    derefString(tag.Message),
-		URL:     a.tagWebURL(tagName),
+		TagName:   tagName,
+		CommitSHA: commitSHA,
+		Name:      name,
+		Body:      derefString(tag.Message),
+		URL:       a.tagWebURL(tagName),
 	}
 }
 

@@ -35,8 +35,9 @@ const (
 )
 
 var (
-	ErrUnknownRemote   = errors.New("unable to parse remote URL")
-	ErrUnsupportedHost = errors.New("unsupported remote host")
+	ErrUnknownRemote    = errors.New("unable to parse remote URL")
+	ErrUnsupportedHost  = errors.New("unsupported remote host")
+	errMergeTimeMissing = errors.New("merged release PR completion time is unavailable")
 )
 
 type releasePRLabelsError struct {
