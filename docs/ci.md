@@ -1,19 +1,14 @@
 # CI setup
 
-yeet needs the full commit history, so configure checkouts with fetch depth 0, and a provider
-token (see [Authentication](authentication.md)).
+yeet reads commit history and changed paths from the local checkout. Every provider pipeline therefore needs full history and a checkout at the current remote head of the release branch. yeet rejects shallow, stale, pull request, and tag checkouts before release analysis.
 
-For branch-triggered jobs, yeet determines the current branch from `GITHUB_REF`,
-`GITHUB_REF_NAME`, `CI_COMMIT_BRANCH`, `BRANCH_NAME`, or `BUILD_SOURCEBRANCH` (checked in that
-order) before falling back to git. Full GitHub and Azure refs must start with `refs/heads/`.
-GitHub Actions and Azure Pipelines pull request and tag refs are rejected rather than treated as
-release branches.
+For branch-triggered jobs, yeet reads `GITHUB_REF`, `GITHUB_REF_NAME`, `CI_COMMIT_BRANCH`, `BRANCH_NAME`, or `BUILD_SOURCEBRANCH`, in that order, before falling back to git. Full GitHub and Azure refs must start with `refs/heads/`.
+
+The copyable examples use a release tag so yeet can keep them synchronized through `x-yeet-version`. If your policy requires an immutable image reference, resolve the digest for that exact tag and append `@sha256:<digest>`. Update the tag and digest together. When they disagree, container tooling follows the digest and can silently run the older image.
 
 ## GitHub Actions with a GitHub App
 
-This example uses a GitHub App installation token instead of the default `GITHUB_TOKEN`.
-The app needs `contents: write`, `pull-requests: write`, and `issues: write` repository permissions.
-Store the app client ID as a repository variable and the private key as a repository secret.
+The workflow token stays read-only. The GitHub App installation provides `contents`, `pull-requests`, and `issues` write access. Install the App on the release repository, store its client ID as the `YEET_APP_ID` repository variable, and store its private key as the `YEET_APP_PRIVATE_KEY` repository secret.
 
 ```yaml
 name: Release
@@ -24,19 +19,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: yeet-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -44,9 +38,10 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          client-id: ${{ vars.YEET_APP_CLIENT_ID }}
+          client-id: ${{ vars.YEET_APP_ID }}
           private-key: ${{ secrets.YEET_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Run yeet
         uses: docker://ghcr.io/monkescience/yeet:v0.13.2 # x-yeet-version
@@ -58,8 +53,7 @@ jobs:
 
 ## GitLab CI
 
-Set `GITLAB_TOKEN` as a masked CI/CD variable. The `entrypoint: [""]` override is required so
-GitLab runs the job script with `sh` instead of the image's default `yeet` entrypoint.
+Set `GITLAB_TOKEN` as a masked CI/CD variable. The empty entrypoint lets GitLab run the job script with `sh`.
 
 ```yaml
 release:
@@ -78,8 +72,7 @@ release:
 
 ## Azure Pipelines
 
-This example uses Azure Pipelines `System.AccessToken`. Map it explicitly into the step env.
-yeet sends it to Azure DevOps as bearer auth.
+This pipeline maps `System.AccessToken` explicitly and forwards the branch ref into the container.
 
 ```yaml
 trigger:
@@ -110,13 +103,16 @@ steps:
 
 ## Local checkout requirement
 
-yeet reads commit history and per-commit changed paths from the local git checkout instead of the
-provider API. This makes release analysis fast even for monorepos with many targets, but the
-checkout must faithfully represent the release branch:
+| Provider | Full-history setting | Release branch signal | Credential mapping |
+|---|---|---|---|
+| GitHub Actions | `fetch-depth: 0` | `GITHUB_REF` or `GITHUB_REF_NAME` | App token to `GITHUB_TOKEN` |
+| GitLab CI | `GIT_DEPTH: "0"` | `CI_COMMIT_BRANCH` | Masked `GITLAB_TOKEN` |
+| Azure Pipelines | `fetchDepth: 0` | `BUILD_SOURCEBRANCH` | `System.AccessToken` to `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` |
 
-- Full history: no shallow clone (`fetch-depth: 0`, `GIT_DEPTH "0"`, or `fetchDepth: 0` as shown in
-  the checkout examples above).
-- HEAD at the current remote head of the configured release branch.
+The checkout must match the provider's current remote head. A full history alone does not make a stale or detached checkout usable.
 
-yeet validates the checkout against the provider before analyzing and fails with an actionable
-error when it is shallow, stale, or on the wrong branch.
+## Related documentation
+
+- [Documentation index](README.md)
+- [Authentication](authentication.md)
+- [Troubleshooting](troubleshooting.md)

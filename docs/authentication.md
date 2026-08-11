@@ -1,68 +1,38 @@
 # Authentication
 
-yeet needs a provider API token whenever it creates or updates PRs/MRs, applies release labels, or
-publishes releases.
+yeet reads provider credentials from environment variables. It never accepts tokens through flags or `.yeet.yaml`.
 
-## Host trust
-
-A repository host is trusted when it is a recognized public provider host, matches the host of the
-git remote, or matches the host of the provider's `*_URL` environment variable. This prevents a
-custom `host` committed to the repository from redirecting the API token on its own.
-
-Setting `GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL` overrides the API endpoint after repository
-resolution, including when the configured repository uses a public provider host. Treat these
-variables as trusted operator input because yeet sends the provider token to the URL they specify.
+| Provider | Variables, in precedence order | Required access |
+|---|---|---|
+| GitHub | `GITHUB_TOKEN`, `GH_TOKEN` | `contents: write`, `pull-requests: write`, and `issues: write` |
+| GitLab | `GITLAB_TOKEN`, `GL_TOKEN` | API access to create and update merge requests, branches, tags, labels, and releases |
+| Azure DevOps | `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, `AZURE_DEVOPS_EXT_PAT` | Repository access to create branches and tags, create and update pull requests, manage labels, and complete pull requests when auto-merge is enabled |
 
 ## GitHub
 
-Export either `GITHUB_TOKEN` or `GH_TOKEN` (`GITHUB_TOKEN` wins when both are set):
+Export either token variable. `GITHUB_TOKEN` wins when both are set.
 
 ```sh
-export GITHUB_TOKEN=ghp_xxx
+export GITHUB_TOKEN=github_pat_xxx
 yeet release --dry-run
 ```
 
-For GitHub Enterprise, configure the repository host and yeet derives the API base URL as
-`https://<host>/api/v3/`, or set `GITHUB_URL` explicitly:
-
-```sh
-export GITHUB_TOKEN=ghp_xxx
-export GITHUB_URL=https://github.example.com/api/v3/
-yeet release
-```
-
-An explicitly set `GITHUB_URL` takes precedence over the derived URL. Use it when the API is
-not served at `https://<host>/api/v3/`, for example on GHE data-residency domains where the
-API lives at `https://api.<subdomain>.ghe.com`.
-
-The token needs `contents: write`, `pull-requests: write`, and `issues: write` permissions.
+For GitHub Actions, a GitHub App installation token can provide the required repository permissions without granting write access to the workflow token. See the complete [GitHub Actions example](ci.md#github-actions-with-a-github-app).
 
 ## GitLab
 
-Export either `GITLAB_TOKEN` or `GL_TOKEN` (`GITLAB_TOKEN` wins when both are set):
+Export either token variable. `GITLAB_TOKEN` wins when both are set.
 
 ```sh
 export GITLAB_TOKEN=glpat-xxx
 yeet release --dry-run
 ```
 
-For self-hosted GitLab, configure the repository host and yeet derives the API base URL as
-`https://<host>/api/v4`, or set `GITLAB_URL` explicitly:
-
-```sh
-export GITLAB_TOKEN=glpat-xxx
-export GITLAB_URL=https://gitlab.example.com/api/v4
-yeet release
-```
-
-As with GitHub, an explicitly set `GITLAB_URL` takes precedence over the derived URL. Use it
-when the instance is served under a relative URL such as `https://example.com/gitlab`.
-
-The token must be able to create merge requests, manage labels, and publish releases.
+The token must be able to create and update merge requests, manage labels, push release branches and tags, and publish releases.
 
 ## Azure DevOps
 
-In Azure Pipelines, map `System.AccessToken` to yeet's Azure DevOps-specific env var:
+Azure Pipelines should map `System.AccessToken` to yeet's provider-specific variable:
 
 ```yaml
 env:
@@ -76,26 +46,50 @@ export AZURE_DEVOPS_EXT_PAT=xxx
 yeet release --dry-run
 ```
 
-`AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` is sent as bearer auth and takes precedence when both variables
-are set. `AZURE_DEVOPS_EXT_PAT` is sent as basic auth.
+`AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` takes precedence and uses bearer authentication. `AZURE_DEVOPS_EXT_PAT` uses basic authentication.
 
-For Azure DevOps Server/self-hosted, also set `AZURE_DEVOPS_URL`:
+When `release.reviewers` is configured, a PAT also needs Identity (Read), `vso.identity`, so yeet can resolve reviewer names. Authorization for identity reads through a pipeline `System.AccessToken` depends on the organization and job authorization settings, so verify it in your Azure DevOps configuration.
+
+## Host trust
+
+yeet trusts a repository host only when it is a recognized public provider host, matches the Git remote host, or matches the provider's URL override. A checked-in `repository.*.host` cannot redirect a token by itself.
+
+`GITHUB_URL`, `GITLAB_URL`, and `AZURE_DEVOPS_URL` override the API endpoint after repository resolution. They take precedence even for public hosts. Treat them as trusted operator input because yeet sends the provider token to the selected endpoint.
+
+For custom domains, set `provider` explicitly. Automatic detection only recognizes `github.com`, `gitlab.com`, and `dev.azure.com`.
+
+### GitHub Enterprise
+
+For a configured custom host, yeet derives `https://<host>/api/v3/`. Override it when the API is elsewhere:
 
 ```sh
-export AZURE_DEVOPS_EXT_PAT=xxx
-export AZURE_DEVOPS_URL=https://devops.example.com
+export GITHUB_TOKEN=github_pat_xxx
+export GITHUB_URL=https://github.example.com/api/v3/
 yeet release
 ```
 
-As with the other providers, `AZURE_DEVOPS_URL` takes precedence over the host configured in
-the repository settings. Use it when the server lives under a path prefix such as
-`https://server/tfs`.
+### Self-managed GitLab
 
-The pipeline build service identity or PAT needs repository permissions to create branches,
-create/update pull requests, manage pull request labels, complete pull requests when auto-merge
-is enabled, and create tags.
+For a configured custom host, yeet derives `https://<host>/api/v4`. Override it for an instance under a relative path:
 
-When `release.reviewers` is configured, the PAT additionally needs the Identity (Read) scope
-(`vso.identity`), because reviewer names are resolved through the identities API. Whether a
-pipeline `System.AccessToken` is authorized for identity reads (especially with "Limit job
-authorization scope" enabled) has not been verified.
+```sh
+export GITLAB_TOKEN=glpat-xxx
+export GITLAB_URL=https://example.com/gitlab/api/v4
+yeet release
+```
+
+### Azure DevOps Server
+
+Set the server URL explicitly, including any path prefix:
+
+```sh
+export AZURE_DEVOPS_EXT_PAT=xxx
+export AZURE_DEVOPS_URL=https://devops.example.com/tfs
+yeet release
+```
+
+## Related documentation
+
+- [Documentation index](README.md)
+- [CI setup](ci.md)
+- [Troubleshooting](troubleshooting.md)

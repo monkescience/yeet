@@ -37,6 +37,13 @@ make build      # build the binary
 Run `make help` for all targets. CI enforces lint, tidy, tests with a coverage
 threshold, and a build smoke test on every PR.
 
+Documentation changes should:
+
+- Keep examples aligned with CLI help and `yeet.schema.json`.
+- Update the existing topic guide instead of repeating the same explanation elsewhere.
+- Verify changed relative links and code examples.
+- Preserve `x-yeet-version` markers in release-specific examples.
+
 ## Commits
 
 Commit messages must follow [conventional commits](https://www.conventionalcommits.org/)

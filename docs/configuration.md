@@ -1,52 +1,48 @@
 # Configuration
 
-yeet reads the nearest ancestor `.yeet.yaml` by default. Run `yeet init` to generate one with sensible defaults, or pass `--config` to write to a custom path. The generated file includes a YAML language server schema modeline for editor validation and autocomplete.
-
-The default `yeet init` output is intentionally minimal. It declares a single path target named after the repository directory, with everything else inheriting from schema defaults:
+Run `yeet init` to create a `.yeet.yaml` with one target for the current repository:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
 
 targets:
-  myrepo:        # auto-derived from the repo directory name, falls back to "root"
+  myrepo:
     type: path
     path: .
     tag_prefix: v
 ```
 
-All available options, defaults, and descriptions are defined in the [JSON schema](../yeet.schema.json). YAML-aware editors that support `# yaml-language-server: $schema=...` modelines will provide validation and autocomplete automatically. The schema is also embedded in the binary and enforced when the config is loaded, so an editor and a release run apply the same rules. A released `yeet init` writes the modeline pinned to its own tag; a development build writes `main`, as shown above.
+Most single-repository users edit only the target name, `path`, and `tag_prefix`. The target name appears in release output, `path` selects relevant commits, and `tag_prefix` controls tags such as `v1.2.3`.
+
+The [JSON schema](../yeet.schema.json) is the complete reference for fields, defaults, and descriptions. It also powers editor validation and runtime config validation. Released builds write a schema URL pinned to their tag, while development builds write `main` as shown above.
+
+yeet reads the nearest ancestor `.yeet.yaml`. Pass `--config` to read or create another path.
 
 ## Repository targeting
 
-yeet resolves the target repository from these sources, highest priority first:
+Repository detection uses these sources from highest to lowest priority:
 
-1. CLI flags (`--provider`, `--remote`, `--host`, `--owner`, `--repo`, `--project`)
-2. explicit `.yeet.yaml` values under `repository:`
-3. the configured `repository.remote`
-4. the `origin` remote
+1. CLI flags, `--provider`, `--remote`, `--host`, `--owner`, `--repo`, and `--project`
+2. Explicit values under `repository:`
+3. The configured `repository.remote`
+4. The `origin` remote
 
-The repository override flags (`--host`, `--owner`, `--repo`, `--project`) require an explicit `--provider`. `--owner` and `--repo` are rejected for GitLab (use `--project`), and `--owner` is rejected for Azure DevOps.
+The coordinate flags require an explicit `--provider`. GitLab uses `--project` rather than `--owner` and `--repo`. Azure DevOps does not accept `--owner`.
 
-Automatic provider detection intentionally only classifies the public hosts `github.com`,
-`gitlab.com`, and `dev.azure.com`. For custom or enterprise domains, set the provider
-explicitly. This avoids sending provider tokens to an arbitrary host based only on hostname
-text. Repository host and path are discovered from `repository.remote`/`origin`. Set
-`repository:` only when overriding remote discovery or when no usable remote exists.
+Automatic provider detection recognizes only `github.com`, `gitlab.com`, and `dev.azure.com`. Set `provider` for enterprise or self-hosted domains. Usually the remote still supplies the host and project path, so add `repository:` only when remote discovery is incomplete or must be overridden.
 
-When `repository:` is set, exactly one provider sub-section may be set, and it must match
-the top-level `provider`. The available sub-sections are `repository.github`,
-`repository.gitlab`, and `repository.azuredevops`:
+Exactly one provider subsection may be configured, and it must match `provider`:
 
 ```yaml
 # GitHub (including Enterprise)
 provider: github
 repository:
-  remote: upstream            # which git remote to inspect (default: origin)
+  remote: upstream
   github:
-    host: github.example.com  # override host for enterprise / mirrors
+    host: github.example.com
     owner: acme
     repo: widgets
-    # project: acme/widgets   # alternative to owner + repo (owner/repo form)
+    # project: acme/widgets
 ```
 
 ```yaml
@@ -55,7 +51,7 @@ provider: gitlab
 repository:
   gitlab:
     host: gitlab.example.com
-    project: group/sub/widgets   # full project path, including subgroups
+    project: group/sub/widgets
 ```
 
 ```yaml
@@ -67,15 +63,30 @@ repository:
     organization: contoso
     project: MyProject
     repo: widgets
-    # collection: DefaultCollection   # optional, defaults to organization
+    # collection: DefaultCollection
 ```
+
+Provider API URL overrides and host trust are documented in [Authentication](authentication.md#host-trust).
 
 ## Targets
 
-yeet plans releases per target and creates one combined release PR/MR per base branch.
-PR workflow settings remain top-level under `release:` and apply to the combined PR/MR, not individual targets.
+yeet plans each target independently and combines all planned changes into one release PR/MR per base branch. Use `--target` repeatedly to limit a run.
 
-Use `--target` to limit `yeet release` to specific targets (repeatable).
+### Single repository target
+
+Use a path target rooted at `.`. Choose a prefix that matches existing tags so version discovery continues from the correct release.
+
+```yaml
+targets:
+  widgets:
+    type: path
+    path: .
+    tag_prefix: v
+```
+
+### Monorepo path targets
+
+Each path target receives only commits that changed its path. `exclude_paths` removes subtrees from that match.
 
 ```yaml
 targets:
@@ -90,24 +101,36 @@ targets:
     type: path
     path: apps/web
     tag_prefix: web-v
+```
 
+### Derived targets
+
+A derived target releases when any included target releases. An optional `path` also lets it match direct commits.
+
+```yaml
+targets:
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v
+  web:
+    type: path
+    path: apps/web
+    tag_prefix: web-v
   root:
     type: derived
     includes:
       - api
       - web
-    path: .              # optional: also matches commits at repo root
+    path: .
     tag_prefix: v
 ```
 
-Path targets support `exclude_paths` to ignore commits under specific subdirectories.
-Derived targets aggregate included path targets and optionally match direct commits via `path`.
-
-Each target can override these top-level settings: `versioning`, `pre_major_breaking_bumps_minor`, `pre_major_features_bump_patch`, `version_files`, `changelog`, and `calver`. Anything not overridden inherits the top-level value.
+Targets can override `versioning`, both pre-major settings, `version_files`, `changelog`, and `calver`. Release PR/MR settings remain top-level because they apply to the combined release.
 
 ## Bump types
 
-By default, `feat` commits bump minor and `fix`/`perf` commits bump patch. Override this mapping with `bump_types`:
+By default, `feat` produces a minor bump and `fix` or `perf` produces a patch bump. Customize the mapping when the repository uses additional conventional commit types:
 
 ```yaml
 bump_types:
@@ -120,13 +143,11 @@ bump_types:
     - deps
 ```
 
-Types not listed produce no version bump unless they are breaking changes. Breaking changes override
-this mapping. For semver versions below `1.0.0`, `pre_major_breaking_bumps_minor` controls whether
-the resulting bump is minor or major.
+Unlisted types do not bump unless the commit is breaking. See [Versioning](versioning.md) for pre-1.0 behavior.
 
 ## Version files
 
-`yeet release` updates only files listed in `version_files`. String entries use comment-based yeet markers.
+`yeet release` changes only files listed in `version_files`. Plain string entries use comment markers:
 
 ```txt
 # inline markers (semver project)
@@ -142,11 +163,9 @@ appVersion: "1.2.3"
 # x-yeet-end
 ```
 
-Markers must sit in a real comment. yeet recognizes the `#`, `//`, `/* */`, `--`, `;`, and `<!-- -->` comment styles, so marker names mentioned in prose or inline code are ignored.
+Markers must be in a real `#`, `//`, `/* */`, `--`, `;`, or `<!-- -->` comment. Every listed marker file must contain a valid marker. Lines inside a block without a version value remain unchanged.
 
-A file listed in `version_files` must contain at least one marker, otherwise the release fails. An inline marker on a line without a recognizable version value fails too. Lines inside a block that carry no version value are left untouched.
-
-Entries can also be objects with an explicit `format` (`markers` or `json`). `format: markers` behaves like a plain string entry. JSON files cannot contain comments, so configure them with `format: json` and a `json_pointer`:
+JSON files use a JSON Pointer because JSON has no comments:
 
 ```yaml
 version_files:
@@ -155,24 +174,18 @@ version_files:
     json_pointer: /version
 ```
 
-The pointer must resolve to a JSON string. Nested values use standard RFC 6901 JSON Pointer syntax, for example `/packages/0/version`. The version file update preserves the existing JSON formatting and only replaces the targeted string value.
+The pointer must resolve to a string. Nested values use RFC 6901 syntax such as `/packages/0/version`, and yeet preserves the existing JSON formatting.
 
-The marker surface depends on the project's versioning scheme. yeet validates each
-marker against the configured scheme and the configured calver format. A marker
-that doesn't apply to the scheme returns an error with a suggested replacement.
-
-| Scheme | Allowed scopes |
+| Scheme | Marker scopes |
 |---|---|
 | semver | `version`, `major`, `minor`, `patch` |
-| calver | `version`, `year`, `micro`, plus `month` / `week` / `day` only when the configured format includes that token |
+| calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` when present in the configured format |
 
-Examples by calver format:
+Block markers use `x-yeet-start-<scope>` and `x-yeet-end`. Calver substitution preserves token width, so `0M` produces a zero-padded month.
 
-- `YYYY.0M.MICRO` (default): `version`, `year`, `month`, `micro`
-- `YYYY.WW.MICRO`: `version`, `year`, `week`, `micro`
-- `YYYY.0M.0D.MICRO`: `version`, `year`, `month`, `day`, `micro`
-- `YYYY.MICRO`: `version`, `year`, `micro`
+## Related documentation
 
-Block markers use the same scope names: `x-yeet-start-<scope>` opens the block,
-`x-yeet-end` closes it. Substitution width follows the format token, for example,
-`0M` zero-pads the month to two digits, `MM` does not.
+- [Documentation index](README.md)
+- [Versioning](versioning.md)
+- [Changelog generation](changelog-generation.md)
+- [Release PRs and MRs](release.md)

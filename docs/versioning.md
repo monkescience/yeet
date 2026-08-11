@@ -1,48 +1,44 @@
 # Versioning
 
-yeet supports two versioning strategies, selected with the top-level `versioning` key (default `semver`). Targets can override it individually in monorepo setups.
+yeet uses top-level `versioning`, default `semver`. A monorepo target can override the strategy.
 
 ## Semantic Versioning (semver)
 
-Follows [semver](https://semver.org/) with configurable pre-1.0 behavior.
+For versions at or above `1.0.0`:
 
-For versions `>= 1.0.0`:
+| Commit | Default bump |
+|---|---|
+| `feat` | minor |
+| `fix`, `perf` | patch |
+| `!` or `BREAKING CHANGE` footer | major |
 
-- `feat` -> minor
-- `fix`, `perf` -> patch
-- Breaking changes (`!` or `BREAKING CHANGE` footer) -> major
+For versions below `1.0.0`, both pre-major options default to `true`:
 
-For versions `< 1.0.0` (default behavior with `pre_major_breaking_bumps_minor: true` and `pre_major_features_bump_patch: true`):
+| Commit | Default bump | Setting that restores normal semver behavior |
+|---|---|---|
+| `feat` | patch | `pre_major_features_bump_patch: false` makes it minor |
+| `fix`, `perf` | patch | None |
+| `!` or `BREAKING CHANGE` footer | minor | `pre_major_breaking_bumps_minor: false` makes it major |
 
-- `feat` -> patch
-- `fix`, `perf` -> patch
-- Breaking changes (`!` or `BREAKING CHANGE` footer) -> minor
-
-These type-to-bump defaults are configurable via `bump_types` (see [Bump types](configuration.md#bump-types)).
-
-This keeps pre-1.0 breaking changes from automatically jumping to `1.0.0`.
-
-Set `pre_major_breaking_bumps_minor: false` to let breaking changes bump major (triggering 1.0.0),
-or `pre_major_features_bump_patch: false` to let features bump minor as they do post-1.0.
-These options can also be overridden per target in monorepo configurations.
+These rules also apply to custom types in [Bump types](configuration.md#bump-types). Targets may override both pre-major settings.
 
 ### Release-As overrides
 
-`Release-As` commit footers (for example `Release-As: 1.0.0`) override automatic semver bumping.
-The value must be a stable semver version greater than the current version. `Release-As` is
-case-insensitive and applies only to semver repositories. Calver repositories ignore it.
+A `Release-As` commit footer overrides automatic semver calculation:
 
-Commits in the same release must agree on the version: two commits with different `Release-As`
-values fail the run.
+```text
+Release-As: 1.0.0
+```
 
-On a [prerelease channel](release.md#prerelease-channels), `Release-As` sets the stable base
-version and the channel run produces `<version>-<channel>.1`.
+The value must be a stable semver version greater than the current version. The footer is case-insensitive and has no effect on calver targets. Every `Release-As` footer in one release must request the same version.
+
+On a [prerelease channel](release.md#prerelease-channels), the footer selects the stable base and yeet adds the channel suffix, such as `1.0.0-beta.1`.
 
 ## Calendar Versioning (calver)
 
-Uses `YYYY.0M.MICRO` format by default (e.g., `2026.02.1`). The `MICRO` counter increments within the configured calendar period and resets when that period changes.
+The default format is `YYYY.0M.MICRO`. `MICRO` increments within the selected calendar period and resets when that period changes.
 
-Configure the format globally or per target:
+Minimal configuration:
 
 ```yaml
 versioning: calver
@@ -50,4 +46,23 @@ calver:
   format: YYYY.0M.0D.MICRO
 ```
 
-Supported date tokens are `YYYY`, `YY`, `0Y`, `MM`, `0M`, `WW`, `0W`, `DD`, and `0D`. `MICRO` is required as the final token so multiple releases in the same calendar period can produce unique versions. Tokens must be dot-separated. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.
+| Component | Supported tokens |
+|---|---|
+| Year | `YYYY`, `YY`, `0Y` |
+| Month | `MM`, `0M` |
+| ISO week | `WW`, `0W` |
+| Day | `DD`, `0D` |
+| Counter | `MICRO` |
+
+Tokens are dot-separated, the format includes exactly one year token, and `MICRO` is required as the final token. These combinations are incompatible:
+
+- Week with month or day
+- Day without month
+- More than one token for the same calendar component
+
+## Related documentation
+
+- [Documentation index](README.md)
+- [Configuration](configuration.md)
+- [Changelog generation](changelog-generation.md)
+- [Release PRs and MRs](release.md)

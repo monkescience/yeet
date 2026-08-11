@@ -3,6 +3,7 @@
 version_files:
   - README.md
   - docs/ci.md
+  - docs/verification.md
 
 release:
   reviewers:
