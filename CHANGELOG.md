@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.13.3](https://github.com/monkescience/yeet/compare/v0.13.2...v0.13.3) (2026-08-11)
+
+### Bug Fixes
+
+- **provider:** harden release workflows ([e1e98d2](https://github.com/monkescience/yeet/commit/e1e98d288fb28da003a5a51e9e2a7218c8932a09))
+
 ## [v0.13.2](https://github.com/monkescience/yeet/compare/v0.13.1...v0.13.2) (2026-08-10)
 
 ### Bug Fixes
