@@ -29,7 +29,12 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	binary = testastic.BuildBinaryMain(m, "./cmd/yeet", testastic.WithWorkDir(".."))
+	binary = testastic.BuildBinaryMain(
+		m,
+		"./cmd/yeet",
+		testastic.WithWorkDir(".."),
+		testastic.WithBuildArgs("-ldflags", "-X github.com/monkescience/yeet/internal/build.version=dev"),
+	)
 
 	code := testastic.CollectSubprocessCoverage(m, "../coverage/coverage.out")
 
