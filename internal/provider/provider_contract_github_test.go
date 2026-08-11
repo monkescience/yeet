@@ -543,7 +543,7 @@ func handleGitHubCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *h
 	t.Helper()
 
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/"+providerContractTag:
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 		w.WriteHeader(http.StatusNotFound)
 		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/user":
@@ -612,14 +612,11 @@ func TestGitHubConcurrentTagCreationValidatesCommit(t *testing.T) {
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
+					w.WriteHeader(http.StatusNotFound)
+					writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
 				case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/"+providerContractTag:
-					if tagLookups.Add(1) == 1 {
-						w.WriteHeader(http.StatusNotFound)
-						writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
-
-						return
-					}
-
+					tagLookups.Add(1)
 					writeJSON(t, w, map[string]any{"sha": testCase.commitSHA})
 				case r.Method == http.MethodGet && r.URL.Path == "/user":
 					writeJSONFixture(t, w, "contracts/github/create_release/user.json")
@@ -648,7 +645,7 @@ func TestGitHubConcurrentTagCreationValidatesCommit(t *testing.T) {
 			})
 
 			// then: only a matching concurrent tag is accepted
-			testastic.Equal(t, int32(2), tagLookups.Load())
+			testastic.Equal(t, int32(1), tagLookups.Load())
 			testastic.Equal(t, testCase.wantCreate, releaseCreates.Load())
 
 			if testCase.wantErr {

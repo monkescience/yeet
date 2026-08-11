@@ -276,8 +276,10 @@ func TestGitHubCreateRelease(t *testing.T) {
 	// given: a GitHub provider backed by a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/v1.2.3":
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
 			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/v1.2.3":
+			w.WriteHeader(http.StatusUnprocessableEntity)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			writeJSON(t, w, map[string]any{
 				"login": "yeet-tester",
@@ -379,6 +381,14 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	// given: a GitHub repository where the target tag already exists
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/v1.2.3":
+			writeJSON(t, w, map[string]any{
+				"ref": "refs/tags/v1.2.3",
+				"object": map[string]any{
+					"sha":  "6578697374696e67746167736861000000000000",
+					"type": "tag",
+				},
+			})
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/v1.2.3":
 			writeJSON(t, w, map[string]any{
 				"sha": "6865616473686131323300000000000000000000",

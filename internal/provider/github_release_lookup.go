@@ -83,6 +83,19 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 	return gitHubRelease(rel, targetCommitish), nil
 }
 
+func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
+	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("get tag ref %q: %w", tag, err)
+	}
+
+	return true, nil
+}
+
 // Creates an annotated tag carrying the release body so the changelog lives in
 // portable git data, mirroring release-please behavior.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
@@ -94,13 +107,18 @@ func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message s
 		return fmt.Errorf("%w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
-	existingCommitSHA, err := g.resolveCommitSHA(ctx, "tags/"+tagName)
-	if err == nil {
-		return validateReleaseTagCommit(tagName, existingCommitSHA, ref)
+	exists, err := g.tagExists(ctx, tagName)
+	if err != nil {
+		return fmt.Errorf("check tag %q: %w", tagName, err)
 	}
 
-	if !errors.Is(err, forge.ErrRefNotFound) {
-		return fmt.Errorf("check tag %q: %w", tagName, err)
+	if exists {
+		existingCommitSHA, resolveErr := g.resolveCommitSHA(ctx, "tags/"+tagName)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve tag %q: %w", tagName, resolveErr)
+		}
+
+		return validateReleaseTagCommit(tagName, existingCommitSHA, ref)
 	}
 
 	tagger := g.resolveTaggerIdentity(ctx)
