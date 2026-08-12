@@ -3,7 +3,6 @@ package provider
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,43 +11,6 @@ import (
 	"github.com/google/go-github/v90/github"
 	"github.com/monkescience/yeet/internal/forge"
 )
-
-func (g *GitHub) CreateBranch(ctx context.Context, name, base string) error {
-	slog.DebugContext(ctx, "github: creating branch",
-		slog.String("branch", name),
-		slog.String("base", base),
-	)
-
-	baseRef, _, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "refs/heads/"+base)
-	if err != nil {
-		return fmt.Errorf("get base ref %s: %w", base, err)
-	}
-
-	_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, github.CreateRef{
-		Ref: "refs/heads/" + name,
-		SHA: baseRef.GetObject().GetSHA(),
-	})
-	if err != nil {
-		var ghErr *github.ErrorResponse
-		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
-			slog.DebugContext(ctx, "github: branch already exists",
-				slog.String("branch", name),
-				slog.Int("status", ghErr.Response.StatusCode),
-			)
-
-			return nil
-		}
-
-		return fmt.Errorf("create branch %s: %w", name, err)
-	}
-
-	slog.DebugContext(ctx, "github: created branch",
-		slog.String("branch", name),
-		slog.String("base_sha", baseRef.GetObject().GetSHA()),
-	)
-
-	return nil
-}
 
 func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, error) {
 	slog.DebugContext(ctx, "github: reading file",

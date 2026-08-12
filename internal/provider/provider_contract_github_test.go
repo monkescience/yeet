@@ -75,8 +75,6 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
 			handleGitHubAsyncMergeReleasePRContract(t, w, r, &mergeAccepted)
-		case providerContractCreateBranch:
-			handleGitHubCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
 			handleGitHubCreateReleaseContract(t, w, r)
 		case providerContractGetFile:
@@ -521,19 +519,6 @@ func handleGitHubAsyncMergeReleasePRContract(
 	case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
 		mergeAccepted.Store(true)
 		writeJSON(t, w, map[string]any{"merged": true, "sha": ""})
-	default:
-		fatalUnexpectedProviderRequest(t, "GitHub", r)
-	}
-}
-
-func handleGitHubCreateBranchContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/main":
-		writeJSONFixture(t, w, "contracts/github/create_branch/base_ref.json")
-	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
-		writeJSONFixture(t, w, "contracts/github/create_branch/created_ref.json")
 	default:
 		fatalUnexpectedProviderRequest(t, "GitHub", r)
 	}

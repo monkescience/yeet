@@ -73,8 +73,6 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
 			handleGitLabAsyncMergeReleasePRContract(t, w, r, &mergeAccepted)
-		case providerContractCreateBranch:
-			handleGitLabCreateBranchContract(t, w, r)
 		case providerContractCreateRelease:
 			handleGitLabCreateReleaseContract(t, w, r)
 		case providerContractGetFile:
@@ -555,18 +553,6 @@ func handleGitLabAsyncMergeReleasePRContract(
 	default:
 		fatalUnexpectedProviderRequest(t, "GitLab", r)
 	}
-}
-
-func handleGitLabCreateBranchContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
-	t.Helper()
-
-	if r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches" {
-		writeJSONFixture(t, w, "contracts/gitlab/create_branch/branch.json")
-
-		return
-	}
-
-	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
 func handleGitLabCreateReleaseContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

@@ -5,44 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"sort"
 
 	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
-
-func (g *GitLab) CreateBranch(ctx context.Context, name, base string) error {
-	slog.DebugContext(ctx, "gitlab: creating branch",
-		slog.String("branch", name),
-		slog.String("base", base),
-	)
-
-	_, _, err := g.client.Branches.CreateBranch(g.projectID, &gitlab.CreateBranchOptions{
-		Branch: new(name),
-		Ref:    new(base),
-	}, gitlab.WithContext(ctx))
-	if err != nil {
-		var glErr *gitlab.ErrorResponse
-		if errors.As(err, &glErr) && glErr.Response != nil && glErr.Response.StatusCode == http.StatusBadRequest {
-			slog.DebugContext(ctx, "gitlab: branch already exists",
-				slog.String("branch", name),
-				slog.Int("status", glErr.Response.StatusCode),
-			)
-
-			return nil
-		}
-
-		return fmt.Errorf("create branch %s: %w", name, err)
-	}
-
-	slog.DebugContext(ctx, "gitlab: created branch",
-		slog.String("branch", name),
-		slog.String("base", base),
-	)
-
-	return nil
-}
 
 func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, error) {
 	ref := branch

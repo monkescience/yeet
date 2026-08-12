@@ -206,7 +206,6 @@ const (
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
 	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
 	providerContractAsyncMergeReleasePR      providerContractScenario = "async merge release pr"
-	providerContractCreateBranch             providerContractScenario = "create branch"
 	providerContractCreateRelease            providerContractScenario = "create release"
 	providerContractGetFile                  providerContractScenario = "get file"
 	providerContractUpdateFiles              providerContractScenario = "update files"
@@ -631,22 +630,6 @@ func TestProviderContract(t *testing.T) {
 				// then: no provisional commit is returned before the merge is applied
 				testastic.NoError(t, err)
 				testastic.Equal(t, providerContractMergeSHA, mergeSHA)
-			})
-
-			t.Run("creates branch", func(t *testing.T) {
-				t.Parallel()
-
-				// given: a provider server accepting a new branch off the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractCreateBranch))
-				defer server.Close()
-
-				p := harness.newProvider(t, server)
-
-				// when: CreateBranch is invoked for the release branch with the base branch as source
-				err := p.CreateBranch(context.Background(), providerContractReleaseBranch, providerContractBaseBranch)
-
-				// then: the branch is created without error
-				testastic.NoError(t, err)
 			})
 
 			t.Run("creates release", func(t *testing.T) {

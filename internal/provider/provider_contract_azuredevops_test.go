@@ -174,10 +174,8 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 	testastic.Equal(t, int32(1), branchLookups.Load())
 }
 
-func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.T) {
+func TestAzureDevOpsGetBranchHeadFindsABranchOnALaterRefPage(t *testing.T) {
 	t.Parallel()
-
-	var refUpdates atomic.Int32
 
 	// given: the release branch sorts behind a full page of prefix-matching siblings
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -185,21 +183,17 @@ func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.
 			return
 		}
 
-		switch {
-		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
-		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
+		if isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch) {
 			writeAzureDevOpsTruncatedRefs(
 				t, w, r,
 				"refs/heads/"+providerContractReleaseBranch,
 				"72656c6561736573686100000000000000000000",
 			)
-		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
-			refUpdates.Add(1)
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
-		default:
-			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
 		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 	})
 
 	server := httptest.NewServer(handler)
@@ -207,16 +201,12 @@ func TestAzureDevOpsCreateBranchFindsAnExistingBranchOnALaterRefPage(t *testing.
 
 	p := newAzureDevOpsContractProvider(t, server)
 
-	// when: the branch that already exists is created
-	err := p.CreateBranch(
-		context.Background(),
-		providerContractReleaseBranch,
-		providerContractBaseBranch,
-	)
+	// when: the head of that branch is resolved
+	head, err := p.GetBranchHead(context.Background(), providerContractReleaseBranch)
 
-	// then: the continuation page proves the branch exists, so nothing is created
+	// then: the continuation page answers with the branch tip
 	testastic.NoError(t, err)
-	testastic.Equal(t, int32(0), refUpdates.Load())
+	testastic.Equal(t, "72656c6561736573686100000000000000000000", head)
 }
 
 func TestAzureDevOpsGetReleaseByTagFindsATagOnALaterRefPage(t *testing.T) {
@@ -900,8 +890,6 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsMergeReleasePRHandler(t)
 	case providerContractAsyncMergeReleasePR:
 		return azureDevOpsAsyncMergeReleasePRHandler(t)
-	case providerContractCreateBranch:
-		return azureDevOpsCreateBranchHandler(t)
 	case providerContractCreateRelease:
 		return azureDevOpsCreateReleaseHandler(t)
 	case providerContractGetFile:
@@ -1331,33 +1319,6 @@ func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 				"mergeStatus":     "queued",
 				"lastMergeCommit": map[string]any{"commitId": "7072657669657773686100000000000000000000"},
 			})
-		default:
-			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
-		}
-	}
-}
-
-func azureDevOpsCreateBranchHandler(t *testing.T) http.HandlerFunc {
-	t.Helper()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch):
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "base_ref.json"))
-		case isAzureDevOpsRefsRequest(r, "heads/"+providerContractReleaseBranch):
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "empty_refs.json"))
-		case r.Method == http.MethodPost && r.URL.Path == azureDevOpsContractRepoAPI("refs"):
-			var request []struct {
-				Name        string `json:"name"`
-				OldObjectID string `json:"oldObjectId"`
-				NewObjectID string `json:"newObjectId"`
-			}
-			decodeJSONRequest(t, r, &request)
-			testastic.Equal(t, 1, len(request))
-			testastic.Equal(t, "refs/heads/"+providerContractReleaseBranch, request[0].Name)
-			testastic.Equal(t, "0000000000000000000000000000000000000000", request[0].OldObjectID)
-			testastic.Equal(t, "6261736573686100000000000000000000000000", request[0].NewObjectID)
-			writeJSONFixture(t, w, azureDevOpsContractFixture("create_branch", "ref_update.json"))
 		default:
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 		}

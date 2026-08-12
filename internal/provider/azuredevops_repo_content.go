@@ -14,29 +14,6 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-func (a *AzureDevOps) CreateBranch(ctx context.Context, name, base string) error {
-	slog.DebugContext(ctx, "azure devops: creating branch",
-		slog.String("branch", name),
-		slog.String("base", base),
-	)
-
-	baseSHA, err := a.branchTipSHA(ctx, base)
-	if err != nil {
-		return fmt.Errorf("get base branch %q tip: %w", base, err)
-	}
-
-	if existing, _ := a.branchTipSHA(ctx, name); existing != "" {
-		slog.DebugContext(ctx, "azure devops: branch already exists",
-			slog.String("branch", name),
-			slog.String("tip", existing),
-		)
-
-		return nil
-	}
-
-	return a.createBranchAtSHA(ctx, name, baseSHA)
-}
-
 func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA string) error {
 	gitClient, err := a.client(ctx)
 	if err != nil {

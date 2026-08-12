@@ -111,7 +111,6 @@ type Provider interface {
 	PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error
 	// MaxPRBodyLength returns zero when the forge has no known limit.
 	MaxPRBodyLength() int
-	CreateBranch(ctx context.Context, name, base string) error
 	GetFile(ctx context.Context, branch, path string) (string, error)
 	// UpdateFiles resets branch from base and writes one commit with all changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]FileUpdate, message string) error
