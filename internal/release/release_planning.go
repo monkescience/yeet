@@ -399,8 +399,8 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		"",
 		a.core.activePrereleaseIdentifier(),
 	)
-	//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 	if err != nil {
+		//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 		return "", commit.BumpNone, false, err
 	}
 
