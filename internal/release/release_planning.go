@@ -399,7 +399,7 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		"",
 		a.core.activePrereleaseIdentifier(),
 	)
-	//nolint:wrapcheck // The caller wraps this with the derived target context.
+	//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 	if err != nil {
 		return "", commit.BumpNone, false, err
 	}
