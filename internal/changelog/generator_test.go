@@ -716,6 +716,35 @@ func TestDerivedEntry(t *testing.T) {
 		testastic.Contains(t, changelog.Render(derived), "## v1.3.0 (2026-03-01)")
 	})
 
+	t.Run("nests children after the parent's own sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a parent entry with its own section and two child targets
+		direct := changelog.Entry{
+			Version:       "v1.3.0",
+			Sections:      []changelog.Section{{Heading: "Features", Lines: []string{"- add tokens (abc1234)"}}},
+			OwnedHeadings: []string{"Features", "Bug Fixes"},
+		}
+		children := []changelog.Section{
+			{Heading: "api", Sections: []changelog.Section{{Heading: "Bug Fixes"}}},
+			{Heading: "web"},
+		}
+
+		// when: nesting the children under it
+		derived := changelog.DerivedEntry(direct, []string{"api", "web", "cli"}, children)
+
+		// then: the parent's sections come first and the children keep their nesting
+		testastic.SliceEqual(t, []string{"Features", "api", "web"}, sectionHeadings(derived.Sections))
+		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(derived.Sections[1].Sections))
+
+		// and: every heading the parent may own is recorded, including an absent child
+		testastic.SliceEqual(
+			t,
+			[]string{"Features", "Bug Fixes", "api", "web", "cli"},
+			derived.OwnedHeadings,
+		)
+	})
+
 	t.Run("drops the compare URL of the direct entry", func(t *testing.T) {
 		t.Parallel()
 
