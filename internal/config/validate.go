@@ -342,7 +342,7 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 			return fmt.Errorf("%w: release.channels.%s.prerelease must not be empty", ErrInvalidConfig, channelName)
 		}
 
-		err := validatePrereleaseIdentifier(prerelease)
+		err := version.ValidatePrereleaseIdentifier(prerelease)
 		if err != nil {
 			return fmt.Errorf("%w: release.channels.%s.prerelease: %v", ErrInvalidConfig, channelName, err)
 		}
@@ -362,14 +362,6 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 		if channel.ChangelogFile != "" && strings.TrimSpace(channel.ChangelogFile) == "" {
 			return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
 		}
-	}
-
-	return nil
-}
-
-func validatePrereleaseIdentifier(identifier string) error {
-	if err := version.ValidatePrereleaseIdentifier(identifier); err != nil {
-		return fmt.Errorf("%w", err)
 	}
 
 	return nil
