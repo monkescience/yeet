@@ -2,6 +2,7 @@ package changelog_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
@@ -685,6 +686,35 @@ func TestRender(t *testing.T) {
 			"testdata/render/renders_linked_version_header_with_compare_u_r_l/output.expected.md",
 			output,
 		)
+	})
+}
+
+func TestDerivedEntry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("keeps the release date of the direct entry", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a direct entry dated on its release day
+		direct := changelog.Entry{
+			Version: "v1.2.0",
+			Date:    time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
+			Sections: []changelog.Section{{
+				Heading: "Bug Fixes",
+				Lines:   []string{"- patch issue (abc1234)"},
+			}},
+		}
+
+		// when: nesting a child target under it
+		derived := changelog.DerivedEntry(
+			"v1.3.0",
+			direct,
+			[]string{"api"},
+			[]changelog.Section{{Heading: "api"}},
+		)
+
+		// then: the release heading carries that date
+		testastic.Contains(t, changelog.Render(derived), "## v1.3.0 (2026-03-01)")
 	})
 }
 

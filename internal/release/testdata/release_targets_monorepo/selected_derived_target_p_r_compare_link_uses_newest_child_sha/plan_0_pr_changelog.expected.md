@@ -1,4 +1,4 @@
-## [v3.1.0](https://github.example.com/owner/repo/compare/v3.0.0...fedcba0987654321fedcba0987654321fedcba09) (0001-01-01)
+## [v3.1.0](https://github.example.com/owner/repo/compare/v3.0.0...fedcba0987654321fedcba0987654321fedcba09) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
 ### api
 

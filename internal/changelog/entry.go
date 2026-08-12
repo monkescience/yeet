@@ -131,6 +131,7 @@ func DerivedEntry(version string, direct Entry, ownedHeadings []string, children
 
 	return Entry{
 		Version:       version,
+		Date:          direct.Date,
 		Sections:      sections,
 		OwnedHeadings: owned,
 	}
