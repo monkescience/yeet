@@ -275,39 +275,34 @@ func (a *AzureDevOps) latestAzureDevOpsMergedPR(
 	ctx context.Context,
 	candidates []git.GitPullRequest,
 ) (*git.GitPullRequest, error) {
-	if len(candidates) == 0 {
-		return nil, forge.ErrNoPR
-	}
-
 	fullByNumber := make(map[int]*git.GitPullRequest)
 
-	if len(candidates) > 1 {
-		for index := range candidates {
-			if candidates[index].ClosedDate != nil {
-				continue
+	best, err := resolveLatestMerged(ctx, candidates, mergedCandidates[git.GitPullRequest]{
+		mergedAt: func(pr git.GitPullRequest) (time.Time, bool) {
+			if pr.ClosedDate == nil {
+				return time.Time{}, false
 			}
 
-			number := derefInt(candidates[index].PullRequestId)
+			return azureDevOpsClosedAt(&pr), true
+		},
+		hydrate: func(ctx context.Context, pr git.GitPullRequest) (git.GitPullRequest, bool, error) {
+			number := derefInt(pr.PullRequestId)
 
 			full, err := a.getPullRequest(ctx, number)
 			if err != nil {
-				return nil, err
+				return pr, false, err
 			}
 
-			if full.ClosedDate == nil {
-				return nil, fmt.Errorf("%w: pull request !%d", errMergeTimeMissing, number)
-			}
-
-			candidates[index] = *full
 			fullByNumber[number] = full
-		}
-	}
 
-	best := &candidates[0]
-	for index := 1; index < len(candidates); index++ {
-		if azureDevOpsClosedAt(&candidates[index]).After(azureDevOpsClosedAt(best)) {
-			best = &candidates[index]
-		}
+			return *full, true, nil
+		},
+		reference: func(pr git.GitPullRequest) string {
+			return fmt.Sprintf("pull request !%d", derefInt(pr.PullRequestId))
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	number := derefInt(best.PullRequestId)

@@ -285,76 +285,37 @@ func (g *GitHub) resolveLatestGitHubMergedCandidate(
 	ctx context.Context,
 	candidates []gitHubMergedCandidate,
 ) (*gitHubMergedCandidate, error) {
-	if len(candidates) == 0 {
-		return nil, forge.ErrNoPR
-	}
+	best, err := resolveLatestMerged(ctx, candidates, mergedCandidates[gitHubMergedCandidate]{
+		mergedAt: func(candidate gitHubMergedCandidate) (time.Time, bool) {
+			if candidate.listed.MergedAt == nil {
+				return time.Time{}, false
+			}
 
-	if err := g.hydrateGitHubMergeTimes(ctx, candidates); err != nil {
+			return gitHubMergedAt(candidate.listed), true
+		},
+		hydrate: func(ctx context.Context, candidate gitHubMergedCandidate) (gitHubMergedCandidate, bool, error) {
+			number := candidate.listed.GetNumber()
+
+			full, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
+			if err != nil {
+				return candidate, false, fmt.Errorf("get pull request #%d: %w", number, err)
+			}
+
+			if !full.GetMerged() {
+				return candidate, false, nil
+			}
+
+			return gitHubMergedCandidate{listed: full, full: full}, true, nil
+		},
+		reference: func(candidate gitHubMergedCandidate) string {
+			return fmt.Sprintf("pull request #%d", candidate.listed.GetNumber())
+		},
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	validCandidates := 0
-
-	for index := range candidates {
-		if candidates[index].listed != nil {
-			validCandidates++
-		}
-	}
-
-	var best *gitHubMergedCandidate
-
-	for index := range candidates {
-		current := &candidates[index]
-		if current.listed == nil {
-			continue
-		}
-
-		if current.listed.MergedAt == nil && validCandidates > 1 {
-			return nil, fmt.Errorf("%w: pull request #%d", errMergeTimeMissing, current.listed.GetNumber())
-		}
-
-		if best == nil || gitHubMergedAt(current.listed).After(gitHubMergedAt(best.listed)) {
-			best = current
-		}
-	}
-
-	if best == nil {
-		return nil, forge.ErrNoPR
-	}
-
-	return best, nil
-}
-
-func (g *GitHub) hydrateGitHubMergeTimes(
-	ctx context.Context,
-	candidates []gitHubMergedCandidate,
-) error {
-	for index := range candidates {
-		if candidates[index].listed.MergedAt != nil {
-			continue
-		}
-
-		full, _, err := g.client.PullRequests.Get(
-			ctx,
-			g.repo.Owner,
-			g.repo.Name,
-			candidates[index].listed.GetNumber(),
-		)
-		if err != nil {
-			return fmt.Errorf("get pull request #%d: %w", candidates[index].listed.GetNumber(), err)
-		}
-
-		if !full.GetMerged() {
-			candidates[index].listed = nil
-
-			continue
-		}
-
-		candidates[index].listed = full
-		candidates[index].full = full
-	}
-
-	return nil
+	return &best, nil
 }
 
 func gitHubHasLabel(labels []*github.Label, target string) bool {

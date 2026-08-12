@@ -345,43 +345,33 @@ func (g *GitLab) FindMergedReleasePR(
 		return nil, err
 	}
 
-	if len(candidates) == 0 {
-		return nil, forge.ErrNoPR
-	}
-
-	if len(candidates) > 1 {
-		for index, candidate := range candidates {
-			if candidate.MergedAt != nil {
-				continue
+	bestMR, err := resolveLatestMerged(ctx, candidates, mergedCandidates[*gitlab.BasicMergeRequest]{
+		mergedAt: func(mergeRequest *gitlab.BasicMergeRequest) (time.Time, bool) {
+			if mergeRequest.MergedAt == nil {
+				return time.Time{}, false
 			}
 
+			return gitLabMergedAt(mergeRequest), true
+		},
+		hydrate: func(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) (*gitlab.BasicMergeRequest, bool, error) {
 			full, _, getErr := g.client.MergeRequests.GetMergeRequest(
 				g.projectID,
-				candidate.IID,
+				mergeRequest.IID,
 				nil,
 				gitlab.WithContext(ctx),
 			)
 			if getErr != nil {
-				return nil, fmt.Errorf("get merge request !%d: %w", candidate.IID, getErr)
+				return nil, false, fmt.Errorf("get merge request !%d: %w", mergeRequest.IID, getErr)
 			}
 
-			if full.MergedAt == nil {
-				return nil, fmt.Errorf("%w: merge request !%d", errMergeTimeMissing, candidate.IID)
-			}
-
-			candidates[index] = &full.BasicMergeRequest
-		}
-	}
-
-	bestMR := candidates[0]
-	bestMergedAt := gitLabMergedAt(bestMR)
-
-	for _, candidate := range candidates[1:] {
-		mergedAt := gitLabMergedAt(candidate)
-		if mergedAt.After(bestMergedAt) {
-			bestMR = candidate
-			bestMergedAt = mergedAt
-		}
+			return &full.BasicMergeRequest, true, nil
+		},
+		reference: func(mergeRequest *gitlab.BasicMergeRequest) string {
+			return fmt.Sprintf("merge request !%d", mergeRequest.IID)
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	found := &forge.PullRequest{
