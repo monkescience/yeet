@@ -85,9 +85,15 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 }
 
 func (a *releaseAnalyzer) channelRefAllowed(strategy version.Strategy, currentVersion string) bool {
+	// A stable version belongs to every channel, so an active channel this config
+	// does not define must not reject it.
+	if strategy.PrereleaseAllowed(currentVersion, "") {
+		return true
+	}
+
 	channelName := strings.TrimSpace(a.core.cfg.ActiveChannel)
 	if channelName == "" {
-		return strategy.PrereleaseAllowed(currentVersion, "")
+		return false
 	}
 
 	channel, exists := a.core.cfg.Release.Channels[channelName]

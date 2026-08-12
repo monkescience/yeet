@@ -20,19 +20,28 @@ func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrat
 
 	switch target.Versioning {
 	case config.VersioningCalVer:
-		strategy = &version.CalVer{
-			Format: target.CalVer.Format,
-			Prefix: target.TagPrefix,
-		}
+		strategy = calVerStrategy(target)
 	case config.VersioningSemver:
 		strategy = &version.SemVer{
 			Prefix:                     target.TagPrefix,
 			PreMajorBreakingBumpsMinor: target.PreMajorBreakingBumpsMinor,
 			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
 		}
+	default:
+		// Config validation admits semver and calver only. A scheme that reached
+		// here without it keeps the pre-dispatch behaviour of anything that was
+		// not semver, so callers report it instead of dereferencing nil.
+		strategy = calVerStrategy(target)
 	}
 
 	return versionStrategy{strategy: strategy, prefix: target.TagPrefix}
+}
+
+func calVerStrategy(target config.ResolvedTarget) *version.CalVer {
+	return &version.CalVer{
+		Format: target.CalVer.Format,
+		Prefix: target.TagPrefix,
+	}
 }
 
 func currentVersionWithInitial(target config.ResolvedTarget, currentVersion string) string {
