@@ -427,6 +427,71 @@ func TestGitHubFindMergedReleasePRUsesOneListAndOneDetailRequest(t *testing.T) {
 	testastic.Equal(t, int32(1), detailRequests.Load())
 }
 
+func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("drops a candidate the re-read reports as never merged", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an undated candidate the re-read reports unmerged, competing with a dated one
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/41":
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/pr_41_unmerged.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr/pr.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: finding the merged release pull request
+		pr, err := p.FindMergedReleasePR(
+			context.Background(),
+			providerContractBaseBranch,
+			providerContractPendingLabel,
+		)
+
+		// then: the dated candidate wins without the unmerged one competing
+		testastic.NoError(t, err)
+		testastic.Equal(t, 42, pr.Number)
+	})
+
+	t.Run("names the pull request whose re-read failed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a re-read of the undated candidate that fails
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/41":
+				w.WriteHeader(http.StatusInternalServerError)
+			default:
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: finding the merged release pull request
+		_, err := p.FindMergedReleasePR(
+			context.Background(),
+			providerContractBaseBranch,
+			providerContractPendingLabel,
+		)
+
+		// then: the failure carries the candidate it belongs to
+		testastic.Contains(t, err.Error(), "get pull request #41")
+	})
+}
+
 // newGitHubContractLabelHandler tracks the labels on PR 42 so a scenario can
 // assert the set a phase leaves behind.
 func newGitHubContractLabelHandler(
