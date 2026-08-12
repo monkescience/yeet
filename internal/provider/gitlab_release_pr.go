@@ -253,13 +253,15 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 				return false, nil
 			}
 
-			labelState := classifyReleasePRLabels(mr.Labels, pendingLabel, exactLabelMatch)
-			if labelState == releasePRLabelsMismatched {
-				return false, releasePRLabelMismatch(
-					gitLabMergeRequestReference(int(mr.IID)),
-					mr.SourceBranch,
-					pendingLabel,
-				)
+			needsLabel, err := needsPendingLabel(
+				mr.Labels,
+				pendingLabel,
+				exactLabelMatch,
+				gitLabMergeRequestReference(int(mr.IID)),
+				mr.SourceBranch,
+			)
+			if err != nil {
+				return false, err
 			}
 
 			pendingMRs = append(pendingMRs, &forge.PullRequest{
@@ -268,7 +270,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 				Body:              mr.Description,
 				URL:               mr.WebURL,
 				Branch:            mr.SourceBranch,
-				NeedsPendingLabel: labelState == releasePRLabelsAdoptable,
+				NeedsPendingLabel: needsLabel,
 			})
 
 			return false, nil

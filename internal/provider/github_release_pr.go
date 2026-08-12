@@ -152,13 +152,15 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 
 			branch := pr.GetHead().GetRef()
 
-			state := classifyReleasePRLabels(gitHubLabelNames(pr.Labels), pendingLabel, foldedLabelMatch)
-			if state == releasePRLabelsMismatched {
-				return false, releasePRLabelMismatch(
-					gitHubPullRequestReference(pr.GetNumber()),
-					branch,
-					pendingLabel,
-				)
+			needsLabel, err := needsPendingLabel(
+				gitHubLabelNames(pr.Labels),
+				pendingLabel,
+				foldedLabelMatch,
+				gitHubPullRequestReference(pr.GetNumber()),
+				branch,
+			)
+			if err != nil {
+				return false, err
 			}
 
 			pendingPRs = append(pendingPRs, &forge.PullRequest{
@@ -167,7 +169,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 				Body:              pr.GetBody(),
 				URL:               pr.GetHTMLURL(),
 				Branch:            branch,
-				NeedsPendingLabel: state == releasePRLabelsAdoptable,
+				NeedsPendingLabel: needsLabel,
 			})
 
 			return false, nil

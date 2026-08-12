@@ -91,6 +91,23 @@ func classifyReleasePRLabels(found []string, pendingLabel string, match labelMat
 	return releasePRLabelsAdoptable
 }
 
+// needsPendingLabel reports whether a trusted release pull request has yet to be
+// given its pending label. It fails when the labels found name a lifecycle yeet
+// is not configured for. reference carries the forge's own wording.
+func needsPendingLabel(
+	found []string,
+	pendingLabel string,
+	match labelMatch,
+	reference, branch string,
+) (bool, error) {
+	state := classifyReleasePRLabels(found, pendingLabel, match)
+	if state == releasePRLabelsMismatched {
+		return false, releasePRLabelMismatch(reference, branch, pendingLabel)
+	}
+
+	return state == releasePRLabelsAdoptable, nil
+}
+
 // releasePRLabelMismatch reports a trusted release pull request whose labels
 // name a lifecycle yeet is not configured for, which means renamed configuration
 // rather than an interrupted run. reference carries the forge's own wording.

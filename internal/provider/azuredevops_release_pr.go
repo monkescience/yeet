@@ -181,13 +181,15 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 
 		number := derefInt(pr.PullRequestId)
 
-		state := classifyReleasePRLabels(azureDevOpsLabelNames(pr.Labels), pendingLabel, foldedLabelMatch)
-		if state == releasePRLabelsMismatched {
-			return nil, releasePRLabelMismatch(
-				azureDevOpsPullRequestReference(number),
-				branch,
-				pendingLabel,
-			)
+		needsLabel, err := needsPendingLabel(
+			azureDevOpsLabelNames(pr.Labels),
+			pendingLabel,
+			foldedLabelMatch,
+			azureDevOpsPullRequestReference(number),
+			branch,
+		)
+		if err != nil {
+			return nil, err
 		}
 
 		pending = append(pending, &forge.PullRequest{
@@ -196,7 +198,7 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 			Body:              derefString(pr.Description),
 			URL:               a.pullRequestWebURL(number),
 			Branch:            branch,
-			NeedsPendingLabel: state == releasePRLabelsAdoptable,
+			NeedsPendingLabel: needsLabel,
 		})
 	}
 
