@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/version"
 )
 
@@ -369,9 +368,8 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 }
 
 func validatePrereleaseIdentifier(identifier string) error {
-	_, err := semver.StrictNewVersion("1.0.0-" + identifier)
-	if err != nil {
-		return fmt.Errorf("invalid semver prerelease identifier %q: %w", identifier, err)
+	if err := version.ValidatePrereleaseIdentifier(identifier); err != nil {
+		return fmt.Errorf("%w", err)
 	}
 
 	return nil

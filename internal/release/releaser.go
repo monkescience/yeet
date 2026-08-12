@@ -17,8 +17,8 @@ import (
 
 var (
 	errNilHistorySource          = errors.New("history source is required")
-	errInvalidReleaseAs          = errors.New("invalid release-as footer")
-	errConflictingReleaseAs      = errors.New("conflicting release-as footers")
+	errInvalidReleaseAs          = version.ErrInvalidReleaseAs
+	errConflictingReleaseAs      = version.ErrConflictingReleaseAs
 	ErrMultiplePendingReleasePRs = errors.New("multiple pending release PRs found")
 	errUnknownTarget             = errors.New("unknown target")
 	errConflictingFileUpdate     = errors.New("conflicting file update")
@@ -128,7 +128,7 @@ func targetsForActiveChannel(
 
 	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
 	for targetID, target := range targets {
-		if target.Versioning != config.VersioningSemver {
+		if !versionStrategyForResolvedTarget(target).strategy.SupportsPrerelease() {
 			return nil, fmt.Errorf(
 				"%w: prerelease channel %q supports semver targets only. Target %q uses %q",
 				config.ErrInvalidConfig,

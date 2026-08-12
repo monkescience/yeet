@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/version"
 )
 
 func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
@@ -77,28 +77,17 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 		return "", false
 	}
 
-	if target.Versioning == config.VersioningSemver && !a.semverRefAllowed(currentVersion) {
+	if strategy.strategy.SupportsPrerelease() && !a.channelRefAllowed(strategy.strategy, currentVersion) {
 		return "", false
 	}
 
 	return currentVersion, true
 }
 
-func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
-	parsedVersion, err := semver.StrictNewVersion(currentVersion)
-	if err != nil {
-		return false
-	}
-
-	prerelease := strings.TrimSpace(parsedVersion.Prerelease())
-
+func (a *releaseAnalyzer) channelRefAllowed(strategy version.Strategy, currentVersion string) bool {
 	channelName := strings.TrimSpace(a.core.cfg.ActiveChannel)
 	if channelName == "" {
-		return prerelease == ""
-	}
-
-	if prerelease == "" {
-		return true
+		return strategy.PrereleaseAllowed(currentVersion, "")
 	}
 
 	channel, exists := a.core.cfg.Release.Channels[channelName]
@@ -106,9 +95,7 @@ func (a *releaseAnalyzer) semverRefAllowed(currentVersion string) bool {
 		return false
 	}
 
-	channelPrerelease := strings.TrimSpace(channel.Prerelease)
-
-	return prerelease == channelPrerelease || strings.HasPrefix(prerelease, channelPrerelease+".")
+	return strategy.PrereleaseAllowed(currentVersion, strings.TrimSpace(channel.Prerelease))
 }
 
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *historyScan, ref string) (bool, error) {

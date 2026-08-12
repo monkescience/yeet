@@ -1,10 +1,11 @@
 package release
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/version"
@@ -43,77 +44,68 @@ func currentVersionWithInitial(target config.ResolvedTarget, currentVersion stri
 }
 
 func (a *releaseAnalyzer) nextVersionPlan(
+	ctx context.Context,
 	target config.ResolvedTarget,
 	commits []commit.Commit,
 	currentVersion string,
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
-	strategy := versionStrategyForResolvedTarget(target)
+	strategy := versionStrategyForResolvedTarget(target).strategy
 
-	releaseAsVersion, err := a.releaseAsVersion(target, commits)
+	releaseAsVersion, err := releaseAsOverride(ctx, strategy, target, commits)
 	if err != nil {
 		return "", commit.BumpNone, false, err
 	}
 
-	current := currentVersionWithInitial(target, currentVersion)
-
-	return resolveNextVersion(
-		strategy,
-		target.Versioning,
-		current,
+	//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
+	return strategy.NextRelease(
+		currentVersionWithInitial(target, currentVersion),
 		bumpType,
 		releaseAsVersion,
 		a.core.activePrereleaseIdentifier(),
 	)
 }
 
-func resolveNextVersion(
-	strategy versionStrategy,
-	versioning config.VersioningStrategy,
-	current string,
-	bump commit.BumpType,
-	releaseAsVersion string,
-	prereleaseIdentifier string,
-) (string, commit.BumpType, bool, error) {
-	if prereleaseIdentifier != "" && versioning == config.VersioningSemver {
-		return resolveNextPrereleaseVersion(strategy, current, bump, releaseAsVersion, prereleaseIdentifier)
-	}
+// releaseAsOverride reads the version a Release-As footer asks for. A scheme
+// that cannot honour the footer has every commit carrying one reported, so the
+// override is never dropped in silence.
+func releaseAsOverride(
+	ctx context.Context,
+	strategy version.Strategy,
+	target config.ResolvedTarget,
+	commits []commit.Commit,
+) (string, error) {
+	if !strategy.SupportsReleaseAs() {
+		warnUnsupportedReleaseAs(ctx, target, commits)
 
-	if releaseAsVersion != "" && versioning == config.VersioningSemver {
-		nextVersion, overrideBump, err := applyReleaseAs(current, releaseAsVersion)
-		if err != nil {
-			return "", commit.BumpNone, false, err
-		}
-
-		return nextVersion, overrideBump, true, nil
-	}
-
-	if bump == commit.BumpNone {
-		return "", bump, false, nil
-	}
-
-	nextVersion, err := strategy.strategy.Next(current, bump)
-	if err != nil {
-		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
-	}
-
-	return nextVersion, bump, true, nil
-}
-
-func (a *releaseAnalyzer) releaseAsVersion(target config.ResolvedTarget, commits []commit.Commit) (string, error) {
-	if target.Versioning != config.VersioningSemver {
 		return "", nil
 	}
 
-	return detectReleaseAs(commits)
+	return detectReleaseAs(strategy, commits)
 }
 
-func detectReleaseAs(commits []commit.Commit) (string, error) {
+func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget, commits []commit.Commit) {
+	for _, c := range commits {
+		for _, footer := range c.Footers {
+			if !isReleaseAsFooter(footer.Key) {
+				continue
+			}
+
+			slog.WarnContext(ctx, "ignoring Release-As footer unsupported by this versioning strategy",
+				slog.String("commit", c.Hash),
+				slog.String("versioning", string(target.Versioning)),
+				slog.String("release_as", strings.TrimSpace(footer.Value)),
+			)
+		}
+	}
+}
+
+func detectReleaseAs(strategy version.Strategy, commits []commit.Commit) (string, error) {
 	releaseAsVersion := ""
 
 	for _, c := range commits {
 		for _, footer := range c.Footers {
-			if !strings.EqualFold(strings.TrimSpace(footer.Key), "Release-As") {
+			if !isReleaseAsFooter(footer.Key) {
 				continue
 			}
 
@@ -122,8 +114,9 @@ func detectReleaseAs(commits []commit.Commit) (string, error) {
 				return "", fmt.Errorf("%w: empty value", errInvalidReleaseAs)
 			}
 
-			normalizedCandidate, err := normalizeReleaseAsValue(candidate)
+			normalizedCandidate, err := strategy.NormalizeReleaseAs(candidate)
 			if err != nil {
+				//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 				return "", err
 			}
 
@@ -142,145 +135,6 @@ func detectReleaseAs(commits []commit.Commit) (string, error) {
 	return releaseAsVersion, nil
 }
 
-func normalizeReleaseAsValue(releaseAsVersion string) (string, error) {
-	v, err := semver.StrictNewVersion(releaseAsVersion)
-	if err != nil {
-		return "", fmt.Errorf("%w: invalid version %q: %v", errInvalidReleaseAs, releaseAsVersion, err)
-	}
-
-	return v.String(), nil
-}
-
-func applyReleaseAs(current, releaseAsVersion string) (string, commit.BumpType, error) {
-	targetVersion, err := semver.StrictNewVersion(releaseAsVersion)
-	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: invalid version %q: %v", errInvalidReleaseAs, releaseAsVersion, err)
-	}
-
-	if targetVersion.Prerelease() != "" || targetVersion.Metadata() != "" {
-		return "", commit.BumpNone, fmt.Errorf("%w: %q must be a stable version", errInvalidReleaseAs, releaseAsVersion)
-	}
-
-	currentVersion, err := semver.StrictNewVersion(current)
-	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: parse current version %q: %v", errInvalidReleaseAs, current, err)
-	}
-
-	if !targetVersion.GreaterThan(currentVersion) {
-		return "", commit.BumpNone, fmt.Errorf(
-			"%w: %s must be greater than current version %s",
-			errInvalidReleaseAs,
-			targetVersion.String(),
-			currentVersion.String(),
-		)
-	}
-
-	bump := inferSemverBump(currentVersion, targetVersion)
-
-	return targetVersion.String(), bump, nil
-}
-
-func resolveNextPrereleaseVersion(
-	strategy versionStrategy,
-	current string,
-	bump commit.BumpType,
-	releaseAsVersion string,
-	prereleaseIdentifier string,
-) (string, commit.BumpType, bool, error) {
-	if releaseAsVersion != "" {
-		nextVersion, overrideBump, err := applyReleaseAs(stableSemverBase(current), releaseAsVersion)
-		if err != nil {
-			return "", commit.BumpNone, false, err
-		}
-
-		return firstPrereleaseForBase(nextVersion, prereleaseIdentifier), overrideBump, true, nil
-	}
-
-	if bump == commit.BumpNone {
-		return "", bump, false, nil
-	}
-
-	nextPrerelease, ok, err := incrementPrerelease(current, prereleaseIdentifier)
-	if ok || err != nil {
-		return nextPrerelease, bump, ok, err
-	}
-
-	nextBaseVersion, err := strategy.strategy.Next(current, bump)
-	if err != nil {
-		return "", commit.BumpNone, false, fmt.Errorf("calculate next prerelease base version: %w", err)
-	}
-
-	return firstPrereleaseForBase(nextBaseVersion, prereleaseIdentifier), bump, true, nil
-}
-
-func stableSemverBase(version string) string {
-	parsedVersion, err := semver.StrictNewVersion(version)
-	if err != nil {
-		return version
-	}
-
-	return fmt.Sprintf("%d.%d.%d", parsedVersion.Major(), parsedVersion.Minor(), parsedVersion.Patch())
-}
-
-func firstPrereleaseForBase(baseVersion string, prereleaseIdentifier string) string {
-	return baseVersion + "-" + prereleaseIdentifier + ".1"
-}
-
-func incrementPrerelease(current string, prereleaseIdentifier string) (string, bool, error) {
-	parsedVersion, err := semver.StrictNewVersion(current)
-	if err != nil {
-		return "", false, fmt.Errorf("parse current prerelease version %q: %w", current, err)
-	}
-
-	prerelease := parsedVersion.Prerelease()
-	if prerelease == "" {
-		return "", false, nil
-	}
-
-	counterText, found := strings.CutPrefix(prerelease, prereleaseIdentifier+".")
-	if !found || counterText == "" {
-		return "", false, nil
-	}
-
-	counter, err := parsePrereleaseCounter(counterText)
-	if err != nil {
-		return "", false, err
-	}
-
-	nextBase := stableSemverBase(current)
-
-	return fmt.Sprintf("%s-%s.%d", nextBase, prereleaseIdentifier, counter+1), true, nil
-}
-
-func parsePrereleaseCounter(counterText string) (int64, error) {
-	if counterText == "" {
-		return 0, fmt.Errorf("%w: invalid prerelease counter %q", errInvalidReleaseAs, counterText)
-	}
-
-	for _, ch := range counterText {
-		if ch < '0' || ch > '9' {
-			return 0, fmt.Errorf("%w: invalid prerelease counter %q", errInvalidReleaseAs, counterText)
-		}
-	}
-
-	var counter int64
-
-	_, err := fmt.Sscanf(counterText, "%d", &counter)
-	if err != nil || counter < 1 {
-		return 0, fmt.Errorf("%w: invalid prerelease counter %q", errInvalidReleaseAs, counterText)
-	}
-
-	return counter, nil
-}
-
-func inferSemverBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
-	if targetVersion.Major() > currentVersion.Major() {
-		return commit.BumpMajor
-	}
-
-	if targetVersion.Minor() > currentVersion.Minor() {
-		return commit.BumpMinor
-	}
-
-	return commit.BumpPatch
+func isReleaseAsFooter(key string) bool {
+	return strings.EqualFold(strings.TrimSpace(key), "Release-As")
 }

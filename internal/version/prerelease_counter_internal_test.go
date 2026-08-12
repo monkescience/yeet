@@ -1,5 +1,4 @@
-//nolint:testpackage // This test validates unexported release version planning helpers.
-package release
+package version
 
 import (
 	"testing"
@@ -43,7 +42,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, errInvalidReleaseAs)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
 	})
 
 	t.Run("non numeric input is rejected", func(t *testing.T) {
@@ -55,7 +54,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, errInvalidReleaseAs)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
 	})
 
 	t.Run("zero is rejected", func(t *testing.T) {
@@ -67,7 +66,7 @@ func TestParsePrereleaseCounter(t *testing.T) {
 
 		// then: error indicates an invalid release-as because counters must be >= 1
 		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, errInvalidReleaseAs)
+		testastic.ErrorIs(t, err, ErrInvalidReleaseAs)
 	})
 
 	t.Run("leading zero is accepted as numeric", func(t *testing.T) {

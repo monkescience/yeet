@@ -30,6 +30,44 @@ type CalVer struct {
 	Now    func() time.Time
 }
 
+// SupportsReleaseAs reports false: a calendar version is derived from the clock,
+// so an explicit version override has nothing to act on.
+func (c *CalVer) SupportsReleaseAs() bool {
+	return false
+}
+
+// SupportsPrerelease reports false: prerelease channels are a semver construct.
+func (c *CalVer) SupportsPrerelease() bool {
+	return false
+}
+
+func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
+	return "", fmt.Errorf("%w: calver targets do not support %q", ErrInvalidReleaseAs, value)
+}
+
+// NextRelease ignores releaseAs and prereleaseIdentifier: this scheme supports
+// neither, and callers are expected to ask before offering them.
+func (c *CalVer) NextRelease(
+	current string,
+	bump commit.BumpType,
+	_, _ string,
+) (string, commit.BumpType, bool, error) {
+	if bump == commit.BumpNone {
+		return "", bump, false, nil
+	}
+
+	next, err := c.Next(current, bump)
+	if err != nil {
+		return "", commit.BumpNone, false, fmt.Errorf("calculate next version: %w", err)
+	}
+
+	return next, bump, true, nil
+}
+
+func (c *CalVer) PrereleaseAllowed(_, identifier string) bool {
+	return identifier == ""
+}
+
 func ValidateCalVerFormat(format string) error {
 	if _, err := compileCalVerFormat(format); err != nil {
 		return err

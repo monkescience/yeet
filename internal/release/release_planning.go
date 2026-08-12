@@ -179,6 +179,7 @@ func (a *releaseAnalyzer) planDirectTarget(
 	bumpType := commit.DetermineBump(inputs.commits, a.bumpMapping)
 
 	nextVersion, nextBumpType, shouldRelease, err := a.nextVersionPlan(
+		ctx,
 		target,
 		inputs.commits,
 		inputs.history.currentVersion,
@@ -276,7 +277,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 		return TargetPlan{}, false, err
 	}
 
-	nextVersion, bumpType, shouldRelease, err := a.derivedVersionPlan(target, inputs)
+	nextVersion, bumpType, shouldRelease, err := a.derivedVersionPlan(ctx, target, inputs)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
@@ -359,6 +360,7 @@ func (a *releaseAnalyzer) loadTargetHistory(
 }
 
 func (a *releaseAnalyzer) derivedVersionPlan(
+	ctx context.Context,
 	target config.ResolvedTarget,
 	inputs derivedPlanContext,
 ) (string, commit.BumpType, bool, error) {
@@ -366,6 +368,7 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 	directBumpType := commit.DetermineBump(inputs.directCommits, a.bumpMapping)
 
 	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(
+		ctx,
 		target,
 		inputs.directCommits,
 		currentVersion,
@@ -390,14 +393,13 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		return directNextVersion, finalBumpType, true, nil
 	}
 
-	nextVersion, _, _, err := resolveNextVersion(
-		versionStrategyForResolvedTarget(target),
-		target.Versioning,
+	nextVersion, _, _, err := versionStrategyForResolvedTarget(target).strategy.NextRelease(
 		currentVersionWithInitial(target, currentVersion),
 		finalBumpType,
 		"",
 		a.core.activePrereleaseIdentifier(),
 	)
+	//nolint:wrapcheck // The caller wraps this with the derived target context.
 	if err != nil {
 		return "", commit.BumpNone, false, err
 	}
