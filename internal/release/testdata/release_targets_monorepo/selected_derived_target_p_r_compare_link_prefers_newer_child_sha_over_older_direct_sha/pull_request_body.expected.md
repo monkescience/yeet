@@ -1,6 +1,6 @@
 ## ٩(^ᴗ^)۶ release created
 
-## [v3.1.0](https://github.example.com/owner/repo/compare/v3.0.0...abcdef1234567890abcdef1234567890abcdef12) ({{regex `\d{4}-\d{2}-\d{2}`}})
+## [v3.1.0](https://github.example.com/owner/repo/compare/v3.0.0...abcdef1234567890abcdef1234567890abcdef12) ({{regex `20\d{2}-\d{2}-\d{2}`}})
 
 ### Bug Fixes
 
