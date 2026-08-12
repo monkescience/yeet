@@ -133,11 +133,12 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 		plan.PREntry = plan.Entry
 
 		// when: refreshing the release PR against the previous wave's entry
-		err := workflow.preserveTargetChangelogEdits(t.Context(), branch, "CHANGELOG.md", "v3.1.0", &plan)
+		edits, found, err := workflow.preserveTargetChangelogEdits(t.Context(), branch, "CHANGELOG.md", "v3.1.0", plan)
 
 		// then: the child that did not release again leaves no stale heading behind
 		testastic.NoError(t, err)
-		testastic.NotContains(t, changelog.Render(plan.Entry), "### api")
-		testastic.NotContains(t, changelog.Render(plan.PREntry), "### api")
+		testastic.True(t, found)
+		testastic.NotContains(t, changelog.Render(edits.Entry), "### api")
+		testastic.NotContains(t, changelog.Render(edits.PREntry), "### api")
 	})
 }

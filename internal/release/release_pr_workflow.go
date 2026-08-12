@@ -126,7 +126,7 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	}
 
 	for idx := range plans {
-		plan := &plans[idx]
+		plan := plans[idx]
 
 		target, exists := r.targets[plan.ID]
 		if !exists {
@@ -138,49 +138,65 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 			changelogFile = previous
 		}
 
-		if err := w.preserveTargetChangelogEdits(
+		edits, found, err := w.preserveTargetChangelogEdits(
 			ctx,
 			existing.Branch,
 			changelogFile,
 			previousTags[plan.ID],
 			plan,
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+
+		if found {
+			plans[idx].Entry = edits.Entry
+			plans[idx].PREntry = edits.PREntry
 		}
 	}
 
 	return nil
 }
 
+// changelogEdits carries the entries a release branch's existing changelog
+// contributes back to a plan, once hand-written sections are merged in.
+type changelogEdits struct {
+	Entry   changelog.Entry
+	PREntry changelog.Entry
+}
+
+// preserveTargetChangelogEdits merges whatever a human already wrote into the
+// release branch's changelog back over a plan's generated entries. It reports
+// false when the branch holds nothing to carry forward.
 func (w *releasePRWorkflow) preserveTargetChangelogEdits(
 	ctx context.Context,
 	branch, changelogFile, previousTag string,
-	plan *TargetPlan,
-) error {
+	plan TargetPlan,
+) (changelogEdits, bool, error) {
 	existingChangelog, err := w.releaseBranchChangelog(ctx, branch, changelogFile)
 	if err != nil {
 		if errors.Is(err, forge.ErrFileNotFound) {
-			return nil
+			return changelogEdits{}, false, nil
 		}
 
-		return err
+		return changelogEdits{}, false, err
 	}
 
 	existingEntry, found, err := changelogEntryForRefresh(existingChangelog, plan.NextTag, previousTag, plan.previousRef)
 	if err != nil {
-		return err
+		return changelogEdits{}, false, err
 	}
 
 	if !found {
-		return nil
+		return changelogEdits{}, false, nil
 	}
 
 	foreign := changelog.ParseEntry(existingEntry)
 
-	plan.Entry = changelog.Merge(plan.Entry, foreign)
-	plan.PREntry = changelog.Merge(plan.PREntry, foreign)
-
-	return nil
+	return changelogEdits{
+		Entry:   changelog.Merge(plan.Entry, foreign),
+		PREntry: changelog.Merge(plan.PREntry, foreign),
+	}, true, nil
 }
 
 func (w *releasePRWorkflow) releaseBranchChangelog(ctx context.Context, branch, path string) (string, error) {
