@@ -1,0 +1,22 @@
+{
+  "body": {
+    "actions": [
+      {
+        "action": "update",
+        "content": "# Changelog",
+        "file_path": "CHANGELOG.md"
+      },
+      {
+        "action": "create",
+        "content": "version=1.2.3",
+        "file_path": "VERSION.txt"
+      }
+    ],
+    "branch": "release-main",
+    "commit_message": "chore: release 1.2.3",
+    "force": true,
+    "start_branch": "main"
+  },
+  "method": "POST",
+  "path": "/api/v4/projects/o%2Fr/repository/commits"
+}

@@ -1,0 +1,8 @@
+{
+  "body": {
+    "sha": "6865616473686100000000000000000000000000",
+    "squash": true
+  },
+  "method": "PUT",
+  "path": "/api/v4/projects/o%2Fr/merge_requests/8/merge"
+}

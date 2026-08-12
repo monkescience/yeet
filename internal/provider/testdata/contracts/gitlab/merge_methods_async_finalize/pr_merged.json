@@ -1,0 +1,12 @@
+{
+  "iid": 1,
+  "state": "merged",
+  "draft": false,
+  "has_conflicts": false,
+  "detailed_merge_status": "mergeable",
+  "sha": "736f757263657469707368610000000000000000",
+  "source_branch": "yeet/release-main",
+  "target_branch": "main",
+  "source_project_id": 10,
+  "target_project_id": 10
+}

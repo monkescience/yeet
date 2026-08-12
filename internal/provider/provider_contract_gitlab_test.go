@@ -9,12 +9,15 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
 	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
 )
+
+const gitLabSourceTipSHA = "736f757263657469707368610000000000000000"
 
 func newGitLabContractProvider(
 	t *testing.T,
@@ -767,4 +770,786 @@ func handleGitLabForcedMergeConflictedContract(t *testing.T, w http.ResponseWrit
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func TestGitLabCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name string
+		ref  string
+	}{
+		{name: "rejects a branch name", ref: providerContractBaseBranch},
+		{name: "rejects an abbreviated SHA", ref: "6865616473"},
+		{name: "rejects a blank ref", ref: "  "},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitLab provider whose server fails any request it receives
+			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}))
+			defer server.Close()
+
+			p := newGitLabContractProvider(t, server)
+
+			// when: creating a release for a ref that is not a commit SHA
+			_, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
+				TagName: providerContractTag,
+				Ref:     scenario.ref,
+				Name:    providerContractTag,
+				Body:    providerContractReleaseNotes,
+			})
+
+			// then: the sentinel for an unusable ref is returned before any request
+			testastic.ErrorIs(t, err, forge.ErrInvalidCommitSHA)
+		})
+	}
+}
+
+func TestGitLabFindMergedReleasePR(t *testing.T) {
+	t.Parallel()
+
+	t.Run("uses source tip for fast-forward merged MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab returns a fast-forward merged MR without merge or squash commit SHAs
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+				return
+			}
+
+			assertJSONRequest(t, r, "contracts/gitlab/find_merged_pr_fast_forward/request.json")
+			writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_fast_forward/prs.json")
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: finding the fast-forward merged release MR
+		pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+		// then: the source tip identifies the commit now on the target branch
+		testastic.NoError(t, err)
+		testastic.Equal(t, 6, pr.Number)
+		testastic.Equal(t, gitLabSourceTipSHA, pr.MergeCommitSHA)
+	})
+
+	t.Run("selects the most recently merged release MR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two merged release MRs where the most recently updated one was
+		// merged earlier than the other
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+				return
+			}
+
+			assertJSONRequest(t, r, "contracts/gitlab/find_merged_pr_most_recent/request.json")
+			writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_most_recent/prs.json")
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: finding merged release MR
+		pr, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+		// then: the most recently merged MR is returned, not the most recently updated
+		testastic.NoError(t, err)
+		testastic.Equal(t, 8, pr.Number)
+		testastic.Equal(t, "6672657368736861000000000000000000000000", pr.MergeCommitSHA)
+	})
+}
+
+func TestGitLabEnsureLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name     string
+		yeet     bool
+		phase    forge.ReleasePRPhase
+		expected []string
+	}{
+		{
+			name:     "creates managed and lifecycle labels when not found",
+			yeet:     true,
+			phase:    forge.ReleasePRPhasePending,
+			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "does not create managed label when disabled",
+			yeet:     false,
+			phase:    forge.ReleasePRPhasePending,
+			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "tagged transition recreates only the tagged label",
+			yeet:     true,
+			phase:    forge.ReleasePRPhaseTagged,
+			expected: []string{testReleaseLabelTagged},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitLab API where the labels do not exist
+			var created []string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && strings.Contains(r.URL.EscapedPath(), "/labels/"):
+					w.WriteHeader(http.StatusNotFound)
+					writeJSONFixture(t, w, "contracts/gitlab/_shared/not_found.json")
+				case r.Method == http.MethodPost && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/labels":
+					var request struct {
+						Name string `json:"name"`
+					}
+					decodeJSONRequest(t, r, &request)
+					created = append(created, request.Name)
+
+					w.WriteHeader(http.StatusCreated)
+					writeJSON(t, w, map[string]any{"name": request.Name})
+				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
+					writeJSONFixture(t, w, "contracts/gitlab/ensure_label/update.json")
+				default:
+					fatalUnexpectedProviderRequest(t, "GitLab", r)
+				}
+			}))
+			defer server.Close()
+
+			p := newGitLabContractProvider(t, server)
+			labels := defaultReleasePRLabels()
+			labels.Yeet = testCase.yeet
+
+			// when: the requested phase is applied
+			err := p.SetReleasePRLabels(context.Background(), 42, labels, testCase.phase)
+
+			// then: only definitions owned by that phase are created
+			testastic.NoError(t, err)
+			testastic.SliceEqual(t, testCase.expected, created)
+		})
+	}
+}
+
+func TestGitLabMergeReleasePRMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auto method prefers squash when the project permits it", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project that allows squashing but does not force it
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_squash/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_squash/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1/merge":
+				assertJSONRequest(t, r, "contracts/gitlab/merge_methods_auto_squash/merge_request.json")
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_squash/result.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: merging with auto method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
+		})
+
+		// then: squash is requested
+		testastic.NoError(t, err)
+	})
+
+	t.Run("auto method does not squash when the project forbids it", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project that forbids squashing
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_no_squash/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_no_squash/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1/merge":
+				assertJSONRequest(t, r, "contracts/gitlab/merge_methods_auto_no_squash/merge_request.json")
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_no_squash/result.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: merging with auto method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
+		})
+
+		// then: the project's own merge method is left untouched
+		testastic.NoError(t, err)
+	})
+
+	t.Run("auto method returns source tip for fast-forward merge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project using fast-forward merges without squashing
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_fast_forward/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_fast_forward/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1/merge":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_fast_forward/result.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: merging with the project's fast-forward method
+		mergeSHA, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
+		})
+
+		// then: the source tip is returned as the final commit on the target branch
+		testastic.NoError(t, err)
+		testastic.Equal(t, gitLabSourceTipSHA, mergeSHA)
+	})
+
+	t.Run("auto method waits for the asynchronous accept to finalize", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab accepts the MR asynchronously and reports it merged shortly after
+		var accepted atomic.Bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				if accepted.Load() {
+					writeJSONFixture(t, w, "contracts/gitlab/merge_methods_async_finalize/pr_merged.json")
+
+					return
+				}
+
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_async_finalize/pr_opened.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_async_finalize/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1/merge":
+				accepted.Store(true)
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_async_finalize/accept.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
+
+		// when: merging with the project's asynchronous fast-forward flow
+		mergeSHA, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
+		})
+
+		// then: the source tip is returned once GitLab reports the MR merged
+		testastic.NoError(t, err)
+		testastic.Equal(t, gitLabSourceTipSHA, mergeSHA)
+	})
+
+	t.Run("auto method reports an accept that never finalizes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab accepts the MR but never reports it merged
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_never_finalizes/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_never_finalizes/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1/merge":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_never_finalizes/accept.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+		// when: merging with the project's asynchronous fast-forward flow
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			Method: forge.MergeMethodAuto,
+		})
+
+		// then: the unfinalized merge is reported instead of an empty commit
+		testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
+	})
+
+	t.Run("squash blocked by project settings", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab project with squash disabled
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_squash_forbidden/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_squash_forbidden/project.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: merging with squash method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			BypassMergeChecks: false,
+			Method:            forge.MergeMethodSquash,
+		})
+
+		// then: merge is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+	})
+}
+
+func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release MR carrying a label that differs from the configured one only by case
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+			return
+		}
+
+		assertJSONRequest(t, r, "contracts/gitlab/open_release_mr_label_guard/request.json")
+		writeJSONFixture(t, w, "contracts/gitlab/open_release_mr_label_guard/prs.json")
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+	// then: the guard scans only release branches and reports what the label filter did not match
+	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
+	testastic.Equal(t, 0, len(prs))
+}
+
+func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab project whose only release MR was left unlabelled
+	var listings atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+			return
+		}
+
+		listings.Add(1)
+
+		assertJSONRequest(t, r, "contracts/gitlab/find_open_prs_unlabelled_single_listing/request.json")
+		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs_unlabelled_single_listing/prs.json")
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+	// then: one source-branch listing finds the MR and offers it for adoption
+	testastic.NoError(t, err)
+	testastic.Equal(t, int32(1), listings.Load())
+	testastic.Equal(t, 1, len(prs))
+	testastic.Equal(t, 10, prs[0].Number)
+	testastic.True(t, prs[0].NeedsPendingLabel)
+}
+
+// TestGitLabMatchesThePendingLabelExactly pins a GitLab-only rule: GitLab label
+// matching is exact, where GitHub folds case.
+func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release MR labelled in a different case than the configured
+	// pending label, which GitLab treats as a distinct label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+			return
+		}
+
+		assertJSONRequest(t, r, "contracts/gitlab/find_open_prs_case_sensitive/request.json")
+		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs_case_sensitive/prs.json")
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: finding open pending release MRs
+	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+	// then: the case variant is a different label, so the MR is a mismatch
+	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
+	testastic.Equal(t, 0, len(prs))
+}
+
+func TestGitLabReleasePRLabelPreflight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("allows lifecycle labels sharing a scope", func(t *testing.T) {
+		t.Parallel()
+
+		// given: sequential lifecycle labels in one GitLab exclusive scope
+		var calls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: the pending phase is applied
+		err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
+			Pending: "release::pending",
+			Tagged:  "release::tagged",
+		}, forge.ReleasePRPhasePending)
+
+		// then: both sequential lifecycle states are accepted, prepared and applied
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(3), calls.Load())
+	})
+
+	t.Run("rejects an extra label sharing a lifecycle scope", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a permanent extra label sharing the pending lifecycle scope
+		var calls atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+		labels := forge.ReleasePRLabels{
+			Pending: "workflow::backend::pending",
+			Tagged:  "release::tagged",
+			Extra:   []string{"workflow::backend::automated"},
+		}
+
+		// when: the pending phase is applied
+		err := p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
+
+		// then: the permanent label conflict is rejected before a provider request
+		testastic.ErrorContains(t, err, "share GitLab scope workflow::backend")
+		testastic.Equal(t, int32(0), calls.Load())
+	})
+
+	t.Run("rejects reserved lifecycle labels", func(t *testing.T) {
+		t.Parallel()
+
+		for _, reserved := range []string{"Any", "nOnE"} {
+			t.Run(reserved, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a GitLab server and a reserved pending label name
+				var calls atomic.Int32
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+				}))
+				defer server.Close()
+
+				p := newGitLabContractProvider(t, server)
+
+				// when: the pending phase is applied
+				err := p.SetReleasePRLabels(context.Background(), 42, forge.ReleasePRLabels{
+					Pending: reserved,
+					Tagged:  "release::tagged",
+				}, forge.ReleasePRPhasePending)
+
+				// then: the reserved filter value is rejected before a provider request
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+
+				_, err = p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, reserved)
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+
+				_, err = p.FindMergedReleasePR(context.Background(), providerContractBaseBranch, reserved)
+				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+				testastic.Equal(t, int32(0), calls.Load())
+			})
+		}
+	})
+}
+
+func TestGitLabReleasePRStateTransitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("marks merge request pending", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server that records label add and remove fields on MR 12 updates
+		var updateRequest struct {
+			AddLabels    string `json:"add_labels"`
+			RemoveLabels string `json:"remove_labels"`
+		}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/12":
+				decodeJSONRequest(t, r, &updateRequest)
+				writeJSONFixture(t, w, "contracts/gitlab/release_pr_state_transitions/update.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: MR 12 is put in the pending phase
+		err := p.SetReleasePRLabels(context.Background(), 12, defaultReleasePRLabels(), forge.ReleasePRPhasePending)
+
+		// then: the managed and pending labels are added and the tagged label is removed
+		testastic.NoError(t, err)
+		testastic.Equal(t, testReleaseLabelPending+",yeet", updateRequest.AddLabels)
+		testastic.Equal(t, testReleaseLabelTagged, updateRequest.RemoveLabels)
+
+		// when: marking the same merge request pending with the managed label disabled
+		labels := defaultReleasePRLabels()
+		labels.Yeet = false
+		err = p.SetReleasePRLabels(context.Background(), 12, labels, forge.ReleasePRPhasePending)
+
+		// then: only the pending label is added
+		testastic.NoError(t, err)
+		testastic.Equal(t, testReleaseLabelPending, updateRequest.AddLabels)
+	})
+}
+
+func TestGitLabMergeReleasePR(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{"checking", "unchecked", "preparing"} {
+		t.Run("allows transient status "+status, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitLab server reporting a transient merge status while recomputing readiness
+			merged := false
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
+					writeJSONFixture(t, w, "contracts/gitlab/merge_transient_status/pr_"+status+".json")
+				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+					writeJSONFixture(t, w, "contracts/gitlab/merge_transient_status/project.json")
+				case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
+					merged = true
+
+					writeJSONFixture(t, w, "contracts/gitlab/merge_transient_status/result.json")
+				default:
+					fatalUnexpectedProviderRequest(t, "GitLab", r)
+				}
+			}))
+			defer server.Close()
+
+			p := newGitLabContractProvider(t, server)
+
+			// when: MergeReleasePR is invoked without force while readiness is recomputed
+			_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+
+			// then: the transient status does not prevent the merge request
+			testastic.NoError(t, err)
+			testastic.True(t, merged)
+		})
+	}
+
+	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server reporting MR 8 as opened with a not_approved merge status
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests/8" {
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+				return
+			}
+
+			writeJSONFixture(t, w, "contracts/gitlab/merge_blocked_not_approved/pr.json")
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: MergeReleasePR is invoked without the force option
+		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+
+		// then: forge.ErrMergeBlocked is returned with the detailed merge status in the message
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+		testastic.Equal(t, "release PR merge blocked: merge request !8 detailed_merge_status=not_approved", err.Error())
+	})
+
+	t.Run("forces merge and forwards squash option", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server reporting MR 8 as blocked with squash always enabled at the project level
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
+				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/pr.json")
+			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/project.json")
+			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
+				assertJSONRequest(t, r, "contracts/gitlab/forced_merge_squash/merge_request.json")
+				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/result.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
+		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
+			BypassMergeChecks: true,
+			Method:            forge.MergeMethodSquash,
+		})
+
+		// then: the head SHA is forwarded and the squash flag is set on the merge request
+		testastic.NoError(t, err)
+	})
+}
+
+func TestGitLabMergeReleasePRFastRefusal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reports an accept rejected with method not allowed", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server that rejects the accept the way it rejects a
+		// conflicting or already closed merge request
+		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/method_not_allowed.json")
+		})
+
+		// then: the refusal is reported as a blocked merge without waiting for the forge
+		testastic.Equal(t, int32(0), polls.Load())
+	})
+
+	t.Run("reports an accept that answers with a merge error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab server that accepts the request but reports why it did not merge
+		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/merge_error.json")
+		})
+
+		// then: the refusal is reported as a blocked merge without waiting for the forge
+		testastic.Equal(t, int32(0), polls.Load())
+	})
+}
+
+// gitLabRefusedAcceptServer merges MR 8 against a server whose accept response
+// is supplied by refuse, and reports how many times the merge request was polled
+// after the accept.
+func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.Int32 {
+	t.Helper()
+
+	var accepted atomic.Bool
+
+	polls := new(atomic.Int32)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
+			if accepted.Load() {
+				polls.Add(1)
+			}
+
+			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/pr.json")
+		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
+			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/project.json")
+		case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
+			accepted.Store(true)
+			refuse(w, r)
+		default:
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+	// when: MergeReleasePR is invoked on the refused merge request
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+
+	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+	testastic.Equal(t, "", mergeSHA)
+
+	return polls
+}
+
+func TestGitLabUpdateFiles(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab server accepting one commit that carries every file action
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/repository/commits" {
+			fatalUnexpectedProviderRequest(t, "GitLab", r)
+
+			return
+		}
+
+		assertJSONRequest(t, r, "contracts/gitlab/update_files_commit/request.json")
+		writeJSONFixture(t, w, "contracts/gitlab/update_files_commit/commit.json")
+	}))
+	defer server.Close()
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: two files are written onto the release branch off the base branch
+	err := p.UpdateFiles(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+		map[string]forge.FileUpdate{
+			"VERSION.txt":  {Content: "version=1.2.3"},
+			"CHANGELOG.md": {Content: "# Changelog", Exists: true},
+		},
+		"chore: release 1.2.3",
+	)
+
+	// then: the branch, start branch, message, force flag, and file actions match the recorded contract
+	testastic.NoError(t, err)
 }

@@ -1,0 +1,14 @@
+[
+  {
+    "iid": 6,
+    "title": "chore: release v1.0.0",
+    "description": "fast-forward merged mr",
+    "web_url": "https://gitlab.com/o/r/-/merge_requests/6",
+    "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
+    "state": "merged",
+    "sha": "736f757263657469707368610000000000000000",
+    "squash_on_merge": false
+  }
+]

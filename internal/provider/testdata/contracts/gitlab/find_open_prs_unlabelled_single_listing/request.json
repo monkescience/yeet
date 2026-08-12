@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "path": "/api/v4/projects/o%2Fr/merge_requests",
+  "query": {
+    "order_by": "updated_at",
+    "per_page": "100",
+    "sort": "desc",
+    "source_branch": "yeet/release-main",
+    "state": "opened",
+    "target_branch": "main"
+  }
+}
