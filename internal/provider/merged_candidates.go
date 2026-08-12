@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/monkescience/yeet/internal/forge"
@@ -73,16 +74,11 @@ func resolveLatestMerged[T any](
 		}
 	}
 
-	best := merged[0]
-	bestAt, _ := spec.mergedAt(best)
+	// MaxFunc keeps the first of several candidates that merged at the same time.
+	return slices.MaxFunc(merged, func(left, right T) int {
+		leftAt, _ := spec.mergedAt(left)
+		rightAt, _ := spec.mergedAt(right)
 
-	for _, candidate := range merged[1:] {
-		at, _ := spec.mergedAt(candidate)
-		if at.After(bestAt) {
-			best = candidate
-			bestAt = at
-		}
-	}
-
-	return best, nil
+		return leftAt.Compare(rightAt)
+	}), nil
 }

@@ -106,6 +106,23 @@ func TestResolveLatestMerged(t *testing.T) {
 		testastic.Equal(t, 0, len(calls))
 	})
 
+	t.Run("keeps the first of two candidates that merged at the same time", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two candidates the listing dated identically
+		var calls []int
+
+		spec := newMergedCandidateSpec(nil, &calls)
+		candidates := []mergedCandidateStub{{number: 7, mergedAt: late}, {number: 9, mergedAt: late}}
+
+		// when: the latest merged candidate is resolved
+		best, err := resolveLatestMerged(context.Background(), candidates, spec)
+
+		// then: listing order breaks the tie
+		testastic.NoError(t, err)
+		testastic.Equal(t, 7, best.number)
+	})
+
 	t.Run("re-reads only the candidate the listing left undated", func(t *testing.T) {
 		t.Parallel()
 
