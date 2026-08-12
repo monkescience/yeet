@@ -310,7 +310,7 @@ func (g *GitHub) resolveLatestGitHubMergedCandidate(
 			return gitHubMergedCandidate{listed: full, full: full}, true, nil
 		},
 		reference: func(candidate gitHubMergedCandidate) string {
-			return fmt.Sprintf("pull request #%d", candidate.listed.GetNumber())
+			return gitHubPullRequestReference(candidate.listed.GetNumber())
 		},
 	})
 	if err != nil {
