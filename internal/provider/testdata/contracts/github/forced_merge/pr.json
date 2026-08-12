@@ -1,0 +1,16 @@
+{
+  "number": 42,
+  "state": "open",
+  "draft": false,
+  "mergeable_state": "blocked",
+  "head": {
+    "sha": "6865616473686100000000000000000000000000",
+    "ref": "yeet/release-main",
+    "repo": {
+      "full_name": "o/r"
+    }
+  },
+  "base": {
+    "ref": "main"
+  }
+}

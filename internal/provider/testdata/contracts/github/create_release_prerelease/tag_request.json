@@ -1,0 +1,15 @@
+{
+  "body": {
+    "message": "release notes",
+    "object": "6865616473686131323300000000000000000000",
+    "tag": "v1.2.3",
+    "tagger": {
+      "date": "{{anyDateTime}}",
+      "email": "tester@yeet.dev",
+      "name": "Yeet Tester"
+    },
+    "type": "commit"
+  },
+  "method": "POST",
+  "path": "/repos/o/r/git/tags"
+}

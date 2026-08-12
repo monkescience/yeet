@@ -1,0 +1,21 @@
+{
+  "body": {
+    "base_tree": "6261736574726565736861000000000000000000",
+    "tree": [
+      {
+        "content": "# Changelog",
+        "mode": "100644",
+        "path": "CHANGELOG.md",
+        "type": "blob"
+      },
+      {
+        "content": "version=1.2.3",
+        "mode": "100644",
+        "path": "VERSION.txt",
+        "type": "blob"
+      }
+    ]
+  },
+  "method": "POST",
+  "path": "/repos/o/r/git/trees"
+}

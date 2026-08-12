@@ -1,0 +1,17 @@
+{
+  "number": 1,
+  "state": "open",
+  "merged": false,
+  "draft": false,
+  "mergeable_state": "clean",
+  "head": {
+    "sha": "abc123",
+    "ref": "yeet/release-main",
+    "repo": {
+      "full_name": "o/r"
+    }
+  },
+  "base": {
+    "ref": "main"
+  }
+}

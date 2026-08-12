@@ -1,0 +1,8 @@
+{
+  "body": {
+    "merge_method": "squash",
+    "sha": "6865616473686100000000000000000000000000"
+  },
+  "method": "PUT",
+  "path": "/repos/o/r/pulls/42/merge"
+}

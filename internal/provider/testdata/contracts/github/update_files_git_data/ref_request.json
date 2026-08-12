@@ -1,0 +1,8 @@
+{
+  "body": {
+    "ref": "refs/heads/release-main",
+    "sha": "6e6577636f6d6d69747368610000000000000000"
+  },
+  "method": "POST",
+  "path": "/repos/o/r/git/refs"
+}

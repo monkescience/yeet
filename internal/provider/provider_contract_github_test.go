@@ -14,6 +14,11 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
+const (
+	gitHubReleaseCommitSHA = "6865616473686131323300000000000000000000"
+	gitHubBaseCommitSHA    = "6261736572656673686100000000000000000000"
+)
+
 func newGitHubContractProvider(
 	t *testing.T,
 	server *httptest.Server,
@@ -820,4 +825,484 @@ func handleGitHubForcedMergeUntrustedContract(t *testing.T, w http.ResponseWrite
 	}
 
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func TestGitHubCreateRelease(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub repository that does not carry the release tag yet
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
+			w.WriteHeader(http.StatusNotFound)
+			writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/user":
+			writeJSONFixture(t, w, "contracts/github/create_release_prerelease/user.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/tags":
+			assertJSONRequest(t, r, "contracts/github/create_release_prerelease/tag_request.json")
+			writeJSONFixture(t, w, "contracts/github/create_release_prerelease/tag_object.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+			assertJSONRequest(t, r, "contracts/github/create_release_prerelease/ref_request.json")
+			writeJSONFixture(t, w, "contracts/github/create_release_prerelease/tag_ref.json")
+		case isGitHubCreateReleaseRequest(r):
+			assertJSONRequest(t, r, "contracts/github/create_release_prerelease/release_request.json")
+			writeJSONFixture(t, w, "contracts/github/create_release_prerelease/release.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: creating a prerelease with an explicit ref
+	release, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
+		TagName:    providerContractTag,
+		Ref:        gitHubReleaseCommitSHA,
+		Name:       providerContractTag,
+		Body:       providerContractReleaseNotes,
+		Prerelease: true,
+	})
+
+	// then: target_commitish and prerelease flag are forwarded to GitHub
+	testastic.NoError(t, err)
+	testastic.Equal(t, providerContractTag, release.TagName)
+	testastic.Equal(t, gitHubReleaseCommitSHA, release.CommitSHA)
+	testastic.Equal(t, providerContractReleaseNotes, release.Body)
+	testastic.Equal(t, providerContractReleaseURL, release.URL)
+}
+
+func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub repository where the target tag already exists
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
+			writeJSONFixture(t, w, "contracts/github/create_release_existing_tag/tag_ref.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/tags/"+providerContractTag:
+			writeJSONFixture(t, w, "contracts/github/create_release_existing_tag/tag_commit.json")
+		case isGitHubCreateReleaseRequest(r):
+			writeJSONFixture(t, w, "contracts/github/create_release_existing_tag/release.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: creating a release for the existing tag
+	release, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
+		TagName: providerContractTag,
+		Ref:     gitHubReleaseCommitSHA,
+		Name:    providerContractTag,
+		Body:    providerContractReleaseNotes,
+	})
+
+	// then: the existing tag is reused without another tag creation request
+	testastic.NoError(t, err)
+	testastic.Equal(t, providerContractTag, release.TagName)
+	testastic.Equal(t, gitHubReleaseCommitSHA, release.CommitSHA)
+	testastic.Equal(t, providerContractReleaseURL, release.URL)
+}
+
+func TestGitHubCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name string
+		ref  string
+	}{
+		{name: "rejects a branch name", ref: providerContractBaseBranch},
+		{name: "rejects an abbreviated SHA", ref: "6865616473"},
+		{name: "rejects a blank ref", ref: "  "},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitHub provider whose server fails any request it receives
+			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}))
+			defer server.Close()
+
+			p := newGitHubContractProvider(t, server)
+
+			// when: creating a release for a ref that is not a commit SHA
+			_, err := p.CreateRelease(context.Background(), forge.ReleaseOptions{
+				TagName: providerContractTag,
+				Ref:     scenario.ref,
+				Name:    providerContractTag,
+				Body:    providerContractReleaseNotes,
+			})
+
+			// then: the sentinel for an unusable ref is returned before any request
+			testastic.ErrorIs(t, err, forge.ErrInvalidCommitSHA)
+		})
+	}
+}
+
+func TestGitHubEnsureLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name     string
+		yeet     bool
+		phase    forge.ReleasePRPhase
+		expected []string
+	}{
+		{
+			name:     "creates managed and lifecycle labels when not found",
+			yeet:     true,
+			phase:    forge.ReleasePRPhasePending,
+			expected: []string{provider.ReleaseLabelYeet, testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "does not create managed label when disabled",
+			yeet:     false,
+			phase:    forge.ReleasePRPhasePending,
+			expected: []string{testReleaseLabelPending, testReleaseLabelTagged},
+		},
+		{
+			name:     "tagged transition recreates only the tagged label",
+			yeet:     true,
+			phase:    forge.ReleasePRPhaseTagged,
+			expected: []string{testReleaseLabelTagged},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a GitHub API where the labels do not exist
+			var created []string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/labels/"):
+					w.WriteHeader(http.StatusNotFound)
+					writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/labels":
+					var request struct {
+						Name string `json:"name"`
+					}
+					decodeJSONRequest(t, r, &request)
+					created = append(created, request.Name)
+
+					w.WriteHeader(http.StatusCreated)
+					writeJSON(t, w, map[string]any{"name": request.Name})
+				case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+					writeJSONFixture(t, w, "contracts/github/ensure_label/attached.json")
+				case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					fatalUnexpectedProviderRequest(t, "GitHub", r)
+				}
+			}))
+			defer server.Close()
+
+			p := newGitHubContractProvider(t, server)
+			labels := defaultReleasePRLabels()
+			labels.Yeet = testCase.yeet
+
+			// when: the requested phase is applied
+			err := p.SetReleasePRLabels(context.Background(), 42, labels, testCase.phase)
+
+			// then: only definitions owned by that phase are created
+			testastic.NoError(t, err)
+			testastic.SliceEqual(t, testCase.expected, created)
+		})
+	}
+}
+
+// newGitHubMergeMethodHandler serves pull request 1 together with the repository
+// merge settings a case pins. A case that must never reach the merge call leaves
+// acceptsMerge false so an unexpected merge request fails the test.
+func newGitHubMergeMethodHandler(t *testing.T, repoFixture string, acceptsMerge bool) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/1":
+			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/pr.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/"+repoFixture)
+		case acceptsMerge && r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/1/merge":
+			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/result.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	})
+}
+
+func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
+	t.Parallel()
+
+	t.Run("auto selects squash when enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that allows squash merge
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_squash.json", true))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: merging with auto method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			BypassMergeChecks: false,
+			Method:            forge.MergeMethodAuto,
+		})
+
+		// then: no error
+		testastic.NoError(t, err)
+	})
+
+	t.Run("rejects disabled merge method", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that only allows merge commits
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_merge_commit.json", false))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: merging with squash method (which is disabled)
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			BypassMergeChecks: false,
+			Method:            forge.MergeMethodSquash,
+		})
+
+		// then: merge is blocked because squash is disabled
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+	})
+
+	t.Run("auto falls back to rebase when squash disabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository that allows only rebase
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_rebase.json", true))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: merging with auto method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			BypassMergeChecks: false,
+			Method:            forge.MergeMethodAuto,
+		})
+
+		// then: no error - auto selects rebase
+		testastic.NoError(t, err)
+	})
+
+	t.Run("auto fails when no merge methods enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a repository with all merge methods disabled
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_none.json", false))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: merging with auto method
+		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
+			BypassMergeChecks: false,
+			Method:            forge.MergeMethodAuto,
+		})
+
+		// then: merge is blocked
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+	})
+}
+
+func TestGitHubReleasePRStateTransitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("marks pull request pending", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub server that records label additions and deletions for PR 42
+		var addLabels []string
+
+		removedLabel := ""
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
+				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+			case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+				decodeJSONRequest(t, r, &addLabels)
+				writeJSONFixture(t, w, "contracts/github/mark_release_pr/attached.json")
+			case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+				removedLabel = decodedPathTail(t, r)
+
+				w.WriteHeader(http.StatusNotFound)
+				writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: PR 42 is put in the pending phase
+		err := p.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), forge.ReleasePRPhasePending)
+
+		// then: the managed and pending labels are added and the tagged label is removed
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{testReleaseLabelPending, provider.ReleaseLabelYeet}, addLabels)
+		testastic.Equal(t, testReleaseLabelTagged, removedLabel)
+
+		// when: marking the same pull request pending with the managed label disabled
+		labels := defaultReleasePRLabels()
+		labels.Yeet = false
+		err = p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
+
+		// then: only the pending label is added
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{testReleaseLabelPending}, addLabels)
+	})
+}
+
+func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub server that rejects the label addition on PR 42
+	var removals atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
+			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/issues/42/labels":
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSONFixture(t, w, "contracts/github/label_attach_failure/error.json")
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/issues/42/labels/"):
+			removals.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: the pull request is moved into the tagged phase
+	err := p.SetReleasePRLabels(context.Background(), 42, defaultReleasePRLabels(), forge.ReleasePRPhaseTagged)
+
+	// then: the failure surfaces and the pending label the next run finds it by
+	// is never removed
+	testastic.Error(t, err)
+	testastic.Equal(t, int32(0), removals.Load())
+}
+
+func TestGitHubMergeReleasePR(t *testing.T) {
+	t.Parallel()
+
+	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub server reporting PR 42 as open with a blocked mergeable state
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls/42" {
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+
+				return
+			}
+
+			writeJSONFixture(t, w, "contracts/github/blocked_merge/pr.json")
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: MergeReleasePR is invoked without the force option
+		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
+
+		// then: forge.ErrMergeBlocked is returned with the blocked mergeable state in the message
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+		testastic.Equal(t, "release PR merge blocked: pull request #42 mergeable_state=blocked", err.Error())
+	})
+
+	t.Run("forces merge when readiness is otherwise blocked", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitHub server reporting PR 42 as blocked with squash merging allowed on the repo
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+				writeJSONFixture(t, w, "contracts/github/forced_merge/pr.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
+				writeJSONFixture(t, w, "contracts/github/forced_merge/repo.json")
+			case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
+				assertJSONRequest(t, r, "contracts/github/forced_merge/merge_request.json")
+				writeJSONFixture(t, w, "contracts/github/forced_merge/result.json")
+			default:
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
+		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+			BypassMergeChecks: true,
+			Method:            forge.MergeMethodAuto,
+		})
+
+		// then: the squash merge method is chosen and the head SHA is sent in the merge request
+		testastic.NoError(t, err)
+	})
+}
+
+func TestGitHubUpdateFiles(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub server exposing the base branch git data and accepting new objects
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractBaseBranch:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/"+gitHubBaseCommitSHA:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_commit.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/tree_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/tree.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/commits":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/commit_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/commit.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractReleaseBranch:
+			w.WriteHeader(http.StatusNotFound)
+			writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/ref_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/create_ref.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: two files are written onto the release branch off the base branch
+	err := p.UpdateFiles(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+		map[string]forge.FileUpdate{
+			"VERSION.txt":  {Content: "version=1.2.3"},
+			"CHANGELOG.md": {Content: "# Changelog", Exists: true},
+		},
+		"chore: release 1.2.3",
+	)
+
+	// then: the tree, commit, and branch ref requests match the recorded contract
+	testastic.NoError(t, err)
 }

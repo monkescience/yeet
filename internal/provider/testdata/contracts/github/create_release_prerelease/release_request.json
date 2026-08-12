@@ -1,0 +1,11 @@
+{
+  "body": {
+    "body": "release notes",
+    "name": "v1.2.3",
+    "prerelease": true,
+    "tag_name": "v1.2.3",
+    "target_commitish": "6865616473686131323300000000000000000000"
+  },
+  "method": "POST",
+  "path": "/repos/o/r/releases"
+}

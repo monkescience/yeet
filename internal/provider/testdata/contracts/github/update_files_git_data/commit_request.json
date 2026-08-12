@@ -1,0 +1,11 @@
+{
+  "body": {
+    "message": "chore: release 1.2.3",
+    "parents": [
+      "6261736572656673686100000000000000000000"
+    ],
+    "tree": "6e65777472656573686100000000000000000000"
+  },
+  "method": "POST",
+  "path": "/repos/o/r/git/commits"
+}
