@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
@@ -154,7 +153,7 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 			return forge.FileUpdate{}, fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File)
 		}
 
-		existing.Content = prependChangelogEntry(existing.Content, changelogEntry)
+		existing.Content = changelog.PrependEntry(existing.Content, changelogEntry)
 
 		return existing, nil
 	}
@@ -168,7 +167,7 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 		return forge.FileUpdate{}, fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)
 	}
 
-	return forge.FileUpdate{Content: prependChangelogEntry(existing, changelogEntry), Exists: true}, nil
+	return forge.FileUpdate{Content: changelog.PrependEntry(existing, changelogEntry), Exists: true}, nil
 }
 
 func setBranchFileContent(files map[string]forge.FileUpdate, path string, update forge.FileUpdate) error {
@@ -192,18 +191,4 @@ func markerScheme(target config.ResolvedTarget) (versionfile.Scheme, error) {
 	}
 
 	return versionfile.CalVerScheme(calver), nil
-}
-
-func prependChangelogEntry(existing, changelogEntry string) string {
-	if strings.TrimSpace(existing) == "" {
-		return changelog.Prepend("", changelogEntry)
-	}
-
-	if strings.HasPrefix(existing, "# ") {
-		return changelog.Prepend(existing, changelogEntry)
-	}
-
-	combined := strings.TrimRight(changelogEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
-
-	return changelog.Prepend("", combined)
 }

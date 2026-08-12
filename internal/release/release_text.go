@@ -25,7 +25,7 @@ func buildPRSections(plans []TargetPlan) []prSection {
 		}
 
 		entry := preferredPREntry(plan)
-		entry.Sections = directSections(entry.Sections, plan.IncludedTargets)
+		entry.Sections = changelog.DirectSections(entry.Sections, plan.IncludedTargets)
 
 		sections = append(sections, prSection{
 			id:   plan.ID,
@@ -45,28 +45,6 @@ func buildPRSections(plans []TargetPlan) []prSection {
 			plan: plan,
 			body: changelog.RenderBody(entry),
 		})
-	}
-
-	return sections
-}
-
-// directSections keeps a derived entry's own sections, dropping the child
-// targets it embeds. The pull request body lists every child as a target of its
-// own, so repeating them under the parent would duplicate the whole wave.
-func directSections(sections []changelog.Section, includedTargets []string) []changelog.Section {
-	if len(includedTargets) == 0 {
-		return sections
-	}
-
-	childIDs := make(map[string]struct{}, len(includedTargets))
-	for _, includedTargetID := range includedTargets {
-		childIDs[includedTargetID] = struct{}{}
-	}
-
-	for idx, section := range sections {
-		if _, isChild := childIDs[section.Heading]; isChild {
-			return sections[:idx]
-		}
 	}
 
 	return sections

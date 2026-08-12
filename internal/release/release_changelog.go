@@ -103,21 +103,15 @@ func derivedChangelogEntry(
 ) changelog.Entry {
 	direct := newTargetChangelogEntry(ctx, target, nextTag, ref, directCommits, metadata)
 
-	// Every child this target can include is owned, not only the ones releasing
-	// now. A child that released in an earlier wave and not in this one has a
-	// heading the generator deliberately dropped, never a human addition.
-	entry := changelog.Entry{
-		Version:       nextTag,
-		Sections:      direct.Sections,
-		OwnedHeadings: append(direct.OwnedHeadings, target.Includes...),
-	}
-
+	children := make([]changelog.Section, 0, len(childPlans))
 	for _, childPlan := range childPlans {
-		entry.Sections = append(entry.Sections, changelog.Section{
+		children = append(children, changelog.Section{
 			Heading:  childPlan.ID,
 			Sections: childChangelogSections(childPlan, mode),
 		})
 	}
+
+	entry := changelog.DerivedEntry(nextTag, direct, target.Includes, children)
 
 	if ref == "" {
 		return entry

@@ -78,6 +78,64 @@ func renderFreeform(lines []string) string {
 	return strings.Join(trimBlankEdges(lines), "\n")
 }
 
+// PrependEntry splices a rendered entry into a changelog document. A document
+// that does not open with a level-one heading is not one this package wrote, so
+// its text is carried below the new entry rather than treated as a preamble.
+func PrependEntry(existing, newEntry string) string {
+	if strings.TrimSpace(existing) == "" {
+		return Prepend("", newEntry)
+	}
+
+	if strings.HasPrefix(existing, "# ") {
+		return Prepend(existing, newEntry)
+	}
+
+	combined := strings.TrimRight(newEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
+
+	return Prepend("", combined)
+}
+
+// DirectSections keeps an entry's own sections, dropping the child targets
+// nested under it from the first child heading onwards.
+func DirectSections(sections []Section, childHeadings []string) []Section {
+	if len(childHeadings) == 0 {
+		return sections
+	}
+
+	children := make(map[string]struct{}, len(childHeadings))
+	for _, heading := range childHeadings {
+		children[heading] = struct{}{}
+	}
+
+	for idx, section := range sections {
+		if _, isChild := children[section.Heading]; isChild {
+			return sections[:idx]
+		}
+	}
+
+	return sections
+}
+
+// DerivedEntry nests child entries under a parent's own sections. Every heading
+// the parent may own is recorded, not only the children present now, so a child
+// that released in an earlier wave is never mistaken for a hand-written
+// addition on a later merge.
+func DerivedEntry(version string, direct Entry, ownedHeadings []string, children []Section) Entry {
+	sections := make([]Section, 0, len(direct.Sections)+len(children))
+	sections = append(sections, direct.Sections...)
+	sections = append(sections, children...)
+
+	owned := make([]string, 0, len(direct.OwnedHeadings)+len(ownedHeadings))
+	owned = append(owned, direct.OwnedHeadings...)
+	owned = append(owned, ownedHeadings...)
+
+	return Entry{
+		Version:       version,
+		Sections:      sections,
+		OwnedHeadings: owned,
+	}
+}
+
 // Prepend splices a rendered entry into an existing changelog at the first
 // release heading, copying everything already in the file through verbatim.
 func Prepend(existing, newEntry string) string {
