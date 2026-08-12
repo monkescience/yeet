@@ -1,0 +1,13 @@
+{
+  "body": {
+    "completionOptions": {
+      "mergeStrategy": "squash"
+    },
+    "lastMergeSourceCommit": {
+      "commitId": "6865616473686100000000000000000000000000"
+    },
+    "status": "completed"
+  },
+  "method": "PATCH",
+  "path": "/contoso-org/contoso-project/_apis/git/repositories/contoso-repo/pullRequests/42"
+}

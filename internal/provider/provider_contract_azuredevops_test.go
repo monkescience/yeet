@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -347,6 +348,147 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	// then: the provisional commit is skipped and the applied merge commit is returned
 	testastic.NoError(t, err)
 	testastic.Equal(t, "66696e616c736861000000000000000000000000", mergeSHA)
+}
+
+func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
+	t.Parallel()
+
+	// given: an Azure DevOps server whose completion response reports a refusal
+	var completed atomic.Bool
+
+	var polls atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			if completed.Load() {
+				polls.Add(1)
+			}
+
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
+		case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+			completed.Store(true)
+
+			assertJSONRequest(t, r, azureDevOpsContractFixture("merge_release_pr_fast_refusal", "request.json"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr_fast_refusal", "refused.json"))
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+
+	// when: MergeReleasePR is invoked on the refused pull request
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+		Method: forge.MergeMethodSquash,
+	})
+
+	// then: the refusal is reported as a blocked merge without waiting for the forge
+	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, int32(0), polls.Load())
+}
+
+func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name    string
+		refusal string
+		message string
+		reason  forge.MergeBlockedReason
+	}{
+		{
+			name:    "policy rejection",
+			refusal: "refused_policy.json",
+			message: "the merge was rejected by a branch policy",
+			reason:  forge.MergeBlockedReasonPolicy,
+		},
+		{
+			name:    "conflicts",
+			refusal: "refused_conflicts.json",
+			message: "the source branch conflicts with the target branch",
+			reason:  forge.MergeBlockedReasonConflicts,
+		},
+		{
+			name:    "provider failure",
+			refusal: "refused_failure.json",
+			message: "the provider could not create the merge commit",
+			reason:  forge.MergeBlockedReasonFailure,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: Azure queues completion and reports a terminal refusal on the next read
+			var completed atomic.Bool
+
+			var polls atomic.Int32
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if handleAzureDevOpsBootstrap(t, w, r) {
+					return
+				}
+
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+					if completed.Load() {
+						polls.Add(1)
+						writeJSONFixture(
+							t, w,
+							azureDevOpsContractFixture("merge_release_pr_polling_refusal", testCase.refusal),
+						)
+
+						return
+					}
+
+					writeJSONFixture(t, w, azureDevOpsContractFixture("merge_release_pr", "pull_request.json"))
+				case r.Method == http.MethodPatch && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/42"):
+					completed.Store(true)
+
+					assertJSONRequest(
+						t, r,
+						azureDevOpsContractFixture("merge_release_pr_polling_refusal", "request.json"),
+					)
+					writeJSONFixture(
+						t, w,
+						azureDevOpsContractFixture("merge_release_pr_polling_refusal", "queued.json"),
+					)
+				default:
+					fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+				}
+			}))
+			defer server.Close()
+
+			p := newAzureDevOpsContractProvider(
+				t,
+				server,
+				provider.WithMergePolling(time.Millisecond, 50*time.Millisecond),
+			)
+
+			// when: MergeReleasePR polls a completion that Azure later refuses
+			mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+				Method: forge.MergeMethodSquash,
+			})
+
+			// then: the terminal refusal is preserved instead of becoming a polling timeout
+			var blocked *forge.MergeBlockedError
+			if !errors.As(err, &blocked) {
+				t.Fatalf("expected forge.MergeBlockedError, got %v", err)
+			}
+
+			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
+			testastic.Equal(t, string(testCase.reason), string(blocked.Reason))
+			testastic.Equal(t, "was refused: "+testCase.message, blocked.Detail)
+			testastic.Equal(t, "", mergeSHA)
+			testastic.Equal(t, int32(1), polls.Load())
+		})
+	}
 }
 
 func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t *testing.T) {

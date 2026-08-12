@@ -1,0 +1,6 @@
+{
+  "pullRequestId": 42,
+  "status": "active",
+  "mergeStatus": "failure",
+  "mergeFailureMessage": "the provider could not create the merge commit"
+}
