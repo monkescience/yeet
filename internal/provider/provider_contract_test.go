@@ -1132,8 +1132,8 @@ func assertJSONRequest(t *testing.T, r *http.Request, name string) {
 
 	if query := r.URL.Query(); len(query) > 0 {
 		recorded.Query = make(map[string]string, len(query))
-		for key := range query {
-			recorded.Query[key] = query.Get(key)
+		for key, values := range query {
+			recorded.Query[key] = strings.Join(values, ",")
 		}
 	}
 
