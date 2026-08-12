@@ -111,7 +111,7 @@ func derivedChangelogEntry(
 		})
 	}
 
-	entry := changelog.DerivedEntry(nextTag, direct, target.Includes, children)
+	entry := changelog.DerivedEntry(direct, target.Includes, children)
 
 	if ref == "" {
 		return entry

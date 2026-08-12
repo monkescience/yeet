@@ -697,7 +697,7 @@ func TestDerivedEntry(t *testing.T) {
 
 		// given: a direct entry dated on its release day
 		direct := changelog.Entry{
-			Version: "v1.2.0",
+			Version: "v1.3.0",
 			Date:    time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC),
 			Sections: []changelog.Section{{
 				Heading: "Bug Fixes",
@@ -707,7 +707,6 @@ func TestDerivedEntry(t *testing.T) {
 
 		// when: nesting a child target under it
 		derived := changelog.DerivedEntry(
-			"v1.3.0",
 			direct,
 			[]string{"api"},
 			[]changelog.Section{{Heading: "api"}},
@@ -715,6 +714,22 @@ func TestDerivedEntry(t *testing.T) {
 
 		// then: the release heading carries that date
 		testastic.Contains(t, changelog.Render(derived), "## v1.3.0 (2026-03-01)")
+	})
+
+	t.Run("drops the compare URL of the direct entry", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a direct entry already linked against its own previous tag
+		direct := changelog.Entry{
+			Version:    "v1.3.0",
+			CompareURL: "https://github.com/owner/repo/compare/v1.2.0...v1.3.0",
+		}
+
+		// when: nesting a child target under it
+		derived := changelog.DerivedEntry(direct, []string{"api"}, []changelog.Section{{Heading: "api"}})
+
+		// then: the caller is left to decide what the wave compares against
+		testastic.Equal(t, "", derived.CompareURL)
 	})
 }
 

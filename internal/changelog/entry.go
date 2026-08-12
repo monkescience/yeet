@@ -119,8 +119,9 @@ func DirectSections(sections []Section, childHeadings []string) []Section {
 // DerivedEntry nests child entries under a parent's own sections. Every heading
 // the parent may own is recorded, not only the children present now, so a child
 // that released in an earlier wave is never mistaken for a hand-written
-// addition on a later merge.
-func DerivedEntry(version string, direct Entry, ownedHeadings []string, children []Section) Entry {
+// addition on a later merge. The compare URL is dropped because only the caller
+// knows which ref the wave it is rendering compares against.
+func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entry {
 	sections := make([]Section, 0, len(direct.Sections)+len(children))
 	sections = append(sections, direct.Sections...)
 	sections = append(sections, children...)
@@ -129,12 +130,12 @@ func DerivedEntry(version string, direct Entry, ownedHeadings []string, children
 	owned = append(owned, direct.OwnedHeadings...)
 	owned = append(owned, ownedHeadings...)
 
-	return Entry{
-		Version:       version,
-		Date:          direct.Date,
-		Sections:      sections,
-		OwnedHeadings: owned,
-	}
+	derived := direct
+	derived.CompareURL = ""
+	derived.Sections = sections
+	derived.OwnedHeadings = owned
+
+	return derived
 }
 
 // Prepend splices a rendered entry into an existing changelog at the first
