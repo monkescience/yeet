@@ -221,33 +221,6 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 	testastic.Equal(t, 0, len(prs))
 }
 
-func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
-	t.Parallel()
-
-	// given: an open release PR labelled in a different case than the configured
-	// pending label
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls" {
-			t.Fatalf("unexpected GitHub request: %s %s", r.Method, r.URL.String())
-
-			return
-		}
-
-		writeJSONFixture(t, w, "contracts/github/find_open_prs_case_insensitive/prs.json")
-	}))
-	defer server.Close()
-
-	gh := provider.NewGitHub(newGitHubTestClient(t, server), "o", "r")
-
-	// when: finding open pending release PRs
-	prs, err := gh.FindOpenPendingReleasePRs(context.Background(), "main", "autorelease: pending")
-
-	// then: the case variant is accepted as the configured pending label
-	testastic.NoError(t, err)
-	testastic.Equal(t, 1, len(prs))
-	testastic.False(t, prs[0].NeedsPendingLabel)
-}
-
 func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 	t.Parallel()
 

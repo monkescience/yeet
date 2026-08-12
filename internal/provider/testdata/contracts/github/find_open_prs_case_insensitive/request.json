@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "path": "/repos/o/r/pulls",
+  "query": {
+    "base": "main",
+    "direction": "desc",
+    "head": "o:yeet/release-main",
+    "per_page": "100",
+    "sort": "updated",
+    "state": "open"
+  }
+}

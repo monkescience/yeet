@@ -283,6 +283,36 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 	)
 }
 
+// TestGitHubMatchesThePendingLabelCaseInsensitively pins a GitHub-only rule:
+// GitHub label matching folds case, where GitLab requires an exact match.
+func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	// given: an open release PR labelled in a different case than the configured
+	// pending label
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/repos/o/r/pulls" {
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+
+			return
+		}
+
+		assertJSONRequest(t, r, "contracts/github/find_open_prs_case_insensitive/request.json")
+		writeJSONFixture(t, w, "contracts/github/find_open_prs_case_insensitive/prs.json")
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: finding open pending release PRs
+	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, providerContractPendingLabel)
+
+	// then: the case variant is accepted as the configured pending label
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, len(prs))
+	testastic.False(t, prs[0].NeedsPendingLabel)
+}
+
 func handleGitHubUpdateReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 

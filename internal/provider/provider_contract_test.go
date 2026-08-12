@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1108,6 +1109,42 @@ func writeTextFixture(t *testing.T, w http.ResponseWriter, name string) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	writeFixture(t, w, name)
+}
+
+// contractRequest is the on-disk record of one call a provider makes. A case
+// directory carries the request beside the response so the whole exchange is
+// readable without running the test.
+type contractRequest struct {
+	Method string            `json:"method"`
+	Path   string            `json:"path"`
+	Query  map[string]string `json:"query,omitempty"`
+	Body   json.RawMessage   `json:"body,omitempty"`
+}
+
+// assertJSONRequest checks a received call against a case's request fixture.
+func assertJSONRequest(t *testing.T, r *http.Request, name string) {
+	t.Helper()
+
+	recorded := contractRequest{
+		Method: r.Method,
+		Path:   r.URL.EscapedPath(),
+	}
+
+	if query := r.URL.Query(); len(query) > 0 {
+		recorded.Query = make(map[string]string, len(query))
+		for key := range query {
+			recorded.Query[key] = query.Get(key)
+		}
+	}
+
+	body, err := io.ReadAll(r.Body)
+	testastic.NoError(t, err)
+
+	if len(body) > 0 {
+		recorded.Body = json.RawMessage(body)
+	}
+
+	testastic.AssertJSON(t, filepath.Join("testdata", name), recorded)
 }
 
 func writeFixture(t *testing.T, w http.ResponseWriter, name string) {
