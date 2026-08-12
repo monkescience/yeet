@@ -1017,8 +1017,8 @@ func TestGitHubEnsureLabel(t *testing.T) {
 
 // newGitHubMergeMethodHandler serves pull request 1 together with the repository
 // merge settings a case pins. A case that must never reach the merge call leaves
-// acceptsMerge false so an unexpected merge request fails the test.
-func newGitHubMergeMethodHandler(t *testing.T, repoFixture string, acceptsMerge bool) http.Handler {
+// mergeRequestFixture empty so an unexpected merge request fails the test.
+func newGitHubMergeMethodHandler(t *testing.T, repoFixture, mergeRequestFixture string) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1027,7 +1027,8 @@ func newGitHubMergeMethodHandler(t *testing.T, repoFixture string, acceptsMerge 
 			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/pr.json")
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
 			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/"+repoFixture)
-		case acceptsMerge && r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/1/merge":
+		case mergeRequestFixture != "" && r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/1/merge":
+			assertJSONRequest(t, r, "contracts/github/resolve_merge_method/"+mergeRequestFixture)
 			writeJSONFixture(t, w, "contracts/github/resolve_merge_method/result.json")
 		default:
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
@@ -1042,7 +1043,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that allows squash merge
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_squash.json", true))
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_squash.json", "squash_merge_request.json"))
 		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
@@ -1061,7 +1062,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that only allows merge commits
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_merge_commit.json", false))
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_merge_commit.json", ""))
 		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
@@ -1081,7 +1082,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that allows only rebase
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_rebase.json", true))
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_rebase.json", "rebase_merge_request.json"))
 		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
@@ -1100,7 +1101,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository with all merge methods disabled
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_none.json", false))
+		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_none.json", ""))
 		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)

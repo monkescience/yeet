@@ -1,0 +1,8 @@
+{
+  "body": {
+    "merge_method": "rebase",
+    "sha": "abc123"
+  },
+  "method": "PUT",
+  "path": "/repos/o/r/pulls/1/merge"
+}
