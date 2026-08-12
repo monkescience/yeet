@@ -295,12 +295,16 @@ func (a *AzureDevOps) latestAzureDevOpsMergedPR(
 				return pr, false, err
 			}
 
+			if full.ClosedDate == nil {
+				return pr, false, mergeTimeMissingError(azureDevOpsPullRequestReference(number))
+			}
+
 			fullByNumber[number] = full
 
 			return *full, true, nil
 		},
 		reference: func(pr git.GitPullRequest) string {
-			return fmt.Sprintf("pull request !%d", derefInt(pr.PullRequestId))
+			return azureDevOpsPullRequestReference(derefInt(pr.PullRequestId))
 		},
 	})
 	if err != nil {

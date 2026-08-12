@@ -1,0 +1,9 @@
+{
+  "pullRequestId": 41,
+  "repository": {"name": "contoso-repo"},
+  "title": "undated release",
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main",
+  "status": "completed",
+  "labels": [{"name": "release: waiting", "active": true}]
+}

@@ -366,10 +366,14 @@ func (g *GitLab) FindMergedReleasePR(
 				return nil, false, fmt.Errorf("get merge request !%d: %w", mergeRequest.IID, getErr)
 			}
 
+			if full.MergedAt == nil {
+				return nil, false, mergeTimeMissingError(gitLabMergeRequestReference(int(mergeRequest.IID)))
+			}
+
 			return &full.BasicMergeRequest, true, nil
 		},
 		reference: func(mergeRequest *gitlab.BasicMergeRequest) string {
-			return fmt.Sprintf("merge request !%d", mergeRequest.IID)
+			return gitLabMergeRequestReference(int(mergeRequest.IID))
 		},
 	})
 	if err != nil {

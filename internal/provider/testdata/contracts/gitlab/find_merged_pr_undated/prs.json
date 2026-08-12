@@ -1,0 +1,28 @@
+[
+  {
+    "iid": 5,
+    "title": "chore: release v1.0.0",
+    "description": "undated mr",
+    "web_url": "https://gitlab.com/o/r/-/merge_requests/5",
+    "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
+    "state": "merged",
+    "merge_commit_sha": "756e64617465643500000000000000000000000",
+    "merged_at": null,
+    "updated_at": "2024-06-01T00:00:00Z"
+  },
+  {
+    "iid": 9,
+    "title": "chore: release v1.1.0",
+    "description": "second undated mr",
+    "web_url": "https://gitlab.com/o/r/-/merge_requests/9",
+    "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
+    "state": "merged",
+    "merge_commit_sha": "756e64617465643900000000000000000000000",
+    "merged_at": null,
+    "updated_at": "2024-02-01T00:00:00Z"
+  }
+]

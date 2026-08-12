@@ -838,6 +838,41 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, gitLabSourceTipSHA, pr.MergeCommitSHA)
 	})
 
+	t.Run("reports the withheld merge time before re-reading the next candidate", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two competing MRs listed without merge times, where re-reading the
+		// first still withholds one and re-reading the second fails
+		var rereads []string
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.EscapedPath() {
+			case "/api/v4/projects/o%2Fr/merge_requests":
+				writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_undated/prs.json")
+			case "/api/v4/projects/o%2Fr/merge_requests/5":
+				rereads = append(rereads, "5")
+
+				writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_undated/mr_5.json")
+			case "/api/v4/projects/o%2Fr/merge_requests/9":
+				rereads = append(rereads, "9")
+
+				w.WriteHeader(http.StatusInternalServerError)
+			default:
+				fatalUnexpectedProviderRequest(t, "GitLab", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitLabContractProvider(t, server)
+
+		// when: finding the merged release MR
+		_, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
+
+		// then: the ambiguity names the MR that caused it, and no later failure masks it
+		testastic.Contains(t, err.Error(), "merged release PR completion time is unavailable: merge request !5")
+		testastic.SliceEqual(t, []string{"5"}, rereads)
+	})
+
 	t.Run("selects the most recently merged release MR", func(t *testing.T) {
 		t.Parallel()
 
@@ -1128,32 +1163,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 	})
 }
 
-func TestGitLabOpenReleaseMRLabelGuard(t *testing.T) {
-	t.Parallel()
-
-	// given: an open release MR carrying a label that differs from the configured one only by case
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
-			fatalUnexpectedProviderRequest(t, "GitLab", r)
-
-			return
-		}
-
-		assertJSONRequest(t, r, "contracts/gitlab/open_release_mr_label_guard/request.json")
-		writeJSONFixture(t, w, "contracts/gitlab/open_release_mr_label_guard/prs.json")
-	}))
-	defer server.Close()
-
-	p := newGitLabContractProvider(t, server)
-
-	// when: finding open pending release MRs
-	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
-
-	// then: the guard scans only release branches and reports what the label filter did not match
-	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
-	testastic.Equal(t, 0, len(prs))
-}
-
 func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
 	t.Parallel()
 
@@ -1211,9 +1220,15 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 	// when: finding open pending release MRs
 	prs, err := p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
 
-	// then: the case variant is a different label, so the MR is a mismatch
+	// then: the case variant is a different label, so the MR is a mismatch naming
+	// the merge request, its branch and the label yeet expected
 	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
 	testastic.Equal(t, 0, len(prs))
+	testastic.Contains(
+		t,
+		err.Error(),
+		`trusted merge request !10 on branch "yeet/release-main" is missing configured pending label "autorelease: pending"`,
+	)
 }
 
 func TestGitLabReleasePRLabelPreflight(t *testing.T) {

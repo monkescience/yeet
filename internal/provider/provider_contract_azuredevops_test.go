@@ -695,6 +695,51 @@ func TestAzureDevOpsFindMergedReleasePRDoesNotUseSourceCommit(t *testing.T) {
 	testastic.Equal(t, "", pr.MergeCommitSHA)
 }
 
+func TestAzureDevOpsFindMergedReleasePRReportsWithheldCloseDate(t *testing.T) {
+	t.Parallel()
+
+	// given: two completed candidates listed without close dates, where re-reading
+	// the first still withholds one and re-reading the second fails
+	var rereads []string
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handleAzureDevOpsBootstrap(t, w, r) {
+			return
+		}
+
+		switch {
+		case isAzureDevOpsPullRequestsListRequest(r):
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr_undated", "pull_requests.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractRepoAPI("pullRequests/41"):
+			rereads = append(rereads, "41")
+
+			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr_undated", "pull_request_41.json"))
+		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
+			rereads = append(rereads, "42")
+
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	p := newAzureDevOpsContractProvider(t, server)
+
+	// when: finding the merged release pull request
+	_, err := p.FindMergedReleasePR(
+		context.Background(),
+		providerContractBaseBranch,
+		providerContractPendingLabel,
+	)
+
+	// then: the ambiguity names the pull request that caused it, unmasked by the later failure
+	testastic.Contains(t, err.Error(), "merged release PR completion time is unavailable: pull request !41")
+	testastic.SliceEqual(t, []string{"41"}, rereads)
+}
+
 func TestAzureDevOpsFindMergedReleasePRSelectsGreatestClosedDate(t *testing.T) {
 	t.Parallel()
 

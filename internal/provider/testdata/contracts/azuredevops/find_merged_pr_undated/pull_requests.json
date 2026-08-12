@@ -1,0 +1,23 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "pullRequestId": 41,
+      "repository": {"name": "contoso-repo"},
+      "title": "undated release",
+      "sourceRefName": "refs/heads/yeet/release-main",
+      "targetRefName": "refs/heads/main",
+      "status": "completed",
+      "labels": [{"name": "release: waiting", "active": true}]
+    },
+    {
+      "pullRequestId": 42,
+      "repository": {"name": "contoso-repo"},
+      "title": "chore: release v1.2.3",
+      "sourceRefName": "refs/heads/yeet/release-main",
+      "targetRefName": "refs/heads/main",
+      "status": "completed",
+      "labels": [{"name": "release: waiting", "active": true}]
+    }
+  ]
+}
