@@ -20,8 +20,8 @@ var (
 var _ Strategy = (*SemVer)(nil)
 
 // Strategy is one versioning scheme. Beyond reading and advancing a version it
-// answers which release controls it supports, so callers never branch on the
-// scheme themselves.
+// answers which release controls it supports, so release version decisions do
+// not branch on the scheme.
 type Strategy interface {
 	Current(tag string) (string, error)
 	Next(current string, bump commit.BumpType) (string, error)
