@@ -81,6 +81,29 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(t, "platform/yeet", repository.Project)
 	})
 
+	t.Run("preserves configured API and web URLs through remote resolution", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+			APIURL: "https://gitlab.company.com/root/api/v4",
+			WebURL: "https://gitlab.company.com/root",
+		}
+
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@gitlab.company.com:group/service.git", nil
+			},
+		)
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "https://gitlab.company.com/root/api/v4", repository.APIURL)
+		testastic.Equal(t, "https://gitlab.company.com/root", repository.WebURL)
+	})
+
 	t.Run("uses configured remote name", func(t *testing.T) {
 		t.Parallel()
 

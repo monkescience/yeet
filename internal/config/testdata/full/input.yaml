@@ -9,6 +9,8 @@ repository:
   remote: upstream
   gitlab:
     host: gitlab.company.com
+    api_url: https://gitlab.company.com/gitlab/api/v4
+    web_url: https://gitlab.company.com/gitlab
     project: group/subgroup/service
 network:
   request_timeout: 45s

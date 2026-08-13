@@ -41,6 +41,12 @@ func validateProviderHostTrust(
 		return err
 	}
 
+	if spec, known := forgeSpecs[repository.Provider]; known && spec.endpointOverride() == "" {
+		if err := validateConfiguredAPIHost(repository.APIURL, host); err != nil {
+			return err
+		}
+	}
+
 	if strings.EqualFold(providerURLEnvHost(repository.Provider), host) {
 		return nil
 	}
@@ -61,6 +67,33 @@ func validateProviderHostTrust(
 
 	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
 		return fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host)
+	}
+
+	return nil
+}
+
+func validateConfiguredAPIHost(apiURL, repositoryHost string) error {
+	if apiURL == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(apiURL)
+	if err != nil || parsed.Hostname() == "" {
+		return fmt.Errorf("%w: configured api_url is invalid", ErrUntrustedHost)
+	}
+
+	repositoryHostname := repositoryHost
+	if parsedRepositoryHost, parseErr := url.Parse("https://" + repositoryHost); parseErr == nil {
+		repositoryHostname = parsedRepositoryHost.Hostname()
+	}
+
+	if !strings.EqualFold(parsed.Hostname(), repositoryHostname) {
+		return fmt.Errorf(
+			"%w: configured api_url host %q does not match repository host %q",
+			ErrUntrustedHost,
+			parsed.Hostname(),
+			repositoryHostname,
+		)
 	}
 
 	return nil

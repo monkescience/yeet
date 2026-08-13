@@ -52,15 +52,30 @@ When `release.reviewers` is configured, a PAT also needs Identity (Read), `vso.i
 
 ## Host trust
 
-yeet trusts a repository host only when it is a recognized public provider host, matches the Git remote host, or matches the provider's URL override. A checked-in `repository.*.host` cannot redirect a token by itself.
+yeet trusts a repository host only when it is a recognized public provider host, matches the Git remote host, or matches the provider's environment URL override. A checked-in `repository.*.host` cannot redirect a token by itself.
 
-`GITHUB_URL`, `GITLAB_URL`, and `AZURE_DEVOPS_URL` override the API endpoint after repository resolution. They take precedence even for public hosts. Treat them as trusted operator input because yeet sends the provider token to the selected endpoint.
+Each provider subsection accepts checked-in `api_url` and `web_url` settings. Both require HTTPS. `api_url` must use the resolved repository hostname because yeet sends credentials to it. `web_url` controls links only and may use another HTTPS hostname.
+
+`GITHUB_URL`, `GITLAB_URL`, and `AZURE_DEVOPS_URL` override a configured `api_url` after repository resolution. They take precedence even for public hosts. Treat them as trusted operator input because yeet sends the provider token to the selected endpoint. A configured `web_url` still controls generated links. Without `web_url`, links keep their legacy derivation from the environment override.
 
 For custom domains, set `provider` explicitly. Automatic detection only recognizes `github.com`, `gitlab.com`, and `dev.azure.com`.
 
 ### GitHub Enterprise
 
-For a configured custom host, yeet derives `https://<host>/api/v3/`. Override it when the API is elsewhere:
+For a configured custom host, yeet derives `https://<host>/api/v3/`. Configure a path prefix in `.yeet.yaml`:
+
+```yaml
+provider: github
+repository:
+  github:
+    host: github.example.com
+    api_url: https://github.example.com/root/api/v3/
+    web_url: https://github.example.com/root
+    owner: acme
+    repo: widgets
+```
+
+An environment override remains available for operator-controlled routing:
 
 ```sh
 export GITHUB_TOKEN=github_pat_xxx
@@ -70,7 +85,7 @@ yeet release
 
 ### Self-managed GitLab
 
-For a configured custom host, yeet derives `https://<host>/api/v4`. Override it for an instance under a relative path:
+For a configured custom host, yeet derives `https://<host>/api/v4`. Use `repository.gitlab.api_url` and `web_url` for a checked-in relative path, or override it for the current environment:
 
 ```sh
 export GITLAB_TOKEN=glpat-xxx
@@ -80,7 +95,7 @@ yeet release
 
 ### Azure DevOps Server
 
-Set the server URL explicitly, including any path prefix:
+Use `repository.azuredevops.api_url` and `web_url` for a checked-in server path, or set the server URL explicitly for the current environment:
 
 ```sh
 export AZURE_DEVOPS_EXT_PAT=xxx

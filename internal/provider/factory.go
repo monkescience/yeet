@@ -136,17 +136,55 @@ func (spec forgeSpec) endpointOverride() string {
 	return strings.TrimSpace(os.Getenv(spec.urlEnvVar))
 }
 
-func (spec forgeSpec) apiBaseURL(host string) string {
+func (spec forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
 	if override := spec.endpointOverride(); override != "" {
 		return override
 	}
 
-	host = strings.TrimSpace(host)
+	if repository.APIURL != "" {
+		return repository.APIURL
+	}
+
+	host := strings.TrimSpace(repository.Host)
+	if repository.Provider == providerNameAzureDevOps {
+		return "https://" + azureDevOpsAPIHost(host)
+	}
+
 	if host == "" || strings.EqualFold(host, spec.defaultHost) {
 		return ""
 	}
 
 	return "https://" + host + spec.apiPathSuffix
+}
+
+func (spec forgeSpec) webBaseURL(repository *repositoryDescriptor) string {
+	if repository.WebURL != "" {
+		return strings.TrimRight(repository.WebURL, "/")
+	}
+
+	if override := spec.endpointOverride(); override != "" {
+		return webBaseFromAPIURL(repository.Provider, override)
+	}
+
+	host := repository.Host
+	if repository.Provider == providerNameAzureDevOps {
+		host = azureDevOpsAPIHost(host)
+	}
+
+	return "https://" + strings.TrimRight(strings.TrimSpace(host), "/")
+}
+
+func webBaseFromAPIURL(providerType, apiURL string) string {
+	baseURL := strings.TrimRight(strings.TrimSpace(apiURL), "/")
+
+	switch providerType {
+	case providerNameGitHub:
+		return strings.TrimSuffix(baseURL, "/api/v3")
+	case providerNameGitLab:
+		return strings.TrimSuffix(baseURL, "/api/v4")
+	default:
+		return baseURL
+	}
 }
 
 func newGitHubProvider(
@@ -161,7 +199,7 @@ func newGitHubProvider(
 		github.WithAuthToken(token.value),
 	}
 
-	if baseURL := spec.apiBaseURL(repository.Host); baseURL != "" {
+	if baseURL := spec.apiBaseURL(repository); baseURL != "" {
 		opts = append(opts, github.WithEnterpriseURLs(baseURL, baseURL))
 	}
 
@@ -176,6 +214,7 @@ func newGitHubProvider(
 		repository.Repo,
 		configuredMergePollingOptions(settings)...,
 	)
+	provider.baseURL = spec.webBaseURL(repository)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -198,7 +237,7 @@ func newGitLabProvider(
 		gitlab.WithOnlyIdempotentRetries(),
 	}
 
-	if baseURL := spec.apiBaseURL(repository.Host); baseURL != "" {
+	if baseURL := spec.apiBaseURL(repository); baseURL != "" {
 		opts = append(opts, gitlab.WithBaseURL(baseURL))
 	}
 
@@ -208,6 +247,7 @@ func newGitLabProvider(
 	}
 
 	provider := NewGitLab(client, repository.Project, configuredMergePollingOptions(settings)...)
+	provider.repoURL = spec.webBaseURL(repository) + "/" + repository.Project
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -220,7 +260,7 @@ func newAzureDevOpsProvider(
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
 ) (forge.Provider, error) {
-	baseURL := spec.endpointOverride()
+	baseURL := spec.apiBaseURL(repository)
 	if baseURL == "" {
 		baseURL = "https://" + azureDevOpsAPIHost(repository.Host)
 	}
@@ -247,6 +287,7 @@ func newAzureDevOpsProvider(
 			repo,
 			configuredMergePollingOptions(settings)...,
 		)
+		provider.baseURL = spec.webBaseURL(repository)
 		provider.releaseBranch = settings.releaseBranch
 
 		return provider, nil
@@ -262,6 +303,7 @@ func newAzureDevOpsProvider(
 		repo,
 		configuredMergePollingOptions(settings)...,
 	)
+	provider.baseURL = spec.webBaseURL(repository)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil

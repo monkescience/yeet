@@ -164,12 +164,16 @@ func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
 		}
 
 		descriptor.Host = strings.TrimSpace(cfg.Repository.GitHub.Host)
+		descriptor.APIURL = strings.TrimSpace(cfg.Repository.GitHub.APIURL)
+		descriptor.WebURL = strings.TrimSpace(cfg.Repository.GitHub.WebURL)
 		descriptor.Owner = strings.TrimSpace(cfg.Repository.GitHub.Owner)
 		descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
 		descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
 	case config.ProviderGitLab:
 		if cfg.Repository.GitLab != nil {
 			descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
+			descriptor.APIURL = strings.TrimSpace(cfg.Repository.GitLab.APIURL)
+			descriptor.WebURL = strings.TrimSpace(cfg.Repository.GitLab.WebURL)
 			descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
 		}
 	case config.ProviderAzureDevOps:
@@ -178,6 +182,8 @@ func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
 		}
 
 		descriptor.Host = strings.TrimSpace(cfg.Repository.AzureDevOps.Host)
+		descriptor.APIURL = strings.TrimSpace(cfg.Repository.AzureDevOps.APIURL)
+		descriptor.WebURL = strings.TrimSpace(cfg.Repository.AzureDevOps.WebURL)
 		descriptor.Organization = strings.TrimSpace(cfg.Repository.AzureDevOps.Organization)
 		descriptor.Project = strings.TrimSpace(cfg.Repository.AzureDevOps.Project)
 		descriptor.Repo = strings.TrimSpace(cfg.Repository.AzureDevOps.Repo)
@@ -221,6 +227,14 @@ func mergeRepositoryDescriptor(
 		base.Host = override.Host
 	}
 
+	if override.APIURL != "" {
+		base.APIURL = override.APIURL
+	}
+
+	if override.WebURL != "" {
+		base.WebURL = override.WebURL
+	}
+
 	mergeRepositoryCoordinates(base, override)
 
 	if override.Organization != "" {
@@ -262,6 +276,8 @@ func mergeRepositoryCoordinates(base *repositoryDescriptor, override *repository
 func normalizeRepositoryDescriptor(repository *repositoryDescriptor) {
 	repository.Provider = strings.TrimSpace(repository.Provider)
 	repository.Host = strings.TrimSpace(repository.Host)
+	repository.APIURL = strings.TrimSpace(repository.APIURL)
+	repository.WebURL = strings.TrimSpace(repository.WebURL)
 	repository.Owner = strings.TrimSpace(repository.Owner)
 	repository.Repo = strings.TrimSpace(repository.Repo)
 	repository.Project = strings.Trim(strings.TrimSpace(repository.Project), "/")
@@ -346,6 +362,8 @@ const minimumProjectSegments = 2
 type repositoryDescriptor struct {
 	Provider     string
 	Host         string
+	APIURL       string
+	WebURL       string
 	Owner        string
 	Repo         string
 	Project      string

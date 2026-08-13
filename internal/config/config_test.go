@@ -109,6 +109,102 @@ func TestTimezoneValidation(t *testing.T) {
 	}
 }
 
+func TestRepositoryURLValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		apiURL  string
+		webURL  string
+		message string
+	}{
+		{
+			name:    "http API URL",
+			apiURL:  "http://github.com/api/v3",
+			message: "invalid config: repository.github.api_url must be an absolute HTTPS URL",
+		},
+		{
+			name:    "relative API URL",
+			apiURL:  "/api/v3",
+			message: "invalid config: repository.github.api_url must be an absolute HTTPS URL",
+		},
+		{
+			name:    "API URL with credentials",
+			apiURL:  "https://user@example.com/api/v3",
+			message: "invalid config: repository.github.api_url must not contain credentials",
+		},
+		{
+			name:    "API URL with query",
+			apiURL:  "https://example.com/api/v3?tenant=acme",
+			message: "invalid config: repository.github.api_url must not contain a query",
+		},
+		{
+			name:    "web URL with fragment",
+			webURL:  "https://example.com/git#repos",
+			message: "invalid config: repository.github.web_url must not contain a fragment",
+		},
+		{
+			name:    "padded web URL",
+			webURL:  " https://example.com/git ",
+			message: "invalid config: repository.github.web_url must not contain surrounding whitespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			cfg.Provider = config.ProviderGitHub
+			cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
+				Host:   "github.com",
+				APIURL: tt.apiURL,
+				WebURL: tt.webURL,
+				Owner:  "platform",
+				Repo:   "yeet",
+			}
+
+			err := cfg.Validate()
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
+
+	t.Run("accepts HTTPS paths and ports for every provider", func(t *testing.T) {
+		t.Parallel()
+
+		configs := []*config.Config{config.Default(), config.Default(), config.Default()}
+
+		configs[0].Provider = config.ProviderGitHub
+		configs[0].Repository.GitHub = &config.GitHubRepositoryConfig{
+			Host: "github.example.com", APIURL: "https://github.example.com:8443/api/v3",
+			WebURL: "https://github.example.com:8443/code", Owner: "platform", Repo: "yeet",
+		}
+
+		configs[1].Provider = config.ProviderGitLab
+		configs[1].Repository.GitLab = &config.GitLabRepositoryConfig{
+			Host: "gitlab.example.com", APIURL: "https://gitlab.example.com:8443/root/api/v4",
+			WebURL: "https://gitlab.example.com:8443/root", Project: "platform/yeet",
+		}
+
+		configs[2].Provider = config.ProviderAzureDevOps
+		configs[2].Repository.AzureDevOps = &config.AzureDevOpsRepositoryConfig{
+			Host: "devops.example.com", APIURL: "https://devops.example.com:8443/tfs",
+			WebURL: "https://devops.example.com:8443/tfs", Organization: "platform",
+			Project: "tools", Repo: "yeet",
+		}
+
+		for _, cfg := range configs {
+			cfg.Targets = map[string]config.Target{
+				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+			}
+
+			testastic.NoError(t, cfg.Validate())
+		}
+	})
+}
+
 func TestReleaseMergePollingValidation(t *testing.T) {
 	t.Parallel()
 

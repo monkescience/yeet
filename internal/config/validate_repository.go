@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -92,6 +93,10 @@ func validateGitHubRepositoryConfig(github *GitHubRepositoryConfig) error {
 		return fmt.Errorf("%w: repository.github.host must not be blank", ErrInvalidConfig)
 	}
 
+	if err := validateRepositoryURLs("repository.github", github.APIURL, github.WebURL); err != nil {
+		return err
+	}
+
 	if github.Owner != "" && owner == "" {
 		return fmt.Errorf("%w: repository.github.owner must not be blank", ErrInvalidConfig)
 	}
@@ -147,6 +152,10 @@ func validateGitLabRepositoryConfig(gitlab *GitLabRepositoryConfig) error {
 		return fmt.Errorf("%w: repository.gitlab.host must not be blank", ErrInvalidConfig)
 	}
 
+	if err := validateRepositoryURLs("repository.gitlab", gitlab.APIURL, gitlab.WebURL); err != nil {
+		return err
+	}
+
 	if gitlab.Project != "" && project == "" {
 		return fmt.Errorf("%w: repository.gitlab.project must not be blank", ErrInvalidConfig)
 	}
@@ -167,6 +176,10 @@ func validateAzureDevOpsRepositoryConfig(azure *AzureDevOpsRepositoryConfig) err
 
 	if azure.Host != "" && host == "" {
 		return fmt.Errorf("%w: repository.azuredevops.host must not be blank", ErrInvalidConfig)
+	}
+
+	if err := validateRepositoryURLs("repository.azuredevops", azure.APIURL, azure.WebURL); err != nil {
+		return err
 	}
 
 	if azure.Organization != "" && organization == "" {
@@ -195,6 +208,51 @@ func validateAzureDevOpsRepositoryConfig(azure *AzureDevOpsRepositoryConfig) err
 
 	if repo == "" {
 		return fmt.Errorf("%w: repository.azuredevops.repo is required", ErrInvalidConfig)
+	}
+
+	return nil
+}
+
+func validateRepositoryURLs(path, apiURL, webURL string) error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "api_url", value: apiURL},
+		{name: "web_url", value: webURL},
+	} {
+		if field.value == "" {
+			continue
+		}
+
+		if err := validateHTTPSURL(field.value); err != nil {
+			return fmt.Errorf("%w: %s.%s %v", ErrInvalidConfig, path, field.name, err)
+		}
+	}
+
+	return nil
+}
+
+func validateHTTPSURL(value string) error {
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("must not contain surrounding whitespace")
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Hostname() == "" || parsed.Opaque != "" {
+		return fmt.Errorf("must be an absolute HTTPS URL")
+	}
+
+	if parsed.User != nil {
+		return fmt.Errorf("must not contain credentials")
+	}
+
+	if parsed.RawQuery != "" || parsed.ForceQuery {
+		return fmt.Errorf("must not contain a query")
+	}
+
+	if strings.Contains(value, "#") {
+		return fmt.Errorf("must not contain a fragment")
 	}
 
 	return nil

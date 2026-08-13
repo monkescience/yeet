@@ -156,6 +156,12 @@
           "description": "GitHub host, such as github.com or a GitHub Enterprise hostname.",
           "minLength": 1
         },
+        "api_url": {
+          "$ref": "#/$defs/https_url"
+        },
+        "web_url": {
+          "$ref": "#/$defs/https_url"
+        },
         "owner": {
           "type": "string",
           "description": "Repository owner or organization.",
@@ -183,6 +189,12 @@
           "description": "GitLab host, such as gitlab.com or a self-hosted GitLab hostname.",
           "minLength": 1
         },
+        "api_url": {
+          "$ref": "#/$defs/https_url"
+        },
+        "web_url": {
+          "$ref": "#/$defs/https_url"
+        },
         "project": {
           "type": "string",
           "description": "Full GitLab project path, including any subgroups.",
@@ -199,6 +211,12 @@
           "type": "string",
           "description": "Azure DevOps host, typically dev.azure.com.",
           "minLength": 1
+        },
+        "api_url": {
+          "$ref": "#/$defs/https_url"
+        },
+        "web_url": {
+          "$ref": "#/$defs/https_url"
         },
         "organization": {
           "type": "string",
@@ -221,6 +239,13 @@
           "minLength": 1
         }
       }
+    },
+    "https_url": {
+      "type": "string",
+      "description": "Absolute HTTPS base URL without credentials, query, fragment, or surrounding whitespace.",
+      "format": "uri",
+      "pattern": "^https://",
+      "minLength": 9
     },
     "release_labels": {
       "type": "object",

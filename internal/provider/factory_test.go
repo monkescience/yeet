@@ -49,6 +49,48 @@ func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	testastic.Equal(t, "https://github.company.com/platform/yeet", githubProvider.RepoURL())
 }
 
+func TestCreateGitHubProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
+	// given: distinct trusted API and browser paths on one GitHub Enterprise host
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv(githubURLEnv, "")
+
+	created, err := create(&repositoryDescriptor{
+		Provider: providerNameGitHub,
+		Host:     "github.company.com",
+		APIURL:   "https://github.company.com/root/api/v3/",
+		WebURL:   "https://github.company.com/root",
+		Owner:    "platform",
+		Repo:     "yeet",
+	})
+
+	testastic.NoError(t, err)
+	githubProvider, ok := created.(*GitHub)
+	testastic.True(t, ok)
+	testastic.Equal(t, "https://github.company.com/root/api/v3/", githubProvider.client.BaseURL())
+	testastic.Equal(t, "https://github.company.com/root/platform/yeet", githubProvider.RepoURL())
+}
+
+func TestCreateGitHubProviderEnvironmentURLWinsOverConfiguredAPIURL(t *testing.T) {
+	// given: an operator URL override plus checked-in API and web URLs
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv(githubURLEnv, "https://proxy.example/api/v3/")
+
+	created, err := create(&repositoryDescriptor{
+		Provider: providerNameGitHub,
+		Host:     "github.company.com",
+		APIURL:   "https://github.company.com/root/api/v3/",
+		WebURL:   "https://github.company.com/root",
+		Owner:    "platform",
+		Repo:     "yeet",
+	})
+
+	testastic.NoError(t, err)
+	githubProvider, ok := created.(*GitHub)
+	testastic.True(t, ok)
+	testastic.Equal(t, "https://proxy.example/api/v3/", githubProvider.client.BaseURL())
+	testastic.Equal(t, "https://github.company.com/root/platform/yeet", githubProvider.RepoURL())
+}
+
 func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
 	// given: GitHub coordinates and a rendered custom release branch
 	t.Setenv("GITHUB_TOKEN", "test-token")
@@ -193,6 +235,26 @@ func TestCreateGitLabProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	testastic.Equal(t, "https://gitlab.company.com/group/subgroup/service", gitlabProvider.RepoURL())
 }
 
+func TestCreateGitLabProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
+	// given: distinct trusted API and browser paths on one GitLab host
+	t.Setenv("GITLAB_TOKEN", "test-token")
+	t.Setenv(gitlabURLEnv, "")
+
+	created, err := create(&repositoryDescriptor{
+		Provider: providerNameGitLab,
+		Host:     "gitlab.company.com",
+		APIURL:   "https://gitlab.company.com/root/api/v4",
+		WebURL:   "https://gitlab.company.com/root",
+		Project:  "group/service",
+	})
+
+	testastic.NoError(t, err)
+	gitlabProvider, ok := created.(*GitLab)
+	testastic.True(t, ok)
+	testastic.Equal(t, "https://gitlab.company.com/root/api/v4/", gitlabProvider.client.BaseURL().String())
+	testastic.Equal(t, "https://gitlab.company.com/root/group/service", gitlabProvider.RepoURL())
+}
+
 func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
 	// given: the default github host with GITHUB_URL overriding the API endpoint
 	t.Setenv("GITHUB_TOKEN", "test-token")
@@ -244,6 +306,33 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	// then: the provider is constructed with the configured repository URL
 	testastic.NoError(t, err)
 	testastic.Equal(t, "https://dev.azure.com/platform/release-tools/_git/yeet", azureDevOpsProvider.RepoURL())
+}
+
+func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
+	// given: distinct API and browser roots on an Azure DevOps Server host
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
+	t.Setenv(azureURLEnv, "")
+
+	created, err := create(&repositoryDescriptor{
+		Provider:     providerNameAzureDevOps,
+		Host:         "devops.company.com",
+		APIURL:       "https://devops.company.com/api/tfs",
+		WebURL:       "https://devops.company.com/web/tfs",
+		Organization: "platform",
+		Collection:   "collection",
+		Project:      "release-tools",
+		Repo:         "yeet",
+	})
+
+	testastic.NoError(t, err)
+	azureProvider, ok := created.(*AzureDevOps)
+	testastic.True(t, ok)
+	testastic.Equal(t, "https://devops.company.com/api/tfs/collection", azureProvider.conn.BaseUrl)
+	testastic.Equal(
+		t,
+		"https://devops.company.com/web/tfs/collection/release-tools/_git/yeet",
+		azureProvider.RepoURL(),
+	)
 }
 
 func TestCreateAzureDevOpsProviderNormalizesLegacyHost(t *testing.T) {

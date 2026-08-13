@@ -276,6 +276,51 @@ func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
 	testastic.Equal(t, "github.company.com", repository.Host)
 }
 
+func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts a configured API URL on the repository host", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := githubTrustConfig("github.company.com")
+		cfg.Repository.GitHub.APIURL = "https://github.company.com/root/api/v3"
+
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@github.company.com:platform/yeet.git", nil
+			},
+		)
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, cfg.Repository.GitHub.APIURL, repository.APIURL)
+	})
+
+	t.Run("rejects a configured API URL on another host", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := githubTrustConfig("github.company.com")
+		cfg.Repository.GitHub.APIURL = "https://credentials.example/api/v3"
+
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@github.company.com:platform/yeet.git", nil
+			},
+		)
+
+		testastic.ErrorIs(t, err, ErrUntrustedHost)
+		testastic.Equal(
+			t,
+			"provider host is not trusted: configured api_url host \"credentials.example\" "+
+				"does not match repository host \"github.company.com\"",
+			err.Error(),
+		)
+	})
+}
+
 func TestResolveRepositoryRejectsHostUnrelatedToProviderURLEnv(t *testing.T) {
 	// given: an operator-set GITLAB_URL for one self-hosted forge and a checked-in
 	// config naming an entirely different host, with the remote on neither

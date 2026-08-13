@@ -168,6 +168,8 @@ type RepositoryConfig struct {
 
 type GitHubRepositoryConfig struct {
 	Host    string `yaml:"host,omitempty"`
+	APIURL  string `yaml:"api_url,omitempty"`
+	WebURL  string `yaml:"web_url,omitempty"`
 	Owner   string `yaml:"owner,omitempty"`
 	Repo    string `yaml:"repo,omitempty"`
 	Project string `yaml:"project,omitempty"`
@@ -175,11 +177,15 @@ type GitHubRepositoryConfig struct {
 
 type GitLabRepositoryConfig struct {
 	Host    string `yaml:"host,omitempty"`
+	APIURL  string `yaml:"api_url,omitempty"`
+	WebURL  string `yaml:"web_url,omitempty"`
 	Project string `yaml:"project,omitempty"`
 }
 
 type AzureDevOpsRepositoryConfig struct {
 	Host         string `yaml:"host,omitempty"`
+	APIURL       string `yaml:"api_url,omitempty"`
+	WebURL       string `yaml:"web_url,omitempty"`
 	Organization string `yaml:"organization,omitempty"`
 	Project      string `yaml:"project,omitempty"`
 	Repo         string `yaml:"repo,omitempty"`

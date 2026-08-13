@@ -112,6 +112,8 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "upstream", cfg.Repository.Remote)
 		testastic.NotNil(t, cfg.Repository.GitLab)
 		testastic.Equal(t, "gitlab.company.com", cfg.Repository.GitLab.Host)
+		testastic.Equal(t, "https://gitlab.company.com/gitlab/api/v4", cfg.Repository.GitLab.APIURL)
+		testastic.Equal(t, "https://gitlab.company.com/gitlab", cfg.Repository.GitLab.WebURL)
 		testastic.Equal(t, "group/subgroup/service", cfg.Repository.GitLab.Project)
 		testastic.Equal(t, 45*time.Second, cfg.Network.RequestTimeout)
 		testastic.Equal(t, 6, cfg.Network.Retry.MaxAttempts)

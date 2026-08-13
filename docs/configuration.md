@@ -40,6 +40,8 @@ repository:
   remote: upstream
   github:
     host: github.example.com
+    api_url: https://github.example.com/api/v3/
+    web_url: https://github.example.com
     owner: acme
     repo: widgets
     # project: acme/widgets
@@ -51,6 +53,8 @@ provider: gitlab
 repository:
   gitlab:
     host: gitlab.example.com
+    api_url: https://gitlab.example.com/api/v4
+    web_url: https://gitlab.example.com
     project: group/sub/widgets
 ```
 
@@ -60,13 +64,15 @@ provider: azuredevops
 repository:
   azuredevops:
     host: dev.azure.com
+    api_url: https://dev.azure.com
+    web_url: https://dev.azure.com
     organization: contoso
     project: MyProject
     repo: widgets
     # collection: DefaultCollection
 ```
 
-Provider API URL overrides and host trust are documented in [Authentication](authentication.md#host-trust).
+`api_url` and `web_url` are useful when a self-hosted provider uses a path prefix or separate API and browser roots. Both must be absolute HTTPS URLs without credentials, query parameters, or fragments. The `api_url` hostname must match the resolved repository host because yeet sends provider credentials to it. Environment API URL overrides remain available as trusted operator input. Precedence and host trust are documented in [Authentication](authentication.md#host-trust).
 
 ## Network requests
 
