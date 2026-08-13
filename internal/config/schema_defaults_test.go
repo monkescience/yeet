@@ -34,40 +34,200 @@ func TestSchemaDefaultsMatchGoDefaults(t *testing.T) {
 	err = yaml.Unmarshal(defaultYAML, &defaultDocument)
 	testastic.NoError(t, err)
 
-	// when: collecting every default reachable through root properties and local references
-	schemaDefaults, err := collectSchemaDefaults(schemaDocument)
+	// when: comparing every default reachable through root properties and local references
+	err = validateSchemaDefaultParity(schemaDocument, defaultDocument)
+
+	// then: schema and Go defaults agree
 	testastic.NoError(t, err)
-	testastic.True(t, len(schemaDefaults) > 0)
+}
+
+func TestSchemaDefaultsRejectGoOnlyDefault(t *testing.T) {
+	t.Parallel()
+
+	// given: the published schema without the default for a nonempty Go default
+	var schemaDocument map[string]any
+
+	err := json.Unmarshal(yeet.ConfigSchema, &schemaDocument)
+	testastic.NoError(t, err)
+
+	propertiesValue, found := schemaDocument["properties"]
+	if !found {
+		t.Fatal("schema has no root properties")
+	}
+
+	properties, ok := propertiesValue.(map[string]any)
+	if !ok {
+		t.Fatal("schema root properties are not an object")
+	}
+
+	branchValue, found := properties["branch"]
+	if !found {
+		t.Fatal("schema has no branch property")
+	}
+
+	branch, ok := branchValue.(map[string]any)
+	if !ok {
+		t.Fatal("schema branch property is not an object")
+	}
+
+	delete(branch, "default")
+
+	defaultYAML, err := yaml.Marshal(Default())
+	testastic.NoError(t, err)
+
+	var defaultDocument map[string]any
+
+	err = yaml.Unmarshal(defaultYAML, &defaultDocument)
+	testastic.NoError(t, err)
+
+	// when: comparing the incomplete schema with the Go defaults
+	err = validateSchemaDefaultParity(schemaDocument, defaultDocument)
+
+	// then: the Go-only default is rejected
+	testastic.ErrorContains(t, err, "branch has Go default but no schema default")
+}
+
+func validateSchemaDefaultParity(schemaDocument, defaultDocument map[string]any) error {
+	schemaDefaults, err := collectSchemaDefaults(schemaDocument)
+	if err != nil {
+		return err
+	}
 
 	slices.SortFunc(schemaDefaults, func(left, right schemaDefault) int {
 		return strings.Compare(strings.Join(left.path, "."), strings.Join(right.path, "."))
 	})
 
-	// then: each schema default has the same canonical value as Default
+	schemaDefaultsByPath := make(map[string]any, len(schemaDefaults))
+
 	for _, schemaValue := range schemaDefaults {
-		t.Run(strings.Join(schemaValue.path, "."), func(t *testing.T) {
-			t.Parallel()
+		expected := schemaValue.value
 
-			// given: one root-reachable schema default
-			expected := schemaValue.value
+		actual, found := valueAtConfigPath(defaultDocument, schemaValue.path)
+		if !found && isEmptyJSONCollection(expected) {
+			actual = expected
+			found = true
+		}
 
-			// when: projecting the same path from the Go defaults
-			actual, found := valueAtConfigPath(defaultDocument, schemaValue.path)
-			if !found && isEmptyJSONCollection(expected) {
-				actual = expected
-				found = true
-			}
+		path := strings.Join(schemaValue.path, ".")
+		schemaDefaultsByPath[path] = expected
 
-			// then: only omitted empty collections are equivalent to a missing YAML value
-			testastic.True(t, found)
+		if !found {
+			return fmt.Errorf("%s has schema default but no Go default", path)
+		}
 
-			if !found {
-				return
-			}
+		expectedJSON, err := json.Marshal(expected)
+		if err != nil {
+			return fmt.Errorf("encode schema default at %s: %w", path, err)
+		}
 
-			testastic.Equal(t, canonicalJSON(t, expected), canonicalJSON(t, actual))
-		})
+		actualJSON, err := json.Marshal(actual)
+		if err != nil {
+			return fmt.Errorf("encode Go default at %s: %w", path, err)
+		}
+
+		if string(expectedJSON) != string(actualJSON) {
+			return fmt.Errorf("default mismatch at %s: schema %s, Go %s", path, expectedJSON, actualJSON)
+		}
 	}
+
+	goDefaults, err := collectComparableGoDefaults(schemaDocument, schemaDocument, defaultDocument, nil)
+	if err != nil {
+		return err
+	}
+
+	for _, goValue := range goDefaults {
+		path := strings.Join(goValue.path, ".")
+		if _, found := schemaDefaultsByPath[path]; !found {
+			return fmt.Errorf("%s has Go default but no schema default", path)
+		}
+	}
+
+	return nil
+}
+
+func collectComparableGoDefaults(
+	document, schemaNode map[string]any,
+	goValue any,
+	configPath []string,
+) ([]schemaDefault, error) {
+	if _, found := schemaNode["default"]; found {
+		return []schemaDefault{{path: slices.Clone(configPath), value: goValue}}, nil
+	}
+
+	if refValue, found := schemaNode["$ref"]; found {
+		ref, ok := refValue.(string)
+		if !ok {
+			return nil, fmt.Errorf("schema reference at %s is not a string", strings.Join(configPath, "."))
+		}
+
+		referenced, err := resolveLocalSchemaRef(document, ref)
+		if err != nil {
+			return nil, err
+		}
+
+		return collectComparableGoDefaults(document, referenced, goValue, configPath)
+	}
+
+	propertiesValue, hasProperties := schemaNode["properties"]
+	if !hasProperties {
+		if isEmptyJSONCollection(goValue) || goValue == nil {
+			return nil, nil
+		}
+
+		return []schemaDefault{{path: slices.Clone(configPath), value: goValue}}, nil
+	}
+
+	properties, ok := propertiesValue.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("schema properties at %s are not an object", strings.Join(configPath, "."))
+	}
+
+	return collectComparableGoObjectDefaults(document, properties, goValue, configPath)
+}
+
+func collectComparableGoObjectDefaults(
+	document, properties map[string]any,
+	goValue any,
+	configPath []string,
+) ([]schemaDefault, error) {
+	goObject, ok := goValue.(map[string]any)
+	if !ok && (isEmptyJSONCollection(goValue) || goValue == nil) {
+		return nil, nil
+	}
+
+	if !ok {
+		return nil, fmt.Errorf("Go default at %s is not an object", strings.Join(configPath, "."))
+	}
+
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	var defaults []schemaDefault
+
+	for _, name := range names {
+		value, found := goObject[name]
+		if !found {
+			continue
+		}
+
+		property, ok := properties[name].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("schema property %s is not an object", strings.Join(append(configPath, name), "."))
+		}
+
+		propertyDefaults, err := collectComparableGoDefaults(document, property, value, append(configPath, name))
+		if err != nil {
+			return nil, err
+		}
+
+		defaults = append(defaults, propertyDefaults...)
+	}
+
+	return defaults, nil
 }
 
 func collectSchemaDefaults(document map[string]any) ([]schemaDefault, error) {
@@ -206,13 +366,4 @@ func isEmptyJSONCollection(value any) bool {
 	default:
 		return false
 	}
-}
-
-func canonicalJSON(t *testing.T, value any) string {
-	t.Helper()
-
-	encoded, err := json.Marshal(value)
-	testastic.NoError(t, err)
-
-	return string(encoded)
 }
