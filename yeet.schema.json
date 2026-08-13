@@ -408,7 +408,7 @@
           "type": "string",
           "description": "Total time to wait for an accepted merge to finalize, expressed as a Go duration.",
           "minLength": 1,
-          "default": "2m"
+          "default": "2m0s"
         }
       }
     },
