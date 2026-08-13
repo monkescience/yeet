@@ -511,11 +511,13 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 
 	mux.HandleFunc("GET "+prefix+"/git/commits/{sha}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
-			githubKeySHA: r.PathValue(githubKeySHA),
-			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
-			"parents":    []any{},
+			githubKeySHA:   r.PathValue(githubKeySHA),
+			contentKeyTree: map[string]any{githubKeySHA: fakeTreeSHA},
+			"parents":      []any{},
 		})
 	})
+
+	mux.HandleFunc("GET "+prefix+"/git/trees/{sha}", githubTreeHandler(t, opts))
 
 	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
@@ -529,10 +531,43 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 		}
 
 		writeJSON(w, map[string]any{
-			githubKeySHA: fakeCommitSHA,
-			"tree":       map[string]any{githubKeySHA: fakeTreeSHA},
+			githubKeySHA:   fakeCommitSHA,
+			contentKeyTree: map[string]any{githubKeySHA: fakeTreeSHA},
 		})
 	})
+}
+
+func githubTreeHandler(t *testing.T, opts GitHubOptions) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+
+		paths := []string{githubChangelog}
+		for path := range opts.Files {
+			if path != githubChangelog {
+				paths = append(paths, path)
+			}
+		}
+
+		slices.Sort(paths)
+
+		entries := make([]map[string]any, 0, len(paths))
+		for _, path := range paths {
+			entries = append(entries, map[string]any{
+				contentKeyPath: path,
+				"mode":         "100644",
+				githubKeyType:  "blob",
+				githubKeySHA:   "626c6f6273686100000000000000000000000000",
+			})
+		}
+
+		writeJSON(w, map[string]any{
+			githubKeySHA:   r.PathValue(githubKeySHA),
+			contentKeyTree: entries,
+			"truncated":    false,
+		})
+	}
 }
 
 func githubBranchRefHandler(opts GitHubOptions) http.HandlerFunc {
@@ -552,7 +587,7 @@ func githubBranchRefHandler(opts GitHubOptions) http.HandlerFunc {
 
 func registerGitHubContent(mux *http.ServeMux, prefix string, opts GitHubOptions) {
 	mux.HandleFunc("GET "+prefix+"/contents/{path...}", func(w http.ResponseWriter, r *http.Request) {
-		path := r.PathValue("path")
+		path := r.PathValue(contentKeyPath)
 
 		if content, ok := opts.Files[path]; ok {
 			writeJSON(w, githubFileContent(path, content))
@@ -572,12 +607,12 @@ func registerGitHubContent(mux *http.ServeMux, prefix string, opts GitHubOptions
 
 func githubFileContent(path, raw string) map[string]any {
 	return map[string]any{
-		githubKeyName: path,
-		"path":        path,
-		githubKeyType: "file",
-		"encoding":    "base64",
-		"content":     base64.StdEncoding.EncodeToString([]byte(raw)),
-		githubKeySHA:  "626c6f6273686100000000000000000000000000",
+		githubKeyName:  path,
+		contentKeyPath: path,
+		githubKeyType:  "file",
+		"encoding":     "base64",
+		"content":      base64.StdEncoding.EncodeToString([]byte(raw)),
+		githubKeySHA:   "626c6f6273686100000000000000000000000000",
 	}
 }
 
