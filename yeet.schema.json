@@ -19,6 +19,7 @@
       "type": "string",
       "description": "Default base branch for releases.",
       "minLength": 1,
+      "pattern": "\\S",
       "default": "main"
     },
     "timezone": {

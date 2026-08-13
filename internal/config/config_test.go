@@ -445,6 +445,24 @@ func TestReleaseLabelsValidation(t *testing.T) {
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("blank stable branch fails", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Branch = " \t"
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("expected blank stable branch to be rejected")
+		}
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, "invalid config: branch must not be blank", err.Error())
+	})
+
 	t.Run("valid config passes", func(t *testing.T) {
 		t.Parallel()
 

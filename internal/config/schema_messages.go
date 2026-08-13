@@ -45,6 +45,7 @@ var schemaRules = slices.Concat(
 	[]schemaRule{
 		enumRule([]string{"versioning"}),
 		emptyRule([]string{"branch"}, keywordMinLength),
+		blankRule([]string{"branch"}, keywordPattern),
 		enumRule([]string{"provider"}),
 		containerRule([]string{"bump_types", "minor", anySegment}, keywordMinLength, "must not contain empty strings"),
 		containerRule([]string{"bump_types", "patch", anySegment}, keywordMinLength, "must not contain empty strings"),

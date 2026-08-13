@@ -12,6 +12,10 @@ import (
 )
 
 func (c *Config) Validate() error {
+	if strings.TrimSpace(c.Branch) == "" {
+		return fmt.Errorf("%w: branch must not be blank", ErrInvalidConfig)
+	}
+
 	if _, err := c.TimeLocation(); err != nil {
 		return err
 	}

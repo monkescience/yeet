@@ -40,6 +40,11 @@ func TestSchemaTightenings(t *testing.T) {
 			want:  "invalid config: targets.app.type must be \"path\" or \"derived\", got \" path \"",
 		},
 		{
+			name:  "stable branch must not be whitespace only",
+			input: "branch: \"   \"\n" + schemaTestTarget,
+			want:  "invalid config: branch must not be blank",
+		},
+		{
 			name: "repository string fields reject an empty value",
 			input: "provider: github\nrepository:\n  github:\n    host: \"\"\n    owner: o\n    repo: r\n" +
 				schemaTestTarget,
