@@ -30,7 +30,7 @@ func normalizeRepoPath(rawPath string) (string, error) {
 		return "", errPathMustBeRepoRelative
 	}
 
-	normalizedPath := filepath.ToSlash(trimmedPath)
+	normalizedPath := normalizeRepoPathSeparators(trimmedPath)
 	if path.IsAbs(normalizedPath) {
 		return "", errPathMustBeRepoRelative
 	}
@@ -68,7 +68,7 @@ func isRepoPathAbsolute(rawPath string) bool {
 		return true
 	}
 
-	normalizedPath := filepath.ToSlash(rawPath)
+	normalizedPath := normalizeRepoPathSeparators(rawPath)
 	if len(normalizedPath) < windowsDrivePrefixLength {
 		return false
 	}
@@ -79,4 +79,8 @@ func isRepoPathAbsolute(rawPath string) bool {
 
 	return (normalizedPath[0] >= 'A' && normalizedPath[0] <= 'Z') ||
 		(normalizedPath[0] >= 'a' && normalizedPath[0] <= 'z')
+}
+
+func normalizeRepoPathSeparators(rawPath string) string {
+	return strings.ReplaceAll(filepath.ToSlash(rawPath), `\`, "/")
 }

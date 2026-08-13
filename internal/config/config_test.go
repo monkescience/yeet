@@ -258,6 +258,47 @@ func TestRepositoryFilePathValidation(t *testing.T) {
 			},
 			message: "invalid config: release.channels.beta.changelog_file must be repo-relative",
 		},
+		{
+			name: "top-level version file uses a Windows drive path",
+			configure: func(cfg *config.Config) {
+				cfg.VersionFiles = []config.VersionFile{{Path: `C:\repo\VERSION`}}
+			},
+			message: `invalid config: version_files entry "C:\\repo\\VERSION" must be repo-relative`,
+		},
+		{
+			name: "target version file uses backslash traversal",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.VersionFiles = []config.VersionFile{{Path: `..\VERSION`}}
+				cfg.Targets["app"] = target
+			},
+			message: `invalid config: targets.app.version_files entry "..\\VERSION" must be repo-relative`,
+		},
+		{
+			name: "top-level changelog uses a UNC path",
+			configure: func(cfg *config.Config) {
+				cfg.Changelog.File = `\\server\share\CHANGELOG.md`
+			},
+			message: "invalid config: changelog.file must be repo-relative",
+		},
+		{
+			name: "target changelog uses a Windows drive path",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.Changelog.File = `D:\repo\CHANGELOG.md`
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.changelog.file must be repo-relative",
+		},
+		{
+			name: "channel changelog uses backslash traversal",
+			configure: func(cfg *config.Config) {
+				cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+					"beta": {Branch: "beta", Prerelease: "beta", ChangelogFile: `..\CHANGELOG.beta.md`},
+				}
+			},
+			message: "invalid config: release.channels.beta.changelog_file must be repo-relative",
+		},
 	}
 
 	for _, tt := range tests {
@@ -297,6 +338,68 @@ func TestRepositoryFilePathValidation(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, "invalid config: changelog.file must refer to a file", err.Error())
 	})
+}
+
+func TestWindowsStyleRepositoryPathValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*config.Config)
+		message   string
+	}{
+		{
+			name: "target uses a backslash drive path",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.Path = `C:\repo\app`
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.path must be repo-relative",
+		},
+		{
+			name: "target uses a UNC path",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.Path = `\\server\share\app`
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.path must be repo-relative",
+		},
+		{
+			name: "exclude uses backslash traversal",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.ExcludePaths = []string{`..\outside`}
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.exclude_paths contains must be repo-relative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a repository path using Windows-only escape syntax
+			cfg := config.Default()
+			cfg.Targets = map[string]config.Target{
+				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+			}
+			tt.configure(cfg)
+
+			// when: validating on any host operating system
+			err := cfg.Validate()
+
+			// then: the path is rejected consistently as outside the repository
+			if err == nil {
+				t.Fatal("expected Windows-style repository path to be rejected")
+			}
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
 }
 
 func TestReleaseMergePollingValidation(t *testing.T) {
