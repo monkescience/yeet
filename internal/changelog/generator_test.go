@@ -12,6 +12,17 @@ import (
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("uses a captured release date", func(t *testing.T) {
+		t.Parallel()
+
+		date := time.Date(2025, time.December, 31, 16, 30, 0, 0, time.FixedZone("PST", -8*60*60))
+		gen := changelog.New(changelog.WithDate(date))
+
+		entry := gen.Generate(t.Context(), "v1.2.3", "", nil)
+
+		testastic.Equal(t, date, entry.Date)
+	})
+
 	t.Run("generates changelog with sections", func(t *testing.T) {
 		t.Parallel()
 

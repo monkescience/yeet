@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"time"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
@@ -55,6 +56,7 @@ func newTargetChangelogEntry(
 	target config.ResolvedTarget,
 	nextTag, ref string,
 	commits []commit.Commit,
+	date time.Time,
 	metadata repoMetadataProvider,
 ) changelog.Entry {
 	gen := changelog.New(
@@ -64,6 +66,7 @@ func newTargetChangelogEntry(
 		changelog.WithPathPrefix(metadata.PathPrefix()),
 		changelog.WithCompareURL(metadata.CompareURL),
 		changelog.WithReferences(changelogReferences(target.Changelog.References)),
+		changelog.WithDate(date),
 	)
 
 	return gen.Generate(ctx, nextTag, ref, commits)
@@ -99,9 +102,10 @@ func derivedChangelogEntry(
 	childPlans []TargetPlan,
 	prCompareRef string,
 	mode derivedChangelogMode,
+	date time.Time,
 	metadata repoMetadataProvider,
 ) changelog.Entry {
-	direct := newTargetChangelogEntry(ctx, target, nextTag, ref, directCommits, metadata)
+	direct := newTargetChangelogEntry(ctx, target, nextTag, ref, directCommits, date, metadata)
 
 	children := make([]changelog.Section, 0, len(childPlans))
 	for _, childPlan := range childPlans {

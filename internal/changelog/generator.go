@@ -23,6 +23,7 @@ type Generator struct {
 	pathPrefix string
 	compareURL func(fromRef, toRef string) string
 	references References
+	date       time.Time
 
 	compiledPatterns []compiledPattern
 }
@@ -88,6 +89,11 @@ func WithReferences(references References) Option {
 	return func(g *Generator) { g.references = references }
 }
 
+// WithDate uses one captured release date instead of reading the clock during generation.
+func WithDate(date time.Time) Option {
+	return func(g *Generator) { g.date = date }
+}
+
 func (g *Generator) Generate(ctx context.Context, version string, previousTag string, commits []commit.Commit) Entry {
 	g.ensureCompiledPatterns(ctx)
 
@@ -95,9 +101,14 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 
 	sections := g.buildSections(relevant)
 
+	date := g.date
+	if date.IsZero() {
+		date = time.Now()
+	}
+
 	entry := Entry{
 		Version:       version,
-		Date:          time.Now(),
+		Date:          date,
 		Sections:      sections,
 		OwnedHeadings: g.OwnedHeadings(),
 	}

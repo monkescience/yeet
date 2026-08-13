@@ -19,6 +19,7 @@ func TestDefault(t *testing.T) {
 	// then: sensible defaults are set
 	testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 	testastic.Equal(t, "main", cfg.Branch)
+	testastic.Equal(t, "Local", cfg.Timezone)
 	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
 	testastic.Equal(t, 30*time.Second, cfg.Network.RequestTimeout)
@@ -52,6 +53,60 @@ func TestDefault(t *testing.T) {
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
 	testastic.SliceEqual(t, []string{"feat"}, cfg.BumpTypes.Minor)
 	testastic.SliceEqual(t, []string{"fix", "perf"}, cfg.BumpTypes.Patch)
+}
+
+func TestTimezoneValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"Local", "UTC", "Europe/Berlin", "America/Los_Angeles"} {
+		t.Run("accepts "+name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			cfg.Timezone = name
+
+			location, err := cfg.TimeLocation()
+
+			testastic.NoError(t, err)
+			testastic.Equal(t, name, location.String())
+		})
+	}
+
+	tests := []struct {
+		name     string
+		timezone string
+		message  string
+	}{
+		{
+			name:     "blank",
+			timezone: " ",
+			message:  "invalid config: timezone must not be blank",
+		},
+		{
+			name:     "surrounding whitespace",
+			timezone: " UTC ",
+			message:  "invalid config: timezone must not contain surrounding whitespace",
+		},
+		{
+			name:     "unknown location",
+			timezone: "Mars/Olympus_Mons",
+			message:  "invalid config: timezone \"Mars/Olympus_Mons\" is not a valid IANA location",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("rejects "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			cfg.Timezone = tt.timezone
+
+			err := cfg.Validate()
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
 }
 
 func TestReleaseMergePollingValidation(t *testing.T) {

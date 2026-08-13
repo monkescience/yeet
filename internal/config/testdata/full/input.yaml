@@ -1,5 +1,6 @@
 versioning: calver
 branch: develop
+timezone: Europe/Berlin
 provider: gitlab
 version_files:
   - VERSION

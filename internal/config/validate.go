@@ -6,11 +6,16 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/monkescience/yeet/internal/version"
 )
 
 func (c *Config) Validate() error {
+	if _, err := c.TimeLocation(); err != nil {
+		return err
+	}
+
 	if err := validateProvider(c.Provider); err != nil {
 		return err
 	}
@@ -54,6 +59,24 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// TimeLocation resolves Timezone using the same rules enforced by Validate.
+func (c *Config) TimeLocation() (*time.Location, error) {
+	if strings.TrimSpace(c.Timezone) == "" {
+		return nil, fmt.Errorf("%w: timezone must not be blank", ErrInvalidConfig)
+	}
+
+	if strings.TrimSpace(c.Timezone) != c.Timezone {
+		return nil, fmt.Errorf("%w: timezone must not contain surrounding whitespace", ErrInvalidConfig)
+	}
+
+	location, err := time.LoadLocation(c.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("%w: timezone %q is not a valid IANA location", ErrInvalidConfig, c.Timezone)
+	}
+
+	return location, nil
 }
 
 func validateNetworkConfig(network NetworkConfig) error {

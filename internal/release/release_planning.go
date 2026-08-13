@@ -393,7 +393,7 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		return directNextVersion, finalBumpType, true, nil
 	}
 
-	nextVersion, _, _, err := versionStrategyForResolvedTarget(target).strategy.NextRelease(
+	nextVersion, _, _, err := a.core.versionStrategyForPlanning(target).strategy.NextRelease(
 		currentVersionWithInitial(target, currentVersion),
 		finalBumpType,
 		"",
@@ -448,6 +448,7 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		inputs.childPlans,
 		plan.PRCompareRef,
 		derivedChangelogRelease,
+		a.core.timestamp(),
 		a.core.metadata,
 	)
 	plan.PREntry = derivedChangelogEntry(
@@ -459,6 +460,7 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		inputs.childPlans,
 		plan.PRCompareRef,
 		derivedChangelogPreview,
+		a.core.timestamp(),
 		a.core.metadata,
 	)
 
@@ -506,7 +508,15 @@ func (a *releaseAnalyzer) newTargetPlan(
 
 	setPlanVersions(&plan, strategy, baseVersion)
 
-	entry := newTargetChangelogEntry(ctx, target, plan.NextTag, ref, commits, a.core.metadata)
+	entry := newTargetChangelogEntry(
+		ctx,
+		target,
+		plan.NextTag,
+		ref,
+		commits,
+		a.core.timestamp(),
+		a.core.metadata,
+	)
 	plan.Entry = changelogEntryWithCompare(entry, ref, plan.NextTag, a.core.metadata)
 	plan.PREntry = plan.Entry
 

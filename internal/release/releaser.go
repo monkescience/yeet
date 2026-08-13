@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
@@ -77,6 +78,20 @@ func newReleaseCore(
 	cfg *config.Config,
 	metadata repoMetadataProvider,
 ) (*releaseCore, error) {
+	return newReleaseCoreAt(ctx, cfg, metadata, time.Now())
+}
+
+func newReleaseCoreAt(
+	ctx context.Context,
+	cfg *config.Config,
+	metadata repoMetadataProvider,
+	now time.Time,
+) (*releaseCore, error) {
+	location, err := cfg.TimeLocation()
+	if err != nil {
+		return nil, err
+	}
+
 	targets, err := cfg.ResolvedTargets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve release targets: %w", err)
@@ -98,7 +113,12 @@ func newReleaseCore(
 	}
 
 	return &releaseCore{
-		cfg: cfg, targets: targets, metadata: metadata, titles: titles, releaseBranch: releaseBranch,
+		cfg:           cfg,
+		targets:       targets,
+		metadata:      metadata,
+		titles:        titles,
+		releaseBranch: releaseBranch,
+		releaseTime:   now.In(location),
 	}, nil
 }
 

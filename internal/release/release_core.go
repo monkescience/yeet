@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/changelog"
@@ -28,6 +29,15 @@ type releaseCore struct {
 	metadata      repoMetadataProvider
 	titles        *releaseTitleTemplates
 	releaseBranch string
+	releaseTime   time.Time
+}
+
+func (c *releaseCore) timestamp() time.Time {
+	if c.releaseTime.IsZero() {
+		return time.Now()
+	}
+
+	return c.releaseTime
 }
 
 func (c *releaseCore) activePrereleaseIdentifier() string {

@@ -43,6 +43,17 @@ func calVerStrategy(target config.ResolvedTarget) *version.CalVer {
 	}
 }
 
+func (c *releaseCore) versionStrategyForPlanning(target config.ResolvedTarget) versionStrategy {
+	strategy := versionStrategyForResolvedTarget(target)
+
+	calver, isCalVer := strategy.strategy.(*version.CalVer)
+	if isCalVer {
+		calver.Now = c.timestamp
+	}
+
+	return strategy
+}
+
 func currentVersionWithInitial(target config.ResolvedTarget, currentVersion string) string {
 	if currentVersion != "" {
 		return currentVersion
@@ -58,7 +69,7 @@ func (a *releaseAnalyzer) nextVersionPlan(
 	currentVersion string,
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
-	strategy := versionStrategyForResolvedTarget(target).strategy
+	strategy := a.core.versionStrategyForPlanning(target).strategy
 
 	releaseAsVersion, err := releaseAsOverride(ctx, strategy, target, commits)
 	if err != nil {

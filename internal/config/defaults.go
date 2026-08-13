@@ -38,6 +38,7 @@ func Default() *Config {
 	return &Config{
 		Versioning:                 VersioningSemver,
 		Branch:                     "main",
+		Timezone:                   "Local",
 		Provider:                   ProviderAuto,
 		PreMajorBreakingBumpsMinor: true,
 		PreMajorFeaturesBumpPatch:  true,

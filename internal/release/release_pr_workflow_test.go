@@ -151,6 +151,7 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 				[]TargetPlan{webPlan},
 				"",
 				derivedChangelogRelease,
+				r.core.timestamp(),
 				r.core.metadata,
 			),
 		}

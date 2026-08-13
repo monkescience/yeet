@@ -83,6 +83,16 @@ network:
 
 Retries apply only when the request can be repeated safely, or when a provider returns a rate-limit response. The Azure DevOps SDK honors `request_timeout`, but manages its own transport and does not expose these retry bounds.
 
+## Release timezone
+
+`timezone` controls both CalVer calculations and generated changelog dates. It accepts `Local`, `UTC`, or an IANA location such as `Europe/Berlin`:
+
+```yaml
+timezone: America/Los_Angeles
+```
+
+The compatibility default is `Local`, which uses the machine's local timezone. A release run captures one timestamp, so every target in the run uses the same calendar date.
+
 ## Targets
 
 yeet plans each target independently and combines all planned changes into one release PR/MR per base branch. Use `--target` repeatedly to limit a run.

@@ -52,6 +52,7 @@ const (
 type Config struct {
 	Versioning                 VersioningStrategy `yaml:"versioning"`
 	Branch                     string             `yaml:"branch"`
+	Timezone                   string             `yaml:"timezone"`
 	Provider                   ProviderType       `yaml:"provider"`
 	PreMajorBreakingBumpsMinor bool               `yaml:"pre_major_breaking_bumps_minor"`
 	PreMajorFeaturesBumpPatch  bool               `yaml:"pre_major_features_bump_patch"`

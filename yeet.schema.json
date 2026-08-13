@@ -21,6 +21,13 @@
       "minLength": 1,
       "default": "main"
     },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone used for CalVer and changelog dates. Local preserves the machine's local timezone.",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "default": "Local"
+    },
     "provider": {
       "type": "string",
       "description": "VCS provider. Use \"auto\" to detect github.com, gitlab.com, or dev.azure.com from the git remote. Custom domains require an explicit provider and a matching repository.<provider> sub-section.",

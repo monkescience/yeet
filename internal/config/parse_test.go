@@ -107,6 +107,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, VersioningCalVer, cfg.Versioning)
 		testastic.Equal(t, "develop", cfg.Branch)
+		testastic.Equal(t, "Europe/Berlin", cfg.Timezone)
 		testastic.Equal(t, ProviderGitLab, cfg.Provider)
 		testastic.Equal(t, "upstream", cfg.Repository.Remote)
 		testastic.NotNil(t, cfg.Repository.GitLab)
