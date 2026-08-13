@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.13.5](https://github.com/monkescience/yeet/compare/v0.13.4...v0.13.5) (2026-08-13)
+
+### Features
+
+- **version:** move release-as and prerelease progression behind the version strategy ([be4ee9f](https://github.com/monkescience/yeet/commit/be4ee9f49247fa8fb5b50970e1f7273ee11f5f75))
+
+### Bug Fixes
+
+- **provider:** reject undated merged GitHub PRs ([211dd6a](https://github.com/monkescience/yeet/commit/211dd6abed216a23e192b45827ad18266cc50b07))
+- **changelog:** preserve parent sections by identity ([75faf7e](https://github.com/monkescience/yeet/commit/75faf7ec183b6bc82cf0a305ea300162e554898f))
+- **provider:** report a withheld merge time before re-reading further candidates ([1d950d6](https://github.com/monkescience/yeet/commit/1d950d6c0f2ee886608b10533b5cf4a6988ae436))
+- **release:** restore the scheme fallbacks the strategy dispatch dropped ([c126073](https://github.com/monkescience/yeet/commit/c12607379acb20e046e76f692e34b4c777e6d12c))
+- **changelog:** keep the release date on derived entries ([41213f1](https://github.com/monkescience/yeet/commit/41213f15f84713019c0ee0cfc4db6899fee1c283))
+
+### Performance Improvements
+
+- **release:** check channel membership once ([9e27f3d](https://github.com/monkescience/yeet/commit/9e27f3d617616c7ff97ce128dd2c3dbcd9ab8aa1))
+
 ## [v0.13.4](https://github.com/monkescience/yeet/compare/v0.13.3...v0.13.4) (2026-08-11)
 
 ### Bug Fixes
