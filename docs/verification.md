@@ -22,7 +22,7 @@ This expects a certificate issued to `.github/workflows/binaries.yaml` in `monke
 cosign verify \
   --certificate-identity-regexp 'https://github.com/monkescience/yeet/.github/workflows/image.yaml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/monkescience/yeet:v0.13.5 # x-yeet-version
+  ghcr.io/monkescience/yeet:v0.13.6 # x-yeet-version
 ```
 
 This expects a certificate issued to `.github/workflows/image.yaml` in `monkescience/yeet` by GitHub Actions.
@@ -38,7 +38,7 @@ This expects provenance from `.github/workflows/binaries.yaml` in `monkescience/
 ## Container provenance
 
 ```sh
-gh attestation verify oci://ghcr.io/monkescience/yeet:v0.13.5 --repo monkescience/yeet # x-yeet-version
+gh attestation verify oci://ghcr.io/monkescience/yeet:v0.13.6 --repo monkescience/yeet # x-yeet-version
 ```
 
 This expects provenance from `.github/workflows/image.yaml` in `monkescience/yeet` and reports the source workflow and commit.

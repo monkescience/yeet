@@ -45,8 +45,8 @@ Merge a `feat`, `fix`, or `perf` conventional commit into the release branch. CI
 Other installation options:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.13.5 # x-yeet-version
-docker run --rm ghcr.io/monkescience/yeet:v0.13.5 --help # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.13.6 # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.13.6 --help # x-yeet-version
 ```
 
 On Windows, install with [Scoop](https://scoop.sh):
