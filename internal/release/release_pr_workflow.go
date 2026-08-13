@@ -158,8 +158,6 @@ func (w *releasePRWorkflow) preserveExistingChangelogEdits(
 	return nil
 }
 
-// changelogEdits carries the entries a release branch's existing changelog
-// contributes back to a plan, once hand-written sections are merged in.
 type changelogEdits struct {
 	Entry   changelog.Entry
 	PREntry changelog.Entry

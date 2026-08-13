@@ -133,7 +133,6 @@ func registerAzureHistory(
 	mux.HandleFunc("GET "+repoAPI+"/commits/{id}/changes", azureCommitChangesHandler(opts))
 }
 
-// azureCommitsHandler supports ref resolution and bounded or unbounded history.
 func azureCommitsHandler(opts AzureOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
@@ -337,7 +336,6 @@ func azurePullRequestsListHandler(opts AzureOptions, merged *atomic.Bool) http.H
 	}
 }
 
-// azurePullRequestQueryHandler resolves the fake merged PR by merge commit SHA.
 func azurePullRequestQueryHandler(opts AzureOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
@@ -547,7 +545,6 @@ func registerAzureReleases(mux *http.ServeMux, org, project string) {
 	})
 }
 
-// azureResolveCommitPayload returns an empty result for unknown refs, like ADO.
 func azureResolveCommitPayload(ref string, opts AzureOptions) map[string]any {
 	sha, ok := azureResolveRefSHA(ref, opts)
 	if !ok {

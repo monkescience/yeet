@@ -51,9 +51,6 @@ func labelsAnchoredFirst(anchor string, add []string) []string {
 	return append([]string{anchor}, add...)
 }
 
-// releasePRLabelState places a trusted release pull request in the lifecycle by
-// its labels alone: carrying the pending label, carrying none at all and so
-// adoptable, or carrying something else.
 type releasePRLabelState int
 
 const (

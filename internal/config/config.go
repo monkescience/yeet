@@ -16,8 +16,6 @@ const DefaultFile = ".yeet.yaml"
 
 const githubProjectSegments = 2
 
-// Conventional commit types referenced in defaults. Defined as constants so
-// the same literal isn't repeated across bump-type and changelog defaults.
 const (
 	commitTypeFeat   = "feat"
 	commitTypeFix    = "fix"

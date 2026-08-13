@@ -18,10 +18,6 @@ func validateProvider(provider ProviderType) error {
 	}
 }
 
-// validateRepositorySubsection enforces the single-active-sub-section
-// invariant: at most one sub-section may be set, and if one is set it must
-// match the top-level provider. Called from Parse, before structural and
-// per-provider validation runs.
 func validateRepositorySubsection(repository *RepositoryConfig, provider ProviderType) error {
 	set := []ProviderType{}
 	if repository.GitHub != nil {

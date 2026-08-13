@@ -41,15 +41,11 @@ var compiledSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
 	return schema, nil
 })
 
-// schemaNode carries the position of the ancestor a nested error is reported
-// against.
 type schemaNode struct {
 	location  []string
 	schemaURL string
 }
 
-// violation is one leaf failure of the embedded schema, paired with the value
-// that produced it so a message can quote what the user wrote.
 type violation struct {
 	location []string
 	keyword  string

@@ -20,8 +20,6 @@ func policyTestLabels() forge.ReleasePRLabels {
 	}
 }
 
-// applyLabelChange models what a forge does with a change, so a test can assert
-// the label set a phase leaves behind rather than the calls it makes.
 func applyLabelChange(current []string, change labelChange, match labelMatch) []string {
 	result := make([]string, 0, len(current)+len(change.add)+1)
 

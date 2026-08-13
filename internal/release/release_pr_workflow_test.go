@@ -105,7 +105,6 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
 
-		// and: a refreshed wave in which only the web child releases
 		webPlan := TargetPlan{
 			ID: "web",
 			Entry: changelog.ParseEntry(

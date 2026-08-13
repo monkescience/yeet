@@ -288,8 +288,6 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 	)
 }
 
-// TestGitHubMatchesThePendingLabelCaseInsensitively pins a GitHub-only rule:
-// GitHub label matching folds case, where GitLab requires an exact match.
 func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
@@ -535,8 +533,6 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 	})
 }
 
-// newGitHubContractLabelHandler tracks the labels on PR 42 so a scenario can
-// assert the set a phase leaves behind.
 func newGitHubContractLabelHandler(
 	t *testing.T,
 	store *providerContractLabelStore,
@@ -633,8 +629,6 @@ func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 	}
 }
 
-// handleGitHubAsyncMergeReleasePRContract models a merge GitHub accepts without
-// reporting a merge commit SHA on the merge response itself.
 func handleGitHubAsyncMergeReleasePRContract(
 	t *testing.T,
 	w http.ResponseWriter,
@@ -1123,9 +1117,6 @@ func TestGitHubEnsureLabel(t *testing.T) {
 	}
 }
 
-// newGitHubMergeMethodHandler serves pull request 1 together with the repository
-// merge settings a case pins. A case that must never reach the merge call leaves
-// mergeRequestFixture empty so an unexpected merge request fails the test.
 func newGitHubMergeMethodHandler(t *testing.T, repoFixture, mergeRequestFixture string) http.Handler {
 	t.Helper()
 

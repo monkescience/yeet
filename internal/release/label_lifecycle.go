@@ -19,8 +19,6 @@ func newLabelLifecycle(core *releaseCore, setter releasePRLabelSetter) labelLife
 	return labelLifecycle{setter: setter, labels: core.releasePRLabels()}
 }
 
-// opened marks a release PR that is now open and waiting to be tagged, whether
-// this run created it or adopted one an interrupted run left unlabelled.
 func (l labelLifecycle) opened(ctx context.Context, number int) error {
 	if err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhasePending); err != nil {
 		return fmt.Errorf("mark release PR pending: %w", err)
@@ -29,7 +27,6 @@ func (l labelLifecycle) opened(ctx context.Context, number int) error {
 	return nil
 }
 
-// published marks a release PR whose releases have been published.
 func (l labelLifecycle) published(ctx context.Context, number int) error {
 	if err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhaseTagged); err != nil {
 		return fmt.Errorf("mark release PR tagged: %w", err)

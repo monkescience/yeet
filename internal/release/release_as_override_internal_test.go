@@ -11,8 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
-// captureWarnings redirects the default logger for one test and returns what it
-// wrote. The default logger is process wide, so callers must not run parallel.
+// captureWarnings mutates the process-wide default logger, so callers must not run in parallel.
 func captureWarnings(t *testing.T) *bytes.Buffer {
 	t.Helper()
 

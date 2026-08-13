@@ -7,7 +7,6 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// paginate walks page-number APIs until fetch returns nextPage zero or handle stops.
 func paginate[T any](
 	ctx context.Context,
 	resource string,
@@ -17,7 +16,6 @@ func paginate[T any](
 	return paginateByCursor(ctx, resource, 0, fetch, handle)
 }
 
-// paginateAzureDevOps walks Azure DevOps continuation-token APIs.
 func paginateAzureDevOps[T any](
 	ctx context.Context,
 	resource string,

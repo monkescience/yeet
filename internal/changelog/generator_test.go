@@ -736,8 +736,6 @@ func TestDerivedEntry(t *testing.T) {
 		// then: the parent's sections come first and the children keep their nesting
 		testastic.SliceEqual(t, []string{"Features", "api", "web"}, sectionHeadings(derived.Sections))
 		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(derived.Sections[1].Sections))
-
-		// and: every heading the parent may own is recorded, including an absent child
 		testastic.SliceEqual(
 			t,
 			[]string{"Features", "Bug Fixes", "api", "web", "cli"},

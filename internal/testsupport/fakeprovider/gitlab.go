@@ -141,7 +141,6 @@ func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions
 	})
 }
 
-// gitlabBranchHeadHandler falls back to the newest commit, then the base SHA.
 func gitlabBranchHeadHandler(opts GitLabOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		headSHA := opts.BranchHeadSHA
@@ -310,7 +309,6 @@ func gitlabCreatedBranch() map[string]any {
 	}
 }
 
-// handleGitLabCreateMR echoes every requested reviewer as applied.
 func handleGitLabCreateMR(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		ReviewerIDs []int64 `json:"reviewer_ids"`
@@ -545,7 +543,6 @@ func gitlabCommitDetail(ref string, opts GitLabOptions) map[string]any {
 	return map[string]any{gitlabKeyID: ref}
 }
 
-// gitlabCompareHandler returns commits ahead of the boundary.
 func gitlabCompareHandler(opts GitLabOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		boundarySHA, ok := gitlabResolveRefSHA(r.URL.Query().Get("from"), opts)

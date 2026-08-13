@@ -11,14 +11,11 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// mergedCandidateStub stands in for one forge's pull request record. A zero
-// mergedAt means the listing did not say when the candidate merged.
 type mergedCandidateStub struct {
 	number   int
 	mergedAt time.Time
 }
 
-// mergedCandidateHydration records what a forge would answer on a re-read.
 type mergedCandidateHydration struct {
 	mergedAt time.Time
 	merged   bool

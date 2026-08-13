@@ -26,9 +26,6 @@ const (
 //nolint:gosec // G101: an environment variable name, not a credential
 const azureDevOpsSystemAccessTokenEnv = "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN"
 
-// forgeSpec holds everything that differs between forges: where the token and
-// endpoint override are read from, how a custom host becomes an API URL, and
-// which SDK the coordinates are handed to.
 type forgeSpec struct {
 	tokenEnvVars  []string
 	urlEnvVar     string
@@ -113,8 +110,6 @@ func (spec forgeSpec) endpointOverride() string {
 	return strings.TrimSpace(os.Getenv(spec.urlEnvVar))
 }
 
-// apiBaseURL returns the SDK base URL, or the empty string when the forge's own
-// default endpoint applies.
 func (spec forgeSpec) apiBaseURL(host string) string {
 	if override := spec.endpointOverride(); override != "" {
 		return override

@@ -97,11 +97,6 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 	})
 }
 
-// TestReleaseProviderPagination used to prove yeet followed the provider's
-// paginated compare API. That path no longer exists: history comes from the
-// local checkout. The test is repurposed to prove the local-history equivalent:
-// a repository with more than 100 commits since the tag (past any provider page
-// size) still yields a complete changelog.
 func TestReleaseProviderPagination(t *testing.T) {
 	t.Parallel()
 

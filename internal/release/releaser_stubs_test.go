@@ -14,9 +14,6 @@ import (
 	"github.com/monkescience/yeet/internal/history"
 )
 
-// testReleaserDeps is the stub-side capability set: provider dependencies
-// plus the version history that production wiring sources from the local
-// checkout.
 type testReleaserDeps interface {
 	repoMetadataProvider
 	releasePRProvider
@@ -117,8 +114,6 @@ func taggedPhaseOnly() []forge.ReleasePRPhase {
 	return []forge.ReleasePRPhase{forge.ReleasePRPhaseTagged}
 }
 
-// callSequence records the order stub methods were called in, so a test can
-// assert that one provider mutation happened before another.
 type callSequence struct {
 	calls []string
 }
@@ -141,8 +136,7 @@ type providerStub struct {
 	*releasePublishingStub
 }
 
-// SetReleasePRLabels resolves the method both embedded stubs carry, and routes
-// by phase so each stub keeps recording the transition it is asserted on.
+// SetReleasePRLabels resolves the embedded method conflict while preserving phase-specific call recording.
 func (s *providerStub) SetReleasePRLabels(
 	ctx context.Context,
 	number int,
@@ -269,9 +263,6 @@ func (s *versionHistoryStub) GetCommitsSinceRefs(
 	return scanned, nil
 }
 
-// singleRefProbes returns the flat sequence of refs probed via single-ref
-// GetCommitsSinceRefs calls (one ref per call). Multi-ref shared scans are
-// excluded so callers can keep asserting on per-target boundary probes.
 func (s *versionHistoryStub) singleRefProbes() []string {
 	probes := make([]string, 0, len(s.getCommitsSinceRefsOf))
 

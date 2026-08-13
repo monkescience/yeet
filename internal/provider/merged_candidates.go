@@ -9,17 +9,13 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// mergedCandidates tells resolveLatestMerged how to read one forge's merged
-// pull request records.
 type mergedCandidates[T any] struct {
-	// mergedAt reports when a candidate merged and whether the forge said so.
 	mergedAt func(T) (time.Time, bool)
 	// hydrate re-reads a candidate whose listing omitted a merge time. It
 	// reports false when the re-read proves the candidate never merged, and
 	// mergeTimeMissingError when the re-read withholds the merge time of a
 	// candidate the forge still calls merged.
-	hydrate func(context.Context, T) (T, bool, error)
-	// reference names a candidate the way its forge does, for error messages.
+	hydrate   func(context.Context, T) (T, bool, error)
 	reference func(T) string
 }
 

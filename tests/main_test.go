@@ -1,6 +1,3 @@
-// Package integration_test contains end-to-end blackbox tests that exercise
-// the compiled yeet binary as a subprocess and assert against its real
-// stdout, stderr, and exit codes.
 package integration_test
 
 import (

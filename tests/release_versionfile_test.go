@@ -8,8 +8,6 @@ import (
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 
-// versionFileHistory writes the shared checkout used by version-file tests:
-// one tagged v1.0.0 boundary and one releasable feat commit.
 func versionFileHistory(t *testing.T, files map[string]string) (string, []string) {
 	t.Helper()
 

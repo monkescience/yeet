@@ -33,16 +33,11 @@ type providerContractLabelHandlerFactory func(
 	registry providerContractLabelRegistry,
 ) http.Handler
 
-// providerContractLabelRegistry describes how a forge's label definition lookup
-// answers for a given name, so one handler covers a forge that has the label,
-// one that does not, and one that cannot say.
 type providerContractLabelRegistry struct {
 	undefined   []string
 	unreachable []string
 }
 
-// status reports the failure a definition lookup answers with, and whether it
-// fails at all.
 func (r providerContractLabelRegistry) status(name string) (int, bool) {
 	switch {
 	case slices.Contains(r.undefined, name):
@@ -67,9 +62,6 @@ type providerContractHarness struct {
 	rejectsUnknownExtraLabels bool
 }
 
-// providerContractLabelStore is the label set a contract handler has been told
-// to put on a pull request, so a scenario can assert what a phase leaves behind
-// rather than the requests it took to get there.
 type providerContractLabelStore struct {
 	ids    map[string]string
 	labels []string
@@ -1111,9 +1103,6 @@ func writeTextFixture(t *testing.T, w http.ResponseWriter, name string) {
 	writeFixture(t, w, name)
 }
 
-// contractRequest is the on-disk record of one call a provider makes. A case
-// directory carries the request beside the response so the whole exchange is
-// readable without running the test.
 type contractRequest struct {
 	Method string              `json:"method"`
 	Path   string              `json:"path"`
@@ -1137,7 +1126,6 @@ func TestAssertJSONRequestPreservesQueryValueCardinality(t *testing.T) {
 	assertJSONRequest(t, request, "contracts/request_query_cardinality/request.json")
 }
 
-// assertJSONRequest checks a received call against a case's request fixture.
 func assertJSONRequest(t *testing.T, r *http.Request, name string) {
 	t.Helper()
 

@@ -544,7 +544,6 @@ func azureDevOpsDescriptorFromCloudSegments(host string, segments []string) (*re
 }
 
 func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*repositoryDescriptor, error) {
-	// Legacy subdomain form: org is the host subdomain, path is {project}/_git/{repo}.
 	org := strings.TrimSuffix(host, azureDevOpsLegacyHostSuffix)
 	if org == "" {
 		return nil, ErrUnknownRemote

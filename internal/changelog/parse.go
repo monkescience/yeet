@@ -158,9 +158,6 @@ func trimBlankEdges(lines []string) []string {
 	return append([]string(nil), lines[first:last]...)
 }
 
-// bracketTag extracts the tag from a "[tag]..." prefix, returning the tag and
-// the portion following the closing bracket. It reports false when the text
-// does not open with a non-empty "[tag]".
 func bracketTag(text string) (string, string, bool) {
 	if !strings.HasPrefix(text, "[") {
 		return "", "", false

@@ -31,7 +31,6 @@ func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 	return refs, nil
 }
 
-// GetBranchHead returns the commit SHA branch currently points at.
 func (a *AzureDevOps) GetBranchHead(ctx context.Context, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {

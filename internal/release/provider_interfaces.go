@@ -44,8 +44,6 @@ type releasePRProvider interface {
 	MaxPRBodyLength() int
 }
 
-// releasePRLabelSetter states the phase a release PR is in and lets the forge
-// work out the labels.
 type releasePRLabelSetter interface {
 	SetReleasePRLabels(
 		ctx context.Context,

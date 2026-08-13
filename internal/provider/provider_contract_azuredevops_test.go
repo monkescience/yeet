@@ -24,9 +24,6 @@ const (
 	azureDevOpsContractRepo    = "contoso-repo"
 )
 
-// azureDevOpsContractRepoAPI returns the per-repository API path prefix used
-// by SDK-generated requests (e.g. refs, commits, items, pushes,
-// annotatedTags, pullRequests/{id}/labels).
 func azureDevOpsContractRepoAPI(suffix string) string {
 	return fmt.Sprintf(
 		"/%s/%s/_apis/git/repositories/%s/%s",
@@ -37,8 +34,6 @@ func azureDevOpsContractRepoAPI(suffix string) string {
 	)
 }
 
-// azureDevOpsContractPullRequestAPI returns the repo-scoped single pull request
-// API path used by GetPullRequest.
 func azureDevOpsContractPullRequestAPI() string {
 	return azureDevOpsContractRepoAPI("pullRequests/42")
 }
@@ -246,9 +241,6 @@ func TestAzureDevOpsGetReleaseByTagFindsATagOnALaterRefPage(t *testing.T) {
 
 const azureDevOpsContractRefContinuationToken = "refs-page-2"
 
-// writeAzureDevOpsTruncatedRefs answers a ref query the way a prefix filter
-// does: a full first page of refs that merely start with the wanted name, and
-// the wanted ref itself only on the continuation page.
 func writeAzureDevOpsTruncatedRefs(
 	t *testing.T,
 	w http.ResponseWriter,
@@ -1004,8 +996,7 @@ func TestAzureDevOpsLifecycleLabelRemovalMatchesCaseInsensitively(t *testing.T) 
 	testastic.True(t, deleted.Load())
 }
 
-// newAzureDevOpsContractHandler wraps every scenario with the bootstrap
-// (OPTIONS /_apis + resourceAreas) so the SDK's lazy lookups succeed.
+// Azure's SDK performs lazy bootstrap requests before scenario-specific calls.
 func newAzureDevOpsContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
 
@@ -1179,10 +1170,6 @@ func azureDevOpsListTagsPagedHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-// azureDevOpsBoundedCommitsRequest matches the graph-aware range query the
-// provider now issues per ref: ItemVersion is the boundary tag and
-// CompareVersion is the branch head, so Azure computes "commits reachable from
-// the branch but not from the tag" itself.
 func azureDevOpsGetReleaseByTagHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
@@ -1409,9 +1396,7 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-// newAzureDevOpsContractLabelHandler tracks the labels on PR 42 so a scenario
-// can assert the set a phase leaves behind. The registry is ignored, because
-// Azure DevOps creates a tag definition when a label is attached.
+// Azure DevOps creates label definitions on attachment, so registry state does not apply.
 func newAzureDevOpsContractLabelHandler(
 	t *testing.T,
 	store *providerContractLabelStore,
@@ -1472,8 +1457,6 @@ func azureDevOpsMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-// azureDevOpsAsyncMergeReleasePRHandler models a completion Azure DevOps queues,
-// returning a provisional commit before the merge is applied.
 func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 

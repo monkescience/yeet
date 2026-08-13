@@ -93,8 +93,6 @@ func (f *repoFixture) removeFile(path string) {
 	testastic.NoError(f.t, err)
 }
 
-// commit stages every working-tree change and commits it one minute after
-// the previous commit. Extra parent hashes turn the commit into a merge.
 func (f *repoFixture) commit(message string, files map[string]string, extraParents ...plumbing.Hash) plumbing.Hash {
 	f.t.Helper()
 
@@ -191,8 +189,6 @@ func (f *repoFixture) head() plumbing.Hash {
 	return head.Hash()
 }
 
-// source returns a Source whose remote stub reports the fixture head as the
-// remote branch head, making the checkout eligible for local history.
 func (f *repoFixture) source() (*history.Source, *remoteStub) {
 	f.t.Helper()
 

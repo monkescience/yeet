@@ -9,12 +9,8 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// pageFetcher walks every page of a forge listing, handing each item to handle
-// until handle stops or the pages run out.
 type pageFetcher[T any] func(ctx context.Context, handle func(T) (bool, error)) error
 
-// foldTagRefs collects every tag a forge lists. read returns the name and
-// commit of one SDK value, or ok false when the value carries no ref at all.
 func foldTagRefs[T any](
 	ctx context.Context,
 	fetch pageFetcher[T],

@@ -21,9 +21,7 @@ const updateFilesCommitSubject = "commit subject"
 
 var errUnexpectedHistoryScan = errors.New("release branch update must not scan commit history")
 
-// baseFileSource serves base-branch blobs from a forge adapter. Commit ranges
-// are unreachable from this path, so asking for one is reported rather than
-// answered with an empty range that would look like success.
+// baseFileSource rejects history scans because an empty range would falsely report success.
 type baseFileSource struct {
 	files releaseFileProvider
 }

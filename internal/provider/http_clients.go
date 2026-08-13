@@ -48,9 +48,6 @@ func (t requestMethodTransport) RoundTrip(request *http.Request) (*http.Response
 	return response, nil
 }
 
-// newTracedRetryableClient builds the one transport policy every forge client
-// is constructed with: bounded retries, a request timeout, and sanitized HTTP
-// tracing tagged with the forge it was built for.
 func newTracedRetryableClient(forge string) *retryablehttp.Client {
 	client := retryablehttp.NewClient()
 	client.RetryMax = httpRetryMax

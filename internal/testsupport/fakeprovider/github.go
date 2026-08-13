@@ -414,7 +414,6 @@ func githubTagSHA(opts GitHubOptions, tag string) string {
 	return opts.BoundarySHA
 }
 
-// githubHeadSHA falls back from BranchHeadSHA to the newest commit, then the base SHA.
 func githubHeadSHA(opts GitHubOptions) string {
 	if opts.BranchHeadSHA != "" {
 		return opts.BranchHeadSHA
@@ -459,7 +458,6 @@ func githubFilesPayload(paths []string) []map[string]any {
 	return out
 }
 
-// registerGitHubWritePath attaches the handlers used by non-dry-run releases.
 func registerGitHubWritePath(
 	t *testing.T,
 	mux *http.ServeMux,
@@ -801,7 +799,6 @@ func registerGitHubLabels(
 	})
 }
 
-// githubReleaseManifest returns the manifest embedded in a merged release PR.
 const githubReleaseManifest = "<!-- yeet-release-manifest\n" +
 	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +
 	"\n-->"

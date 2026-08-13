@@ -8,8 +8,6 @@ import (
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 
-// autodetectHistory is the shared commit script for auto-detect fixtures: one
-// tagged release boundary plus one releasable feat commit.
 var autodetectHistory = []fixture.RepoCommit{
 	{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
 	{Message: "feat: add a thing"},

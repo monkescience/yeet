@@ -290,8 +290,6 @@ func TestParseFoldsLargeFooterBlockLinearly(t *testing.T) {
 	testastic.Equal(t, 1, len(c.Footers))
 	testastic.Equal(t, "Refs", c.Footers[0].Key)
 	testastic.Equal(t, "#1"+strings.Repeat(continuationLine, continuationLines), c.Footers[0].Value)
-
-	// and: the parse allocates proportionally to the message size
 	testastic.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(allocBudgetPerByte*len(raw)))
 }
 

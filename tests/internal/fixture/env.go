@@ -2,8 +2,6 @@ package fixture
 
 import "net/http/httptest"
 
-// GitHubEnv returns the env-var pairs that point the yeet binary at a fake
-// GitHub server for branch.
 func GitHubEnv(server *httptest.Server, branch string) []string {
 	return []string{
 		"GITHUB_TOKEN=test-token",
@@ -13,8 +11,6 @@ func GitHubEnv(server *httptest.Server, branch string) []string {
 	}
 }
 
-// GitLabEnv returns the env-var pairs that point the yeet binary at a fake
-// GitLab server for branch.
 func GitLabEnv(server *httptest.Server, branch string) []string {
 	return []string{
 		"GITLAB_TOKEN=test-token",
@@ -23,8 +19,6 @@ func GitLabEnv(server *httptest.Server, branch string) []string {
 	}
 }
 
-// AzureEnv returns the env-var pairs that point the yeet binary at a fake
-// Azure DevOps server for branch.
 func AzureEnv(server *httptest.Server, branch string) []string {
 	return []string{
 		"AZURE_DEVOPS_EXT_PAT=test-token",

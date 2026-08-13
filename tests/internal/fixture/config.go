@@ -10,7 +10,6 @@ import (
 	"github.com/monkescience/testastic"
 )
 
-// ConfigOptions describes values rendered into a .yeet.yaml.
 type ConfigOptions struct {
 	Provider          string
 	Branch            string
@@ -34,20 +33,17 @@ type ConfigOptions struct {
 	CommitSubject     string
 }
 
-// LabelsOptions describes the release.labels block.
 type LabelsOptions struct {
 	Pending string
 	Tagged  string
 	Extra   []string
 }
 
-// ReferencePatternOptions configures one entry under changelog.references.patterns.
 type ReferencePatternOptions struct {
 	Pattern string
 	URL     string
 }
 
-// TargetOptions describes one entry in the targets map.
 type TargetOptions struct {
 	Name         string
 	Path         string
@@ -57,20 +53,17 @@ type TargetOptions struct {
 	Includes     []string
 }
 
-// VersionFileOptions describes a version_files entry.
 type VersionFileOptions struct {
 	Path        string
 	Format      string
 	JSONPointer string
 }
 
-// ChannelOptions describes a prerelease channel entry.
 type ChannelOptions struct {
 	Branch     string
 	Prerelease string
 }
 
-// WriteConfig renders a .yeet.yaml in a temporary directory.
 func WriteConfig(t *testing.T, opts ConfigOptions) string {
 	t.Helper()
 

@@ -1,7 +1,5 @@
 package fakeprovider
 
-// Shared canned values used by all provider fakes so the fixture corpus stays
-// consistent across providers.
 const (
 	fakeNextTag       = "v1.1.0"
 	fakeReleaseBranch = "yeet/release-main"
@@ -10,7 +8,6 @@ const (
 	fakeBaseSHA       = "6261736573686100000000000000000000000000"
 )
 
-// Common JSON keys repeated across provider payloads.
 const (
 	azureKeyCount    = "count"
 	azureKeyValue    = "value"
@@ -19,7 +16,6 @@ const (
 	keyCommits       = "commits"
 )
 
-// Shared values for merged-pending-release PR fixtures.
 const (
 	fakeStateMerged       = "merged"
 	fakePendingReleaseTag = "autorelease: pending"

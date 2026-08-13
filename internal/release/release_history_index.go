@@ -131,7 +131,6 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 	for targetID, candidateRefs := range refsByTargetID {
 		selected, ok := a.selectTargetHistory(targets[targetID], candidateRefs, scanned.EntriesByRef, missingRefs)
 		if !ok {
-			// Top refs were unreachable, let the per-target fallback walk the full ref list.
 			continue
 		}
 

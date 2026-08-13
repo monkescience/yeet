@@ -13,7 +13,6 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
-// localHistory caches the reachable graph and changed paths for one release run.
 type localHistory struct {
 	repo *git.Repository
 	head plumbing.Hash
@@ -44,8 +43,6 @@ func newLocalHistory(repo *git.Repository, head plumbing.Hash) *localHistory {
 	}
 }
 
-// commitsSinceRefs returns one newest-first range per unique ref and reports
-// boundaries absent from the branch graph in MissingRefs.
 func (l *localHistory) commitsSinceRefs(
 	ctx context.Context,
 	refs []string,

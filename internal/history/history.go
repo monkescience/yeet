@@ -281,7 +281,6 @@ func (s *Source) eligibleLocal(ctx context.Context, branch string) (*localHistor
 	return local, nil
 }
 
-// openEligibleLocal returns actionable errors because no history fallback exists.
 func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 	repo, err := git.PlainOpenWithOptions(s.dir, &git.PlainOpenOptions{
 		DetectDotGit: true,

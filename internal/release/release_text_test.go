@@ -649,9 +649,6 @@ func TestChangelogEntryByTag(t *testing.T) {
 	})
 }
 
-// preserveManualChangelogSections drives the merge the way a release PR refresh
-// does, over entry text rather than structure, so the fixtures below pin what a
-// refreshed entry actually looks like.
 func preserveManualChangelogSections(generatedEntry, existingEntry string) string {
 	cfg := config.Default()
 

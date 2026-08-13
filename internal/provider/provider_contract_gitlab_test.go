@@ -430,8 +430,6 @@ func handleGitLabFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
-// newGitLabContractLabelHandler tracks the labels on MR 42 so a scenario can
-// assert the set a phase leaves behind.
 func newGitLabContractLabelHandler(
 	t *testing.T,
 	store *providerContractLabelStore,
@@ -525,8 +523,6 @@ func handleGitLabMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *
 	}
 }
 
-// handleGitLabAsyncMergeReleasePRContract models an accept GitLab queues, leaving
-// the merge request open until the merge is applied.
 func handleGitLabAsyncMergeReleasePRContract(
 	t *testing.T,
 	w http.ResponseWriter,
@@ -1196,8 +1192,6 @@ func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
 	testastic.True(t, prs[0].NeedsPendingLabel)
 }
 
-// TestGitLabMatchesThePendingLabelExactly pins a GitLab-only rule: GitLab label
-// matching is exact, where GitHub folds case.
 func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 	t.Parallel()
 
@@ -1495,9 +1489,6 @@ func TestGitLabMergeReleasePRFastRefusal(t *testing.T) {
 	})
 }
 
-// gitLabRefusedAcceptServer merges MR 8 against a server whose accept response
-// is supplied by refuse, and reports how many times the merge request was polled
-// after the accept.
 func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.Int32 {
 	t.Helper()
 
