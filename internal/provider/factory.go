@@ -194,8 +194,11 @@ func newGitHubProvider(
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
 ) (forge.Provider, error) {
+	standardClient := httpClient.StandardClient()
+	standardClient.Timeout = httpClient.HTTPClient.Timeout
+
 	opts := []github.ClientOptionsFunc{
-		github.WithHTTPClient(httpClient.StandardClient()),
+		github.WithHTTPClient(standardClient),
 		github.WithAuthToken(token.value),
 	}
 
@@ -275,6 +278,7 @@ func newAzureDevOpsProvider(
 	project := strings.TrimSpace(repository.Project)
 	repo := strings.TrimSpace(repository.Repo)
 	standardClient := httpClient.StandardClient()
+	standardClient.Timeout = httpClient.HTTPClient.Timeout
 
 	if token.envVar == azureDevOpsSystemAccessTokenEnv {
 		provider := NewAzureDevOpsWithSystemAccessToken(

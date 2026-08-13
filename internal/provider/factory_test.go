@@ -124,6 +124,55 @@ func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
 	testastic.Equal(t, 3*time.Minute, githubProvider.polling.timeout)
 }
 
+func TestCreateConfiguredProviderAppliesRequestTimeout(t *testing.T) {
+	network := config.Default().Network
+	network.RequestTimeout = 45 * time.Second
+	settings := providerSettings{network: &network}
+
+	t.Run("github", func(t *testing.T) {
+		// given: GitHub credentials and a configured request timeout
+		t.Setenv("GITHUB_TOKEN", "test-token")
+		t.Setenv(githubURLEnv, "")
+
+		// when: constructing the configured GitHub adapter
+		created, err := createConfigured(&repositoryDescriptor{
+			Provider: providerNameGitHub,
+			Host:     DefaultGitHubHost,
+			Owner:    "platform",
+			Repo:     "yeet",
+		}, settings)
+		testastic.NoError(t, err)
+
+		// then: the effective GitHub HTTP client carries the configured timeout
+		githubProvider, ok := created.(*GitHub)
+		testastic.True(t, ok)
+		testastic.Equal(t, network.RequestTimeout, githubProvider.client.Client().Timeout)
+	})
+
+	t.Run("azure devops", func(t *testing.T) {
+		// given: Azure DevOps credentials and a configured request timeout
+		t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
+		t.Setenv(azureURLEnv, "")
+
+		// when: constructing the configured Azure DevOps adapter
+		created, err := createConfigured(&repositoryDescriptor{
+			Provider:     providerNameAzureDevOps,
+			Host:         DefaultAzureDevOpsHost,
+			Organization: "platform",
+			Project:      "release-tools",
+			Repo:         "yeet",
+		}, settings)
+		testastic.NoError(t, err)
+
+		// then: the SDK connection carries the configured timeout
+		azureProvider, ok := created.(*AzureDevOps)
+		testastic.True(t, ok)
+
+		expectedTimeout := network.RequestTimeout
+		testastic.DeepEqual(t, &expectedTimeout, azureProvider.conn.Timeout)
+	})
+}
+
 func TestCreateGitHubProviderFallsBackToGHToken(t *testing.T) {
 	// given: only the GH_TOKEN fallback in the environment
 	t.Setenv("GITHUB_TOKEN", "")
