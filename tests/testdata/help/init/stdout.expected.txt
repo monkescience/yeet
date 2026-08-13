@@ -1,8 +1,8 @@
 Creates a yeet configuration file with sensible defaults.
 
-	By default this writes .yeet.yaml at the repository root when inside a git
-	repository, or in the current directory otherwise. Use --config to write a
-	different path.
+By default this writes .yeet.yaml at the repository root when inside a git
+repository, or in the current directory otherwise. Use --config to write a
+different path.
 
 Usage:
   yeet init [flags]

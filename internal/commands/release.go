@@ -41,10 +41,10 @@ flags or config:
 Commit history is read from the local git checkout. The checkout must be
 complete (not shallow) and match the remote release branch.`,
 		Example: `  yeet release --dry-run
-	  yeet release --target api --target web --dry-run
-	  yeet release --channel beta
-	  yeet release --auto-merge
-	  yeet release --provider github --owner platform --repo yeet --dry-run`,
+  yeet release --target api --target web --dry-run
+  yeet release --channel beta
+  yeet release --auto-merge
+  yeet release --provider github --owner platform --repo yeet --dry-run`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runRelease(
 				cmd.Context(),

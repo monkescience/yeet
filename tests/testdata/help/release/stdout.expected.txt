@@ -24,10 +24,10 @@ Usage:
 
 Examples:
   yeet release --dry-run
-	  yeet release --target api --target web --dry-run
-	  yeet release --channel beta
-	  yeet release --auto-merge
-	  yeet release --provider github --owner platform --repo yeet --dry-run
+  yeet release --target api --target web --dry-run
+  yeet release --channel beta
+  yeet release --auto-merge
+  yeet release --provider github --owner platform --repo yeet --dry-run
 
 Flags:
       --auto-merge                 automatically merge the release PR/MR and finalize the release in the same run
