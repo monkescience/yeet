@@ -181,7 +181,9 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 
 		number := derefInt(pr.PullRequestId)
 
-		needsLabel, err := needsPendingLabel(
+		var needsLabel bool
+
+		needsLabel, err = needsPendingLabel(
 			azureDevOpsLabelNames(pr.Labels),
 			pendingLabel,
 			foldedLabelMatch,
