@@ -8,6 +8,17 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
+type prereleaseCountingStrategy struct {
+	version.Strategy
+	calls int
+}
+
+func (s *prereleaseCountingStrategy) PrereleaseAllowed(currentVersion, identifier string) bool {
+	s.calls++
+
+	return s.Strategy.PrereleaseAllowed(currentVersion, identifier)
+}
+
 func TestVersionStrategyForResolvedTarget(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +71,26 @@ func TestChannelRefAllowed(t *testing.T) {
 
 		// then: no channel claims it
 		testastic.Equal(t, false, allowed)
+	})
+
+	t.Run("checks prerelease membership once", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an active beta channel and a strategy that counts membership checks
+		cfg := config.Default()
+		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+		analyzer := &releaseAnalyzer{core: &releaseCore{cfg: cfg}}
+		strategy := &prereleaseCountingStrategy{Strategy: &version.SemVer{Prefix: "v"}}
+
+		// when: a beta version is offered as a version boundary
+		allowed := analyzer.channelRefAllowed(strategy, "1.2.3-beta.1")
+
+		// then: one parse establishes its channel membership
+		testastic.Equal(t, true, allowed)
+		testastic.Equal(t, 1, strategy.calls)
 	})
 }
 

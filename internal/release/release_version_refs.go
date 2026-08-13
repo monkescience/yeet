@@ -85,23 +85,7 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 }
 
 func (a *releaseAnalyzer) channelRefAllowed(strategy version.Strategy, currentVersion string) bool {
-	// A stable version belongs to every channel, so an active channel this config
-	// does not define must not reject it.
-	if strategy.PrereleaseAllowed(currentVersion, "") {
-		return true
-	}
-
-	channelName := strings.TrimSpace(a.core.cfg.ActiveChannel)
-	if channelName == "" {
-		return false
-	}
-
-	channel, exists := a.core.cfg.Release.Channels[channelName]
-	if !exists {
-		return false
-	}
-
-	return strategy.PrereleaseAllowed(currentVersion, strings.TrimSpace(channel.Prerelease))
+	return strategy.PrereleaseAllowed(currentVersion, a.core.activePrereleaseIdentifier())
 }
 
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *historyScan, ref string) (bool, error) {
