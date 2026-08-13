@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
@@ -20,6 +21,7 @@ func TestOpen(t *testing.T) {
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
 		cfg.Release.BranchTemplate = "automation/{{ .Branch }}"
+		cfg.Network.RequestTimeout = 45 * time.Second
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
 		expected := &GitHub{}
 
@@ -38,6 +40,8 @@ func TestOpen(t *testing.T) {
 				testastic.Equal(t, "platform", repository.Owner)
 				testastic.Equal(t, "yeet", repository.Repo)
 				testastic.Equal(t, "automation/main", settings.releaseBranch)
+				testastic.NotNil(t, settings.network)
+				testastic.Equal(t, 45*time.Second, settings.network.RequestTimeout)
 
 				return expected, nil
 			},

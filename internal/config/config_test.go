@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
@@ -20,6 +21,10 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
+	testastic.Equal(t, 30*time.Second, cfg.Network.RequestTimeout)
+	testastic.Equal(t, 4, cfg.Network.Retry.MaxAttempts)
+	testastic.Equal(t, time.Second, cfg.Network.Retry.MinBackoff)
+	testastic.Equal(t, 10*time.Second, cfg.Network.Retry.MaxBackoff)
 	testastic.Equal(t, "yeet/release-{{ .Branch }}", cfg.Release.BranchTemplate)
 	testastic.False(t, cfg.Release.AutoMerge)
 	testastic.False(t, cfg.Release.AutoMergeForce)
@@ -44,6 +49,66 @@ func TestDefault(t *testing.T) {
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
 	testastic.SliceEqual(t, []string{"feat"}, cfg.BumpTypes.Minor)
 	testastic.SliceEqual(t, []string{"fix", "perf"}, cfg.BumpTypes.Patch)
+}
+
+func TestNetworkValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*config.NetworkConfig)
+		message   string
+	}{
+		{
+			name: "zero request timeout",
+			configure: func(network *config.NetworkConfig) {
+				network.RequestTimeout = 0
+			},
+			message: "invalid config: network.request_timeout must be greater than zero",
+		},
+		{
+			name: "zero attempts",
+			configure: func(network *config.NetworkConfig) {
+				network.Retry.MaxAttempts = 0
+			},
+			message: "invalid config: network.retry.max_attempts must be at least 1",
+		},
+		{
+			name: "zero minimum backoff",
+			configure: func(network *config.NetworkConfig) {
+				network.Retry.MinBackoff = 0
+			},
+			message: "invalid config: network.retry.min_backoff must be greater than zero",
+		},
+		{
+			name: "zero maximum backoff",
+			configure: func(network *config.NetworkConfig) {
+				network.Retry.MaxBackoff = 0
+			},
+			message: "invalid config: network.retry.max_backoff must be greater than zero",
+		},
+		{
+			name: "minimum backoff exceeds maximum",
+			configure: func(network *config.NetworkConfig) {
+				network.Retry.MinBackoff = 11 * time.Second
+			},
+			message: "invalid config: network.retry.min_backoff must not exceed network.retry.max_backoff",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			tt.configure(&cfg.Network)
+
+			err := cfg.Validate()
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
 }
 
 func TestReleaseLabelsValidation(t *testing.T) {

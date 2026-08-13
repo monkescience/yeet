@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 )
@@ -111,6 +112,10 @@ func TestParse(t *testing.T) {
 		testastic.NotNil(t, cfg.Repository.GitLab)
 		testastic.Equal(t, "gitlab.company.com", cfg.Repository.GitLab.Host)
 		testastic.Equal(t, "group/subgroup/service", cfg.Repository.GitLab.Project)
+		testastic.Equal(t, 45*time.Second, cfg.Network.RequestTimeout)
+		testastic.Equal(t, 6, cfg.Network.Retry.MaxAttempts)
+		testastic.Equal(t, 2*time.Second, cfg.Network.Retry.MinBackoff)
+		testastic.Equal(t, 20*time.Second, cfg.Network.Retry.MaxBackoff)
 		testastic.Equal(t, "automation/release-{{ .Branch }}", cfg.Release.BranchTemplate)
 		testastic.Equal(t, "release {{ .Tag }}", cfg.Release.PRTitle)
 		testastic.Equal(t, "release {{ .TargetCount }} targets", cfg.Release.PRTitleGroup)

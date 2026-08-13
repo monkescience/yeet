@@ -7,17 +7,10 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/httptrace"
-)
-
-const (
-	httpClientTimeout = 30 * time.Second
-	httpRetryMax      = 3
-	httpRetryWaitMin  = 1 * time.Second
-	httpRetryWaitMax  = 10 * time.Second
 )
 
 const httpMethodQuery = "QUERY"
@@ -49,13 +42,20 @@ func (t requestMethodTransport) RoundTrip(request *http.Request) (*http.Response
 }
 
 func newTracedRetryableClient(forge string) *retryablehttp.Client {
+	return newTracedRetryableClientWithConfig(forge, config.Default().Network)
+}
+
+func newTracedRetryableClientWithConfig(
+	forge string,
+	network config.NetworkConfig,
+) *retryablehttp.Client {
 	client := retryablehttp.NewClient()
-	client.RetryMax = httpRetryMax
-	client.RetryWaitMin = httpRetryWaitMin
-	client.RetryWaitMax = httpRetryWaitMax
+	client.RetryMax = network.Retry.MaxAttempts - 1
+	client.RetryWaitMin = network.Retry.MinBackoff
+	client.RetryWaitMax = network.Retry.MaxBackoff
 	client.CheckRetry = methodAwareRetryPolicy
 	client.Logger = nil
-	client.HTTPClient.Timeout = httpClientTimeout
+	client.HTTPClient.Timeout = network.RequestTimeout
 
 	trace := httptrace.New(forge)
 	client.RequestLogHook = trace.RequestHook

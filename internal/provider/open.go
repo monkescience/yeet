@@ -25,6 +25,8 @@ func open(
 	settings providerSettings,
 	dependencies openDependencies,
 ) (forge.Provider, error) {
+	settings.network = &cfg.Network
+
 	repository, err := resolveRepository(ctx, cfg, dependencies.getRemoteURL)
 	if err != nil {
 		return nil, err
@@ -35,4 +37,5 @@ func open(
 
 type providerSettings struct {
 	releaseBranch string
+	network       *config.NetworkConfig
 }

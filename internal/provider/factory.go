@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-github/v90/github"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
@@ -75,7 +76,14 @@ func create(repository *repositoryDescriptor) (forge.Provider, error) {
 }
 
 func createConfigured(repository *repositoryDescriptor, settings providerSettings) (forge.Provider, error) {
-	return createProviderConfigured(repository, settings, newTracedRetryableClient)
+	network := config.Default().Network
+	if settings.network != nil {
+		network = *settings.network
+	}
+
+	return createProviderConfigured(repository, settings, func(forge string) *retryablehttp.Client {
+		return newTracedRetryableClientWithConfig(forge, network)
+	})
 }
 
 func createProvider(

@@ -12,6 +12,7 @@ import (
 
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -86,17 +87,38 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 	// then: every adapter receives the bounded shared client settings. Azure's
 	// SDK creates its own transport and consumes only the timeout.
 	testastic.Len(t, constructedWith, len(descriptors))
+	defaults := config.Default().Network
 
 	for forge, client := range constructedWith {
-		testastic.Equal(t, httpRetryMax, client.RetryMax)
-		testastic.Equal(t, httpRetryWaitMin, client.RetryWaitMin)
-		testastic.Equal(t, httpRetryWaitMax, client.RetryWaitMax)
-		testastic.Equal(t, httpClientTimeout, client.HTTPClient.Timeout)
+		testastic.Equal(t, defaults.Retry.MaxAttempts-1, client.RetryMax)
+		testastic.Equal(t, defaults.Retry.MinBackoff, client.RetryWaitMin)
+		testastic.Equal(t, defaults.Retry.MaxBackoff, client.RetryWaitMax)
+		testastic.Equal(t, defaults.RequestTimeout, client.HTTPClient.Timeout)
 		testastic.True(t, client.Logger == nil)
 		testastic.True(t, client.RequestLogHook != nil)
 		testastic.NotNil(t, client.HTTPClient.Transport)
 		testastic.MapHasKey(t, forgeSpecs, forge)
 	}
+}
+
+func TestTracedRetryableClientUsesConfiguredNetworkSettings(t *testing.T) {
+	t.Parallel()
+
+	network := config.NetworkConfig{
+		RequestTimeout: 45 * time.Second,
+		Retry: config.NetworkRetryConfig{
+			MaxAttempts: 7,
+			MinBackoff:  2 * time.Second,
+			MaxBackoff:  20 * time.Second,
+		},
+	}
+
+	client := newTracedRetryableClientWithConfig(providerNameGitHub, network)
+
+	testastic.Equal(t, 6, client.RetryMax)
+	testastic.Equal(t, 2*time.Second, client.RetryWaitMin)
+	testastic.Equal(t, 20*time.Second, client.RetryWaitMax)
+	testastic.Equal(t, 45*time.Second, client.HTTPClient.Timeout)
 }
 
 func TestTracedRetryableClientRetriesUntilSuccess(t *testing.T) {
@@ -144,9 +166,9 @@ func TestTracedRetryableClientStopsAtRetryMax(t *testing.T) {
 		testastic.NoError(t, response.Body.Close())
 	}
 
-	// then: the client gives up after the initial attempt plus httpRetryMax retries
+	// then: the client gives up after the configured total attempt count
 	testastic.Error(t, err)
-	testastic.Equal(t, int32(httpRetryMax+1), attempts.Load())
+	testastic.Equal(t, int32(config.Default().Network.Retry.MaxAttempts), attempts.Load())
 }
 
 func TestTracedRetryableClientDoesNotRetryMutationServerErrors(t *testing.T) {

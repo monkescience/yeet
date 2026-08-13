@@ -9,6 +9,12 @@ repository:
   gitlab:
     host: gitlab.company.com
     project: group/subgroup/service
+network:
+  request_timeout: 45s
+  retry:
+    max_attempts: 6
+    min_backoff: 2s
+    max_backoff: 20s
 changelog:
   file: CHANGES.md
   include:

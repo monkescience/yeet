@@ -23,6 +23,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := validateNetworkConfig(c.Network); err != nil {
+		return err
+	}
+
 	if err := validateReferencesConfig("changelog.references", c.Changelog.References); err != nil {
 		return err
 	}
@@ -47,6 +51,33 @@ func (c *Config) Validate() error {
 
 	if _, err := c.resolveTargets(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateNetworkConfig(network NetworkConfig) error {
+	if network.RequestTimeout <= 0 {
+		return fmt.Errorf("%w: network.request_timeout must be greater than zero", ErrInvalidConfig)
+	}
+
+	if network.Retry.MaxAttempts < 1 {
+		return fmt.Errorf("%w: network.retry.max_attempts must be at least 1", ErrInvalidConfig)
+	}
+
+	if network.Retry.MinBackoff <= 0 {
+		return fmt.Errorf("%w: network.retry.min_backoff must be greater than zero", ErrInvalidConfig)
+	}
+
+	if network.Retry.MaxBackoff <= 0 {
+		return fmt.Errorf("%w: network.retry.max_backoff must be greater than zero", ErrInvalidConfig)
+	}
+
+	if network.Retry.MinBackoff > network.Retry.MaxBackoff {
+		return fmt.Errorf(
+			"%w: network.retry.min_backoff must not exceed network.retry.max_backoff",
+			ErrInvalidConfig,
+		)
 	}
 
 	return nil

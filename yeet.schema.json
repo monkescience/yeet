@@ -45,6 +45,9 @@
     "repository": {
       "$ref": "#/$defs/repository"
     },
+    "network": {
+      "$ref": "#/$defs/network"
+    },
     "version_files": {
       "type": "array",
       "description": "Default version files for targets that do not override them.",
@@ -73,6 +76,47 @@
     "targets"
   ],
   "$defs": {
+    "network": {
+      "type": "object",
+      "description": "Timeout and retry bounds for provider API requests.",
+      "additionalProperties": false,
+      "properties": {
+        "request_timeout": {
+          "type": "string",
+          "description": "Timeout for one provider API request, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "30s"
+        },
+        "retry": {
+          "$ref": "#/$defs/network_retry"
+        }
+      }
+    },
+    "network_retry": {
+      "type": "object",
+      "description": "Retry bounds for eligible provider API requests.",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "description": "Maximum total attempts, including the first request.",
+          "minimum": 1,
+          "default": 4
+        },
+        "min_backoff": {
+          "type": "string",
+          "description": "Minimum delay between retries, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "1s"
+        },
+        "max_backoff": {
+          "type": "string",
+          "description": "Maximum delay between retries, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "10s"
+        }
+      }
+    },
     "repository": {
       "type": "object",
       "description": "Repository coordinates. Set `remote` plus exactly one provider sub-section matching the top-level `provider`. If omitted, yeet auto-detects from the git remote. Custom domains require an explicit provider and the matching sub-section.",

@@ -1,6 +1,10 @@
 package config
 
-import "github.com/monkescience/yeet/internal/version"
+import (
+	"time"
+
+	"github.com/monkescience/yeet/internal/version"
+)
 
 func defaultBumpTypes() BumpTypesConfig {
 	return BumpTypesConfig{
@@ -40,6 +44,14 @@ func Default() *Config {
 		BumpTypes:                  defaultBumpTypes(),
 		Repository: RepositoryConfig{
 			Remote: "origin",
+		},
+		Network: NetworkConfig{
+			RequestTimeout: 30 * time.Second,
+			Retry: NetworkRetryConfig{
+				MaxAttempts: 4,
+				MinBackoff:  1 * time.Second,
+				MaxBackoff:  10 * time.Second,
+			},
 		},
 		Release: ReleaseConfig{
 			Labels: ReleaseLabelsConfig{

@@ -68,6 +68,21 @@ repository:
 
 Provider API URL overrides and host trust are documented in [Authentication](authentication.md#host-trust).
 
+## Network requests
+
+Provider requests time out after 30 seconds and make at most four total attempts by default. Durations use Go syntax such as `500ms`, `30s`, or `2m`:
+
+```yaml
+network:
+  request_timeout: 45s
+  retry:
+    max_attempts: 5
+    min_backoff: 1s
+    max_backoff: 15s
+```
+
+Retries apply only when the request can be repeated safely, or when a provider returns a rate-limit response. The Azure DevOps SDK honors `request_timeout`, but manages its own transport and does not expose these retry bounds.
+
 ## Targets
 
 yeet plans each target independently and combines all planned changes into one release PR/MR per base branch. Use `--target` repeatedly to limit a run.

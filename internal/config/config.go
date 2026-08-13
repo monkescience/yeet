@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/monkescience/yeet/internal/commit"
 	"go.yaml.in/yaml/v4"
@@ -56,12 +57,24 @@ type Config struct {
 	PreMajorFeaturesBumpPatch  bool               `yaml:"pre_major_features_bump_patch"`
 	BumpTypes                  BumpTypesConfig    `yaml:"bump_types"`
 	Repository                 RepositoryConfig   `yaml:"repository"`
+	Network                    NetworkConfig      `yaml:"network"`
 	VersionFiles               []VersionFile      `yaml:"version_files,omitempty"`
 	Release                    ReleaseConfig      `yaml:"release"`
 	Changelog                  ChangelogConfig    `yaml:"changelog"`
 	CalVer                     CalVerConfig       `yaml:"calver"`
 	Targets                    map[string]Target  `yaml:"targets"`
 	ActiveChannel              string             `yaml:"-"`
+}
+
+type NetworkConfig struct {
+	RequestTimeout time.Duration      `yaml:"request_timeout"`
+	Retry          NetworkRetryConfig `yaml:"retry"`
+}
+
+type NetworkRetryConfig struct {
+	MaxAttempts int           `yaml:"max_attempts"`
+	MinBackoff  time.Duration `yaml:"min_backoff"`
+	MaxBackoff  time.Duration `yaml:"max_backoff"`
 }
 
 type VersionFileFormat string
