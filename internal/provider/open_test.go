@@ -21,6 +21,7 @@ func TestOpen(t *testing.T) {
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
 		cfg.Release.BranchTemplate = "automation/{{ .Branch }}"
+		cfg.Release.MergePolling.Timeout = 4 * time.Minute
 		cfg.Network.RequestTimeout = 45 * time.Second
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
 		expected := &GitHub{}
@@ -42,6 +43,8 @@ func TestOpen(t *testing.T) {
 				testastic.Equal(t, "automation/main", settings.releaseBranch)
 				testastic.NotNil(t, settings.network)
 				testastic.Equal(t, 45*time.Second, settings.network.RequestTimeout)
+				testastic.NotNil(t, settings.mergePolling)
+				testastic.Equal(t, 4*time.Minute, settings.mergePolling.Timeout)
 
 				return expected, nil
 			},

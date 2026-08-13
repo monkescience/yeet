@@ -26,6 +26,9 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, time.Second, cfg.Network.Retry.MinBackoff)
 	testastic.Equal(t, 10*time.Second, cfg.Network.Retry.MaxBackoff)
 	testastic.Equal(t, "yeet/release-{{ .Branch }}", cfg.Release.BranchTemplate)
+	testastic.Equal(t, 250*time.Millisecond, cfg.Release.MergePolling.InitialInterval)
+	testastic.Equal(t, 5*time.Second, cfg.Release.MergePolling.MaxInterval)
+	testastic.Equal(t, 2*time.Minute, cfg.Release.MergePolling.Timeout)
 	testastic.False(t, cfg.Release.AutoMerge)
 	testastic.False(t, cfg.Release.AutoMergeForce)
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
@@ -49,6 +52,66 @@ func TestDefault(t *testing.T) {
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)
 	testastic.SliceEqual(t, []string{"feat"}, cfg.BumpTypes.Minor)
 	testastic.SliceEqual(t, []string{"fix", "perf"}, cfg.BumpTypes.Patch)
+}
+
+func TestReleaseMergePollingValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*config.ReleaseMergePollingConfig)
+		message   string
+	}{
+		{
+			name: "zero initial interval",
+			configure: func(polling *config.ReleaseMergePollingConfig) {
+				polling.InitialInterval = 0
+			},
+			message: "invalid config: release.merge_polling.initial_interval must be greater than zero",
+		},
+		{
+			name: "zero maximum interval",
+			configure: func(polling *config.ReleaseMergePollingConfig) {
+				polling.MaxInterval = 0
+			},
+			message: "invalid config: release.merge_polling.max_interval must be greater than zero",
+		},
+		{
+			name: "zero timeout",
+			configure: func(polling *config.ReleaseMergePollingConfig) {
+				polling.Timeout = 0
+			},
+			message: "invalid config: release.merge_polling.timeout must be greater than zero",
+		},
+		{
+			name: "initial interval exceeds maximum",
+			configure: func(polling *config.ReleaseMergePollingConfig) {
+				polling.InitialInterval = 6 * time.Second
+			},
+			message: "invalid config: release.merge_polling.initial_interval must not exceed release.merge_polling.max_interval",
+		},
+		{
+			name: "maximum interval exceeds timeout",
+			configure: func(polling *config.ReleaseMergePollingConfig) {
+				polling.MaxInterval = 3 * time.Minute
+			},
+			message: "invalid config: release.merge_polling.max_interval must not exceed release.merge_polling.timeout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			tt.configure(&cfg.Release.MergePolling)
+
+			err := cfg.Validate()
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
 }
 
 func TestNetworkValidation(t *testing.T) {

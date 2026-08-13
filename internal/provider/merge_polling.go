@@ -6,15 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-const (
-	defaultMergePollInterval    = 250 * time.Millisecond
-	defaultMergePollMaxInterval = 5 * time.Second
-	defaultMergeFinalizeTimeout = 2 * time.Minute
-	mergePollBackoffFactor      = 2
-)
+const mergePollBackoffFactor = 2
 
 type mergePolling struct {
 	interval    time.Duration
@@ -26,12 +22,15 @@ type mergePolling struct {
 // merge it has already accepted.
 type MergePollingOption func(*mergePolling)
 
-// WithMergePolling sets a fixed poll interval and the overall wait budget.
-func WithMergePolling(interval, timeout time.Duration) MergePollingOption {
+// WithMergePolling sets the poll intervals and overall wait budget.
+func WithMergePolling(initialInterval, maxInterval, timeout time.Duration) MergePollingOption {
 	return func(polling *mergePolling) {
-		if interval > 0 {
-			polling.interval = interval
-			polling.maxInterval = interval
+		if initialInterval > 0 {
+			polling.interval = initialInterval
+		}
+
+		if maxInterval > 0 {
+			polling.maxInterval = maxInterval
 		}
 
 		if timeout > 0 {
@@ -41,10 +40,11 @@ func WithMergePolling(interval, timeout time.Duration) MergePollingOption {
 }
 
 func newMergePolling(options ...MergePollingOption) mergePolling {
+	defaults := config.Default().Release.MergePolling
 	polling := mergePolling{
-		interval:    defaultMergePollInterval,
-		maxInterval: defaultMergePollMaxInterval,
-		timeout:     defaultMergeFinalizeTimeout,
+		interval:    defaults.InitialInterval,
+		maxInterval: defaults.MaxInterval,
+		timeout:     defaults.Timeout,
 	}
 
 	for _, option := range options {

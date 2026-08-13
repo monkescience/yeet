@@ -188,6 +188,7 @@ type AzureDevOpsRepositoryConfig struct {
 type ReleaseConfig struct {
 	Labels             ReleaseLabelsConfig             `yaml:"labels"`
 	BranchTemplate     string                          `yaml:"branch_template"`
+	MergePolling       ReleaseMergePollingConfig       `yaml:"merge_polling"`
 	PRTitle            string                          `yaml:"pr_title"`
 	PRTitleGroup       string                          `yaml:"pr_title_group"`
 	CommitSubject      string                          `yaml:"commit_subject"`
@@ -200,6 +201,12 @@ type ReleaseConfig struct {
 	PRBodyMaxLength    int                             `yaml:"pr_body_max_length"`
 	Reviewers          []string                        `yaml:"reviewers,omitempty"`
 	Channels           map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
+}
+
+type ReleaseMergePollingConfig struct {
+	InitialInterval time.Duration `yaml:"initial_interval"`
+	MaxInterval     time.Duration `yaml:"max_interval"`
+	Timeout         time.Duration `yaml:"timeout"`
 }
 
 type ReleaseLabelsConfig struct {

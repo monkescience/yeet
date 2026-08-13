@@ -59,7 +59,12 @@ func Default() *Config {
 				Tagged:  "autorelease: tagged",
 				Yeet:    true,
 			},
-			BranchTemplate:  "yeet/release-{{ .Branch }}",
+			BranchTemplate: "yeet/release-{{ .Branch }}",
+			MergePolling: ReleaseMergePollingConfig{
+				InitialInterval: 250 * time.Millisecond,
+				MaxInterval:     5 * time.Second,
+				Timeout:         2 * time.Minute,
+			},
 			AutoMerge:       false,
 			AutoMergeForce:  false,
 			AutoMergeMethod: AutoMergeMethodAuto,

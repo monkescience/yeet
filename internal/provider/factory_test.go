@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	git "github.com/go-git/go-git/v6"
 	gitconfig "github.com/go-git/go-git/v6/config"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/config"
 )
 
 func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {
@@ -58,13 +60,23 @@ func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
 		Host:     DefaultGitHubHost,
 		Owner:    "platform",
 		Repo:     "yeet",
-	}, providerSettings{releaseBranch: "automation/main/release"})
+	}, providerSettings{
+		releaseBranch: "automation/main/release",
+		mergePolling: &config.ReleaseMergePollingConfig{
+			InitialInterval: time.Second,
+			MaxInterval:     7 * time.Second,
+			Timeout:         3 * time.Minute,
+		},
+	})
 
 	// then: provider queries and trust checks share that exact branch
 	testastic.NoError(t, err)
 	githubProvider, ok := created.(*GitHub)
 	testastic.True(t, ok)
 	testastic.Equal(t, "automation/main/release", githubProvider.releaseBranch)
+	testastic.Equal(t, time.Second, githubProvider.polling.interval)
+	testastic.Equal(t, 7*time.Second, githubProvider.polling.maxInterval)
+	testastic.Equal(t, 3*time.Minute, githubProvider.polling.timeout)
 }
 
 func TestCreateGitHubProviderFallsBackToGHToken(t *testing.T) {

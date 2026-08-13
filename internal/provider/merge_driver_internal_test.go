@@ -51,7 +51,7 @@ func mergeableState() mergeState {
 func newTestMergeDriver(forge forgeMerge) mergeDriver {
 	return mergeDriver{
 		forge:   forge,
-		polling: newMergePolling(WithMergePolling(time.Millisecond, time.Second)),
+		polling: newMergePolling(WithMergePolling(time.Millisecond, time.Millisecond, time.Second)),
 	}
 }
 

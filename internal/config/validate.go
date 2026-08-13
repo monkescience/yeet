@@ -171,6 +171,10 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {
+	if err := validateReleaseMergePolling(release.MergePolling); err != nil {
+		return err
+	}
+
 	switch release.AutoMergeMethod {
 	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:
 	default:
@@ -191,6 +195,42 @@ func validateReleaseConfig(release ReleaseConfig) error {
 
 	if err := validateReleaseChannels(release.Channels); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func validateReleaseMergePolling(polling ReleaseMergePollingConfig) error {
+	if polling.InitialInterval <= 0 {
+		return fmt.Errorf(
+			"%w: release.merge_polling.initial_interval must be greater than zero",
+			ErrInvalidConfig,
+		)
+	}
+
+	if polling.MaxInterval <= 0 {
+		return fmt.Errorf(
+			"%w: release.merge_polling.max_interval must be greater than zero",
+			ErrInvalidConfig,
+		)
+	}
+
+	if polling.Timeout <= 0 {
+		return fmt.Errorf("%w: release.merge_polling.timeout must be greater than zero", ErrInvalidConfig)
+	}
+
+	if polling.InitialInterval > polling.MaxInterval {
+		return fmt.Errorf(
+			"%w: release.merge_polling.initial_interval must not exceed release.merge_polling.max_interval",
+			ErrInvalidConfig,
+		)
+	}
+
+	if polling.MaxInterval > polling.Timeout {
+		return fmt.Errorf(
+			"%w: release.merge_polling.max_interval must not exceed release.merge_polling.timeout",
+			ErrInvalidConfig,
+		)
 	}
 
 	return nil

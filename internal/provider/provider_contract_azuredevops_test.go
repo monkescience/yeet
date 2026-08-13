@@ -330,7 +330,11 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
+	p := newAzureDevOpsContractProvider(
+		t,
+		server,
+		provider.WithMergePolling(time.Millisecond, time.Millisecond, 5*time.Second),
+	)
 
 	// when: the release pull request is submitted for completion
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
@@ -373,7 +377,11 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+	p := newAzureDevOpsContractProvider(
+		t,
+		server,
+		provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
+	)
 
 	// when: MergeReleasePR is invoked on the refused pull request
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
@@ -460,7 +468,7 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 			p := newAzureDevOpsContractProvider(
 				t,
 				server,
-				provider.WithMergePolling(time.Millisecond, 50*time.Millisecond),
+				provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
 			)
 
 			// when: MergeReleasePR polls a completion that Azure later refuses
@@ -511,7 +519,11 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+	p := newAzureDevOpsContractProvider(
+		t,
+		server,
+		provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
+	)
 
 	// when: completion is retried for the already completed pull request
 	_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
@@ -565,7 +577,11 @@ func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *tes
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := newAzureDevOpsContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+	p := newAzureDevOpsContractProvider(
+		t,
+		server,
+		provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
+	)
 
 	// when: the foreign pull request is submitted for completion
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{

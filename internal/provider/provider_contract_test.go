@@ -613,7 +613,11 @@ func TestProviderContract(t *testing.T) {
 				server := httptest.NewServer(harness.handler(t, providerContractAsyncMergeReleasePR))
 				defer server.Close()
 
-				p := harness.newProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
+				p := harness.newProvider(
+					t,
+					server,
+					provider.WithMergePolling(time.Millisecond, time.Millisecond, 5*time.Second),
+				)
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
 				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{

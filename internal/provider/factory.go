@@ -170,7 +170,12 @@ func newGitHubProvider(
 		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
-	provider := NewGitHub(client, repository.Owner, repository.Repo)
+	provider := NewGitHub(
+		client,
+		repository.Owner,
+		repository.Repo,
+		configuredMergePollingOptions(settings)...,
+	)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -202,7 +207,7 @@ func newGitLabProvider(
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	provider := NewGitLab(client, repository.Project)
+	provider := NewGitLab(client, repository.Project, configuredMergePollingOptions(settings)...)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -240,6 +245,7 @@ func newAzureDevOpsProvider(
 			collection,
 			project,
 			repo,
+			configuredMergePollingOptions(settings)...,
 		)
 		provider.releaseBranch = settings.releaseBranch
 
@@ -254,8 +260,23 @@ func newAzureDevOpsProvider(
 		collection,
 		project,
 		repo,
+		configuredMergePollingOptions(settings)...,
 	)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
+}
+
+func configuredMergePollingOptions(settings providerSettings) []MergePollingOption {
+	if settings.mergePolling == nil {
+		return nil
+	}
+
+	polling := settings.mergePolling
+
+	return []MergePollingOption{WithMergePolling(
+		polling.InitialInterval,
+		polling.MaxInterval,
+		polling.Timeout,
+	)}
 }

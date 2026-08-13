@@ -85,6 +85,16 @@ Templates use Go `text/template` without custom functions. Rendered values must 
 
 An explicit method asks the provider for that strategy and fails if the provider rejects it.
 
+After a provider accepts a merge, yeet polls until the resulting commit is available. The defaults start at 250 milliseconds, back off to 5 seconds, and stop after 2 minutes. Slow installations can adjust these bounds:
+
+```yaml
+release:
+  merge_polling:
+    initial_interval: 500ms
+    max_interval: 10s
+    timeout: 5m
+```
+
 ### Reviewers
 
 Reviewers are assigned only when the PR/MR is created. Refreshes preserve manual changes. Resolution or assignment failure stops the create flow.

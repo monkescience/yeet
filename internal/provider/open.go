@@ -26,6 +26,7 @@ func open(
 	dependencies openDependencies,
 ) (forge.Provider, error) {
 	settings.network = &cfg.Network
+	settings.mergePolling = &cfg.Release.MergePolling
 
 	repository, err := resolveRepository(ctx, cfg, dependencies.getRemoteURL)
 	if err != nil {
@@ -38,4 +39,5 @@ func open(
 type providerSettings struct {
 	releaseBranch string
 	network       *config.NetworkConfig
+	mergePolling  *config.ReleaseMergePollingConfig
 }

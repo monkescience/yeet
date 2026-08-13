@@ -1088,7 +1088,11 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		}))
 		defer server.Close()
 
-		p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 5*time.Second))
+		p := newGitLabContractProvider(
+			t,
+			server,
+			provider.WithMergePolling(time.Millisecond, time.Millisecond, 5*time.Second),
+		)
 
 		// when: merging with the project's asynchronous fast-forward flow
 		mergeSHA, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
@@ -1118,7 +1122,11 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		}))
 		defer server.Close()
 
-		p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+		p := newGitLabContractProvider(
+			t,
+			server,
+			provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
+		)
 
 		// when: merging with the project's asynchronous fast-forward flow
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
@@ -1515,7 +1523,11 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 	}))
 	defer server.Close()
 
-	p := newGitLabContractProvider(t, server, provider.WithMergePolling(time.Millisecond, 50*time.Millisecond))
+	p := newGitLabContractProvider(
+		t,
+		server,
+		provider.WithMergePolling(time.Millisecond, time.Millisecond, 50*time.Millisecond),
+	)
 
 	// when: MergeReleasePR is invoked on the refused merge request
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})

@@ -264,6 +264,9 @@
           "minLength": 1,
           "default": "yeet/release-{{ .Branch }}"
         },
+        "merge_polling": {
+          "$ref": "#/$defs/release_merge_polling"
+        },
         "pr_title": {
           "type": "string",
           "description": "Go text/template for one-target release PR/MR titles. Available data: .Branch, .Channel, .Target, .Version, and .Tag. Empty preserves the built-in title.",
@@ -343,6 +346,31 @@
             "$ref": "#/$defs/release_channel"
           },
           "default": {}
+        }
+      }
+    },
+    "release_merge_polling": {
+      "type": "object",
+      "description": "Polling bounds used after a provider accepts an automatic merge.",
+      "additionalProperties": false,
+      "properties": {
+        "initial_interval": {
+          "type": "string",
+          "description": "Delay before the second merge-status check, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "250ms"
+        },
+        "max_interval": {
+          "type": "string",
+          "description": "Maximum delay between merge-status checks, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "5s"
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Total time to wait for an accepted merge to finalize, expressed as a Go duration.",
+          "minLength": 1,
+          "default": "2m"
         }
       }
     },

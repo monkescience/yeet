@@ -27,6 +27,10 @@ calver:
   format: YYYY.0M.MICRO
 release:
   branch_template: 'automation/release-{{ .Branch }}'
+  merge_polling:
+    initial_interval: 500ms
+    max_interval: 8s
+    timeout: 3m
   pr_title: 'release {{ .Tag }}'
   pr_title_group: 'release {{ .TargetCount }} targets'
   commit_subject: 'commit {{ .Tag }}'
