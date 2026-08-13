@@ -68,6 +68,31 @@ func TestReleaseRejectsOversizedPRBodyBeforeUpdatingFiles(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 }
 
+func TestReleaseUsesConfiguredBranchTemplate(t *testing.T) {
+	t.Parallel()
+
+	// given: a custom branch convention and one releasable commit
+	cfg := config.Default()
+	cfg.Release.BranchTemplate = "automation/{{ .Branch }}/release"
+
+	stub := newProviderStub()
+	stub.commits = []history.CommitEntry{{
+		Hash:    "abcdef1234567890",
+		Message: "fix: patch bug",
+	}}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: creating the release pull request
+	_, err := r.Release(t.Context(), false)
+
+	// then: branch writes and the pull request use the same rendered branch
+	testastic.NoError(t, err)
+	testastic.Equal(t, 1, len(stub.createPROptions))
+	testastic.Equal(t, "automation/main/release", stub.createPROptions[0].ReleaseBranch)
+	testastic.Equal(t, "automation/main/release", stub.updates[0].branch)
+}
+
 func TestPreserveTargetChangelogEdits(t *testing.T) {
 	t.Parallel()
 

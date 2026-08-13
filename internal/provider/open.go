@@ -9,21 +9,30 @@ import (
 
 type openDependencies struct {
 	getRemoteURL gitRemoteURLGetter
-	create       func(*repositoryDescriptor) (forge.Provider, error)
+	create       func(*repositoryDescriptor, providerSettings) (forge.Provider, error)
 }
 
-func Open(ctx context.Context, cfg *config.Config) (forge.Provider, error) {
-	return open(ctx, cfg, openDependencies{
+func Open(ctx context.Context, cfg *config.Config, releaseBranch string) (forge.Provider, error) {
+	return open(ctx, cfg, providerSettings{releaseBranch: releaseBranch}, openDependencies{
 		getRemoteURL: gitRemoteURL,
-		create:       create,
+		create:       createConfigured,
 	})
 }
 
-func open(ctx context.Context, cfg *config.Config, dependencies openDependencies) (forge.Provider, error) {
+func open(
+	ctx context.Context,
+	cfg *config.Config,
+	settings providerSettings,
+	dependencies openDependencies,
+) (forge.Provider, error) {
 	repository, err := resolveRepository(ctx, cfg, dependencies.getRemoteURL)
 	if err != nil {
 		return nil, err
 	}
 
-	return dependencies.create(repository)
+	return dependencies.create(repository, settings)
+}
+
+type providerSettings struct {
+	releaseBranch string
 }

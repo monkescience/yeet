@@ -18,13 +18,14 @@ const azureDevOpsZeroObjectID = "0000000000000000000000000000000000000000"
 var _ forge.Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
-	conn         *azuredevops.Connection
-	baseURL      string
-	organization string
-	collection   string
-	project      string
-	repo         string
-	polling      mergePolling
+	conn          *azuredevops.Connection
+	baseURL       string
+	organization  string
+	collection    string
+	project       string
+	repo          string
+	polling       mergePolling
+	releaseBranch string
 
 	clientOnce sync.Once
 	gitClient  git.Client

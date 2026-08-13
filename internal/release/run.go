@@ -47,7 +47,12 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	p, err := provider.Open(ctx, cfg)
+	releaseBranch, err := releaseBranchForConfig(cfg)
+	if err != nil {
+		return nil, resolvedConfigPath, err
+	}
+
+	p, err := provider.Open(ctx, cfg, releaseBranch)
 	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
@@ -107,6 +112,11 @@ func prepareWithPath(
 	}
 
 	if err := cfg.Validate(); err != nil {
+		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
+	}
+
+	err = validateReleaseBranchTemplates(cfg)
+	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 

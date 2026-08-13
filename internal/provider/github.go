@@ -20,10 +20,11 @@ const (
 var _ forge.Provider = (*GitHub)(nil)
 
 type GitHub struct {
-	client  *github.Client
-	repo    repoInfo
-	baseURL string
-	polling mergePolling
+	client        *github.Client
+	repo          repoInfo
+	baseURL       string
+	polling       mergePolling
+	releaseBranch string
 
 	taggerOnce  sync.Once
 	taggerName  string

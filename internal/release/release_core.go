@@ -23,10 +23,11 @@ const prBodyOmittedNotice = "_Release notes omitted to fit this provider's pull 
 // component holding a *releaseCore can read config and render text but cannot
 // reach the provider that talks to the forge.
 type releaseCore struct {
-	cfg      *config.Config
-	targets  map[string]config.ResolvedTarget
-	metadata repoMetadataProvider
-	titles   *releaseTitleTemplates
+	cfg           *config.Config
+	targets       map[string]config.ResolvedTarget
+	metadata      repoMetadataProvider
+	titles        *releaseTitleTemplates
+	releaseBranch string
 }
 
 func (c *releaseCore) activePrereleaseIdentifier() string {

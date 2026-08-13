@@ -51,8 +51,9 @@ type forgeMerge interface {
 }
 
 type mergeDriver struct {
-	forge   forgeMerge
-	polling mergePolling
+	forge         forgeMerge
+	polling       mergePolling
+	releaseBranch string
 }
 
 func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) (string, error) {
@@ -69,7 +70,8 @@ func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) 
 		return d.awaitMergeCommit(ctx, current.Reference)
 	}
 
-	if !current.SameRepository || !isExpectedReleaseBranch(current.SourceBranch, current.BaseBranch) {
+	if !current.SameRepository ||
+		!isExpectedReleaseBranch(current.SourceBranch, current.BaseBranch, d.releaseBranch) {
 		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 	}
 

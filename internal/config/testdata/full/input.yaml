@@ -20,6 +20,7 @@ changelog:
 calver:
   format: YYYY.0M.MICRO
 release:
+  branch_template: 'automation/release-{{ .Branch }}'
   pr_title: 'release {{ .Tag }}'
   pr_title_group: 'release {{ .TargetCount }} targets'
   commit_subject: 'commit {{ .Tag }}'

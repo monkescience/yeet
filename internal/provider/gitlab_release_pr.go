@@ -212,7 +212,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 	}
 
 	state := gitlabMergeRequestOpenedState
-	sourceBranch := releaseBranchName(baseBranch)
+	sourceBranch := releaseBranchName(g.releaseBranch, baseBranch)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
 
@@ -247,6 +247,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 			if !isTrustedGitLabReleasePR(
 				mr.SourceBranch,
 				baseBranch,
+				g.releaseBranch,
 				mr.SourceProjectID,
 				mr.TargetProjectID,
 			) {
@@ -295,7 +296,7 @@ func (g *GitLab) FindMergedReleasePR(
 	}
 
 	state := gitlabMergeRequestMergedState
-	sourceBranch := releaseBranchName(baseBranch)
+	sourceBranch := releaseBranchName(g.releaseBranch, baseBranch)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
 	labels := gitlab.LabelOptions{pendingLabel}
@@ -332,6 +333,7 @@ func (g *GitLab) FindMergedReleasePR(
 			if !isTrustedGitLabReleasePR(
 				mr.SourceBranch,
 				baseBranch,
+				g.releaseBranch,
 				mr.SourceProjectID,
 				mr.TargetProjectID,
 			) {
@@ -485,7 +487,9 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
-	driver := mergeDriver{forge: &gitLabMerge{provider: g, number: number}, polling: g.polling}
+	driver := mergeDriver{
+		forge: &gitLabMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
+	}
 
 	return driver.run(ctx, opts)
 }
@@ -612,8 +616,11 @@ func gitLabMergeRequestReference(number int) string {
 	return fmt.Sprintf("merge request !%d", number)
 }
 
-func isTrustedGitLabReleasePR(sourceBranch, baseBranch string, sourceProjectID, targetProjectID int64) bool {
-	return isExpectedReleaseBranch(sourceBranch, baseBranch) &&
+func isTrustedGitLabReleasePR(
+	sourceBranch, baseBranch, releaseBranch string,
+	sourceProjectID, targetProjectID int64,
+) bool {
+	return isExpectedReleaseBranch(sourceBranch, baseBranch, releaseBranch) &&
 		isGitLabSameProject(sourceProjectID, targetProjectID)
 }
 

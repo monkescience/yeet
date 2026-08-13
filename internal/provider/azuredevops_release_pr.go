@@ -165,7 +165,7 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 		ctx,
 		git.PullRequestStatusValues.Active,
 		baseBranch,
-		releaseBranchName(baseBranch),
+		releaseBranchName(a.releaseBranch, baseBranch),
 	)
 	if err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		ctx,
 		git.PullRequestStatusValues.Completed,
 		baseBranch,
-		releaseBranchName(baseBranch),
+		releaseBranchName(a.releaseBranch, baseBranch),
 	)
 	if err != nil {
 		return nil, err
@@ -390,7 +390,9 @@ func (a *AzureDevOps) MergeReleasePR(
 ) (string, error) {
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
-	driver := mergeDriver{forge: &azureDevOpsMerge{provider: a, number: number}, polling: a.polling}
+	driver := mergeDriver{
+		forge: &azureDevOpsMerge{provider: a, number: number}, polling: a.polling, releaseBranch: a.releaseBranch,
+	}
 
 	return driver.run(ctx, opts)
 }
@@ -540,7 +542,7 @@ func (a *AzureDevOps) isTrustedReleasePR(pullRequest *git.GitPullRequest, baseBr
 
 	sourceBranch := azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName))
 
-	return isExpectedReleaseBranch(sourceBranch, baseBranch) &&
+	return isExpectedReleaseBranch(sourceBranch, baseBranch, a.releaseBranch) &&
 		a.isConfiguredRepository(pullRequest.Repository)
 }
 

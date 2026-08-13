@@ -31,7 +31,13 @@ type forgeSpec struct {
 	urlEnvVar     string
 	apiPathSuffix string
 	defaultHost   string
-	construct     func(forgeSpec, *repositoryDescriptor, forgeToken, *retryablehttp.Client) (forge.Provider, error)
+	construct     func(
+		forgeSpec,
+		*repositoryDescriptor,
+		forgeToken,
+		*retryablehttp.Client,
+		providerSettings,
+	) (forge.Provider, error)
 }
 
 // forgeToken records which environment variable supplied the token, because
@@ -68,8 +74,20 @@ func create(repository *repositoryDescriptor) (forge.Provider, error) {
 	return createProvider(repository, newTracedRetryableClient)
 }
 
+func createConfigured(repository *repositoryDescriptor, settings providerSettings) (forge.Provider, error) {
+	return createProviderConfigured(repository, settings, newTracedRetryableClient)
+}
+
 func createProvider(
 	repository *repositoryDescriptor,
+	newHTTPClient func(forge string) *retryablehttp.Client,
+) (forge.Provider, error) {
+	return createProviderConfigured(repository, providerSettings{}, newHTTPClient)
+}
+
+func createProviderConfigured(
+	repository *repositoryDescriptor,
+	settings providerSettings,
 	newHTTPClient func(forge string) *retryablehttp.Client,
 ) (forge.Provider, error) {
 	spec, known := forgeSpecs[repository.Provider]
@@ -89,7 +107,7 @@ func createProvider(
 		return nil, err
 	}
 
-	return spec.construct(spec, repository, token, newHTTPClient(repository.Provider))
+	return spec.construct(spec, repository, token, newHTTPClient(repository.Provider), settings)
 }
 
 func (spec forgeSpec) resolveToken() (forgeToken, error) {
@@ -128,6 +146,7 @@ func newGitHubProvider(
 	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
+	settings providerSettings,
 ) (forge.Provider, error) {
 	opts := []github.ClientOptionsFunc{
 		github.WithHTTPClient(httpClient.StandardClient()),
@@ -143,7 +162,10 @@ func newGitHubProvider(
 		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
-	return NewGitHub(client, repository.Owner, repository.Repo), nil
+	provider := NewGitHub(client, repository.Owner, repository.Repo)
+	provider.releaseBranch = settings.releaseBranch
+
+	return provider, nil
 }
 
 func newGitLabProvider(
@@ -151,6 +173,7 @@ func newGitLabProvider(
 	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
+	settings providerSettings,
 ) (forge.Provider, error) {
 	// client-go owns its own retryablehttp layer, so it takes the traced inner
 	// client and the same bounds rather than a second retrying round tripper.
@@ -171,7 +194,10 @@ func newGitLabProvider(
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	return NewGitLab(client, repository.Project), nil
+	provider := NewGitLab(client, repository.Project)
+	provider.releaseBranch = settings.releaseBranch
+
+	return provider, nil
 }
 
 func newAzureDevOpsProvider(
@@ -179,6 +205,7 @@ func newAzureDevOpsProvider(
 	repository *repositoryDescriptor,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
+	settings providerSettings,
 ) (forge.Provider, error) {
 	baseURL := spec.endpointOverride()
 	if baseURL == "" {
@@ -197,7 +224,7 @@ func newAzureDevOpsProvider(
 	standardClient := httpClient.StandardClient()
 
 	if token.envVar == azureDevOpsSystemAccessTokenEnv {
-		return NewAzureDevOpsWithSystemAccessToken(
+		provider := NewAzureDevOpsWithSystemAccessToken(
 			standardClient,
 			baseURL,
 			token.value,
@@ -205,10 +232,13 @@ func newAzureDevOpsProvider(
 			collection,
 			project,
 			repo,
-		), nil
+		)
+		provider.releaseBranch = settings.releaseBranch
+
+		return provider, nil
 	}
 
-	return NewAzureDevOps(
+	provider := NewAzureDevOps(
 		standardClient,
 		baseURL,
 		token.value,
@@ -216,5 +246,8 @@ func newAzureDevOpsProvider(
 		collection,
 		project,
 		repo,
-	), nil
+	)
+	provider.releaseBranch = settings.releaseBranch
+
+	return provider, nil
 }

@@ -118,7 +118,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 ) ([]*forge.PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
-		Head:      g.repo.Owner + ":" + releaseBranchName(baseBranch),
+		Head:      g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
 		Base:      baseBranch,
 		Sort:      "updated",
 		Direction: sortDirectionDesc,
@@ -246,7 +246,7 @@ func (g *GitHub) listGitHubMergedCandidates(
 ) ([]gitHubMergedCandidate, error) {
 	options := &github.PullRequestListOptions{
 		State: "closed",
-		Head:  g.repo.Owner + ":" + releaseBranchName(baseBranch),
+		Head:  g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
 		Base:  baseBranch,
 		ListOptions: github.ListOptions{
 			PerPage: gitHubPageSize,
@@ -380,7 +380,9 @@ func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 
-	driver := mergeDriver{forge: &gitHubMerge{provider: g, number: number}, polling: g.polling}
+	driver := mergeDriver{
+		forge: &gitHubMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
+	}
 
 	return driver.run(ctx, opts)
 }
@@ -487,7 +489,8 @@ func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch 
 
 	head := pullRequest.GetHead()
 
-	return isExpectedReleaseBranch(head.GetRef(), baseBranch) && isGitHubSameRepository(g.repo, head)
+	return isExpectedReleaseBranch(head.GetRef(), baseBranch, g.releaseBranch) &&
+		isGitHubSameRepository(g.repo, head)
 }
 
 func isGitHubSameRepository(repo repoInfo, head *github.PullRequestBranch) bool {

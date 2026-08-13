@@ -13,11 +13,12 @@ const gitLabPageSize = 100
 var _ forge.Provider = (*GitLab)(nil)
 
 type GitLab struct {
-	client    *gitlab.Client
-	projectID string
-	repoURL   string
-	polling   mergePolling
-	labels    labelDefinitionCache
+	client        *gitlab.Client
+	projectID     string
+	repoURL       string
+	polling       mergePolling
+	releaseBranch string
+	labels        labelDefinitionCache
 }
 
 func NewGitLab(client *gitlab.Client, project string, options ...MergePollingOption) *GitLab {

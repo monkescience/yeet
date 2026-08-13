@@ -75,7 +75,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPl
 		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, plans)
 	}
 
-	releaseBranch := stableReleaseBranch(r.cfg.Branch)
+	releaseBranch := r.releaseBranch
 
 	prOpts, err := r.releasePROptions(ctx, plans, releaseBranch, w.prs.MaxPRBodyLength())
 	if err != nil {

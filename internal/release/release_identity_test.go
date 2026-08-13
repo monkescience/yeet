@@ -217,7 +217,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			// given: a valid release manifest altered at one trust boundary
 			cfg := config.Default()
 			r := newTestReleaser(t, cfg, newProviderStub())
-			pullRequest := &forge.PullRequest{Branch: stableReleaseBranch(cfg.Branch)}
+			pullRequest := &forge.PullRequest{Branch: r.core.releaseBranch}
 			manifest := releaseManifest{
 				BaseBranch: cfg.Branch,
 				Targets: []releaseManifestEntry{

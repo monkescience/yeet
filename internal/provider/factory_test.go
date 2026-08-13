@@ -47,6 +47,26 @@ func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	testastic.Equal(t, "https://github.company.com/platform/yeet", githubProvider.RepoURL())
 }
 
+func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
+	// given: GitHub coordinates and a rendered custom release branch
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv("GITHUB_URL", "")
+
+	// when: creating the configured provider
+	created, err := createConfigured(&repositoryDescriptor{
+		Provider: providerNameGitHub,
+		Host:     DefaultGitHubHost,
+		Owner:    "platform",
+		Repo:     "yeet",
+	}, providerSettings{releaseBranch: "automation/main/release"})
+
+	// then: provider queries and trust checks share that exact branch
+	testastic.NoError(t, err)
+	githubProvider, ok := created.(*GitHub)
+	testastic.True(t, ok)
+	testastic.Equal(t, "automation/main/release", githubProvider.releaseBranch)
+}
+
 func TestCreateGitHubProviderFallsBackToGHToken(t *testing.T) {
 	// given: only the GH_TOKEN fallback in the environment
 	t.Setenv("GITHUB_TOKEN", "")

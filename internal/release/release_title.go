@@ -68,7 +68,7 @@ func newReleaseTitleTemplates(release config.ReleaseConfig) (*releaseTitleTempla
 			continue
 		}
 
-		parsed, err := parseReleaseTitleTemplate(spec.name, spec.source, spec.fields)
+		parsed, err := parseReleaseTextTemplate(spec.name, spec.source, spec.fields)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func newReleaseTitleTemplates(release config.ReleaseConfig) (*releaseTitleTempla
 	return templates, nil
 }
 
-func parseReleaseTitleTemplate(
+func parseReleaseTextTemplate(
 	name, source string,
 	allowedFields map[string]struct{},
 ) (*template.Template, error) {
@@ -89,7 +89,7 @@ func parseReleaseTitleTemplate(
 	}
 
 	for _, parsed := range tmpl.Templates() {
-		if err := validateReleaseTitleNode(parsed.Root, allowedFields); err != nil {
+		if err := validateReleaseTextNode(parsed.Root, allowedFields); err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", config.ErrInvalidConfig, name, err)
 		}
 	}
@@ -97,7 +97,7 @@ func parseReleaseTitleTemplate(
 	return tmpl, nil
 }
 
-func validateReleaseTitleNode(node parse.Node, allowedFields map[string]struct{}) error {
+func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{}) error {
 	if node == nil {
 		return nil
 	}
@@ -105,30 +105,30 @@ func validateReleaseTitleNode(node parse.Node, allowedFields map[string]struct{}
 	switch typed := node.(type) {
 	case *parse.ListNode:
 		for _, child := range typed.Nodes {
-			if err := validateReleaseTitleNode(child, allowedFields); err != nil {
+			if err := validateReleaseTextNode(child, allowedFields); err != nil {
 				return err
 			}
 		}
 	case *parse.ActionNode:
-		return validateReleaseTitleNode(typed.Pipe, allowedFields)
+		return validateReleaseTextNode(typed.Pipe, allowedFields)
 	case *parse.PipeNode:
 		for _, command := range typed.Cmds {
-			if err := validateReleaseTitleNode(command, allowedFields); err != nil {
+			if err := validateReleaseTextNode(command, allowedFields); err != nil {
 				return err
 			}
 		}
 	case *parse.CommandNode:
 		for _, argument := range typed.Args {
-			if err := validateReleaseTitleNode(argument, allowedFields); err != nil {
+			if err := validateReleaseTextNode(argument, allowedFields); err != nil {
 				return err
 			}
 		}
 	case *parse.FieldNode:
-		return validateReleaseTitleField(typed.Ident, typed.String(), allowedFields)
+		return validateReleaseTextField(typed.Ident, typed.String(), allowedFields)
 	case *parse.VariableNode:
-		return validateReleaseTitleVariable(typed, allowedFields)
+		return validateReleaseTextVariable(typed, allowedFields)
 	case *parse.ChainNode:
-		if err := validateReleaseTitleNode(typed.Node, allowedFields); err != nil {
+		if err := validateReleaseTextNode(typed.Node, allowedFields); err != nil {
 			return err
 		}
 
@@ -136,19 +136,19 @@ func validateReleaseTitleNode(node parse.Node, allowedFields map[string]struct{}
 			return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, typed.String())
 		}
 	case *parse.IfNode:
-		return validateReleaseTitleBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
+		return validateReleaseTextBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
 	case *parse.RangeNode:
-		return validateReleaseTitleBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
+		return validateReleaseTextBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
 	case *parse.WithNode:
-		return validateReleaseTitleBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
+		return validateReleaseTextBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
 	case *parse.TemplateNode:
-		return validateReleaseTitleNode(typed.Pipe, allowedFields)
+		return validateReleaseTextNode(typed.Pipe, allowedFields)
 	}
 
 	return nil
 }
 
-func validateReleaseTitleField(
+func validateReleaseTextField(
 	ident []string,
 	reference string,
 	allowedFields map[string]struct{},
@@ -164,7 +164,7 @@ func validateReleaseTitleField(
 	return nil
 }
 
-func validateReleaseTitleVariable(typed *parse.VariableNode, allowedFields map[string]struct{}) error {
+func validateReleaseTextVariable(typed *parse.VariableNode, allowedFields map[string]struct{}) error {
 	if len(typed.Ident) == 1 {
 		return nil
 	}
@@ -173,26 +173,26 @@ func validateReleaseTitleVariable(typed *parse.VariableNode, allowedFields map[s
 		return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, typed.String())
 	}
 
-	return validateReleaseTitleField(typed.Ident[1:], typed.String(), allowedFields)
+	return validateReleaseTextField(typed.Ident[1:], typed.String(), allowedFields)
 }
 
-func validateReleaseTitleBranch(
+func validateReleaseTextBranch(
 	pipe *parse.PipeNode,
 	list, elseList *parse.ListNode,
 	allowedFields map[string]struct{},
 ) error {
-	if err := validateReleaseTitleNode(pipe, allowedFields); err != nil {
+	if err := validateReleaseTextNode(pipe, allowedFields); err != nil {
 		return err
 	}
 
 	if list != nil {
-		if err := validateReleaseTitleNode(list, allowedFields); err != nil {
+		if err := validateReleaseTextNode(list, allowedFields); err != nil {
 			return err
 		}
 	}
 
 	if elseList != nil {
-		if err := validateReleaseTitleNode(elseList, allowedFields); err != nil {
+		if err := validateReleaseTextNode(elseList, allowedFields); err != nil {
 			return err
 		}
 	}
@@ -244,7 +244,7 @@ func (c *releaseCore) releaseTemplatedSubject(
 }
 
 func renderReleaseTitle(tmpl *template.Template, data any) (string, error) {
-	title, err := executeReleaseTitleTemplate(tmpl, data)
+	title, err := executeReleaseTextTemplate(tmpl, data)
 	if err != nil {
 		return "", fmt.Errorf("%w: render %s: %v", config.ErrInvalidConfig, tmpl.Name(), err)
 	}
@@ -265,7 +265,7 @@ func validateRenderedReleaseTitle(name, title string) (string, error) {
 	return title, nil
 }
 
-func executeReleaseTitleTemplate(tmpl *template.Template, data any) (string, error) {
+func executeReleaseTextTemplate(tmpl *template.Template, data any) (string, error) {
 	var output bytes.Buffer
 	if err := tmpl.Execute(&output, data); err != nil {
 		return "", fmt.Errorf("execute template: %w", err)

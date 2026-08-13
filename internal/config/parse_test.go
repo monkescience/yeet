@@ -111,6 +111,7 @@ func TestParse(t *testing.T) {
 		testastic.NotNil(t, cfg.Repository.GitLab)
 		testastic.Equal(t, "gitlab.company.com", cfg.Repository.GitLab.Host)
 		testastic.Equal(t, "group/subgroup/service", cfg.Repository.GitLab.Project)
+		testastic.Equal(t, "automation/release-{{ .Branch }}", cfg.Release.BranchTemplate)
 		testastic.Equal(t, "release {{ .Tag }}", cfg.Release.PRTitle)
 		testastic.Equal(t, "release {{ .TargetCount }} targets", cfg.Release.PRTitleGroup)
 		testastic.Equal(t, "commit {{ .Tag }}", cfg.Release.CommitSubject)

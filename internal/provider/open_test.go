@@ -19,23 +19,25 @@ func TestOpen(t *testing.T) {
 		// given: explicit GitHub coordinates and a selected adapter
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
+		cfg.Release.BranchTemplate = "automation/{{ .Branch }}"
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
 		expected := &GitHub{}
 
 		remoteLookedUp := false
 
 		// when: opening the configured provider
-		actual, err := open(t.Context(), cfg, openDependencies{
+		actual, err := open(t.Context(), cfg, providerSettings{releaseBranch: "automation/main"}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				remoteLookedUp = true
 
 				return "", errors.New("git remote lookup should not run")
 			},
-			create: func(repository *repositoryDescriptor) (forge.Provider, error) {
+			create: func(repository *repositoryDescriptor, settings providerSettings) (forge.Provider, error) {
 				testastic.Equal(t, providerNameGitHub, repository.Provider)
 				testastic.Equal(t, DefaultGitHubHost, repository.Host)
 				testastic.Equal(t, "platform", repository.Owner)
 				testastic.Equal(t, "yeet", repository.Repo)
+				testastic.Equal(t, "automation/main", settings.releaseBranch)
 
 				return expected, nil
 			},
@@ -55,13 +57,13 @@ func TestOpen(t *testing.T) {
 		cfg.Repository.Remote = "upstream"
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, openDependencies{
+		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(_ context.Context, remote string) (string, error) {
 				testastic.Equal(t, "upstream", remote)
 
 				return "git@gitlab.com:group/subgroup/service.git", nil
 			},
-			create: func(repository *repositoryDescriptor) (forge.Provider, error) {
+			create: func(repository *repositoryDescriptor, _ providerSettings) (forge.Provider, error) {
 				testastic.Equal(t, providerNameGitLab, repository.Provider)
 				testastic.Equal(t, DefaultGitLabHost, repository.Host)
 				testastic.Equal(t, "group/subgroup/service", repository.Project)
@@ -82,11 +84,11 @@ func TestOpen(t *testing.T) {
 		constructed := false
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, openDependencies{
+		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "git@code.company.com:team/service.git", nil
 			},
-			create: func(*repositoryDescriptor) (forge.Provider, error) {
+			create: func(*repositoryDescriptor, providerSettings) (forge.Provider, error) {
 				constructed = true
 
 				return &GitHub{}, nil
@@ -112,11 +114,11 @@ func TestOpen(t *testing.T) {
 		constructed := false
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, openDependencies{
+		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "git@other.company.com:platform/yeet.git", nil
 			},
-			create: func(*repositoryDescriptor) (forge.Provider, error) {
+			create: func(*repositoryDescriptor, providerSettings) (forge.Provider, error) {
 				constructed = true
 
 				return &GitHub{}, nil
@@ -138,11 +140,11 @@ func TestOpen(t *testing.T) {
 		cause := errors.New("adapter construction failed")
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, openDependencies{
+		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "", errors.New("git remote lookup should not run")
 			},
-			create: func(*repositoryDescriptor) (forge.Provider, error) {
+			create: func(*repositoryDescriptor, providerSettings) (forge.Provider, error) {
 				return nil, cause
 			},
 		})
@@ -162,7 +164,7 @@ func TestOpenReportsMissingCredentialsAfterRepositoryResolution(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 
 	// when: opening the production provider
-	_, err := Open(t.Context(), cfg)
+	_, err := Open(t.Context(), cfg, "yeet/release-main")
 
 	// then: repository resolution succeeds before credential lookup fails
 	testastic.ErrorIs(t, err, ErrMissingToken)

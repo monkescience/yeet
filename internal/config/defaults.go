@@ -47,6 +47,7 @@ func Default() *Config {
 				Tagged:  "autorelease: tagged",
 				Yeet:    true,
 			},
+			BranchTemplate:  "yeet/release-{{ .Branch }}",
 			AutoMerge:       false,
 			AutoMergeForce:  false,
 			AutoMergeMethod: AutoMergeMethodAuto,

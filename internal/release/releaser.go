@@ -92,7 +92,14 @@ func newReleaseCore(
 		return nil, err
 	}
 
-	return &releaseCore{cfg: cfg, targets: targets, metadata: metadata, titles: titles}, nil
+	releaseBranch, err := releaseBranchForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &releaseCore{
+		cfg: cfg, targets: targets, metadata: metadata, titles: titles, releaseBranch: releaseBranch,
+	}, nil
 }
 
 // newReleaser wires a validated source to the provider-side capabilities.

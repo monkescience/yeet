@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	releaseBranchPrefix         = "yeet/release-"
 	releaseManifestMarkerPrefix = "<!-- yeet-release-manifest"
 	releaseManifestMarkerSuffix = "-->"
 )
@@ -41,10 +40,6 @@ func releaseRefForPullRequest(pullRequest *forge.PullRequest) (string, error) {
 	}
 
 	return mergeCommitSHA, nil
-}
-
-func stableReleaseBranch(targetBranch string) string {
-	return releaseBranchPrefix + targetBranch
 }
 
 func releaseManifestForPlans(baseBranch string, plans []TargetPlan) releaseManifest {
@@ -136,7 +131,7 @@ func (c *releaseCore) validateReleaseManifest(
 		return fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
 	}
 
-	expectedBranch := stableReleaseBranch(c.cfg.Branch)
+	expectedBranch := c.releaseBranch
 	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
 		return fmt.Errorf(
 			"%w: pull request branch %q does not match %q",

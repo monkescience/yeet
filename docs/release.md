@@ -56,19 +56,22 @@ GitHub and Azure DevOps match lifecycle names case-insensitively. GitLab matches
 
 If a run stops after creating a PR/MR but before applying labels, the next run adopts it only when it has no labels at all. A trusted release branch with other labels is treated as a lifecycle mismatch. For renamed, missing, or conflicting labels, follow the [label recovery table](troubleshooting.md#release-labels).
 
-### Subject templates
+### Branch and subject templates
 
 ```yaml
 release:
+  branch_template: 'automation/release-{{ .Branch }}'
   pr_title: 'chore({{ .Target }}): release {{ .Tag }}'
   pr_title_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
   commit_subject: 'chore({{ .Target }}): release {{ .Tag }}'
   commit_subject_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
 ```
 
-Single-target templates receive `.Branch`, `.Channel`, `.Target`, `.Version`, and `.Tag`. Group templates receive `.Branch`, `.Channel`, and `.TargetCount`. `.Version` omits the tag prefix, while `.Tag` includes it.
+The branch template receives `.Branch` and `.Channel`. It must render a nonempty valid Git branch that differs from the base branch. The default is `yeet/release-{{ .Branch }}`.
 
-Templates use Go `text/template` without custom functions. Rendered values must be nonempty and single-line. An empty setting keeps the built-in value. Titles and commit subjects are independent, and existing release titles are regenerated on refresh.
+Single-target subject templates receive `.Branch`, `.Channel`, `.Target`, `.Version`, and `.Tag`. Group subject templates receive `.Branch`, `.Channel`, and `.TargetCount`. `.Version` omits the tag prefix, while `.Tag` includes it.
+
+Templates use Go `text/template` without custom functions. Rendered values must be nonempty and single-line. An empty subject template keeps the built-in value. Titles and commit subjects are independent, and existing release titles are regenerated on refresh.
 
 ### Merge methods
 

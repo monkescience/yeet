@@ -20,6 +20,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, "main", cfg.Branch)
 	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
+	testastic.Equal(t, "yeet/release-{{ .Branch }}", cfg.Release.BranchTemplate)
 	testastic.False(t, cfg.Release.AutoMerge)
 	testastic.False(t, cfg.Release.AutoMergeForce)
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
