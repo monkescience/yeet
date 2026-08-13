@@ -2291,6 +2291,38 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Parallel()
 
+	t.Run("normalizes a compatible manifest changelog path before reading it", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a legacy merged manifest with an equivalent noncanonical changelog path
+		cfg := config.Default()
+		stub := newProviderStub()
+		stub.mergedPR = &forge.PullRequest{
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           testManifestBody(t, "v1.2.3", "./CHANGELOG.md"),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+		stub.files[providerFileKey(cfg.Branch, cfg.Changelog.File)] = strings.TrimSpace(readTestFile(
+			t,
+			"testdata/finalize_merged_release_p_r/"+
+				"creates_release_from_latest_changelog_entry_and_marks_p_r_tagged/"+
+				"existing_changelog.input.md",
+		))
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: finalizing the legacy merged release
+		releases, err := r.finalizeMergedReleasePRs(t.Context())
+
+		// then: finalization reads the canonical repository path and publishes the release
+		testastic.NoError(t, err)
+		testastic.Len(t, releases, 1)
+		testastic.Equal(t, 1, stub.getFileCallsByKey[providerFileKey(cfg.Branch, cfg.Changelog.File)])
+		testastic.Equal(t, 0, stub.getFileCallsByKey[providerFileKey(cfg.Branch, "./CHANGELOG.md")])
+	})
+
 	t.Run("validates release names before provider preflight", func(t *testing.T) {
 		t.Parallel()
 

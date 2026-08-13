@@ -44,7 +44,8 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		return nil, err
 	}
 
-	if err := p.core.validateReleaseManifest(mergedPR, manifest); err != nil {
+	manifest, err = p.core.validateReleaseManifest(mergedPR, manifest)
+	if err != nil {
 		return nil, err
 	}
 

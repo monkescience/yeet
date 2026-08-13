@@ -127,14 +127,14 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 func (c *releaseCore) validateReleaseManifest(
 	pullRequest *forge.PullRequest,
 	manifest releaseManifest,
-) error {
+) (releaseManifest, error) {
 	if pullRequest == nil {
-		return fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
+		return releaseManifest{}, fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
 	}
 
 	expectedBranch := c.releaseBranch
 	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
-		return fmt.Errorf(
+		return releaseManifest{}, fmt.Errorf(
 			"%w: pull request branch %q does not match %q",
 			errInvalidReleaseManifest,
 			pullRequest.Branch,
@@ -143,7 +143,7 @@ func (c *releaseCore) validateReleaseManifest(
 	}
 
 	if strings.TrimSpace(manifest.BaseBranch) != strings.TrimSpace(c.cfg.Branch) {
-		return fmt.Errorf(
+		return releaseManifest{}, fmt.Errorf(
 			"%w: base branch %q does not match %q",
 			errInvalidReleaseManifest,
 			manifest.BaseBranch,
@@ -152,7 +152,7 @@ func (c *releaseCore) validateReleaseManifest(
 	}
 
 	if strings.TrimSpace(manifest.Channel) != strings.TrimSpace(c.cfg.ActiveChannel) {
-		return fmt.Errorf(
+		return releaseManifest{}, fmt.Errorf(
 			"%w: channel %q does not match %q",
 			errInvalidReleaseManifest,
 			manifest.Channel,
@@ -161,45 +161,53 @@ func (c *releaseCore) validateReleaseManifest(
 	}
 
 	if manifest.Prerelease != c.isPrerelease() {
-		return fmt.Errorf(
+		return releaseManifest{}, fmt.Errorf(
 			"%w: prerelease value does not match active release mode",
 			errInvalidReleaseManifest,
 		)
 	}
 
+	validatedTargets := make([]releaseManifestEntry, len(manifest.Targets))
 	seenTargets := make(map[string]struct{}, len(manifest.Targets))
-	for _, entry := range manifest.Targets {
-		if err := c.validateReleaseManifestEntry(entry, seenTargets); err != nil {
-			return err
+
+	for index, entry := range manifest.Targets {
+		changelogFile, err := c.validateReleaseManifestEntry(entry, seenTargets)
+		if err != nil {
+			return releaseManifest{}, err
 		}
+
+		entry.ChangelogFile = changelogFile
+		validatedTargets[index] = entry
 	}
 
-	return nil
+	manifest.Targets = validatedTargets
+
+	return manifest, nil
 }
 
 func (c *releaseCore) validateReleaseManifestEntry(
 	entry releaseManifestEntry,
 	seenTargets map[string]struct{},
-) error {
+) (string, error) {
 	targetID := strings.TrimSpace(entry.ID)
 	if _, exists := seenTargets[targetID]; exists {
-		return fmt.Errorf("%w: duplicate target %q", errInvalidReleaseManifest, targetID)
+		return "", fmt.Errorf("%w: duplicate target %q", errInvalidReleaseManifest, targetID)
 	}
 
 	target, exists := c.targets[targetID]
 	if !exists {
-		return fmt.Errorf("%w: unknown target %q", errInvalidReleaseManifest, targetID)
+		return "", fmt.Errorf("%w: unknown target %q", errInvalidReleaseManifest, targetID)
 	}
 
 	seenTargets[targetID] = struct{}{}
 
 	if strings.TrimSpace(entry.Type) != string(target.Type) {
-		return fmt.Errorf("%w: target %q type does not match configuration", errInvalidReleaseManifest, targetID)
+		return "", fmt.Errorf("%w: target %q type does not match configuration", errInvalidReleaseManifest, targetID)
 	}
 
 	manifestChangelogFile, err := config.NormalizeRepoFilePath(entry.ChangelogFile)
 	if err != nil || manifestChangelogFile != target.Changelog.File {
-		return fmt.Errorf(
+		return "", fmt.Errorf(
 			"%w: target %q changelog file does not match configuration",
 			errInvalidReleaseManifest,
 			targetID,
@@ -207,13 +215,13 @@ func (c *releaseCore) validateReleaseManifestEntry(
 	}
 
 	if !strings.HasPrefix(entry.Tag, target.TagPrefix) {
-		return fmt.Errorf("%w: target %q tag has an invalid prefix", errInvalidReleaseManifest, targetID)
+		return "", fmt.Errorf("%w: target %q tag has an invalid prefix", errInvalidReleaseManifest, targetID)
 	}
 
 	strategy := versionStrategyForResolvedTarget(target)
 	if _, err := strategy.strategy.Current(entry.Tag); err != nil {
-		return fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, targetID, err)
+		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, targetID, err)
 	}
 
-	return nil
+	return manifestChangelogFile, nil
 }

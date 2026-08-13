@@ -232,7 +232,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			test.mutate(pullRequest, &manifest)
 
 			// when: validating the altered manifest against the active release configuration
-			err := r.core.validateReleaseManifest(pullRequest, manifest)
+			_, err := r.core.validateReleaseManifest(pullRequest, manifest)
 
 			// then: the manifest fails closed
 			testastic.ErrorIs(t, err, errInvalidReleaseManifest)
@@ -258,7 +258,7 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 		},
 	}
 
-	err := r.core.validateReleaseManifest(pullRequest, manifest)
+	_, err := r.core.validateReleaseManifest(pullRequest, manifest)
 
 	testastic.NoError(t, err)
 }
