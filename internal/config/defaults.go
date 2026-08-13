@@ -30,7 +30,7 @@ func defaultChangelogSections() map[string]string {
 		"build":          "Build System",
 		"ci":             "Continuous Integration",
 		"chore":          "Miscellaneous Chores",
-		"breaking":       "Breaking Changes",
+		"breaking":       "⚠ BREAKING CHANGES",
 	}
 }
 

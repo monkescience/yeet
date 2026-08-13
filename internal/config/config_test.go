@@ -49,6 +49,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
 	testastic.Equal(t, 4, len(cfg.Changelog.Include))
+	testastic.Equal(t, "⚠ BREAKING CHANGES", cfg.Changelog.Sections["breaking"])
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
 	testastic.True(t, cfg.PreMajorBreakingBumpsMinor)
 	testastic.True(t, cfg.PreMajorFeaturesBumpPatch)

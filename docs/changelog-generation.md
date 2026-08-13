@@ -39,8 +39,11 @@ changelog:
 | `build` | Build System |
 | `ci` | Continuous Integration |
 | `chore` | Miscellaneous Chores |
+| `breaking` | ⚠ BREAKING CHANGES |
 
-Breaking changes always appear under `⚠ BREAKING CHANGES`, regardless of `include`, using the `BREAKING CHANGE` footer text.
+Breaking changes appear under `changelog.sections.breaking`, regardless of `include`, using the `BREAKING CHANGE` footer text.
+The default heading is `⚠ BREAKING CHANGES`. A customized heading and the default heading are both recognized as generated content when a
+release changelog is refreshed.
 
 ## References
 

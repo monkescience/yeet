@@ -80,6 +80,28 @@ func TestGenerate(t *testing.T) {
 		)
 	})
 
+	t.Run("uses the configured breaking changes heading", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a breaking commit and a custom heading for breaking changes
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{
+				"breaking": "Compatibility Notes",
+				"feat":     "Features",
+			}),
+			changelog.WithInclude([]string{"feat"}),
+		)
+		commits := []commit.Commit{
+			{Hash: "abc1234567", Type: "feat", Description: "new API", Breaking: true},
+		}
+
+		// when: generating the changelog
+		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
+
+		// then: the breaking section uses the configured heading
+		testastic.Equal(t, "Compatibility Notes", entry.Sections[0].Heading)
+	})
+
 	t.Run("short hash in output", func(t *testing.T) {
 		t.Parallel()
 

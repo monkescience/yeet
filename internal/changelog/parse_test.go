@@ -271,4 +271,20 @@ func TestOwnedHeadings(t *testing.T) {
 		// then: the fallback heading is owned
 		testastic.SliceContains(t, entry.OwnedHeadings, "Perf")
 	})
+
+	t.Run("keeps the legacy breaking heading owned after customization", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a generator with a customized breaking changes heading
+		gen := changelog.New(
+			changelog.WithSections(map[string]string{"breaking": "Compatibility Notes"}),
+		)
+
+		// when: collecting every heading owned by the generator
+		headings := gen.OwnedHeadings()
+
+		// then: refreshed changelogs replace both the configured and legacy headings
+		testastic.SliceContains(t, headings, "Compatibility Notes")
+		testastic.SliceContains(t, headings, "⚠ BREAKING CHANGES")
+	})
 }

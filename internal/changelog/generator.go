@@ -134,8 +134,13 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 // generator owns but left out was dropped on purpose, while an unknown heading
 // was added by a human.
 func (g *Generator) OwnedHeadings() []string {
+	breakingHeading := g.breakingHeading()
 	headings := make([]string, 0, len(g.sections)+len(g.include)+1)
-	headings = append(headings, breakingChangesHeading)
+
+	headings = append(headings, breakingHeading)
+	if breakingHeading != breakingChangesHeading {
+		headings = append(headings, breakingChangesHeading)
+	}
 
 	mapped := make([]string, 0, len(g.sections))
 	for _, name := range g.sections {
@@ -202,7 +207,15 @@ func (g *Generator) breakingSection(commits []commit.Commit) (Section, bool) {
 		return Section{}, false
 	}
 
-	return Section{Heading: breakingChangesHeading, Lines: lines}, true
+	return Section{Heading: g.breakingHeading(), Lines: lines}, true
+}
+
+func (g *Generator) breakingHeading() string {
+	if heading := g.sections["breaking"]; heading != "" {
+		return heading
+	}
+
+	return breakingChangesHeading
 }
 
 func (g *Generator) formattedLine(c commit.Commit, description string) string {
