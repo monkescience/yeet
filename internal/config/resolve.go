@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget, error) {
@@ -188,18 +190,180 @@ func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
 		seen[commitType] = struct{}{}
 	}
 
-	for _, commitType := range slices.Sorted(maps.Keys(changelog.Sections)) {
-		if strings.TrimSpace(changelog.Sections[commitType]) == "" {
-			return fmt.Errorf(
-				"%w: targets.%s.changelog.sections.%s must not be blank",
+	configPath := "targets." + targetID + ".changelog"
+
+	err := validateChangelogSectionHeadings(configPath, changelog)
+	if err != nil {
+		return err
+	}
+
+	return validateReferencesConfig("targets."+targetID+".changelog.references", changelog.References)
+}
+
+func validateChangelogSectionHeadings(configPath string, changelog ChangelogConfig) error {
+	headingsByCommitType := make(map[string]string, len(changelog.Sections)+1)
+	maps.Copy(headingsByCommitType, changelog.Sections)
+
+	if _, configured := headingsByCommitType["breaking"]; !configured {
+		headingsByCommitType["breaking"] = defaultBreakingChangesHeading
+	}
+
+	sectionPath := configPath + ".sections"
+
+	headingOwners, err := validateConfiguredChangelogHeadings(sectionPath, headingsByCommitType)
+	if err != nil {
+		return err
+	}
+
+	return validateIncludedChangelogHeadings(configPath, changelog.Include, headingsByCommitType, headingOwners)
+}
+
+func validateConfiguredChangelogHeadings(
+	configPath string,
+	headingsByCommitType map[string]string,
+) (map[string]string, error) {
+	commitTypes := slices.Sorted(maps.Keys(headingsByCommitType))
+
+	for _, commitType := range commitTypes {
+		problem := changelogHeadingProblem(headingsByCommitType[commitType])
+		if problem != "" {
+			return nil, fmt.Errorf(
+				"%w: %s.%s %s",
 				ErrInvalidConfig,
-				targetID,
+				configPath,
 				commitType,
+				problem,
 			)
 		}
 	}
 
-	return validateReferencesConfig("targets."+targetID+".changelog.references", changelog.References)
+	headingOwners := make(map[string]string, len(headingsByCommitType))
+	for _, commitType := range commitTypes {
+		heading := headingsByCommitType[commitType]
+
+		firstCommitType, exists := headingOwners[heading]
+		if exists {
+			return nil, duplicateChangelogHeadingError(configPath, heading, firstCommitType, commitType)
+		}
+
+		headingOwners[heading] = commitType
+	}
+
+	return headingOwners, nil
+}
+
+func validateIncludedChangelogHeadings(
+	configPath string,
+	include []string,
+	headingsByCommitType map[string]string,
+	headingOwners map[string]string,
+) error {
+	sectionPath := configPath + ".sections"
+
+	for _, commitType := range include {
+		if commitType == "breaking" {
+			return fmt.Errorf(
+				"%w: %s.include must not contain %q because breaking changes are included automatically",
+				ErrInvalidConfig,
+				configPath,
+				commitType,
+			)
+		}
+
+		if _, isMapped := headingsByCommitType[commitType]; isMapped {
+			continue
+		}
+
+		heading := changelogFallbackHeading(commitType)
+
+		problem := changelogHeadingProblem(heading)
+		if problem != "" {
+			return fmt.Errorf(
+				"%w: %s.include entry %q produces a section heading that %s",
+				ErrInvalidConfig,
+				configPath,
+				commitType,
+				problem,
+			)
+		}
+
+		firstCommitType, exists := headingOwners[heading]
+		if exists {
+			return duplicateChangelogHeadingError(sectionPath, heading, firstCommitType, commitType)
+		}
+
+		headingOwners[heading] = commitType
+	}
+
+	return nil
+}
+
+func duplicateChangelogHeadingError(configPath, heading, firstCommitType, secondCommitType string) error {
+	return fmt.Errorf(
+		"%w: %s headings must be unique: %q is used by %q and %q",
+		ErrInvalidConfig,
+		configPath,
+		heading,
+		firstCommitType,
+		secondCommitType,
+	)
+}
+
+func changelogFallbackHeading(commitType string) string {
+	if commitType == "" {
+		return ""
+	}
+
+	first, size := utf8.DecodeRuneInString(commitType)
+
+	return string(unicode.ToUpper(first)) + commitType[size:]
+}
+
+func changelogHeadingProblem(heading string) string {
+	switch {
+	case strings.TrimSpace(heading) == "":
+		return "must not be blank"
+	case strings.IndexFunc(heading, isChangelogLineBreak) >= 0:
+		return "must be a single line"
+	case strings.TrimSpace(heading) != heading:
+		return "must not have leading or trailing whitespace"
+	case hasMarkdownHeadingMarkers(heading):
+		return "must contain heading text without leading or closing Markdown # markers"
+	default:
+		return ""
+	}
+}
+
+func isChangelogLineBreak(r rune) bool {
+	switch r {
+	case '\n', '\v', '\f', '\r', '\u0085', '\u2028', '\u2029':
+		return true
+	default:
+		return false
+	}
+}
+
+func hasMarkdownHeadingMarkers(heading string) bool {
+	leadingEnd := 0
+	for leadingEnd < len(heading) && heading[leadingEnd] == '#' {
+		leadingEnd++
+	}
+
+	if leadingEnd > 0 && (leadingEnd == len(heading) || isMarkdownHeadingSpace(heading[leadingEnd])) {
+		return true
+	}
+
+	closingStart := len(heading)
+	for closingStart > 0 && heading[closingStart-1] == '#' {
+		closingStart--
+	}
+
+	return closingStart < len(heading) &&
+		(closingStart == 0 || isMarkdownHeadingSpace(heading[closingStart-1]))
+}
+
+func isMarkdownHeadingSpace(value byte) bool {
+	return value == ' ' || value == '\t'
 }
 
 func resolveTargetPaths(targetID string, targetType TargetType, target Target) (string, []string, error) {

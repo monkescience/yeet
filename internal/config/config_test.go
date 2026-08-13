@@ -638,6 +638,234 @@ func TestReleaseLabelsValidation(t *testing.T) {
 	}
 }
 
+func TestChangelogSectionHeadingValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		heading string
+		message string
+	}{
+		{
+			name:    "line feed",
+			heading: "Bug\nFixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "carriage return",
+			heading: "Bug\rFixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "vertical tab",
+			heading: "Bug\vFixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "form feed",
+			heading: "Bug\fFixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "next line",
+			heading: "Bug\u0085Fixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "Unicode line separator",
+			heading: "Bug\u2028Fixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "Unicode paragraph separator",
+			heading: "Bug\u2029Fixes",
+			message: "must be a single line",
+		},
+		{
+			name:    "leading whitespace",
+			heading: " Bug Fixes",
+			message: "must not have leading or trailing whitespace",
+		},
+		{
+			name:    "trailing Unicode whitespace",
+			heading: "Bug Fixes\u00a0",
+			message: "must not have leading or trailing whitespace",
+		},
+		{
+			name:    "leading Markdown markers",
+			heading: "### Bug Fixes",
+			message: "must contain heading text without leading or closing Markdown # markers",
+		},
+		{
+			name:    "closing Markdown markers",
+			heading: "Bug Fixes ###",
+			message: "must contain heading text without leading or closing Markdown # markers",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("rejects "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a config with a section heading that cannot round-trip through Markdown
+			cfg := config.Default()
+			cfg.Changelog.Sections["fix"] = tt.heading
+			cfg.Targets = map[string]config.Target{
+				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+			}
+
+			// when: validating the config directly
+			err := cfg.Validate()
+
+			// then: validation explains the invalid heading shape
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+			if err == nil {
+				return
+			}
+
+			testastic.Equal(t, "invalid config: targets.app.changelog.sections.fix "+tt.message, err.Error())
+		})
+	}
+
+	for _, heading := range []string{"🚀 Features", "C# Integration", "Release###", "#123", "Bug\tFixes"} {
+		t.Run("accepts "+heading, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a heading whose literal hashes and internal whitespace round-trip through Markdown
+			cfg := config.Default()
+			cfg.Changelog.Sections["fix"] = heading
+			cfg.Targets = map[string]config.Target{
+				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+			}
+
+			// when: validating the config directly
+			err := cfg.Validate()
+
+			// then: the heading is accepted
+			testastic.NoError(t, err)
+		})
+	}
+
+	t.Run("rejects duplicate effective headings", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target override that reuses an inherited section heading
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				Changelog: config.ChangelogConfig{
+					Sections: map[string]string{"fix": "Features"},
+				},
+			},
+		}
+
+		// when: validating the effective target config
+		err := cfg.Validate()
+
+		// then: validation identifies both commit types deterministically
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err == nil {
+			return
+		}
+
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.sections headings must be unique: "+
+				"\"Features\" is used by \"feat\" and \"fix\"",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a duplicate fallback heading", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unmapped include whose fallback collides with a configured heading
+		cfg := config.Default()
+		cfg.Changelog.Include = []string{"feat", "features"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating the effective target config
+		err := cfg.Validate()
+
+		// then: validation identifies the configured and fallback owners
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err == nil {
+			return
+		}
+
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.sections headings must be unique: "+
+				"\"Features\" is used by \"feat\" and \"features\"",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects an invalid fallback heading", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an unmapped include that would synthesize a multiline heading
+		cfg := config.Default()
+		cfg.Changelog.Include = []string{"feat", "release\nnotes"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating the effective target config
+		err := cfg.Validate()
+
+		// then: validation identifies the include and invalid fallback shape
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err == nil {
+			return
+		}
+
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.include entry \"release\\nnotes\" "+
+				"produces a section heading that must be a single line",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects breaking in include", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an include list that would emit the automatic breaking section twice
+		cfg := config.Default()
+		cfg.Changelog.Include = []string{"feat", "breaking"}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating the effective target config
+		err := cfg.Validate()
+
+		// then: validation explains that breaking changes are already included
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
+		if err == nil {
+			return
+		}
+
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.changelog.include must not contain \"breaking\" because breaking changes "+
+				"are included automatically",
+			err.Error(),
+		)
+	})
+}
+
 func TestValidate(t *testing.T) {
 	t.Parallel()
 

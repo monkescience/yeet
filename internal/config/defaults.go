@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	defaultBreakingChangesHeading      = "⚠ BREAKING CHANGES"
 	defaultNetworkRequestTimeout       = 30 * time.Second
 	defaultNetworkRetryMaxAttempts     = 4
 	defaultNetworkRetryMinBackoff      = time.Second
@@ -40,7 +41,7 @@ func defaultChangelogSections() map[string]string {
 		"build":          "Build System",
 		"ci":             "Continuous Integration",
 		"chore":          "Miscellaneous Chores",
-		"breaking":       "⚠ BREAKING CHANGES",
+		"breaking":       defaultBreakingChangesHeading,
 	}
 }
 

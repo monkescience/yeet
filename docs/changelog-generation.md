@@ -12,7 +12,8 @@ changelog:
     - revert
 ```
 
-Those four types are included by default. `sections` changes their headings or supplies headings for additional included types:
+Those four types are included by default. An included type without a `sections` entry uses the type with its first character capitalized.
+`sections` changes headings or supplies headings for additional included types:
 
 ```yaml
 changelog:
@@ -41,7 +42,11 @@ changelog:
 | `chore` | Miscellaneous Chores |
 | `breaking` | ⚠ BREAKING CHANGES |
 
-Breaking changes appear under `changelog.sections.breaking`, regardless of `include`, using the `BREAKING CHANGE` footer text.
+Section headings must be unique, trimmed, single-line text without leading or closing Markdown `#` markers. Emoji and literal hashes in
+text, such as `C#` and `Release###`, are supported.
+
+Breaking changes appear under `changelog.sections.breaking`, regardless of `include`, using the `BREAKING CHANGE` footer text. Do not add
+`breaking` to `include` because breaking changes are included automatically.
 The default heading is `⚠ BREAKING CHANGES`. A customized heading and the default heading are both recognized as generated content when a
 release changelog is refreshed.
 

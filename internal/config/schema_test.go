@@ -77,6 +77,40 @@ func TestSchemaTightenings(t *testing.T) {
 			want: "invalid config: targets.app.changelog.sections.fix must not be blank",
 		},
 		{
+			name:  "changelog section headings must not have surrounding whitespace",
+			input: "changelog:\n  sections:\n    fix: \" Bug Fixes\"\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must not have leading or trailing whitespace",
+		},
+		{
+			name:  "breaking must not be in changelog include",
+			input: "changelog:\n  include:\n    - feat\n    - breaking\n" + schemaTestTarget,
+			want: "invalid config: changelog.include must not contain \"breaking\" because breaking changes are " +
+				"included automatically",
+		},
+		{
+			name:  "changelog section headings must be a single line",
+			input: "changelog:\n  sections:\n    fix: \"Bug\\nFixes\"\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must be a single line",
+		},
+		{
+			name:  "changelog section headings reject Unicode line separators",
+			input: "changelog:\n  sections:\n    fix: \"Bug\\u2028Fixes\"\n" + schemaTestTarget,
+			want:  "invalid config: changelog.sections.fix must be a single line",
+		},
+		{
+			name:  "changelog section headings reject leading Markdown markers",
+			input: "changelog:\n  sections:\n    fix: \"### Bug Fixes\"\n" + schemaTestTarget,
+			want: "invalid config: changelog.sections.fix must contain heading text without leading or closing " +
+				"Markdown # markers",
+		},
+		{
+			name: "target changelog section headings reject closing Markdown markers",
+			input: "targets:\n  app:\n    type: path\n    path: .\n    tag_prefix: v\n" +
+				"    changelog:\n      sections:\n        fix: \"Bug Fixes ###\"\n",
+			want: "invalid config: targets.app.changelog.sections.fix must contain heading text without leading or " +
+				"closing Markdown # markers",
+		},
+		{
 			name:  "reference footer keys must not be empty",
 			input: "changelog:\n  references:\n    footers:\n      \"\": https://tracker/{value}\n" + schemaTestTarget,
 			want:  "invalid config: changelog.references.footers keys must not be empty",
@@ -104,6 +138,20 @@ func TestSchemaTightenings(t *testing.T) {
 			testastic.Equal(t, tc.want, err.Error())
 		})
 	}
+}
+
+func TestSchemaAcceptsLiteralChangelogHeadingText(t *testing.T) {
+	t.Parallel()
+
+	// given: headings with emoji, literal hashes, and internal whitespace
+	input := "changelog:\n  sections:\n    feat: 🚀 Features\n    fix: C# Integration\n" +
+		"    perf: Release###\n    revert: \"#123\"\n    docs: \"API\\tDocumentation\"\n" + schemaTestTarget
+
+	// when: parsing the config
+	_, err := parse([]byte(input))
+
+	// then: the heading text is accepted unchanged
+	testastic.NoError(t, err)
 }
 
 func TestSchemaRejectsDuplicateChangelogIncludes(t *testing.T) {

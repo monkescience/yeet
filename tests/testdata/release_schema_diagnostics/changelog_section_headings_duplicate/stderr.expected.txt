@@ -1,0 +1,1 @@
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.default.changelog.sections headings must be unique: "Changes" is used by "feat" and "fix"

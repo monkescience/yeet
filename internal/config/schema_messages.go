@@ -77,9 +77,21 @@ func changelogRules(prefix []string) []schemaRule {
 				return fmt.Sprintf("%s contains duplicate %q", dotted(found.location), duplicateValue(found))
 			},
 		},
+		containerRule(
+			append(slices.Clone(include), anySegment),
+			keywordNot,
+			"must not contain \"breaking\" because breaking changes are included automatically",
+		),
 		keysRule(append(slices.Clone(changelog), "sections")),
 		blankRule(section, keywordMinLength),
 		blankRule(section, keywordPattern),
+		{
+			path:    slices.Clone(section),
+			keyword: keywordNot,
+			message: func(found violation) string {
+				return dotted(found.location) + " " + changelogHeadingProblem(scalar(found.value))
+			},
+		},
 		{
 			path:    slices.Clone(section),
 			keyword: keywordType,

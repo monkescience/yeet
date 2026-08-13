@@ -1,0 +1,11 @@
+provider: github
+branch: main
+changelog:
+  sections:
+    feat: Changes
+    fix: Changes
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
