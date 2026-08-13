@@ -22,9 +22,10 @@ type Entry struct {
 // Section is a level-3 heading and its lines. Nested sections carry the child
 // targets of a derived entry; nesting depth does not map to heading level.
 type Section struct {
-	Heading  string
-	Lines    []string
-	Sections []Section
+	Heading        string
+	Lines          []string
+	Sections       []Section
+	includedTarget bool
 }
 
 // Render writes an entry as changelog Markdown.
@@ -95,25 +96,17 @@ func PrependEntry(existing, newEntry string) string {
 	return Prepend("", combined)
 }
 
-// DirectSections keeps an entry's own sections, dropping the child targets
-// nested under it from the first child heading onwards.
-func DirectSections(sections []Section, childHeadings []string) []Section {
-	if len(childHeadings) == 0 {
-		return sections
-	}
+// DirectSections keeps the sections that belong directly to an entry.
+func DirectSections(sections []Section) []Section {
+	direct := make([]Section, 0, len(sections))
 
-	children := make(map[string]struct{}, len(childHeadings))
-	for _, heading := range childHeadings {
-		children[heading] = struct{}{}
-	}
-
-	for idx, section := range sections {
-		if _, isChild := children[section.Heading]; isChild {
-			return sections[:idx]
+	for _, section := range sections {
+		if !section.includedTarget {
+			direct = append(direct, section)
 		}
 	}
 
-	return sections
+	return direct
 }
 
 // DerivedEntry nests child entries under a parent's own sections. Every heading
@@ -124,7 +117,11 @@ func DirectSections(sections []Section, childHeadings []string) []Section {
 func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entry {
 	sections := make([]Section, 0, len(direct.Sections)+len(children))
 	sections = append(sections, direct.Sections...)
-	sections = append(sections, children...)
+
+	for _, child := range children {
+		child.includedTarget = true
+		sections = append(sections, child)
+	}
 
 	owned := make([]string, 0, len(direct.OwnedHeadings)+len(ownedHeadings))
 	owned = append(owned, direct.OwnedHeadings...)

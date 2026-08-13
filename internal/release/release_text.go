@@ -25,7 +25,7 @@ func buildPRSections(plans []TargetPlan) []prSection {
 		}
 
 		entry := preferredPREntry(plan)
-		entry.Sections = changelog.DirectSections(entry.Sections, plan.IncludedTargets)
+		entry.Sections = changelog.DirectSections(entry.Sections)
 
 		sections = append(sections, prSection{
 			id:   plan.ID,

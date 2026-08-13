@@ -24,12 +24,12 @@ func Merge(generated, foreign Entry) Entry {
 
 	merged.Sections = make([]Section, 0, len(sections)+len(foreign.Sections))
 
-	for _, section := range sections {
-		merged.Sections = append(merged.Sections, manual[section.Heading]...)
+	for idx, section := range sections {
+		merged.Sections = append(merged.Sections, manual[idx]...)
 		merged.Sections = append(merged.Sections, section)
 	}
 
-	merged.Sections = append(merged.Sections, manual[""]...)
+	merged.Sections = append(merged.Sections, manual[len(sections)]...)
 
 	return merged
 }
@@ -88,22 +88,31 @@ func splitOutro(lines []string) ([]string, []string, bool) {
 // heading and a section heading are both level 3, so the flat form is what the
 // two sides of a merge have in common.
 func flattenSections(sections []Section) []Section {
+	return flattenSectionsFromTarget(sections, false)
+}
+
+func flattenSectionsFromTarget(sections []Section, includedTarget bool) []Section {
 	flat := make([]Section, 0, len(sections))
 
 	for _, section := range sections {
-		flat = append(flat, Section{Heading: section.Heading, Lines: section.Lines})
-		flat = append(flat, flattenSections(section.Sections)...)
+		nested := section.Sections
+		section.Sections = nil
+		section.includedTarget = includedTarget || section.includedTarget
+
+		flat = append(flat, section)
+		flat = append(flat, flattenSectionsFromTarget(nested, section.includedTarget)...)
 	}
 
 	return flat
 }
 
-func manualSectionsByAnchor(generated []Section, owned []string, foreign []Section) map[string][]Section {
+func manualSectionsByAnchor(generated []Section, owned []string, foreign []Section) map[int][]Section {
 	generatedHeadings := headingSet(generated)
 	ownedHeadings := stringSet(owned)
 	generatedLines := lineSet(generated)
+	generatedPositions := matchGeneratedPositions(generated, foreign)
 
-	manual := make(map[string][]Section)
+	manual := make(map[int][]Section)
 
 	for idx, section := range foreign {
 		if _, regenerated := generatedHeadings[section.Heading]; regenerated {
@@ -118,21 +127,45 @@ func manualSectionsByAnchor(generated []Section, owned []string, foreign []Secti
 			continue
 		}
 
-		anchor := followingGeneratedHeading(foreign[idx+1:], generatedHeadings)
+		anchor := len(generated)
+		for followingIdx := idx + 1; followingIdx < len(foreign); followingIdx++ {
+			if position, matched := generatedPositions[followingIdx]; matched {
+				anchor = position
+
+				break
+			}
+		}
+
 		manual[anchor] = append(manual[anchor], section)
 	}
 
 	return manual
 }
 
-func followingGeneratedHeading(remaining []Section, generatedHeadings map[string]struct{}) string {
-	for _, section := range remaining {
-		if _, regenerated := generatedHeadings[section.Heading]; regenerated {
-			return section.Heading
+func matchGeneratedPositions(generated, foreign []Section) map[int]int {
+	positionsByHeading := make(map[string][]int, len(generated))
+	for idx, section := range generated {
+		positionsByHeading[section.Heading] = append(positionsByHeading[section.Heading], idx)
+	}
+
+	seen := make(map[string]int, len(positionsByHeading))
+	matches := make(map[int]int, min(len(generated), len(foreign)))
+
+	for idx, section := range foreign {
+		positions, exists := positionsByHeading[section.Heading]
+		if !exists {
+			continue
+		}
+
+		occurrence := seen[section.Heading]
+		seen[section.Heading]++
+
+		if occurrence < len(positions) {
+			matches[idx] = positions[occurrence]
 		}
 	}
 
-	return ""
+	return matches
 }
 
 func linesAlreadyPresent(section Section, generatedLines map[string]struct{}) bool {

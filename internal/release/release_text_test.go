@@ -346,12 +346,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PREntry: changelogpkg.ParseEntry(readTestFile(
+					PREntry: readCombinedPRDerivedEntry(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"multi_target_includes_wave_summary_and_detailed_target_sections/"+
 							"root_changelog.input.md",
-					)),
+					),
 				},
 			},
 		}
@@ -396,6 +396,110 @@ func TestCombinedPRChangelog(t *testing.T) {
 		testastic.Equal(t, "Web intro.\n\n### Bug Fixes\n\n- patch filters\n\nWeb outro.\n", sections[1].body)
 	})
 
+	t.Run("derived target keeps a direct section whose heading matches a child ID", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived target whose child ID is also a generated section heading
+		entry := changelogpkg.DerivedEntry(
+			changelogpkg.Entry{
+				Version:  "v1.2.3",
+				Sections: []changelogpkg.Section{{Heading: "Features", Lines: []string{"- parent feature"}}},
+			},
+			[]string{"Features"},
+			[]changelogpkg.Section{{
+				Heading:  "Features",
+				Sections: []changelogpkg.Section{{Heading: "Bug Fixes", Lines: []string{"- child fix"}}},
+			}},
+		)
+		plans := []TargetPlan{{
+			ID:              "root",
+			Type:            config.TargetTypeDerived,
+			PREntry:         entry,
+			IncludedTargets: []string{"Features"},
+		}}
+
+		// when: building the parent section of a multi-target pull request body
+		sections := buildPRSections(plans)
+
+		// then: heading equality does not discard the parent's own release note
+		testastic.Contains(t, sections[0].body, "- parent feature")
+		testastic.NotContains(t, sections[0].body, "- child fix")
+	})
+
+	t.Run("derived target keeps a manual section after its child sections", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a derived entry with a manual section appended on the release branch
+		generated := changelogpkg.DerivedEntry(
+			changelogpkg.Entry{
+				Version:       "v1.2.3",
+				Sections:      []changelogpkg.Section{{Heading: "Bug Fixes", Lines: []string{"- parent fix"}}},
+				OwnedHeadings: []string{"Bug Fixes"},
+			},
+			[]string{"api"},
+			[]changelogpkg.Section{{
+				Heading:  "api",
+				Sections: []changelogpkg.Section{{Heading: "Features", Lines: []string{"- child feature"}}},
+			}},
+		)
+		foreign := changelogpkg.ParseEntry(
+			changelogpkg.Render(generated) + "\n### Migration Notes\n\nRun the migration.\n",
+		)
+		entry := changelogpkg.Merge(generated, foreign)
+		plans := []TargetPlan{{
+			ID:              "root",
+			Type:            config.TargetTypeDerived,
+			PREntry:         entry,
+			IncludedTargets: []string{"api"},
+		}}
+
+		// when: building the parent section of a multi-target pull request body
+		sections := buildPRSections(plans)
+
+		// then: the manual parent note survives while the embedded child notes do not
+		testastic.Contains(t, sections[0].body, "### Migration Notes")
+		testastic.Contains(t, sections[0].body, "Run the migration.")
+		testastic.NotContains(t, sections[0].body, "- child feature")
+	})
+
+	t.Run("derived target keeps one interleaved manual section across a heading collision", func(t *testing.T) {
+		t.Parallel()
+
+		// given: parent and child sections with the same heading and a manual note between them
+		generated := changelogpkg.DerivedEntry(
+			changelogpkg.Entry{
+				Version:       "v1.2.3",
+				Sections:      []changelogpkg.Section{{Heading: "Features", Lines: []string{"- parent feature"}}},
+				OwnedHeadings: []string{"Features", "Bug Fixes"},
+			},
+			[]string{"Features"},
+			[]changelogpkg.Section{childCollisionSection()},
+		)
+		foreign := changelogpkg.Entry{Sections: []changelogpkg.Section{
+			{Heading: "Features", Lines: []string{"- parent feature"}},
+			{Heading: "Migration Notes", Lines: []string{"Run the migration."}},
+			{Heading: "Features"},
+			{Heading: "Bug Fixes", Lines: []string{"- child fix"}},
+		}}
+		entry := changelogpkg.Merge(generated, foreign)
+		plans := []TargetPlan{{
+			ID:              "root",
+			Type:            config.TargetTypeDerived,
+			PREntry:         entry,
+			IncludedTargets: []string{"Features"},
+		}}
+
+		// when: building the parent section of a multi-target pull request body
+		sections := buildPRSections(plans)
+
+		// then: the manual note stays after the parent feature and appears once
+		testastic.Equal(
+			t,
+			"### Features\n\n- parent feature\n\n### Migration Notes\n\nRun the migration.\n",
+			sections[0].body,
+		)
+	})
+
 	t.Run("derived target preserves embedded child sections when some child plans are omitted", func(t *testing.T) {
 		t.Parallel()
 
@@ -426,12 +530,12 @@ func TestCombinedPRChangelog(t *testing.T) {
 					NextTag:         "v3.0.0",
 					BumpType:        "major",
 					IncludedTargets: []string{"api", "web"},
-					PREntry: changelogpkg.ParseEntry(readTestFile(
+					PREntry: readCombinedPRDerivedEntry(
 						t,
 						"testdata/combined_p_r_changelog/"+
 							"derived_target_preserves_embedded_child_sections_when_some_child_plans_are_omitted/"+
 							"root_changelog.input.md",
-					)),
+					),
 				},
 			},
 		}
@@ -442,6 +546,31 @@ func TestCombinedPRChangelog(t *testing.T) {
 		// then: the output matches the expected derived-target markdown with embedded child sections
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_embedded_children.expected.md", body)
 	})
+}
+
+func childCollisionSection() changelogpkg.Section {
+	return changelogpkg.Section{
+		Heading:  "Features",
+		Sections: []changelogpkg.Section{{Heading: "Bug Fixes", Lines: []string{"- child fix"}}},
+	}
+}
+
+func readCombinedPRDerivedEntry(t *testing.T, path string) changelogpkg.Entry {
+	t.Helper()
+
+	flat := changelogpkg.ParseEntry(readTestFile(t, path))
+	testastic.Equal(t, 5, len(flat.Sections))
+
+	direct := flat
+	direct.Sections = flat.Sections[:1]
+
+	entry := changelogpkg.DerivedEntry(direct, []string{"api", "web"}, []changelogpkg.Section{
+		{Heading: flat.Sections[1].Heading, Sections: flat.Sections[2:3]},
+		{Heading: flat.Sections[3].Heading, Sections: flat.Sections[4:]},
+	})
+	entry.CompareURL = flat.CompareURL
+
+	return entry
 }
 
 func TestChangelogEntryByTag(t *testing.T) {
