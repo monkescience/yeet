@@ -1,5 +1,30 @@
 # Changelog
 
+## [v0.13.6](https://github.com/monkescience/yeet/compare/v0.13.5...v0.13.6) (2026-08-13)
+
+### Features
+
+- **release:** configure provider release names ([81c8bb6](https://github.com/monkescience/yeet/commit/81c8bb6667bef295930651f254f1f014109746b2))
+- **config:** support provider API and web URLs ([f77e17f](https://github.com/monkescience/yeet/commit/f77e17f7d15f39f6315412d2f5ef688803d360fa))
+- **config:** support release timezones ([b5fb403](https://github.com/monkescience/yeet/commit/b5fb40348de015e78a62e9817d87464540d637c7))
+- **config:** configure release merge polling ([c0f0fad](https://github.com/monkescience/yeet/commit/c0f0fad8a4c361d337a794ea7c41276ac2951594))
+- **config:** configure provider network behavior ([64467de](https://github.com/monkescience/yeet/commit/64467de4309d4977cce2a5b5ef84d0b10c0e2dd7))
+- **config:** support release branch templates ([66ba723](https://github.com/monkescience/yeet/commit/66ba723812a0e672159943fed7f7f5141d9f1a54))
+
+### Bug Fixes
+
+- **config:** validate changelog section headings ([7e5c23c](https://github.com/monkescience/yeet/commit/7e5c23cae8dc11318fd116ae9a4682835757dbab))
+- **release:** normalize trusted manifest paths ([7f4810d](https://github.com/monkescience/yeet/commit/7f4810d52eb7e165647f1c9cd334b190788fe68b))
+- **provider:** apply configured request timeouts ([3d71c70](https://github.com/monkescience/yeet/commit/3d71c700e098a91f5984dbb4c902467f0484a2a3))
+- **config:** handle Windows repository paths ([6a5905d](https://github.com/monkescience/yeet/commit/6a5905d8efb3b09ed2e20576ae30db062c7188fd))
+- **changelog:** honor configured breaking heading ([e82eb0d](https://github.com/monkescience/yeet/commit/e82eb0d8b397b7921eeee6b38112a25012ae1b75))
+- **provider:** preserve GitHub file modes ([a979ce9](https://github.com/monkescience/yeet/commit/a979ce9a6fa177c0b92635da7da68c29af4fd82b))
+- **config:** validate repository file paths ([3f0f738](https://github.com/monkescience/yeet/commit/3f0f7385f0a427f8c17139c5ac8598893a4ef415))
+- **config:** reject blank stable branches ([5bd2f7c](https://github.com/monkescience/yeet/commit/5bd2f7cef4fc0a851769bb22522fd83282c2a4e6))
+- **cli:** reject positional arguments ([4645dfd](https://github.com/monkescience/yeet/commit/4645dfd7a329e843ebeb79f9f4f5b048405e7768))
+- **cli:** scope config flag to config commands ([e4cd2c1](https://github.com/monkescience/yeet/commit/e4cd2c11e0e2494048ec9d9575fed29bde79aa11))
+- **cli:** clean up help indentation ([21f4c99](https://github.com/monkescience/yeet/commit/21f4c99315d39c36bf09617f08649d131c242e8b))
+
 ## [v0.13.5](https://github.com/monkescience/yeet/compare/v0.13.4...v0.13.5) (2026-08-13)
 
 ### Features
