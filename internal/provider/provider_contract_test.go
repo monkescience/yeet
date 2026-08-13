@@ -1115,10 +1115,26 @@ func writeTextFixture(t *testing.T, w http.ResponseWriter, name string) {
 // directory carries the request beside the response so the whole exchange is
 // readable without running the test.
 type contractRequest struct {
-	Method string            `json:"method"`
-	Path   string            `json:"path"`
-	Query  map[string]string `json:"query,omitempty"`
-	Body   json.RawMessage   `json:"body,omitempty"`
+	Method string              `json:"method"`
+	Path   string              `json:"path"`
+	Query  map[string][]string `json:"query,omitempty"`
+	Body   json.RawMessage     `json:"body,omitempty"`
+}
+
+func TestAssertJSONRequestPreservesQueryValueCardinality(t *testing.T) {
+	t.Parallel()
+
+	// given: a request with one comma-bearing value and one repeated parameter
+	request := httptest.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"/resource?single=a%2Cb&repeated=a&repeated=b",
+		nil,
+	)
+
+	// when: the request is checked against its provider contract snapshot
+	// then: the fixture assertion distinguishes one value from two values
+	assertJSONRequest(t, request, "contracts/request_query_cardinality/request.json")
 }
 
 // assertJSONRequest checks a received call against a case's request fixture.
@@ -1131,10 +1147,7 @@ func assertJSONRequest(t *testing.T, r *http.Request, name string) {
 	}
 
 	if query := r.URL.Query(); len(query) > 0 {
-		recorded.Query = make(map[string]string, len(query))
-		for key, values := range query {
-			recorded.Query[key] = strings.Join(values, ",")
-		}
+		recorded.Query = query
 	}
 
 	body, err := io.ReadAll(r.Body)

@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/resource",
+  "query": {
+    "single": ["a,b"],
+    "repeated": ["a", "b"]
+  }
+}
