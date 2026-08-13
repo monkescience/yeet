@@ -120,6 +120,7 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, 2*time.Second, cfg.Network.Retry.MinBackoff)
 		testastic.Equal(t, 20*time.Second, cfg.Network.Retry.MaxBackoff)
 		testastic.Equal(t, "automation/release-{{ .Branch }}", cfg.Release.BranchTemplate)
+		testastic.Equal(t, "{{ .Target }} {{ .Version }}", cfg.Release.NameTemplate)
 		testastic.Equal(t, 500*time.Millisecond, cfg.Release.MergePolling.InitialInterval)
 		testastic.Equal(t, 8*time.Second, cfg.Release.MergePolling.MaxInterval)
 		testastic.Equal(t, 3*time.Minute, cfg.Release.MergePolling.Timeout)

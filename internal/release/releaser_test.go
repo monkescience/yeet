@@ -1060,7 +1060,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 	})
 }
 
-func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
+func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("dry run rejects an empty title for actual release data", func(t *testing.T) {
@@ -1082,6 +1082,29 @@ func TestReleaseValidatesRenderedTitlesBeforeMutation(t *testing.T) {
 		result, err := r.Release(context.Background(), true)
 
 		// then: actual template output is validated during the dry run
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.findMergedPRCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+	})
+
+	t.Run("rejects an empty provider release name before creating a PR", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Release.NameTemplate = "{{ if .Channel }}release {{ .Tag }}{{ end }}"
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		result, err := r.Release(context.Background(), false)
+
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 0, stub.findMergedPRCalls)
@@ -1173,6 +1196,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		// given: auto-merge enabled with one releasable commit
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.NameTemplate = "{{ .Target }} {{ .Version }}"
 
 		stub := newProviderStub()
 		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
@@ -1200,6 +1224,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.False(t, stub.mergePROptions[0].BypassMergeChecks)
 		testastic.Equal(t, forge.MergeMethodAuto, stub.mergePROptions[0].Method)
 		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, "default 1.2.4", stub.createReleaseOpts[0].Name)
 		testastic.Equal(t, 1, len(stub.markPendingCalls))
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, result.PullRequest.Number, stub.markTaggedCalls[0])
@@ -2266,6 +2291,30 @@ func TestReleasePRBodyCompareURLUsesHeadCommit(t *testing.T) {
 func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Parallel()
 
+	t.Run("validates release names before provider preflight", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Release.NameTemplate = "{{ if .Channel }}release {{ .Tag }}{{ end }}"
+		stub := newProviderStub()
+		stub.mergedPR = &forge.PullRequest{
+			Number:         42,
+			URL:            "https://example.com/pr/42",
+			Body:           testManifestBody(t, "v1.2.3", cfg.Changelog.File),
+			Branch:         "yeet/release-main",
+			MergeCommitSHA: "merged-sha",
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		_, err := r.finalizeMergedReleasePRs(context.Background())
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, 0, len(stub.preflightCalls))
+		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
+		testastic.Equal(t, 0, stub.createReleaseCalls)
+	})
+
 	t.Run("preflights tagging before release lookup and publication", func(t *testing.T) {
 		t.Parallel()
 
@@ -2404,6 +2453,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		// given: a merged pending release PR and changelog entry on main
 		cfg := config.Default()
+		cfg.Release.NameTemplate = "{{ .Target }} {{ .Version }}"
 		cfg.Release.Labels = config.ReleaseLabelsConfig{
 			Pending: "release: waiting",
 			Tagged:  "release: complete",
@@ -2439,6 +2489,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.Equal(t, "merged-sha", stub.createReleaseOpts[0].Ref)
+		testastic.Equal(t, "default 1.2.3", stub.createReleaseOpts[0].Name)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 42, stub.markTaggedCalls[0])
 		testastic.SliceEqual(t, taggedPhaseOnly(), stub.releasePublishingStub.setLabelPhases)

@@ -30,6 +30,7 @@ calver:
   format: YYYY.0M.MICRO
 release:
   branch_template: 'automation/release-{{ .Branch }}'
+  name_template: '{{ .Target }} {{ .Version }}'
   merge_polling:
     initial_interval: 500ms
     max_interval: 8s

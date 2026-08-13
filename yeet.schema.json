@@ -296,6 +296,11 @@
           "minLength": 1,
           "default": "yeet/release-{{ .Branch }}"
         },
+        "name_template": {
+          "type": "string",
+          "description": "Go text/template for provider release names. Available data: .Branch, .Channel, .Target, .Version, and .Tag. Empty uses the tag as the release name.",
+          "default": ""
+        },
         "merge_polling": {
           "$ref": "#/$defs/release_merge_polling"
         },

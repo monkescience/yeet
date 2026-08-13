@@ -56,11 +56,12 @@ GitHub and Azure DevOps match lifecycle names case-insensitively. GitLab matches
 
 If a run stops after creating a PR/MR but before applying labels, the next run adopts it only when it has no labels at all. A trusted release branch with other labels is treated as a lifecycle mismatch. For renamed, missing, or conflicting labels, follow the [label recovery table](troubleshooting.md#release-labels).
 
-### Branch and subject templates
+### Branch, subject, and release name templates
 
 ```yaml
 release:
   branch_template: 'automation/release-{{ .Branch }}'
+  name_template: '{{ .Target }} {{ .Version }}'
   pr_title: 'chore({{ .Target }}): release {{ .Tag }}'
   pr_title_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
   commit_subject: 'chore({{ .Target }}): release {{ .Tag }}'
@@ -70,6 +71,8 @@ release:
 The branch template receives `.Branch` and `.Channel`. It must render a nonempty valid Git branch that differs from the base branch. The default is `yeet/release-{{ .Branch }}`.
 
 Single-target subject templates receive `.Branch`, `.Channel`, `.Target`, `.Version`, and `.Tag`. Group subject templates receive `.Branch`, `.Channel`, and `.TargetCount`. `.Version` omits the tag prefix, while `.Tag` includes it.
+
+The provider release `name_template` receives the same fields as a single-target subject. Its default is the release tag. Existing provider releases are never renamed.
 
 Templates use Go `text/template` without custom functions. Rendered values must be nonempty and single-line. An empty subject template keeps the built-in value. Titles and commit subjects are independent, and existing release titles are regenerated on refresh.
 

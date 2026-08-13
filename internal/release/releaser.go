@@ -197,7 +197,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTarg
 
 	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
 	if analysisErr == nil {
-		if err := r.validateRenderedReleaseTitles(plans); err != nil {
+		if err := r.validateRenderedReleaseText(plans); err != nil {
 			return nil, err
 		}
 	}
@@ -279,7 +279,7 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 		return nil, nil, err
 	}
 
-	if err := r.validateRenderedReleaseTitles(plans); err != nil {
+	if err := r.validateRenderedReleaseText(plans); err != nil {
 		return nil, nil, err
 	}
 
@@ -293,7 +293,7 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 	return plans, finalized, nil
 }
 
-func (r *releaser) validateRenderedReleaseTitles(plans []TargetPlan) error {
+func (r *releaser) validateRenderedReleaseText(plans []TargetPlan) error {
 	if len(plans) == 0 {
 		return nil
 	}
@@ -304,6 +304,12 @@ func (r *releaser) validateRenderedReleaseTitles(plans []TargetPlan) error {
 
 	if _, err := r.core.releaseCommitSubject(plans); err != nil {
 		return err
+	}
+
+	for _, plan := range plans {
+		if _, err := r.core.releaseNameForPlan(plan); err != nil {
+			return err
+		}
 	}
 
 	return nil

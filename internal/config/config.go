@@ -195,6 +195,7 @@ type AzureDevOpsRepositoryConfig struct {
 type ReleaseConfig struct {
 	Labels             ReleaseLabelsConfig             `yaml:"labels"`
 	BranchTemplate     string                          `yaml:"branch_template"`
+	NameTemplate       string                          `yaml:"name_template"`
 	MergePolling       ReleaseMergePollingConfig       `yaml:"merge_polling"`
 	PRTitle            string                          `yaml:"pr_title"`
 	PRTitleGroup       string                          `yaml:"pr_title_group"`

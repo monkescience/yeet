@@ -32,6 +32,7 @@ type releaseTitleTemplates struct {
 	group         *template.Template
 	commitSingle  *template.Template
 	commitGrouped *template.Template
+	releaseName   *template.Template
 }
 
 func newReleaseTitleTemplates(release config.ReleaseConfig) (*releaseTitleTemplates, error) {
@@ -60,6 +61,10 @@ func newReleaseTitleTemplates(release config.ReleaseConfig) (*releaseTitleTempla
 		{
 			name: "release.commit_subject_group", source: release.CommitSubjectGroup,
 			fields: groupFields, destination: &templates.commitGrouped,
+		},
+		{
+			name: "release.name_template", source: release.NameTemplate,
+			fields: singleFields, destination: &templates.releaseName,
 		},
 	}
 
@@ -214,6 +219,38 @@ func (c *releaseCore) releaseCommitSubject(plans []TargetPlan) (string, error) {
 	}
 
 	return c.releaseTemplatedSubject(plans, c.titles.commitSingle, c.titles.commitGrouped)
+}
+
+func (c *releaseCore) releaseNameForPlan(plan TargetPlan) (string, error) {
+	return c.renderReleaseName(plan.ID, plan.NextVersion, plan.NextTag)
+}
+
+func (c *releaseCore) releaseNameForManifest(entry releaseManifestEntry) (string, error) {
+	target, exists := c.targets[entry.ID]
+	if !exists {
+		return "", fmt.Errorf("%w: unknown target %q", errInvalidReleaseManifest, entry.ID)
+	}
+
+	versionValue, err := versionStrategyForResolvedTarget(target).strategy.Current(entry.Tag)
+	if err != nil {
+		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, entry.ID, err)
+	}
+
+	return c.renderReleaseName(entry.ID, versionValue, entry.Tag)
+}
+
+func (c *releaseCore) renderReleaseName(target, versionValue, tag string) (string, error) {
+	if c.titles == nil || c.titles.releaseName == nil {
+		return tag, nil
+	}
+
+	return renderReleaseTitle(c.titles.releaseName, singleReleaseTitleData{
+		Branch:  c.cfg.Branch,
+		Channel: strings.TrimSpace(c.cfg.ActiveChannel),
+		Target:  target,
+		Version: versionValue,
+		Tag:     tag,
+	})
 }
 
 func (c *releaseCore) releaseTemplatedSubject(

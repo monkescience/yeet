@@ -27,6 +27,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, time.Second, cfg.Network.Retry.MinBackoff)
 	testastic.Equal(t, 10*time.Second, cfg.Network.Retry.MaxBackoff)
 	testastic.Equal(t, "yeet/release-{{ .Branch }}", cfg.Release.BranchTemplate)
+	testastic.Equal(t, "", cfg.Release.NameTemplate)
 	testastic.Equal(t, 250*time.Millisecond, cfg.Release.MergePolling.InitialInterval)
 	testastic.Equal(t, 5*time.Second, cfg.Release.MergePolling.MaxInterval)
 	testastic.Equal(t, 2*time.Minute, cfg.Release.MergePolling.Timeout)

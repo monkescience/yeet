@@ -206,3 +206,60 @@ func TestReleaseCommitSubjectTemplates(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 }
+
+func TestReleaseNameTemplate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("uses tag by default", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		titles, err := newReleaseTitleTemplates(cfg.Release)
+		testastic.NoError(t, err)
+		core := &releaseCore{cfg: cfg, titles: titles}
+
+		name, err := core.releaseNameForPlan(TargetPlan{
+			ID: "api", NextVersion: "1.2.3", NextTag: "api-v1.2.3",
+		})
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "api-v1.2.3", name)
+	})
+
+	t.Run("renders every allowlisted field", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Branch = "beta"
+		cfg.ActiveChannel = "beta"
+		cfg.Release.NameTemplate = "{{ .Branch }}|{{ .Channel }}|{{ .Target }}|{{ .Version }}|{{ .Tag }}"
+		titles, err := newReleaseTitleTemplates(cfg.Release)
+		testastic.NoError(t, err)
+		core := &releaseCore{cfg: cfg, titles: titles}
+
+		name, err := core.releaseNameForPlan(TargetPlan{
+			ID: "api", NextVersion: "1.2.3-beta.1", NextTag: "api-v1.2.3-beta.1",
+		})
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta|beta|api|1.2.3-beta.1|api-v1.2.3-beta.1", name)
+	})
+
+	for _, source := range []string{"{{ .TargetCount }}", " ", "one\ntwo"} {
+		t.Run("rejects invalid release name "+source, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			cfg.Release.NameTemplate = source
+			titles, err := newReleaseTitleTemplates(cfg.Release)
+			if err == nil {
+				core := &releaseCore{cfg: cfg, titles: titles}
+				_, err = core.releaseNameForPlan(TargetPlan{
+					ID: "api", NextVersion: "1.2.3", NextTag: "api-v1.2.3",
+				})
+			}
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		})
+	}
+}
