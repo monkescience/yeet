@@ -22,6 +22,7 @@ func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",
 		Short: "Finalize merged releases and manage release PRs/MRs",
+		Args:  cobra.NoArgs,
 		Long: `Analyzes conventional commits since the last release to determine the next
 version, generate a changelog, and create or update a release PR/MR.
 

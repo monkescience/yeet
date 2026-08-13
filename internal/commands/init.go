@@ -13,6 +13,7 @@ func initCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a .yeet.yaml configuration file",
+		Args:  cobra.NoArgs,
 		Long: `Creates a yeet configuration file with sensible defaults.
 
 By default this writes .yeet.yaml at the repository root when inside a git
