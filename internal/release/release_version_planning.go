@@ -28,9 +28,8 @@ func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrat
 			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
 		}
 	default:
-		// Config validation admits semver and calver only. A scheme that reached
-		// here without it keeps the pre-dispatch behaviour of anything that was
-		// not semver, so callers report it instead of dereferencing nil.
+		// Config validation admits semver and calver only. Keep the fallback
+		// non-nil so callers can report an invalid resolved target without panicking.
 		strategy = calVerStrategy(target)
 	}
 
