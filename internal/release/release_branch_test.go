@@ -1,3 +1,4 @@
+//nolint:testpackage // This test validates unexported branch template behavior.
 package release
 
 import (

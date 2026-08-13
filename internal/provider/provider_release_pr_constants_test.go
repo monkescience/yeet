@@ -1,9 +1,10 @@
-package provider
+package provider_test
 
 import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/provider"
 )
 
 func TestReleaseBranchName(t *testing.T) {
@@ -13,7 +14,7 @@ func TestReleaseBranchName(t *testing.T) {
 		t.Parallel()
 
 		// when: resolving a release branch for a directly constructed provider
-		branch := releaseBranchName("", "main")
+		branch := provider.ReleaseBranchNameForTest("", "main")
 
 		// then: the historical convention remains available to adapters and tests
 		testastic.Equal(t, "yeet/release-main", branch)
@@ -23,11 +24,11 @@ func TestReleaseBranchName(t *testing.T) {
 		t.Parallel()
 
 		// when: resolving a configured release branch
-		branch := releaseBranchName("automation/main/release", "main")
+		branch := provider.ReleaseBranchNameForTest("automation/main/release", "main")
 
 		// then: no provider-specific naming is added
 		testastic.Equal(t, "automation/main/release", branch)
-		testastic.True(t, isExpectedReleaseBranch(branch, "main", branch))
-		testastic.False(t, isExpectedReleaseBranch("yeet/release-main", "main", branch))
+		testastic.True(t, provider.IsExpectedReleaseBranchForTest(branch, "main", branch))
+		testastic.False(t, provider.IsExpectedReleaseBranchForTest("yeet/release-main", "main", branch))
 	})
 }

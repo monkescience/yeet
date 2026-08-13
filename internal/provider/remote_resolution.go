@@ -170,12 +170,14 @@ func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
 		descriptor.Repo = strings.TrimSpace(cfg.Repository.GitHub.Repo)
 		descriptor.Project = strings.TrimSpace(cfg.Repository.GitHub.Project)
 	case config.ProviderGitLab:
-		if cfg.Repository.GitLab != nil {
-			descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
-			descriptor.APIURL = strings.TrimSpace(cfg.Repository.GitLab.APIURL)
-			descriptor.WebURL = strings.TrimSpace(cfg.Repository.GitLab.WebURL)
-			descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
+		if cfg.Repository.GitLab == nil {
+			break
 		}
+
+		descriptor.Host = strings.TrimSpace(cfg.Repository.GitLab.Host)
+		descriptor.APIURL = strings.TrimSpace(cfg.Repository.GitLab.APIURL)
+		descriptor.WebURL = strings.TrimSpace(cfg.Repository.GitLab.WebURL)
+		descriptor.Project = strings.TrimSpace(cfg.Repository.GitLab.Project)
 	case config.ProviderAzureDevOps:
 		if cfg.Repository.AzureDevOps == nil {
 			break

@@ -6,6 +6,16 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
+const (
+	defaultNetworkRequestTimeout       = 30 * time.Second
+	defaultNetworkRetryMaxAttempts     = 4
+	defaultNetworkRetryMinBackoff      = time.Second
+	defaultNetworkRetryMaxBackoff      = 10 * time.Second
+	defaultMergePollingInitialInterval = 250 * time.Millisecond
+	defaultMergePollingMaxInterval     = 5 * time.Second
+	defaultMergePollingTimeout         = 2 * time.Minute
+)
+
 func defaultBumpTypes() BumpTypesConfig {
 	return BumpTypesConfig{
 		Minor: []string{commitTypeFeat},
@@ -47,11 +57,11 @@ func Default() *Config {
 			Remote: "origin",
 		},
 		Network: NetworkConfig{
-			RequestTimeout: 30 * time.Second,
+			RequestTimeout: defaultNetworkRequestTimeout,
 			Retry: NetworkRetryConfig{
-				MaxAttempts: 4,
-				MinBackoff:  1 * time.Second,
-				MaxBackoff:  10 * time.Second,
+				MaxAttempts: defaultNetworkRetryMaxAttempts,
+				MinBackoff:  defaultNetworkRetryMinBackoff,
+				MaxBackoff:  defaultNetworkRetryMaxBackoff,
 			},
 		},
 		Release: ReleaseConfig{
@@ -62,9 +72,9 @@ func Default() *Config {
 			},
 			BranchTemplate: "yeet/release-{{ .Branch }}",
 			MergePolling: ReleaseMergePollingConfig{
-				InitialInterval: 250 * time.Millisecond,
-				MaxInterval:     5 * time.Second,
-				Timeout:         2 * time.Minute,
+				InitialInterval: defaultMergePollingInitialInterval,
+				MaxInterval:     defaultMergePollingMaxInterval,
+				Timeout:         defaultMergePollingTimeout,
 			},
 			AutoMerge:       false,
 			AutoMergeForce:  false,

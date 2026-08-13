@@ -1,9 +1,18 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
+)
+
+var (
+	errHTTPSURLWhitespace  = errors.New("must not contain surrounding whitespace")
+	errHTTPSURLAbsolute    = errors.New("must be an absolute HTTPS URL")
+	errHTTPSURLCredentials = errors.New("must not contain credentials")
+	errHTTPSURLQuery       = errors.New("must not contain a query")
+	errHTTPSURLFragment    = errors.New("must not contain a fragment")
 )
 
 func validateProvider(provider ProviderType) error {
@@ -235,24 +244,24 @@ func validateRepositoryURLs(path, apiURL, webURL string) error {
 
 func validateHTTPSURL(value string) error {
 	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("must not contain surrounding whitespace")
+		return errHTTPSURLWhitespace
 	}
 
 	parsed, err := url.Parse(value)
 	if err != nil || !strings.EqualFold(parsed.Scheme, "https") || parsed.Hostname() == "" || parsed.Opaque != "" {
-		return fmt.Errorf("must be an absolute HTTPS URL")
+		return errHTTPSURLAbsolute
 	}
 
 	if parsed.User != nil {
-		return fmt.Errorf("must not contain credentials")
+		return errHTTPSURLCredentials
 	}
 
 	if parsed.RawQuery != "" || parsed.ForceQuery {
-		return fmt.Errorf("must not contain a query")
+		return errHTTPSURLQuery
 	}
 
 	if strings.Contains(value, "#") {
-		return fmt.Errorf("must not contain a fragment")
+		return errHTTPSURLFragment
 	}
 
 	return nil

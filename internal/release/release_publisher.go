@@ -34,9 +34,7 @@ func newReleasePublisher(
 }
 
 func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]FinalizedRelease, error) {
-	r := p.core
-
-	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
+	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, p.core.cfg.Branch, p.core.cfg.Release.Labels.Pending)
 	if err != nil {
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
@@ -46,13 +44,13 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		return nil, err
 	}
 
-	if err := r.validateReleaseManifest(mergedPR, manifest); err != nil {
+	if err := p.core.validateReleaseManifest(mergedPR, manifest); err != nil {
 		return nil, err
 	}
 
 	releaseNames := make([]string, len(manifest.Targets))
 	for index, targetManifest := range manifest.Targets {
-		releaseNames[index], err = r.releaseNameForManifest(targetManifest)
+		releaseNames[index], err = p.core.releaseNameForManifest(targetManifest)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +113,7 @@ func (p *releasePublisher) ensureReleasesForPlans(
 
 	for _, plan := range plans {
 		releaseBody := changelog.Render(plan.Entry)
+
 		releaseName, err := p.core.releaseNameForPlan(plan)
 		if err != nil {
 			return nil, err

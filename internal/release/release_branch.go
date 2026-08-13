@@ -73,7 +73,7 @@ func newReleaseBranchTemplate(source string) (*template.Template, error) {
 		return nil, fmt.Errorf("%w: %s must not be blank", config.ErrInvalidConfig, releaseBranchTemplateName)
 	}
 
-	fields := map[string]struct{}{"Branch": {}, "Channel": {}}
+	fields := map[string]struct{}{releaseTemplateFieldBranch: {}, releaseTemplateFieldChannel: {}}
 
 	return parseReleaseTextTemplate(releaseBranchTemplateName, source, fields)
 }

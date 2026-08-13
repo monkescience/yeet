@@ -216,6 +216,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 		cfg := config.Default()
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
+
 		core := &releaseCore{cfg: cfg, titles: titles}
 
 		name, err := core.releaseNameForPlan(TargetPlan{
@@ -235,6 +236,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 		cfg.Release.NameTemplate = "{{ .Branch }}|{{ .Channel }}|{{ .Target }}|{{ .Version }}|{{ .Tag }}"
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
+
 		core := &releaseCore{cfg: cfg, titles: titles}
 
 		name, err := core.releaseNameForPlan(TargetPlan{
@@ -251,6 +253,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 
 			cfg := config.Default()
 			cfg.Release.NameTemplate = source
+
 			titles, err := newReleaseTitleTemplates(cfg.Release)
 			if err == nil {
 				core := &releaseCore{cfg: cfg, titles: titles}

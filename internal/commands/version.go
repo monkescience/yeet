@@ -9,6 +9,8 @@ import (
 	"github.com/monkescience/yeet/internal/build"
 )
 
+const versionCommandName = "version"
+
 type buildInfo struct {
 	name      string
 	version   string
@@ -21,7 +23,7 @@ type buildInfo struct {
 
 func versionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "version",
+		Use:     versionCommandName,
 		Short:   "Print build information",
 		Args:    cobra.NoArgs,
 		Example: `  yeet version`,

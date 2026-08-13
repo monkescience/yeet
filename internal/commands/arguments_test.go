@@ -1,9 +1,10 @@
-package commands
+package commands_test
 
 import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/commands"
 )
 
 func TestCommandsRejectPositionalArguments(t *testing.T) {
@@ -17,7 +18,7 @@ func TestCommandsRejectPositionalArguments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command, _, err := NewRoot().Find([]string{test.name})
+			command, _, err := commands.NewRoot().Find([]string{test.name})
 			testastic.NoError(t, err)
 
 			err = command.ValidateArgs([]string{"unexpected"})

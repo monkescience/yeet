@@ -17,6 +17,7 @@ import (
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	flags := &releaseFlagValues{}
+
 	var configFile string
 
 	cmd := &cobra.Command{

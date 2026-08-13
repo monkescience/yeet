@@ -64,6 +64,7 @@ func TestCreateGitHubProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	})
 
 	testastic.NoError(t, err)
+
 	githubProvider, ok := created.(*GitHub)
 	testastic.True(t, ok)
 	testastic.Equal(t, "https://github.company.com/root/api/v3/", githubProvider.client.BaseURL())
@@ -85,6 +86,7 @@ func TestCreateGitHubProviderEnvironmentURLWinsOverConfiguredAPIURL(t *testing.T
 	})
 
 	testastic.NoError(t, err)
+
 	githubProvider, ok := created.(*GitHub)
 	testastic.True(t, ok)
 	testastic.Equal(t, "https://proxy.example/api/v3/", githubProvider.client.BaseURL())
@@ -113,6 +115,7 @@ func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
 
 	// then: provider queries and trust checks share that exact branch
 	testastic.NoError(t, err)
+
 	githubProvider, ok := created.(*GitHub)
 	testastic.True(t, ok)
 	testastic.Equal(t, "automation/main/release", githubProvider.releaseBranch)
@@ -249,6 +252,7 @@ func TestCreateGitLabProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	})
 
 	testastic.NoError(t, err)
+
 	gitlabProvider, ok := created.(*GitLab)
 	testastic.True(t, ok)
 	testastic.Equal(t, "https://gitlab.company.com/root/api/v4/", gitlabProvider.client.BaseURL().String())
@@ -325,6 +329,7 @@ func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	})
 
 	testastic.NoError(t, err)
+
 	azureProvider, ok := created.(*AzureDevOps)
 	testastic.True(t, ok)
 	testastic.Equal(t, "https://devops.company.com/api/tfs/collection", azureProvider.conn.BaseUrl)

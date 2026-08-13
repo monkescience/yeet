@@ -202,6 +202,7 @@ func TestRootCommand(t *testing.T) {
 
 		// then: cobra rejects the flag instead of silently ignoring it
 		testastic.Error(t, err)
+
 		if err == nil {
 			t.Fatal("expected config flag to be rejected")
 		}

@@ -11,6 +11,11 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
+const (
+	releaseTemplateFieldBranch  = "Branch"
+	releaseTemplateFieldChannel = "Channel"
+)
+
 var errReleaseTitleFieldUnavailable = errors.New("field is unavailable")
 
 type singleReleaseTitleData struct {
@@ -37,8 +42,18 @@ type releaseTitleTemplates struct {
 
 func newReleaseTitleTemplates(release config.ReleaseConfig) (*releaseTitleTemplates, error) {
 	templates := &releaseTitleTemplates{}
-	singleFields := map[string]struct{}{"Branch": {}, "Channel": {}, "Target": {}, "Version": {}, "Tag": {}}
-	groupFields := map[string]struct{}{"Branch": {}, "Channel": {}, "TargetCount": {}}
+	singleFields := map[string]struct{}{
+		releaseTemplateFieldBranch:  {},
+		releaseTemplateFieldChannel: {},
+		"Target":                    {},
+		"Version":                   {},
+		"Tag":                       {},
+	}
+	groupFields := map[string]struct{}{
+		releaseTemplateFieldBranch:  {},
+		releaseTemplateFieldChannel: {},
+		"TargetCount":               {},
+	}
 
 	specs := []struct {
 		name        string

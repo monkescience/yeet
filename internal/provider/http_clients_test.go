@@ -87,6 +87,7 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 	// then: every adapter receives the bounded shared client settings. Azure's
 	// SDK creates its own transport and consumes only the timeout.
 	testastic.Len(t, constructedWith, len(descriptors))
+
 	defaults := config.Default().Network
 
 	for forge, client := range constructedWith {

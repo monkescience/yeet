@@ -89,7 +89,7 @@ func newReleaseCoreAt(
 ) (*releaseCore, error) {
 	location, err := cfg.TimeLocation()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolve release timezone: %w", err)
 	}
 
 	targets, err := cfg.ResolvedTargets(ctx)
@@ -154,6 +154,7 @@ func targetsForActiveChannel(
 	}
 
 	channelChangelogPath := ""
+
 	if strings.TrimSpace(channel.ChangelogFile) != "" {
 		normalizedPath, err := config.NormalizeRepoFilePath(channel.ChangelogFile)
 		if err != nil {

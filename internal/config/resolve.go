@@ -135,6 +135,7 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved *Reso
 	if err != nil {
 		return err
 	}
+
 	resolved.Changelog.File = normalizedChangelogPath
 
 	if err := validateTargetChangelog(targetID, resolved.Changelog); err != nil {

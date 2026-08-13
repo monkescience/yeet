@@ -447,13 +447,9 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 	for _, name := range slices.Sorted(maps.Keys(channels)) {
 		channel := channels[name]
 
-		channelName := strings.TrimSpace(name)
-		if channelName == "" {
-			return fmt.Errorf("%w: release.channels keys must not be empty", ErrInvalidConfig)
-		}
-
-		if strings.EqualFold(channelName, "stable") {
-			return fmt.Errorf("%w: release.channels.%s must not use reserved name stable", ErrInvalidConfig, channelName)
+		channelName, err := validateReleaseChannelName(name)
+		if err != nil {
+			return err
 		}
 
 		branch := strings.TrimSpace(channel.Branch)
@@ -478,7 +474,7 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 			return fmt.Errorf("%w: release.channels.%s.prerelease must not be empty", ErrInvalidConfig, channelName)
 		}
 
-		err := version.ValidatePrereleaseIdentifier(prerelease)
+		err = version.ValidatePrereleaseIdentifier(prerelease)
 		if err != nil {
 			return fmt.Errorf("%w: release.channels.%s.prerelease: %v", ErrInvalidConfig, channelName, err)
 		}
@@ -495,21 +491,45 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 
 		seenPrereleaseIDs[prerelease] = channelName
 
-		if channel.ChangelogFile != "" && strings.TrimSpace(channel.ChangelogFile) == "" {
-			return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
+		err = validateReleaseChannelChangelogFile(channelName, channel.ChangelogFile)
+		if err != nil {
+			return err
 		}
+	}
 
-		if strings.TrimSpace(channel.ChangelogFile) != "" {
-			_, err := NormalizeRepoFilePath(channel.ChangelogFile)
-			if err != nil {
-				return fmt.Errorf(
-					"%w: release.channels.%s.changelog_file %v",
-					ErrInvalidConfig,
-					channelName,
-					err,
-				)
-			}
-		}
+	return nil
+}
+
+func validateReleaseChannelName(name string) (string, error) {
+	channelName := strings.TrimSpace(name)
+	if channelName == "" {
+		return "", fmt.Errorf("%w: release.channels keys must not be empty", ErrInvalidConfig)
+	}
+
+	if strings.EqualFold(channelName, "stable") {
+		return "", fmt.Errorf("%w: release.channels.%s must not use reserved name stable", ErrInvalidConfig, channelName)
+	}
+
+	return channelName, nil
+}
+
+func validateReleaseChannelChangelogFile(channelName, changelogFile string) error {
+	if changelogFile == "" {
+		return nil
+	}
+
+	if strings.TrimSpace(changelogFile) == "" {
+		return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
+	}
+
+	_, err := NormalizeRepoFilePath(changelogFile)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: release.channels.%s.changelog_file %v",
+			ErrInvalidConfig,
+			channelName,
+			err,
+		)
 	}
 
 	return nil
