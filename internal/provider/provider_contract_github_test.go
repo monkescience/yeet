@@ -804,6 +804,9 @@ func handleGitHubUpdateFilesContract(t *testing.T, w http.ResponseWriter, r *htt
 		writeJSONFixture(t, w, "contracts/github/update_files/base_ref.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/6261736572656673686100000000000000000000":
 		writeJSONFixture(t, w, "contracts/github/update_files/base_commit.json")
+	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/trees/6261736574726565736861000000000000000000":
+		testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+		writeJSONFixture(t, w, "contracts/github/update_files/base_tree.json")
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
 		writeJSONFixture(t, w, "contracts/github/update_files/tree.json")
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/commits":
@@ -1371,6 +1374,9 @@ func TestGitHubUpdateFiles(t *testing.T) {
 			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/"+gitHubBaseCommitSHA:
 			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_commit.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/trees/6261736574726565736861000000000000000000":
+			testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_tree.json")
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
 			assertJSONRequest(t, r, "contracts/github/update_files_git_data/tree_request.json")
 			writeJSONFixture(t, w, "contracts/github/update_files_git_data/tree.json")
@@ -1397,12 +1403,56 @@ func TestGitHubUpdateFiles(t *testing.T) {
 		providerContractReleaseBranch,
 		providerContractBaseBranch,
 		map[string]forge.FileUpdate{
-			"VERSION.txt":  {Content: "version=1.2.3"},
-			"CHANGELOG.md": {Content: "# Changelog", Exists: true},
+			"VERSION.txt":  {Content: "version=1.2.3", Exists: true},
+			"CHANGELOG.md": {Content: "# Changelog"},
 		},
 		"chore: release 1.2.3",
 	)
 
 	// then: the tree, commit, and branch ref requests match the recorded contract
 	testastic.NoError(t, err)
+}
+
+func TestGitHubUpdateFilesRejectsMissingExistingFile(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub base tree that does not contain a file marked as existing
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractBaseBranch:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/"+gitHubBaseCommitSHA:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_commit.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/trees/6261736574726565736861000000000000000000":
+			testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_tree.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSON(t, w, map[string]any{"message": "tree lookup was skipped"})
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+	defer server.Close()
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: an update claims that the missing path exists
+	err := p.UpdateFiles(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+		map[string]forge.FileUpdate{
+			"MISSING.txt": {Content: "version=1.2.3", Exists: true},
+		},
+		"chore: release 1.2.3",
+	)
+
+	// then: the provider fails before creating a tree
+	testastic.ErrorIs(t, err, forge.ErrFileNotFound)
+	testastic.Equal(
+		t,
+		"create tree for branch release-main: find mode for existing file MISSING.txt: file not found",
+		err.Error(),
+	)
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
+const gitHubRegularFileMode = "100644"
+
 func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, error) {
 	slog.DebugContext(ctx, "github: reading file",
 		slog.String("path", path),
@@ -112,19 +114,24 @@ func (g *GitHub) createTreeForFiles(
 	baseTreeSHA string,
 	files map[string]forge.FileUpdate,
 ) (*github.Tree, error) {
+	existingModes, err := g.existingFileModes(ctx, baseTreeSHA, files)
+	if err != nil {
+		return nil, err
+	}
+
 	entries := make([]*github.TreeEntry, 0, len(files))
 
 	for path, update := range files {
-		pathValue := path
-		mode := "100644"
-		typeValue := "blob"
-		contentValue := update.Content
+		mode := gitHubRegularFileMode
+		if update.Exists {
+			mode = existingModes[path]
+		}
 
 		entries = append(entries, &github.TreeEntry{
-			Path:    &pathValue,
-			Mode:    &mode,
-			Type:    &typeValue,
-			Content: &contentValue,
+			Path:    new(path),
+			Mode:    new(mode),
+			Type:    new("blob"),
+			Content: new(update.Content),
 		})
 	}
 
@@ -138,6 +145,47 @@ func (g *GitHub) createTreeForFiles(
 	}
 
 	return tree, nil
+}
+
+func (g *GitHub) existingFileModes(
+	ctx context.Context,
+	baseTreeSHA string,
+	files map[string]forge.FileUpdate,
+) (map[string]string, error) {
+	existingPaths := make([]string, 0, len(files))
+	for path, update := range files {
+		if update.Exists {
+			existingPaths = append(existingPaths, path)
+		}
+	}
+
+	if len(existingPaths) == 0 {
+		return map[string]string{}, nil
+	}
+
+	baseTree, _, err := g.client.Git.GetTree(ctx, g.repo.Owner, g.repo.Name, baseTreeSHA, true)
+	if err != nil {
+		return nil, fmt.Errorf("get base tree %s: %w", baseTreeSHA, err)
+	}
+
+	modes := make(map[string]string, len(existingPaths))
+
+	for _, entry := range baseTree.GetEntries() {
+		update, requested := files[entry.GetPath()]
+		if requested && update.Exists {
+			modes[entry.GetPath()] = entry.GetMode()
+		}
+	}
+
+	slices.Sort(existingPaths)
+
+	for _, path := range existingPaths {
+		if modes[path] == "" {
+			return nil, fmt.Errorf("find mode for existing file %s: %w", path, forge.ErrFileNotFound)
+		}
+	}
+
+	return modes, nil
 }
 
 func (g *GitHub) createCommitFromBase(

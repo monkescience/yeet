@@ -133,6 +133,13 @@ func (c *RepoContent) Reads() []ContentRead {
 	return slices.Clone(c.reads)
 }
 
+func (c *RepoContent) paths(branch string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Sorted(maps.Keys(c.branches[branch]))
+}
+
 func (c *RepoContent) createBranch(branch string) map[string]string {
 	files := map[string]string{}
 	c.branches[branch] = files

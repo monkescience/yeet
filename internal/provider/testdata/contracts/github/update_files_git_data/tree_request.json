@@ -10,7 +10,7 @@
       },
       {
         "content": "version=1.2.3",
-        "mode": "100644",
+        "mode": "100755",
         "path": "VERSION.txt",
         "type": "blob"
       }

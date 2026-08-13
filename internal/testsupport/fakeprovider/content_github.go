@@ -72,6 +72,8 @@ func newGitHubContentHandler(t *testing.T, content *RepoContent) http.Handler {
 			gitHubContentRef(w, content, state, strings.TrimPrefix(path, prefix+"/git/ref/heads/"))
 		case r.Method == http.MethodGet && strings.HasPrefix(path, prefix+"/git/commits/"):
 			gitHubContentCommitObject(w, state, strings.TrimPrefix(path, prefix+"/git/commits/"))
+		case r.Method == http.MethodGet && strings.HasPrefix(path, prefix+"/git/trees/"):
+			gitHubContentTree(t, w, r, content, strings.TrimPrefix(path, prefix+"/git/trees/"))
 		case r.Method == http.MethodPost && path == prefix+"/git/trees":
 			gitHubContentCreateTree(t, w, r, state)
 		case r.Method == http.MethodPost && path == prefix+"/git/commits":
@@ -84,6 +86,37 @@ func newGitHubContentHandler(t *testing.T, content *RepoContent) http.Handler {
 			t.Errorf("fakeprovider/github content: unexpected request %s %s", r.Method, r.URL.String())
 			http.Error(w, "unhandled", http.StatusNotImplemented)
 		}
+	})
+}
+
+func gitHubContentTree(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+	content *RepoContent,
+	sha string,
+) {
+	t.Helper()
+
+	testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+
+	branch := strings.TrimPrefix(sha, gitHubContentTreePrefix)
+	paths := content.paths(branch)
+	entries := make([]map[string]any, 0, len(paths))
+
+	for _, path := range paths {
+		entries = append(entries, map[string]any{
+			contentKeyPath: path,
+			"mode":         "100644",
+			githubKeyType:  "blob",
+			githubKeySHA:   "blob:" + path,
+		})
+	}
+
+	writeJSON(w, map[string]any{
+		githubKeySHA:   sha,
+		contentKeyTree: entries,
+		"truncated":    false,
 	})
 }
 
