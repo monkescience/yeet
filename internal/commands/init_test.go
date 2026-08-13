@@ -22,7 +22,7 @@ func TestInitCommand(t *testing.T) {
 		t.Chdir(tempDir)
 
 		// when: executing init through the root command with --config
-		_, _, err := executeRootCommand(t, "--config", "custom.yaml", "init")
+		_, _, err := executeRootCommand(t, "init", "--config", "custom.yaml")
 
 		// then: the custom path is written instead of the default path
 		testastic.NoError(t, err)
@@ -46,7 +46,7 @@ func TestInitCommand(t *testing.T) {
 		path := filepath.Join("missing", "custom.yaml")
 
 		// when: executing init through the root command with a missing parent directory
-		_, _, err := executeRootCommand(t, "--config", path, "init")
+		_, _, err := executeRootCommand(t, "init", "--config", path)
 
 		// then: command fails with a not-exist error that mentions the requested path
 		testastic.Error(t, err)
@@ -192,6 +192,23 @@ func TestInitCommand(t *testing.T) {
 }
 
 func TestRootCommand(t *testing.T) {
+	t.Run("version rejects config flag", func(t *testing.T) {
+		// given: the version command, which does not load configuration
+		command := NewRoot()
+		command.SetArgs([]string{"version", "--config", "ignored.yaml"})
+
+		// when: executing version with the config flag
+		err := command.Execute()
+
+		// then: cobra rejects the flag instead of silently ignoring it
+		testastic.Error(t, err)
+		if err == nil {
+			t.Fatal("expected config flag to be rejected")
+		}
+
+		testastic.Equal(t, "unknown flag: --config", err.Error())
+	})
+
 	t.Run("completion command is available for bash", func(t *testing.T) {
 		// given: the root command tree
 		command := NewRoot()

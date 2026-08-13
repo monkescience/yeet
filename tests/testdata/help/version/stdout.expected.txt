@@ -10,7 +10,6 @@ Flags:
   -h, --help   help for version
 
 Global Flags:
-      --config string   path to config file (default: nearest ancestor .yeet.yaml)
-      --no-color        disable colored output
-      --quiet           show warnings and errors only
-  -v, --verbose         enable debug logging
+      --no-color   disable colored output
+      --quiet      show warnings and errors only
+  -v, --verbose    enable debug logging

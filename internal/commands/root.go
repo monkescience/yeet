@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 
 	charmlog "charm.land/log/v2"
 	"github.com/charmbracelet/colorprofile"
@@ -17,10 +16,9 @@ import (
 var errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
 
 type bootstrapOptions struct {
-	configFile string
-	verbose    bool
-	quiet      bool
-	noColor    bool
+	verbose bool
+	quiet   bool
+	noColor bool
 }
 
 func NewRoot() *cobra.Command {
@@ -46,19 +44,13 @@ the configured tagged lifecycle label.`,
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(
-		&options.configFile,
-		"config",
-		"",
-		"path to config file (default: nearest ancestor .yeet.yaml)",
-	)
 	cmd.PersistentFlags().BoolVarP(&options.verbose, "verbose", "v", false, "enable debug logging")
 	cmd.PersistentFlags().BoolVar(&options.quiet, "quiet", false, "show warnings and errors only")
 	cmd.PersistentFlags().BoolVar(&options.noColor, "no-color", false, "disable colored output")
 
 	cmd.AddCommand(
 		releaseCmd(options),
-		initCmd(options),
+		initCmd(),
 		versionCmd(),
 	)
 
@@ -125,8 +117,4 @@ func newColorWriter(w io.Writer, noColor bool) *colorprofile.Writer {
 		Forward: w,
 		Profile: resolveColorProfile(w, noColor),
 	}
-}
-
-func (o *bootstrapOptions) configPath() string {
-	return strings.TrimSpace(o.configFile)
 }

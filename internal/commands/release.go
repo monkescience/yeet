@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
@@ -16,6 +17,7 @@ import (
 
 func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
 	flags := &releaseFlagValues{}
+	var configFile string
 
 	cmd := &cobra.Command{
 		Use:   "release",
@@ -49,13 +51,19 @@ complete (not shallow) and match the remote release branch.`,
 			return runRelease(
 				cmd.Context(),
 				newColorWriter(cmd.OutOrStdout(), bootstrap.noColor),
-				bootstrap.configPath(),
+				strings.TrimSpace(configFile),
 				releaseOptionsFromCommand(cmd, *flags),
 			)
 		},
 	}
 
 	bindReleaseFlags(cmd, flags)
+	cmd.Flags().StringVar(
+		&configFile,
+		"config",
+		"",
+		"path to config file (default: nearest ancestor .yeet.yaml)",
+	)
 
 	return cmd
 }

@@ -12,10 +12,10 @@ Examples:
   yeet init --config .yeet.release.yaml
 
 Flags:
-  -h, --help   help for init
+      --config string   path to config file (default: nearest ancestor .yeet.yaml)
+  -h, --help            help for init
 
 Global Flags:
-      --config string   path to config file (default: nearest ancestor .yeet.yaml)
-      --no-color        disable colored output
-      --quiet           show warnings and errors only
-  -v, --verbose         enable debug logging
+      --no-color   disable colored output
+      --quiet      show warnings and errors only
+  -v, --verbose    enable debug logging
