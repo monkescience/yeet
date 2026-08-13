@@ -307,6 +307,10 @@ func (g *GitHub) resolveLatestGitHubMergedCandidate(
 				return candidate, false, nil
 			}
 
+			if full.MergedAt == nil {
+				return candidate, false, mergeTimeMissingError(gitHubPullRequestReference(number))
+			}
+
 			return gitHubMergedCandidate{listed: full, full: full}, true, nil
 		},
 		reference: func(candidate gitHubMergedCandidate) string {

@@ -1,0 +1,12 @@
+{
+  "number": 41,
+  "title": "chore: release v1.2.2",
+  "merged": true,
+  "merged_at": null,
+  "head": {
+    "ref": "yeet/release-main",
+    "repo": {
+      "full_name": "o/r"
+    }
+  }
+}

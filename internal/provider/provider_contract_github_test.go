@@ -490,6 +490,49 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 		// then: the failure carries the candidate it belongs to
 		testastic.Contains(t, err.Error(), "get pull request #41")
 	})
+
+	t.Run("reports a withheld merge time before re-reading another candidate", func(t *testing.T) {
+		t.Parallel()
+
+		// given: two undated candidates and a dated one, where the first re-read
+		// stays undated and the second would fail
+		var rereads []string
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs_with_later_failure.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/41":
+				rereads = append(rereads, "41")
+
+				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/pr_41_merged_undated.json")
+			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
+				rereads = append(rereads, "42")
+
+				w.WriteHeader(http.StatusInternalServerError)
+			default:
+				fatalUnexpectedProviderRequest(t, "GitHub", r)
+			}
+		}))
+		defer server.Close()
+
+		p := newGitHubContractProvider(t, server)
+
+		// when: finding the merged release pull request
+		_, err := p.FindMergedReleasePR(
+			context.Background(),
+			providerContractBaseBranch,
+			providerContractPendingLabel,
+		)
+
+		// then: the missing completion time is not masked by the later fetch failure
+		testastic.ErrorContains(
+			t,
+			err,
+			"merged release PR completion time is unavailable: pull request #41",
+		)
+		testastic.SliceEqual(t, []string{"41"}, rereads)
+	})
 }
 
 // newGitHubContractLabelHandler tracks the labels on PR 42 so a scenario can
