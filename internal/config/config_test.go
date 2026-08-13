@@ -206,6 +206,98 @@ func TestRepositoryURLValidation(t *testing.T) {
 	})
 }
 
+func TestRepositoryFilePathValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*config.Config)
+		message   string
+	}{
+		{
+			name: "top-level version file escapes repository",
+			configure: func(cfg *config.Config) {
+				cfg.VersionFiles = []config.VersionFile{{Path: "../VERSION"}}
+			},
+			message: "invalid config: version_files entry \"../VERSION\" must be repo-relative",
+		},
+		{
+			name: "target version file escapes repository",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.VersionFiles = []config.VersionFile{{Path: "../VERSION"}}
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.version_files entry \"../VERSION\" must be repo-relative",
+		},
+		{
+			name: "top-level changelog escapes repository",
+			configure: func(cfg *config.Config) {
+				cfg.Changelog.File = "../CHANGELOG.md"
+			},
+			message: "invalid config: changelog.file must be repo-relative",
+		},
+		{
+			name: "target changelog escapes repository",
+			configure: func(cfg *config.Config) {
+				target := cfg.Targets["app"]
+				target.Changelog.File = "../CHANGELOG.md"
+				cfg.Targets["app"] = target
+			},
+			message: "invalid config: targets.app.changelog.file must be repo-relative",
+		},
+		{
+			name: "channel changelog escapes repository",
+			configure: func(cfg *config.Config) {
+				cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+					"beta": {
+						Branch: "beta", Prerelease: "beta", ChangelogFile: "../CHANGELOG.beta.md",
+					},
+				}
+			},
+			message: "invalid config: release.channels.beta.changelog_file must be repo-relative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config.Default()
+			cfg.Targets = map[string]config.Target{
+				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+			}
+			tt.configure(cfg)
+
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatal("expected repository file path to be rejected")
+			}
+
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+			testastic.Equal(t, tt.message, err.Error())
+		})
+	}
+
+	t.Run("repository root is not a file", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.Changelog.File = "./"
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("expected repository root file path to be rejected")
+		}
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, "invalid config: changelog.file must refer to a file", err.Error())
+	})
+}
+
 func TestReleaseMergePollingValidation(t *testing.T) {
 	t.Parallel()
 
@@ -968,7 +1060,7 @@ func TestValidate(t *testing.T) {
 				Type:         config.TargetTypePath,
 				Path:         "apps/web",
 				TagPrefix:    "web-v",
-				VersionFiles: []config.VersionFile{{Path: "VERSION"}},
+				VersionFiles: []config.VersionFile{{Path: "./VERSION"}},
 				Changelog:    config.ChangelogConfig{File: "apps/web/CHANGELOG.md"},
 			},
 		}
@@ -2182,7 +2274,7 @@ func TestResolvedTargets_Merging(t *testing.T) {
 				Path:      ".",
 				TagPrefix: "v",
 				Changelog: config.ChangelogConfig{
-					File: "docs/RELEASES.md",
+					File: " ./docs/../docs/RELEASES.md ",
 				},
 			},
 		}
@@ -2193,6 +2285,21 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		// then: target uses the override
 		testastic.NoError(t, err)
 		testastic.Equal(t, "docs/RELEASES.md", resolved["app"].Changelog.File)
+	})
+
+	t.Run("normalizes inherited version file paths", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.VersionFiles = []config.VersionFile{{Path: " ./config/../VERSION "}}
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		resolved, err := cfg.ResolvedTargets(t.Context())
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "VERSION", resolved["app"].VersionFiles[0].Path)
 	})
 
 	t.Run("target overrides changelog include list", func(t *testing.T) {

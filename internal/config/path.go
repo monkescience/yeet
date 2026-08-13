@@ -47,6 +47,20 @@ func normalizeRepoPath(rawPath string) (string, error) {
 	return normalizedPath, nil
 }
 
+// NormalizeRepoFilePath returns a canonical repo-relative file path.
+func NormalizeRepoFilePath(rawPath string) (string, error) {
+	normalizedPath, err := normalizeRepoPath(rawPath)
+	if err != nil {
+		return "", err
+	}
+
+	if normalizedPath == "." {
+		return "", errPathMustReferToFile
+	}
+
+	return normalizedPath, nil
+}
+
 func isRepoPathAbsolute(rawPath string) bool {
 	const windowsDrivePrefixLength = 3
 

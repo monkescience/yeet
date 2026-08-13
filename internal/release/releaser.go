@@ -153,6 +153,21 @@ func targetsForActiveChannel(
 		return nil, fmt.Errorf("%w: unknown active release channel %q", config.ErrInvalidConfig, channelName)
 	}
 
+	channelChangelogPath := ""
+	if strings.TrimSpace(channel.ChangelogFile) != "" {
+		normalizedPath, err := config.NormalizeRepoFilePath(channel.ChangelogFile)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"%w: release.channels.%s.changelog_file %v",
+				config.ErrInvalidConfig,
+				channelName,
+				err,
+			)
+		}
+
+		channelChangelogPath = normalizedPath
+	}
+
 	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
 	for targetID, target := range targets {
 		if !versionStrategyForResolvedTarget(target).strategy.SupportsPrerelease() {
@@ -165,8 +180,8 @@ func targetsForActiveChannel(
 			)
 		}
 
-		if strings.TrimSpace(channel.ChangelogFile) != "" && len(targets) == 1 {
-			target.Changelog.File = strings.TrimSpace(channel.ChangelogFile)
+		if channelChangelogPath != "" && len(targets) == 1 {
+			target.Changelog.File = channelChangelogPath
 		} else {
 			target.Changelog.File = channelChangelogFile(target.Changelog.File, channelName)
 		}

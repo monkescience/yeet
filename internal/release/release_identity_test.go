@@ -239,3 +239,26 @@ func TestValidateReleaseManifest(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Default()
+	r := newTestReleaser(t, cfg, newProviderStub())
+	pullRequest := &forge.PullRequest{Branch: r.core.releaseBranch}
+	manifest := releaseManifest{
+		BaseBranch: cfg.Branch,
+		Targets: []releaseManifestEntry{
+			{
+				ID:            "default",
+				Type:          string(config.TargetTypePath),
+				Tag:           "v1.2.3",
+				ChangelogFile: "./CHANGELOG.md",
+			},
+		},
+	}
+
+	err := r.core.validateReleaseManifest(pullRequest, manifest)
+
+	testastic.NoError(t, err)
+}

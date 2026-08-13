@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -196,7 +197,8 @@ func (c *releaseCore) validateReleaseManifestEntry(
 		return fmt.Errorf("%w: target %q type does not match configuration", errInvalidReleaseManifest, targetID)
 	}
 
-	if strings.TrimSpace(entry.ChangelogFile) != strings.TrimSpace(target.Changelog.File) {
+	manifestChangelogFile, err := config.NormalizeRepoFilePath(entry.ChangelogFile)
+	if err != nil || manifestChangelogFile != target.Changelog.File {
 		return fmt.Errorf(
 			"%w: target %q changelog file does not match configuration",
 			errInvalidReleaseManifest,

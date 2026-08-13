@@ -504,7 +504,7 @@
         },
         "changelog_file": {
           "type": "string",
-          "description": "Optional channel changelog path. By default yeet derives CHANGELOG.<channel>.md from each target changelog file.",
+          "description": "Optional repo-relative channel changelog file path. By default yeet derives CHANGELOG.<channel>.md from each target changelog file.",
           "minLength": 1
         }
       },

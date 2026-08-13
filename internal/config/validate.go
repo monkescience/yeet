@@ -36,6 +36,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if strings.TrimSpace(c.Changelog.File) != "" {
+		if _, err := normalizedChangelogFile("changelog.file", c.Changelog.File); err != nil {
+			return err
+		}
+	}
+
 	if err := validateReferencesConfig("changelog.references", c.Changelog.References); err != nil {
 		return err
 	}
@@ -144,11 +150,43 @@ func validateCalVerConfig(path string, calver CalVerConfig) error {
 }
 
 func validateVersionFile(configPath string, versionFile VersionFile) error {
+	_, err := normalizedVersionFile(configPath, versionFile)
+
+	return err
+}
+
+func normalizedVersionFile(configPath string, versionFile VersionFile) (VersionFile, error) {
 	if strings.TrimSpace(versionFile.Path) == "" {
-		return fmt.Errorf("%w: %s must not contain empty paths", ErrInvalidConfig, configPath)
+		return VersionFile{}, fmt.Errorf("%w: %s must not contain empty paths", ErrInvalidConfig, configPath)
 	}
 
-	return nil
+	normalizedPath, err := NormalizeRepoFilePath(versionFile.Path)
+	if err != nil {
+		return VersionFile{}, fmt.Errorf(
+			"%w: %s entry %q %v",
+			ErrInvalidConfig,
+			configPath,
+			versionFile.Path,
+			err,
+		)
+	}
+
+	versionFile.Path = normalizedPath
+
+	return versionFile, nil
+}
+
+func normalizedChangelogFile(configPath string, rawPath string) (string, error) {
+	if strings.TrimSpace(rawPath) == "" {
+		return "", fmt.Errorf("%w: %s must not be empty", ErrInvalidConfig, configPath)
+	}
+
+	normalizedPath, err := NormalizeRepoFilePath(rawPath)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s %v", ErrInvalidConfig, configPath, err)
+	}
+
+	return normalizedPath, nil
 }
 
 func validateReferencesConfig(path string, references ReferencesConfig) error {
@@ -459,6 +497,18 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 
 		if channel.ChangelogFile != "" && strings.TrimSpace(channel.ChangelogFile) == "" {
 			return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
+		}
+
+		if strings.TrimSpace(channel.ChangelogFile) != "" {
+			_, err := NormalizeRepoFilePath(channel.ChangelogFile)
+			if err != nil {
+				return fmt.Errorf(
+					"%w: release.channels.%s.changelog_file %v",
+					ErrInvalidConfig,
+					channelName,
+					err,
+				)
+			}
 		}
 	}
 

@@ -97,6 +97,29 @@ func TestChannelRefAllowed(t *testing.T) {
 func TestTargetsForActiveChannel(t *testing.T) {
 	t.Parallel()
 
+	t.Run("normalizes an explicit channel changelog file", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {
+				Branch: "beta", Prerelease: "beta", ChangelogFile: " ./docs/../CHANGELOG.beta.md ",
+			},
+		}
+		targets := map[string]config.ResolvedTarget{
+			"app": {
+				ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v",
+				Changelog: config.ChangelogConfig{File: "CHANGELOG.md"},
+			},
+		}
+
+		resolved, err := targetsForActiveChannel(cfg, targets)
+
+		testastic.NoError(t, err)
+		testastic.Equal(t, "CHANGELOG.beta.md", resolved["app"].Changelog.File)
+	})
+
 	t.Run("rejects a scheme config validation would reject", func(t *testing.T) {
 		t.Parallel()
 

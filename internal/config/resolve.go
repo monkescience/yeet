@@ -84,7 +84,7 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		Includes:                   normalizeTargetIDs(target.Includes),
 	}
 
-	if err := validateResolvedTargetConfig(targetID, target, resolved); err != nil {
+	if err := validateResolvedTargetConfig(targetID, target, &resolved); err != nil {
 		return ResolvedTarget{}, err
 	}
 
@@ -115,7 +115,7 @@ func resolveTargetType(targetID string, value TargetType) (TargetType, error) {
 	)
 }
 
-func validateResolvedTargetConfig(targetID string, target Target, resolved ResolvedTarget) error {
+func validateResolvedTargetConfig(targetID string, target Target, resolved *ResolvedTarget) error {
 	if err := validatePreMajorCalVer(targetID, resolved.Versioning, target); err != nil {
 		return err
 	}
@@ -124,18 +124,30 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved Resol
 		return fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	if err := validateTargetVersioning(targetID, resolved); err != nil {
+	if err := validateTargetVersioning(targetID, *resolved); err != nil {
 		return err
 	}
+
+	normalizedChangelogPath, err := normalizedChangelogFile(
+		"targets."+targetID+".changelog.file",
+		resolved.Changelog.File,
+	)
+	if err != nil {
+		return err
+	}
+	resolved.Changelog.File = normalizedChangelogPath
 
 	if err := validateTargetChangelog(targetID, resolved.Changelog); err != nil {
 		return err
 	}
 
-	for _, versionFile := range resolved.VersionFiles {
-		if err := validateVersionFile("targets."+targetID+".version_files", versionFile); err != nil {
+	for index, versionFile := range resolved.VersionFiles {
+		normalized, err := normalizedVersionFile("targets."+targetID+".version_files", versionFile)
+		if err != nil {
 			return err
 		}
+
+		resolved.VersionFiles[index] = normalized
 	}
 
 	return nil
@@ -157,10 +169,6 @@ func validateTargetVersioning(targetID string, target ResolvedTarget) error {
 }
 
 func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
-	if changelog.File == "" {
-		return fmt.Errorf("%w: targets.%s.changelog.file must not be empty", ErrInvalidConfig, targetID)
-	}
-
 	if len(changelog.Include) == 0 {
 		return fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
 	}
@@ -457,7 +465,15 @@ func validateTargetVersionFileOwnership(targets map[string]Target) error {
 		targetID := strings.TrimSpace(id)
 
 		for _, versionFile := range target.VersionFiles {
-			normalizedVersionFilePath := strings.TrimSpace(versionFile.Path)
+			normalizedVersionFile, err := normalizedVersionFile(
+				"targets."+targetID+".version_files",
+				versionFile,
+			)
+			if err != nil {
+				return err
+			}
+
+			normalizedVersionFilePath := normalizedVersionFile.Path
 
 			otherID, exists := versionFileOwners[normalizedVersionFilePath]
 			if exists && otherID != targetID {

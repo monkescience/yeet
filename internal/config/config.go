@@ -274,6 +274,7 @@ var (
 	ErrInvalidConfig          = errors.New("invalid config")
 	errEmptyRepoPath          = errors.New("must not be empty")
 	errPathMustBeRepoRelative = errors.New("must be repo-relative")
+	errPathMustReferToFile    = errors.New("must refer to a file")
 
 	errJSONPointerMustStartWithSlash = errors.New("must start with /")
 )
