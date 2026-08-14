@@ -19,7 +19,7 @@ concurrency:
 
 env:
   KO_VERSION: v0.19.1 # renovate: datasource=github-releases depName=ko-build/ko
-  COSIGN_VERSION: v3.1.2 # renovate: datasource=github-releases depName=sigstore/cosign
+  COSIGN_VERSION: v3.1.3 # renovate: datasource=github-releases depName=sigstore/cosign
 
 jobs:
   publish:
