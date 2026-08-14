@@ -2,7 +2,7 @@ module github.com/monkescience/yeet
 
 go 1.26
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	charm.land/lipgloss/v2 v2.0.5
