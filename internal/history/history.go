@@ -59,25 +59,23 @@ type Source struct {
 	remoteTagCommits map[string]string
 }
 
-// New returns a history source that searches for a repository at dir or its
-// parents. The checkout is validated on first use.
-func New(remote Remote, branch, dir string) *Source {
-	return &Source{remote: remote, branch: branch, dir: dir}
-}
+// Open returns a history source backed by an eligible repository at dir or one
+// of its parents.
+func Open(ctx context.Context, remote Remote, branch, dir string) (*Source, error) {
+	s := &Source{remote: remote, branch: branch, dir: dir}
 
-// Validate checks checkout eligibility and builds the complete reachable
-// commit graph before the release workflow can mutate provider state.
-func (s *Source) Validate(ctx context.Context) error {
-	local, err := s.eligibleLocal(ctx, s.branch)
+	local, err := s.openEligibleLocal(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if _, err := local.branchGraph(ctx); err != nil {
-		return fmt.Errorf("validate local commit graph: %w", err)
+		return nil, fmt.Errorf("validate local commit graph: %w", err)
 	}
 
-	return nil
+	s.local = local
+
+	return s, nil
 }
 
 // ListTags returns remote tag names and caches their commit targets for later
@@ -93,17 +91,12 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 
 // GetFile reads a blob from the validated local HEAD commit. Working-tree
 // changes are intentionally ignored so release inputs match the remote branch.
-func (s *Source) GetFile(ctx context.Context, branch, path string) (string, error) {
-	local, err := s.eligibleLocal(ctx, branch)
-	if err != nil {
-		return "", err
-	}
-
+func (s *Source) GetFile(ctx context.Context, path string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", fmt.Errorf("read local file %q: %w", path, err)
 	}
 
-	commit, err := local.repo.CommitObject(local.head)
+	commit, err := s.local.repo.CommitObject(s.local.head)
 	if err != nil {
 		return "", fmt.Errorf("read local head commit: %w", err)
 	}
@@ -132,13 +125,11 @@ func (s *Source) GetFile(ctx context.Context, branch, path string) (string, erro
 func (s *Source) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,
-	branch string,
 	includePaths bool,
 	knownTags []forge.TagRef,
 ) (CommitHistory, error) {
-	local, err := s.eligibleLocal(ctx, branch)
-	if err != nil {
-		return CommitHistory{}, err
+	if err := ctx.Err(); err != nil {
+		return CommitHistory{}, fmt.Errorf("read local history: %w", err)
 	}
 
 	boundaries, err := s.remoteBoundaries(ctx, refs, knownTags)
@@ -146,13 +137,13 @@ func (s *Source) GetCommitsSinceRefs(
 		return CommitHistory{}, err
 	}
 
-	history, err := local.commitsSinceRefs(ctx, refs, boundaries, includePaths)
+	history, err := s.local.commitsSinceRefs(ctx, refs, boundaries, includePaths)
 	if err != nil {
 		return CommitHistory{}, err
 	}
 
 	slog.DebugContext(ctx, "local git history served commit ranges",
-		slog.String("branch", branch),
+		slog.String("branch", s.branch),
 		slog.Int("refs", len(refs)),
 	)
 
@@ -257,28 +248,6 @@ func knownTagCommit(knownTags []forge.TagRef, ref string) (string, bool) {
 	}
 
 	return "", false
-}
-
-func (s *Source) eligibleLocal(ctx context.Context, branch string) (*localHistory, error) {
-	if branch != s.branch {
-		return nil, fmt.Errorf(
-			"%w: history requested for branch %q but the source is configured for %q",
-			ErrCheckoutUnusable, branch, s.branch,
-		)
-	}
-
-	if s.local != nil {
-		return s.local, nil
-	}
-
-	local, err := s.openEligibleLocal(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	s.local = local
-
-	return local, nil
 }
 
 func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {

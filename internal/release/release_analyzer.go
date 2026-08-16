@@ -80,7 +80,7 @@ func (a *releaseAnalyzer) scanHistory(
 		extraTags:    extraTags,
 		includePaths: needsPathFiltering(targets),
 		reachable:    make(map[string]bool),
-		commits:      make(map[commitCacheKey][]history.CommitEntry),
+		commits:      make(map[string][]history.CommitEntry),
 	}
 
 	if err := a.buildSharedHistoryIndex(ctx, scan, targets); err != nil {

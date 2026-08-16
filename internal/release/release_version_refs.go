@@ -96,7 +96,6 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *hist
 	history, err := a.history.GetCommitsSinceRefs(
 		ctx,
 		[]string{ref},
-		a.core.cfg.Branch,
 		scan.includePaths,
 		scan.extraTags,
 	)
@@ -108,11 +107,7 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *hist
 	scan.reachable[ref] = reachable
 
 	if reachable {
-		scan.commits[commitCacheKey{
-			ref:          ref,
-			branch:       a.core.cfg.Branch,
-			includePaths: scan.includePaths,
-		}] = history.EntriesByRef[ref]
+		scan.commits[ref] = history.EntriesByRef[ref]
 	}
 
 	return reachable, nil

@@ -13,12 +13,6 @@ import (
 	"github.com/monkescience/yeet/internal/history"
 )
 
-type commitCacheKey struct {
-	ref          string
-	branch       string
-	includePaths bool
-}
-
 // historyScan holds the outputs of one ordered history pass: the tag list every
 // ref order derives from, the boundaries the shared range request resolved, and
 // the reachability and range results later per-target lookups reuse.
@@ -28,7 +22,7 @@ type historyScan struct {
 	includePaths bool
 	index        map[string]targetHistory
 	reachable    map[string]bool
-	commits      map[commitCacheKey][]history.CommitEntry
+	commits      map[string][]history.CommitEntry
 }
 
 // sharedHistoryTopRefsLimit caps how many of each target's ordered refs the
@@ -93,7 +87,6 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 	scanned, err := a.history.GetCommitsSinceRefs(
 		ctx,
 		refs,
-		a.core.cfg.Branch,
 		scan.includePaths,
 		scan.extraTags,
 	)
@@ -118,13 +111,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 		scan.reachable[ref] = !missing
 	}
 
-	for ref, entries := range scanned.EntriesByRef {
-		scan.commits[commitCacheKey{
-			ref:          ref,
-			branch:       a.core.cfg.Branch,
-			includePaths: scan.includePaths,
-		}] = entries
-	}
+	maps.Copy(scan.commits, scanned.EntriesByRef)
 
 	index := make(map[string]targetHistory, len(refsByTargetID))
 
@@ -208,16 +195,15 @@ func sharedTargetHistory(scan *historyScan, target config.ResolvedTarget) (targe
 func (a *releaseAnalyzer) commitsSince(
 	ctx context.Context,
 	scan *historyScan,
-	ref, branch string,
+	ref string,
 ) ([]history.CommitEntry, error) {
-	key := commitCacheKey{ref: ref, branch: branch, includePaths: scan.includePaths}
-	if cached, exists := scan.commits[key]; exists {
+	if cached, exists := scan.commits[ref]; exists {
 		return cached, nil
 	}
 
-	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, branch, scan.includePaths, scan.extraTags)
+	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, scan.includePaths, scan.extraTags)
 	if err != nil {
-		return nil, fmt.Errorf("get commits from branch %q: %w", branch, err)
+		return nil, fmt.Errorf("get commits from branch %q: %w", a.core.cfg.Branch, err)
 	}
 
 	if slices.Contains(history.MissingRefs, ref) {
@@ -225,13 +211,13 @@ func (a *releaseAnalyzer) commitsSince(
 			"previous release ref %q is not reachable from release branch %q. "+
 				"Verify the latest tag or release and branch ancestry: %w",
 			ref,
-			branch,
-			&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: branch},
+			a.core.cfg.Branch,
+			&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
 		)
 	}
 
 	entries := history.EntriesByRef[ref]
-	scan.commits[key] = entries
+	scan.commits[ref] = entries
 
 	return entries, nil
 }

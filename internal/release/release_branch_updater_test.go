@@ -23,11 +23,12 @@ var errUnexpectedHistoryScan = errors.New("release branch update must not scan c
 
 // baseFileSource rejects history scans because an empty range would falsely report success.
 type baseFileSource struct {
-	files releaseFileProvider
+	files  releaseFileProvider
+	branch string
 }
 
-func (s baseFileSource) GetFile(ctx context.Context, branch, path string) (string, error) {
-	return s.files.GetFile(ctx, branch, path)
+func (s baseFileSource) GetFile(ctx context.Context, path string) (string, error) {
+	return s.files.GetFile(ctx, s.branch, path)
 }
 
 func (baseFileSource) ListTags(context.Context) ([]string, error) {
@@ -37,7 +38,6 @@ func (baseFileSource) ListTags(context.Context) ([]string, error) {
 func (baseFileSource) GetCommitsSinceRefs(
 	context.Context,
 	[]string,
-	string,
 	bool,
 	[]forge.TagRef,
 ) (history.CommitHistory, error) {
@@ -60,7 +60,7 @@ func updateFilesForges() []updateFilesForge {
 func newUpdateFilesUpdater(t *testing.T, cfg *config.Config, forge forge.Provider) *releaseBranchUpdater {
 	t.Helper()
 
-	return newUpdateFilesUpdaterWithSource(t, cfg, forge, baseFileSource{files: forge})
+	return newUpdateFilesUpdaterWithSource(t, cfg, forge, baseFileSource{files: forge, branch: cfg.Branch})
 }
 
 func newUpdateFilesUpdaterWithSource(
@@ -257,7 +257,7 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 					t,
 					cfg,
 					adapter.newProvider(t, remote),
-					baseFileSource{files: adapter.newProvider(t, local)},
+					baseFileSource{files: adapter.newProvider(t, local), branch: cfg.Branch},
 				)
 
 				branch := "yeet/release-v1.2.4"

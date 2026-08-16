@@ -15,7 +15,6 @@ type versionHistoryProvider interface {
 	GetCommitsSinceRefs(
 		ctx context.Context,
 		refs []string,
-		branch string,
 		includePaths bool,
 		knownTags []forge.TagRef,
 	) (history.CommitHistory, error)
@@ -23,7 +22,7 @@ type versionHistoryProvider interface {
 
 type releaseSource interface {
 	versionHistoryProvider
-	GetFile(ctx context.Context, branch, path string) (string, error)
+	GetFile(ctx context.Context, path string) (string, error)
 }
 
 type repoMetadataProvider interface {

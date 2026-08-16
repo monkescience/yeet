@@ -83,7 +83,7 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 	}
 
 	for _, versionFile := range target.VersionFiles {
-		content, fileErr := u.source.GetFile(ctx, u.core.cfg.Branch, versionFile.Path)
+		content, fileErr := u.source.GetFile(ctx, versionFile.Path)
 		if fileErr != nil {
 			return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
 		}
@@ -146,8 +146,6 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	target config.ResolvedTarget,
 	changelogEntry string,
 ) (forge.FileUpdate, error) {
-	r := u.core
-
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
 		if _, isChangelog := changelogFiles[target.Changelog.File]; !isChangelog {
 			return forge.FileUpdate{}, fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File)
@@ -158,7 +156,7 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 		return existing, nil
 	}
 
-	existing, err := u.source.GetFile(ctx, r.cfg.Branch, target.Changelog.File)
+	existing, err := u.source.GetFile(ctx, target.Changelog.File)
 	if err != nil {
 		if errors.Is(err, forge.ErrFileNotFound) {
 			return forge.FileUpdate{Content: changelog.Prepend("", changelogEntry)}, nil

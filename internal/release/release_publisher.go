@@ -257,7 +257,7 @@ func (p *releasePublisher) releaseNotesFromChangelog(
 	r := p.core
 
 	changelogBody, err := p.changelogs.get(r.cfg.Branch, changelogFile, func() (string, error) {
-		content, getErr := p.source.GetFile(ctx, r.cfg.Branch, changelogFile)
+		content, getErr := p.source.GetFile(ctx, changelogFile)
 		if getErr != nil {
 			return "", fmt.Errorf("get changelog file %s: %w", changelogFile, getErr)
 		}

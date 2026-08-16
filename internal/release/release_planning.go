@@ -351,7 +351,7 @@ func (a *releaseAnalyzer) loadTargetHistory(
 		return targetHist, nil
 	}
 
-	targetHist.entries, err = a.commitsSince(ctx, scan, ref, a.core.cfg.Branch)
+	targetHist.entries, err = a.commitsSince(ctx, scan, ref)
 	if err != nil {
 		return targetHistory{}, err
 	}

@@ -1183,8 +1183,6 @@ func TestReleaseFailsWhenPreviousReleaseIsNotReachableFromBranch(t *testing.T) {
 	testastic.Equal(t, 0, len(stub.markPendingCalls))
 	testastic.Equal(t, 1, len(stub.singleRefProbes()))
 	testastic.Equal(t, "v1.2.3", stub.singleRefProbes()[0])
-	testastic.Equal(t, 1, len(stub.getCommitsSinceBranches))
-	testastic.Equal(t, cfg.Branch, stub.getCommitsSinceBranches[0])
 }
 
 func TestReleaseAutoMerge(t *testing.T) {

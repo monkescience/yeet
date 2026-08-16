@@ -16,10 +16,29 @@ import (
 
 type testReleaserDeps interface {
 	repoMetadataProvider
+	versionHistoryProvider
 	releasePRProvider
 	releaseFileProvider
 	releasePublishingProvider
-	releaseSource
+}
+
+type testSourceDeps interface {
+	versionHistoryProvider
+	releaseFileProvider
+}
+
+type testReleaseSource struct {
+	versionHistoryProvider
+	files  releaseFileProvider
+	branch string
+}
+
+func (s testReleaseSource) GetFile(ctx context.Context, path string) (string, error) {
+	return s.files.GetFile(ctx, s.branch, path)
+}
+
+func sourceFromTestDeps(branch string, deps testSourceDeps) releaseSource {
+	return testReleaseSource{versionHistoryProvider: deps, files: deps, branch: branch}
 }
 
 func stubDependencies(deps testReleaserDeps) dependencies {
@@ -32,21 +51,25 @@ func newStubReleaser(ctx context.Context, cfg *config.Config, deps testReleaserD
 		return nil, err
 	}
 
-	return newReleaser(core, stubDependencies(deps), deps)
+	return newReleaser(core, stubDependencies(deps), sourceFromTestDeps(cfg.Branch, deps))
 }
 
 func newStubReleaserWithSource(
 	ctx context.Context,
 	cfg *config.Config,
 	deps testReleaserDeps,
-	source releaseSource,
+	source testSourceDeps,
 ) (*releaser, error) {
 	core, err := newReleaseCore(ctx, cfg, deps)
 	if err != nil {
 		return nil, err
 	}
 
-	return newReleaser(core, stubDependencies(deps), source)
+	if source == nil {
+		return newReleaser(core, stubDependencies(deps), nil)
+	}
+
+	return newReleaser(core, stubDependencies(deps), sourceFromTestDeps(cfg.Branch, source))
 }
 
 func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *releaser {
@@ -211,7 +234,6 @@ type versionHistoryStub struct {
 
 	commitsByRef               map[string][]history.CommitEntry
 	getCommitsSinceRefsOf      [][]string
-	getCommitsSinceBranches    []string
 	getCommitsSinceIncludePath []bool
 }
 
@@ -224,13 +246,11 @@ func (s *versionHistoryStub) ListTags(context.Context) ([]string, error) {
 func (s *versionHistoryStub) GetCommitsSinceRefs(
 	_ context.Context,
 	refs []string,
-	branch string,
 	includePaths bool,
 	_ []forge.TagRef,
 ) (history.CommitHistory, error) {
 	s.getCommitsSinceRefsCalls++
 	s.getCommitsSinceRefsOf = append(s.getCommitsSinceRefsOf, append([]string(nil), refs...))
-	s.getCommitsSinceBranches = append(s.getCommitsSinceBranches, branch)
 	s.getCommitsSinceIncludePath = append(s.getCommitsSinceIncludePath, includePaths)
 
 	scanned := history.CommitHistory{EntriesByRef: make(map[string][]history.CommitEntry, len(refs))}

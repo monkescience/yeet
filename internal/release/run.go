@@ -66,8 +66,8 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	historySource := history.New(p, cfg.Branch, ".")
-	if err := historySource.Validate(ctx); err != nil {
+	historySource, err := history.Open(ctx, p, cfg.Branch, ".")
+	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
 
