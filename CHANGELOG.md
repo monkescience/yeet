@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.13.7](https://github.com/monkescience/yeet/compare/v0.13.6...v0.13.7) (2026-08-16)
+
+### Bug Fixes
+
+- **tools:** bump mise Go version to 1.26.6 ([52bf1ab](https://github.com/monkescience/yeet/commit/52bf1ab609b9b84477085c334f5cdb0ad512ab7f))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.56.0 (#225) ([624b830](https://github.com/monkescience/yeet/commit/624b830c99a474a90744c42cad706d81d0bdaa04))
+
 ## [v0.13.6](https://github.com/monkescience/yeet/compare/v0.13.5...v0.13.6) (2026-08-13)
 
 ### Features
