@@ -17,7 +17,21 @@ import (
 )
 
 func (r *releaser) Release(ctx context.Context, dryRun bool) (*Result, error) {
-	return r.releaseTargets(ctx, dryRun, nil)
+	return releaseSelectedTargets(ctx, r, dryRun, nil)
+}
+
+func releaseSelectedTargets(
+	ctx context.Context,
+	r *releaser,
+	dryRun bool,
+	selectedTargetIDs []string,
+) (*Result, error) {
+	selection, err := selectTargets(r.core, selectedTargetIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.releaseTargets(ctx, dryRun, selection)
 }
 
 func TestReleaseSemVerPreMajorBumps(t *testing.T) {
@@ -832,7 +846,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: running a non-dry release for the unknown target
-		result, err := r.releaseTargets(context.Background(), false, []string{"missing"})
+		result, err := releaseSelectedTargets(context.Background(), r, false, []string{"missing"})
 
 		// then: target validation fails before provider reads or mutations
 		testastic.ErrorIs(t, err, errUnknownTarget)
@@ -3082,7 +3096,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning only the api target
-		result, err := r.releaseTargets(context.Background(), true, []string{"api"})
+		result, err := releaseSelectedTargets(context.Background(), r, true, []string{"api"})
 
 		// then: root still derives from the selected child target but ignores unselected direct commits and web changes
 		testastic.NoError(t, err)
@@ -3133,7 +3147,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning only the derived root target
-		result, err := r.releaseTargets(context.Background(), true, []string{"root"})
+		result, err := releaseSelectedTargets(context.Background(), r, true, []string{"root"})
 
 		// then: root still releases based on child changes, but child targets are not emitted as top-level plans
 		testastic.NoError(t, err)
@@ -3201,7 +3215,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR for only the derived root target
-		result, err := r.releaseTargets(context.Background(), false, []string{"root"})
+		result, err := releaseSelectedTargets(context.Background(), r, false, []string{"root"})
 
 		// then: the derived target compare link points at the newest included child commit
 		// instead of include order or the unreleased tag
@@ -3271,7 +3285,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: creating a release PR for only the derived root target
-		result, err := r.releaseTargets(context.Background(), false, []string{"root"})
+		result, err := releaseSelectedTargets(context.Background(), r, false, []string{"root"})
 
 		// then: the derived target compare link points at the newest included commit overall
 		testastic.NoError(t, err)
@@ -3330,7 +3344,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: planning the selected child target and its derived parent together
-		result, err := r.releaseTargets(context.Background(), true, []string{"root", "api"})
+		result, err := releaseSelectedTargets(context.Background(), r, true, []string{"root", "api"})
 
 		// then: api is emitted explicitly, root is emitted as selected, and unselected web is only used for analysis
 		testastic.NoError(t, err)

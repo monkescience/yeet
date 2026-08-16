@@ -57,12 +57,13 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	core, err := newReleaseCore(ctx, cfg, p)
+	core, err := newReleaseCore(ctx, cfg, p, releaseBranch)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
 
-	if _, err := selectTargets(core, options.Targets); err != nil {
+	selection, err := selectTargets(core, options.Targets)
+	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
 
@@ -71,17 +72,12 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
 
-	r, err := newReleaser(core, dependencies{
-		metadata:  p,
-		prs:       p,
-		files:     p,
-		publisher: p,
-	}, historySource)
+	r, err := newReleaser(core, p, historySource)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
 
-	result, err := r.releaseTargets(ctx, options.DryRun, options.Targets)
+	result, err := r.releaseTargets(ctx, options.DryRun, selection)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}

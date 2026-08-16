@@ -17,9 +17,7 @@ import (
 type testReleaserDeps interface {
 	repoMetadataProvider
 	versionHistoryProvider
-	releasePRProvider
-	releaseFileProvider
-	releasePublishingProvider
+	releaseProvider
 }
 
 type testSourceDeps interface {
@@ -41,17 +39,8 @@ func sourceFromTestDeps(branch string, deps testSourceDeps) releaseSource {
 	return testReleaseSource{versionHistoryProvider: deps, files: deps, branch: branch}
 }
 
-func stubDependencies(deps testReleaserDeps) dependencies {
-	return dependencies{metadata: deps, prs: deps, files: deps, publisher: deps}
-}
-
 func newStubReleaser(ctx context.Context, cfg *config.Config, deps testReleaserDeps) (*releaser, error) {
-	core, err := newReleaseCore(ctx, cfg, deps)
-	if err != nil {
-		return nil, err
-	}
-
-	return newReleaser(core, stubDependencies(deps), sourceFromTestDeps(cfg.Branch, deps))
+	return newStubReleaserWithSource(ctx, cfg, deps, deps)
 }
 
 func newStubReleaserWithSource(
@@ -60,16 +49,21 @@ func newStubReleaserWithSource(
 	deps testReleaserDeps,
 	source testSourceDeps,
 ) (*releaser, error) {
-	core, err := newReleaseCore(ctx, cfg, deps)
+	releaseBranch, err := releaseBranchForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	core, err := newReleaseCore(ctx, cfg, deps, releaseBranch)
 	if err != nil {
 		return nil, err
 	}
 
 	if source == nil {
-		return newReleaser(core, stubDependencies(deps), nil)
+		return newReleaser(core, deps, nil)
 	}
 
-	return newReleaser(core, stubDependencies(deps), sourceFromTestDeps(cfg.Branch, source))
+	return newReleaser(core, deps, sourceFromTestDeps(cfg.Branch, source))
 }
 
 func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *releaser {

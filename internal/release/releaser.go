@@ -77,14 +77,16 @@ func newReleaseCore(
 	ctx context.Context,
 	cfg *config.Config,
 	metadata repoMetadataProvider,
+	releaseBranch string,
 ) (*releaseCore, error) {
-	return newReleaseCoreAt(ctx, cfg, metadata, time.Now())
+	return newReleaseCoreAt(ctx, cfg, metadata, releaseBranch, time.Now())
 }
 
 func newReleaseCoreAt(
 	ctx context.Context,
 	cfg *config.Config,
 	metadata repoMetadataProvider,
+	releaseBranch string,
 	now time.Time,
 ) (*releaseCore, error) {
 	location, err := cfg.TimeLocation()
@@ -107,11 +109,6 @@ func newReleaseCoreAt(
 		return nil, err
 	}
 
-	releaseBranch, err := releaseBranchForConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
 	return &releaseCore{
 		cfg:           cfg,
 		targets:       targets,
@@ -124,8 +121,8 @@ func newReleaseCoreAt(
 
 // newReleaser wires a validated source to the provider-side capabilities.
 // History and base-branch files are served by the local-git source, while every
-// provider-side capability comes from deps.
-func newReleaser(core *releaseCore, deps dependencies, source releaseSource) (*releaser, error) {
+// provider-side capability comes from provider.
+func newReleaser(core *releaseCore, provider releaseProvider, source releaseSource) (*releaser, error) {
 	if source == nil {
 		return nil, errNilHistorySource
 	}
@@ -133,9 +130,9 @@ func newReleaser(core *releaseCore, deps dependencies, source releaseSource) (*r
 	return &releaser{
 		core:      core,
 		source:    source,
-		prs:       deps.prs,
-		files:     deps.files,
-		publisher: deps.publisher,
+		prs:       provider,
+		files:     provider,
+		publisher: provider,
 	}, nil
 }
 
@@ -205,12 +202,7 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 	return dir + base + "." + channelName + ext
 }
 
-func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selectedTargetIDs []string) (*Result, error) {
-	selection, err := selectTargets(r.core, selectedTargetIDs)
-	if err != nil {
-		return nil, err
-	}
-
+func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection releaseSelection) (*Result, error) {
 	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
 	if analysisErr == nil {
 		if err := r.validateRenderedReleaseText(plans); err != nil {

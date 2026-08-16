@@ -69,12 +69,8 @@ type releasePublishingProvider interface {
 	releasePRTaggingPreflighter
 }
 
-// dependencies is the provider-side capability set. Version history is
-// intentionally not part of it: commit ranges come from the local checkout
-// through a separate releaseSource.
-type dependencies struct {
-	metadata  repoMetadataProvider
-	prs       releasePRProvider
-	files     releaseFileProvider
-	publisher releasePublishingProvider
+type releaseProvider interface {
+	releasePRProvider
+	releaseFileProvider
+	releasePublishingProvider
 }
