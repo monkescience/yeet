@@ -2,11 +2,11 @@
 
 yeet reads provider credentials from environment variables. It never accepts tokens through flags or `.yeet.yaml`.
 
-| Provider | Variables, in precedence order | Required access |
+| Provider | Variables, in precedence order | Minimum token or app access |
 |---|---|---|
-| GitHub | `GITHUB_TOKEN`, `GH_TOKEN` | `contents: write`, `pull-requests: write`, and `issues: write` |
-| GitLab | `GITLAB_TOKEN`, `GL_TOKEN` | API access to create and update merge requests, branches, tags, labels, and releases |
-| Azure DevOps | `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, `AZURE_DEVOPS_EXT_PAT` | Repository access to create branches and tags, create and update pull requests, manage labels, and complete pull requests when auto-merge is enabled |
+| GitHub | `GITHUB_TOKEN`, `GH_TOKEN` | Contents (write) and Pull requests (write) |
+| GitLab | `GITLAB_TOKEN`, `GL_TOKEN` | `api` scope and Developer role |
+| Azure DevOps | `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, `AZURE_DEVOPS_EXT_PAT` | Code (read and write) for PATs, plus repository permissions |
 
 ## GitHub
 
@@ -17,7 +17,20 @@ export GITHUB_TOKEN=github_pat_xxx
 yeet release --dry-run
 ```
 
-For GitHub Actions, a GitHub App installation token can provide the required repository permissions without granting write access to the workflow token. See the complete [GitHub Actions example](ci.md#github-actions-with-a-github-app).
+For GitHub Actions, use a GitHub App installation token. See the complete [GitHub Actions example](ci.md#github-actions-with-a-github-app).
+
+For a GitHub App or fine-grained personal access token, grant these repository permissions:
+
+| Permission | Access | Used for |
+|---|---|---|
+| Contents | Read and write | Reading and updating release files and branches, then creating tags and releases |
+| Pull requests | Read and write | Creating, updating, labeling, requesting reviewers for, and merging release pull requests |
+
+Add Workflows (write) when a configured `version_files` or changelog path is under `.github/workflows/`.
+
+Install the App on each repository it releases. Allow it to create and force-update the generated release branch. With auto-merge, allow it to merge into the base branch after required checks, approvals, and branch rules pass.
+
+A classic personal access token needs `repo` for a private repository or `public_repo` for a public repository. For an organization-owned repository with `release.reviewers`, use `repo` and `read:org` even when the repository is public. Add `workflow` when yeet changes a workflow file. See [GitHub's REST permission table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
 
 ## GitLab
 
@@ -28,7 +41,15 @@ export GITLAB_TOKEN=glpat-xxx
 yeet release --dry-run
 ```
 
-The token must be able to create and update merge requests, manage labels, push release branches and tags, and publish releases.
+A project access token needs the `api` scope and Developer role under Settings > Access tokens. A group or personal access token needs the `api` scope and an identity with at least the Developer role in the project.
+
+Repository access requirements:
+
+- If a protected branch rule matches the generated release branch, allow the token identity to push and enable force pushes for that rule.
+- If a protected tag rule matches a release tag, add the token role or identity to Allowed to create.
+- With auto-merge, the target branch must allow the token identity to merge after its checks and approvals pass.
+
+See GitLab's documentation for [`api` scope](https://docs.gitlab.com/security/tokens/access_token_scopes/), [project roles](https://docs.gitlab.com/user/permissions/), [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), and [protected tags](https://docs.gitlab.com/user/project/protected_tags/).
 
 ## Azure DevOps
 
@@ -48,7 +69,24 @@ yeet release --dry-run
 
 `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` takes precedence and uses bearer authentication. `AZURE_DEVOPS_EXT_PAT` uses basic authentication.
 
-When `release.reviewers` is configured, a PAT also needs Identity (Read), `vso.identity`, so yeet can resolve reviewer names. Authorization for identity reads through a pipeline `System.AccessToken` depends on the organization and job authorization settings, so verify it in your Azure DevOps configuration.
+For a PAT, select Code (Read and write), `vso.code_write`. When `release.reviewers` is configured, also select Identity (Read), `vso.identity`. The PAT user also needs the repository permissions below.
+
+`System.AccessToken` uses a pipeline build service identity. For a project-scoped job token, grant the permissions below to `<project> Build Service (<organization>)`. For a collection-scoped token, grant them to `Project Collection Build Service (<organization>)`.
+
+Set repository permissions under Project settings > Repositories > the target repository > Security:
+
+| Permission | Scope | Used for |
+|---|---|---|
+| Read | Repository | Reading files, refs, tags, and pull requests |
+| Contribute | Repository | Pushing release commits and completing pull requests |
+| Contribute to pull requests | Repository | Creating, updating, and labeling pull requests |
+| Create branch | Repository | Creating the generated release branch |
+| Create tag | Repository | Publishing a release tag |
+| Force push | Generated release branch | Resetting the release branch to the current base before each refresh |
+
+The build service needs effective Force push permission on the generated release branch, either inherited when it creates the branch or granted explicitly. With auto-merge, it needs Contribute permission on the target branch and all branch policies must pass.
+
+Authorization for identity reads through `System.AccessToken` depends on the organization and job authorization settings. Verify it when `release.reviewers` is configured. See Azure DevOps documentation for [job access tokens](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/access-tokens), [token scopes](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth#oauth-scopes), and [Git repository permissions](https://learn.microsoft.com/en-us/azure/devops/organizations/security/permissions#git-repository-object-level).
 
 ## Host trust
 

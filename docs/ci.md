@@ -8,7 +8,7 @@ The copyable examples use a release tag so yeet can keep them synchronized throu
 
 ## GitHub Actions with a GitHub App
 
-The workflow token stays read-only. The GitHub App installation provides `contents`, `pull-requests`, and `issues` write access. Install the App on the release repository, store its client ID as the `YEET_APP_ID` repository variable, and store its private key as the `YEET_APP_PRIVATE_KEY` repository secret.
+Configure a GitHub App with the [required repository permissions](authentication.md#github), install it on the release repository, store its client ID as the `YEET_APP_ID` repository variable, and store its private key as the `YEET_APP_PRIVATE_KEY` repository secret.
 
 ```yaml
 name: Release
@@ -53,7 +53,7 @@ jobs:
 
 ## GitLab CI
 
-Set `GITLAB_TOKEN` as a masked CI/CD variable. The empty entrypoint lets GitLab run the job script with `sh`.
+Create a token with the [required scope, role, and repository access](authentication.md#gitlab), then store it as a masked `GITLAB_TOKEN` CI/CD variable. Protect the variable only when this job always runs on a protected branch. The empty entrypoint lets GitLab run the job script with `sh`.
 
 ```yaml
 release:
@@ -72,7 +72,7 @@ release:
 
 ## Azure Pipelines
 
-This pipeline maps `System.AccessToken` explicitly and forwards the branch ref into the container.
+Grant the build service identity selected by the pipeline's job authorization scope the [required repository permissions](authentication.md#azure-devops). This pipeline maps `System.AccessToken` explicitly and forwards the branch ref into the container.
 
 ```yaml
 trigger:
