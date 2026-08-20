@@ -173,8 +173,7 @@ func changedFlag[T any](cmd *cobra.Command, name string, value *T) *T {
 func runRelease(ctx context.Context, output io.Writer, configPath string, options release.Options) error {
 	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
-		var failure *release.Failure
-		if errors.As(err, &failure) {
+		if failure, ok := errors.AsType[*release.Failure](err); ok {
 			return wrapReleaseFailure(failure)
 		}
 

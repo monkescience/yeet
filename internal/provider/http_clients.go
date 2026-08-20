@@ -93,8 +93,7 @@ func requestMethod(response *http.Response, err error) string {
 		return response.Request.Method
 	}
 
-	var methodErr *requestMethodError
-	if errors.As(err, &methodErr) {
+	if methodErr, ok := errors.AsType[*requestMethodError](err); ok {
 		return methodErr.method
 	}
 
@@ -117,8 +116,7 @@ func isIdempotentHTTPMethod(method string) bool {
 }
 
 func isPreWriteTransportError(err error) bool {
-	var dnsErr *net.DNSError
-	if errors.As(err, &dnsErr) {
+	if dnsErr, ok := errors.AsType[*net.DNSError](err); ok {
 		return !dnsErr.IsNotFound
 	}
 

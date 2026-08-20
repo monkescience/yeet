@@ -122,9 +122,7 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 		Base:      baseBranch,
 		Sort:      "updated",
 		Direction: sortDirectionDesc,
-		ListOptions: github.ListOptions{
-			PerPage: gitHubPageSize,
-		},
+		PerPage:   gitHubPageSize,
 	}
 
 	slog.DebugContext(ctx, "github: listing open pending release PRs",
@@ -245,12 +243,10 @@ func (g *GitHub) listGitHubMergedCandidates(
 	baseBranch, pendingLabel string,
 ) ([]gitHubMergedCandidate, error) {
 	options := &github.PullRequestListOptions{
-		State: "closed",
-		Head:  g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
-		Base:  baseBranch,
-		ListOptions: github.ListOptions{
-			PerPage: gitHubPageSize,
-		},
+		State:   "closed",
+		Head:    g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
+		Base:    baseBranch,
+		PerPage: gitHubPageSize,
 	}
 
 	candidates := make([]gitHubMergedCandidate, 0)

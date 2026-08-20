@@ -106,8 +106,8 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 // sit behind any number of looser matches.
 func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int64, error) {
 	options := &gitlab.ListProjectMembersOptions{
-		ListOptions: gitlab.ListOptions{PerPage: gitLabPageSize},
-		Query:       new(username),
+		PerPage: gitLabPageSize,
+		Query:   new(username),
 	}
 
 	var (
@@ -222,7 +222,7 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 		SourceBranch: new(sourceBranch),
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
-		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
+		PerPage:      gitLabPageSize,
 	}
 
 	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
@@ -308,7 +308,7 @@ func (g *GitLab) FindMergedReleasePR(
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
 		Labels:       &labels,
-		ListOptions:  gitlab.ListOptions{PerPage: gitLabPageSize},
+		PerPage:      gitLabPageSize,
 	}
 
 	slog.DebugContext(ctx, "gitlab: searching merged release MRs",

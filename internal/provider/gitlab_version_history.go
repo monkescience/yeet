@@ -32,7 +32,7 @@ func (g *GitLab) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 
 func (g *GitLab) tagPages(ctx context.Context, handle func(*gitlab.Tag) (bool, error)) error {
 	options := &gitlab.ListTagsOptions{
-		ListOptions: gitlab.ListOptions{PerPage: gitLabPageSize},
+		PerPage: gitLabPageSize,
 	}
 
 	return paginate(ctx, "listing tags",
