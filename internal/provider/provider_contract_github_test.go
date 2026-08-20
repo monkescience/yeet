@@ -42,9 +42,7 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 
 	if scenario == providerContractCreateReleasePRReviewers {
 		t.Cleanup(func() {
-			if !reviewersRequested.Load() {
-				t.Error("GitHub requested_reviewers endpoint was never called")
-			}
+			testastic.True(t, reviewersRequested.Load())
 		})
 	}
 
@@ -212,9 +210,11 @@ func handleGitHubCreateReleasePRReviewersContract(
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/collaborators/"):
 		login := strings.TrimPrefix(r.URL.Path, "/repos/o/r/collaborators/")
-		if login != providerContractReviewerAlice && login != providerContractReviewerBob {
-			t.Errorf("unexpected GitHub collaborator check: %s", login)
-		}
+		testastic.SliceContains(
+			t,
+			[]string{providerContractReviewerAlice, providerContractReviewerBob},
+			login,
+		)
 
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/pulls":

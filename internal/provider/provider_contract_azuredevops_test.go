@@ -902,9 +902,9 @@ func TestAzureDevOpsSetReleasePRLabelsAttachesLabelsAfterARejectedOne(t *testing
 	testastic.Error(t, err)
 
 	for _, label := range []string{providerContractPendingLabel, "kept", provider.ReleaseLabelYeet} {
-		if _, ok := attached.Load(label); !ok {
-			t.Errorf("label %q was not attached", label)
-		}
+		_, ok := attached.Load(label)
+
+		testastic.True(t, ok)
 	}
 }
 
