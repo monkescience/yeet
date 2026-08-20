@@ -1,0 +1,1 @@
+unknown command "unexpected" for "yeet completion zsh"

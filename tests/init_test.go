@@ -23,7 +23,11 @@ func TestInit(t *testing.T) {
 
 		// then: the binary exits 0 and writes the schema-stamped config at that path
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stdout)
+		testastic.AssertFile(
+			t,
+			"testdata/init/writes_config_at_the_explicit___config_path/stdout.expected.txt",
+			result.Stdout,
+		)
 
 		content, err := os.ReadFile(configPath)
 		testastic.NoError(t, err)
@@ -45,6 +49,11 @@ func TestInit(t *testing.T) {
 
 		// then: the binary exits 0 and the config lands at ./.yeet.yaml
 		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/init/writes_config_in_the_working_dir_when___config_is_omitted/stdout.expected.txt",
+			result.Stdout,
+		)
 
 		content, err := os.ReadFile(filepath.Join(tempDir, ".yeet.yaml"))
 		testastic.NoError(t, err)
