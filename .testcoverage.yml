@@ -1,0 +1,11 @@
+profile: coverage/coverage.out
+
+threshold:
+  total: 80
+  file: 0
+  package: 0
+
+exclude:
+  paths:
+    - \.gen\.go$
+    - (^|/)[^/]*gen/

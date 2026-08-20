@@ -33,10 +33,7 @@ jobs:
         run: make test
 
       - name: Check coverage
-        uses: vladopajic/go-test-coverage@f94bcf0d6b9fa5fb8b783830b22648f6c17475e2 # v2.19.0
-        with:
-          profile: coverage/coverage.out
-          threshold-total: 78
+        run: make check-coverage COVERAGE_FLAGS=-o
 
   lint:
     runs-on: ubuntu-latest

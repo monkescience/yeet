@@ -4,6 +4,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Track tool versions pinned via inline '# renovate:' annotations in Makefile assignments",
+      "managerFilePatterns": ["/(^|/)Makefile$/"],
+      "matchStrings": [
+        "[A-Z0-9_]+\\s*:?=\\s*\"?(?<currentValue>v?[^\\s\"#]+)\"?\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^\\.ko\\.yaml$/"],
       "matchStrings": [
         "defaultBaseImage:\\s+(?<depName>[^:@\\s]+(?:/[^:@\\s]+)*):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"

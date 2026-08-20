@@ -1,7 +1,8 @@
 BINARY  := yeet
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || printf 'dev')
+GO_TEST_COVERAGE_VERSION := v2.19.0 # renovate: datasource=go depName=github.com/vladopajic/go-test-coverage/v2
 
-.PHONY: help build snapshot image test test-unit test-blackbox coverage lint fmt generate clean
+.PHONY: help build snapshot image test test-unit test-blackbox coverage check-coverage lint fmt generate clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -26,6 +27,9 @@ test-blackbox: ## Run end-to-end blackbox tests against the compiled binary
 
 coverage: ## Generate HTML coverage report from coverage/coverage.out
 	go tool cover -html=coverage/coverage.out -o coverage/coverage.html
+
+check-coverage: ## Check coverage against the thresholds in .testcoverage.yml
+	go run github.com/vladopajic/go-test-coverage/v2@$(GO_TEST_COVERAGE_VERSION) --config=./.testcoverage.yml $(COVERAGE_FLAGS)
 
 lint: ## Run linter
 	golangci-lint run ./...
