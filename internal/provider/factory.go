@@ -118,8 +118,8 @@ func createProviderConfigured(
 	return spec.construct(spec, repository, token, newHTTPClient(repository.Provider), settings)
 }
 
-func (spec forgeSpec) resolveToken() (forgeToken, error) {
-	for _, envVar := range spec.tokenEnvVars {
+func (s forgeSpec) resolveToken() (forgeToken, error) {
+	for _, envVar := range s.tokenEnvVars {
 		if value := os.Getenv(envVar); value != "" {
 			return forgeToken{envVar: envVar, value: value}, nil
 		}
@@ -128,16 +128,16 @@ func (spec forgeSpec) resolveToken() (forgeToken, error) {
 	return forgeToken{}, fmt.Errorf(
 		"%w: %s environment variable is required",
 		ErrMissingToken,
-		strings.Join(spec.tokenEnvVars, " or "),
+		strings.Join(s.tokenEnvVars, " or "),
 	)
 }
 
-func (spec forgeSpec) endpointOverride() string {
-	return strings.TrimSpace(os.Getenv(spec.urlEnvVar))
+func (s forgeSpec) endpointOverride() string {
+	return strings.TrimSpace(os.Getenv(s.urlEnvVar))
 }
 
-func (spec forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
-	if override := spec.endpointOverride(); override != "" {
+func (s forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
+	if override := s.endpointOverride(); override != "" {
 		return override
 	}
 
@@ -150,19 +150,19 @@ func (spec forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
 		return "https://" + azureDevOpsAPIHost(host)
 	}
 
-	if host == "" || strings.EqualFold(host, spec.defaultHost) {
+	if host == "" || strings.EqualFold(host, s.defaultHost) {
 		return ""
 	}
 
-	return "https://" + host + spec.apiPathSuffix
+	return "https://" + host + s.apiPathSuffix
 }
 
-func (spec forgeSpec) webBaseURL(repository *repositoryDescriptor) string {
+func (s forgeSpec) webBaseURL(repository *repositoryDescriptor) string {
 	if repository.WebURL != "" {
 		return strings.TrimRight(repository.WebURL, "/")
 	}
 
-	if override := spec.endpointOverride(); override != "" {
+	if override := s.endpointOverride(); override != "" {
 		return webBaseFromAPIURL(repository.Provider, override)
 	}
 
