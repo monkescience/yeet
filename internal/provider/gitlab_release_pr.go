@@ -21,6 +21,8 @@ const gitlabMergeRequestClosedState = "closed"
 
 const gitLabLabelColorPrefix = "#"
 
+var _ forgeMerge = (*gitLabMerge)(nil)
+
 var errGitLabReleasePRLabelsInvalid = errors.New("invalid GitLab release PR labels")
 
 func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {

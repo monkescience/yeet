@@ -22,6 +22,8 @@ const azureDevOpsPRPageSize = 100
 // Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/update
 const azureDevOpsMaxPRBodyLength = 4000
 
+var _ forgeMerge = (*azureDevOpsMerge)(nil)
+
 var errAzureDevOpsLabelIDMissing = errors.New("azure devops label id missing")
 
 func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {

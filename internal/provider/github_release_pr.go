@@ -12,6 +12,8 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
+var _ forgeMerge = (*gitHubMerge)(nil)
+
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
 	if err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra); err != nil {
 		return nil, wrapReleasePRLabelsError(err)
