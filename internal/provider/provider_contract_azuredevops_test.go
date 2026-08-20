@@ -1109,7 +1109,15 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsForcedMergeConflictedHandler(t)
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("unhandled Azure DevOps contract scenario: %s (request %s %s)", scenario, r.Method, r.URL.String())
+			failProviderContractHandler(
+				t,
+				fmt.Sprintf(
+					"unhandled Azure DevOps contract scenario: %s (request %s %s)",
+					scenario,
+					r.Method,
+					r.URL.String(),
+				),
+			)
 		}
 	}
 }
@@ -1291,7 +1299,7 @@ func writeAzureDevOpsIdentityFixture(t *testing.T, w http.ResponseWriter, r *htt
 	case providerContractReviewerBob:
 		writeJSONFixture(t, w, azureDevOpsContractFixture("create_release_pr_reviewers", "identities_bob.json"))
 	default:
-		t.Fatalf("unexpected Azure DevOps identity lookup: %s", filterValue)
+		failProviderContractHandler(t, "unexpected Azure DevOps identity lookup: "+filterValue)
 	}
 }
 

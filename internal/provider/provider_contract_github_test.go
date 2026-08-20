@@ -101,7 +101,7 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractForcedMergeConflicted:
 			handleGitHubForcedMergeConflictedContract(t, w, r)
 		default:
-			t.Fatalf("unhandled GitHub contract scenario: %s", scenario)
+			failProviderContractHandler(t, fmt.Sprintf("unhandled GitHub contract scenario: %s", scenario))
 		}
 	})
 }

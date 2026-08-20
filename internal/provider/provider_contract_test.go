@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -1165,5 +1166,17 @@ func writeFixture(t *testing.T, w http.ResponseWriter, name string) {
 func fatalUnexpectedProviderRequest(t *testing.T, providerName string, r *http.Request) {
 	t.Helper()
 
-	t.Fatalf("unexpected %s request: %s %s", providerName, r.Method, r.URL.String())
+	failProviderContractHandler(
+		t,
+		fmt.Sprintf("unexpected %s request: %s %s", providerName, r.Method, r.URL.String()),
+	)
+}
+
+func failProviderContractHandler(t *testing.T, message string) {
+	t.Helper()
+
+	testastic.StringEmpty(t, message)
+
+	// Goexit stops the handler without calling FailNow outside the test goroutine.
+	runtime.Goexit()
 }

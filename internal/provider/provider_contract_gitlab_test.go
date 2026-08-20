@@ -99,7 +99,7 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractForcedMergeConflicted:
 			handleGitLabForcedMergeConflictedContract(t, w, r)
 		default:
-			t.Fatalf("unhandled GitLab contract scenario: %s", scenario)
+			failProviderContractHandler(t, fmt.Sprintf("unhandled GitLab contract scenario: %s", scenario))
 		}
 	})
 }
@@ -241,7 +241,7 @@ func writeGitLabMemberFixture(t *testing.T, w http.ResponseWriter, query string)
 	case providerContractReviewerBob:
 		writeJSONFixture(t, w, "contracts/gitlab/create_release_pr_reviewers/members_bob.json")
 	default:
-		t.Fatalf("unexpected GitLab member lookup: %s", query)
+		failProviderContractHandler(t, "unexpected GitLab member lookup: "+query)
 	}
 }
 

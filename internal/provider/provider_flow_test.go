@@ -13,9 +13,6 @@ func decodedPathTail(t *testing.T, request *http.Request) string {
 	t.Helper()
 
 	segments := strings.Split(request.URL.EscapedPath(), "/")
-	if len(segments) == 0 {
-		t.Fatalf("unexpected path: %s", request.URL.EscapedPath())
-	}
 
 	label, err := url.PathUnescape(segments[len(segments)-1])
 	testastic.NoError(t, err)
