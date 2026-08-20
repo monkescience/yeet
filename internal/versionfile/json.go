@@ -114,7 +114,9 @@ func locateJSONPointerString(decoder *json.Decoder, data []byte, path []string) 
 
 		end := int(decoder.InputOffset())
 
-		start, err := stringTokenStart(data, end)
+		var start int
+
+		start, err = stringTokenStart(data, end)
 		if err != nil {
 			return byteSpan{}, err
 		}
@@ -153,7 +155,8 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
 
-		if err := skipJSONValue(decoder); err != nil {
+		err = skipJSONValue(decoder)
+		if err != nil {
 			return byteSpan{}, err
 		}
 	}
@@ -177,7 +180,8 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
 
-		if err := skipJSONValue(decoder); err != nil {
+		err = skipJSONValue(decoder)
+		if err != nil {
 			return byteSpan{}, err
 		}
 	}
@@ -204,18 +208,20 @@ func skipJSONValue(decoder *json.Decoder) error {
 	switch delim {
 	case '{':
 		for decoder.More() {
-			_, err := decoder.Token()
+			_, err = decoder.Token()
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 			}
 
-			if err := skipJSONValue(decoder); err != nil {
+			err = skipJSONValue(decoder)
+			if err != nil {
 				return err
 			}
 		}
 	case '[':
 		for decoder.More() {
-			if err := skipJSONValue(decoder); err != nil {
+			err = skipJSONValue(decoder)
+			if err != nil {
 				return err
 			}
 		}
