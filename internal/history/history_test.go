@@ -249,7 +249,8 @@ func entryByHash(t *testing.T, entries []history.CommitEntry, hash plumbing.Hash
 		}
 	}
 
-	t.Fatalf("commit %s not found in entries", hash)
+	testastic.SliceContains(t, entryHashes(entries), hash.String())
+	t.FailNow()
 
 	return history.CommitEntry{}
 }

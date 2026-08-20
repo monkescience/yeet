@@ -4,14 +4,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/monkescience/testastic"
 )
 
 func commandTestFilePath(t *testing.T, path string) string {
 	t.Helper()
 
 	_, sourceFile, _, ok := runtime.Caller(0)
+	testastic.True(t, ok)
+
 	if !ok {
-		t.Fatal("resolve command testdata directory")
+		t.FailNow()
 	}
 
 	return filepath.Join(filepath.Dir(sourceFile), path)

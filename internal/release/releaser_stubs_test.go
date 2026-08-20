@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
@@ -80,8 +81,10 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *r
 	}
 
 	r, err := newStubReleaser(t.Context(), cfg, deps)
+	testastic.NoError(t, err)
+
 	if err != nil {
-		t.Fatalf("newReleaser() returned unexpected error: %v", err)
+		t.FailNow()
 	}
 
 	return r
@@ -99,8 +102,10 @@ func testManifestBody(t *testing.T, tag, changelogFile string) string {
 			ChangelogFile: changelogFile,
 		}},
 	})
+	testastic.NoError(t, err)
+
 	if err != nil {
-		t.Fatalf("releaseManifestMarker returned unexpected error: %v", err)
+		t.FailNow()
 	}
 
 	return marker
