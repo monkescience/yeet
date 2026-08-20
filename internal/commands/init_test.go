@@ -2,7 +2,6 @@ package commands //nolint:testpackage // validates unexported init command wirin
 
 import (
 	"bytes"
-	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -31,11 +30,7 @@ func TestInitCommand(t *testing.T) {
 		testastic.NoError(t, statErr)
 
 		_, statErr = os.Stat(config.DefaultFile)
-		testastic.Error(t, statErr)
-
-		if !os.IsNotExist(statErr) {
-			t.Fatalf("expected %s to be absent, got %v", config.DefaultFile, statErr)
-		}
+		testastic.ErrorIs(t, statErr, os.ErrNotExist)
 	})
 
 	t.Run("root command fails when config parent directory is missing", func(t *testing.T) {
@@ -49,21 +44,17 @@ func TestInitCommand(t *testing.T) {
 		_, _, err := executeRootCommand(t, "init", "--config", path)
 
 		// then: command fails with a not-exist error that mentions the requested path
-		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, os.ErrNotExist)
 
-		if !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("expected not-exist error, got %v", err)
+		if err == nil {
+			return
 		}
 
 		pathErr := &os.PathError{Op: "open", Path: path, Err: syscall.ENOENT}
 		testastic.Equal(t, "write "+path+": "+pathErr.Error(), err.Error())
 
 		_, statErr := os.Stat(config.DefaultFile)
-		testastic.Error(t, statErr)
-
-		if !os.IsNotExist(statErr) {
-			t.Fatalf("expected %s to be absent, got %v", config.DefaultFile, statErr)
-		}
+		testastic.ErrorIs(t, statErr, os.ErrNotExist)
 	})
 
 	t.Run("root command writes default config at repository root from nested directory", func(t *testing.T) {
@@ -87,11 +78,7 @@ func TestInitCommand(t *testing.T) {
 		testastic.NoError(t, statErr)
 
 		_, statErr = os.Stat(filepath.Join(nestedPath, config.DefaultFile))
-		testastic.Error(t, statErr)
-
-		if !os.IsNotExist(statErr) {
-			t.Fatalf("expected %s to be absent in nested directory, got %v", config.DefaultFile, statErr)
-		}
+		testastic.ErrorIs(t, statErr, os.ErrNotExist)
 	})
 
 	t.Run("root command fails when repository root config already exists", func(t *testing.T) {
@@ -204,7 +191,7 @@ func TestRootCommand(t *testing.T) {
 		testastic.Error(t, err)
 
 		if err == nil {
-			t.Fatal("expected config flag to be rejected")
+			return
 		}
 
 		testastic.Equal(t, "unknown flag: --config", err.Error())
