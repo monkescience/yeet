@@ -2,7 +2,6 @@ package provider_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -478,8 +477,10 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 
 			// then: the terminal refusal is preserved instead of becoming a polling timeout
 			var blocked *forge.MergeBlockedError
-			if !errors.As(err, &blocked) {
-				t.Fatalf("expected forge.MergeBlockedError, got %v", err)
+			testastic.ErrorAs(t, err, &blocked)
+
+			if blocked == nil {
+				return
 			}
 
 			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)

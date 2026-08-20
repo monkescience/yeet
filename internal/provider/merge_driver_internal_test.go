@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -123,7 +122,12 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 
 			// then: the reason is named and no merge is attempted
 			var blocked *forge.MergeBlockedError
-			testastic.True(t, errors.As(err, &blocked))
+			testastic.ErrorAs(t, err, &blocked)
+
+			if blocked == nil {
+				return
+			}
+
 			testastic.Equal(t, string(testCase.expected), string(blocked.Reason))
 			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 			testastic.Equal(t, "", mergeSHA)
@@ -233,8 +237,10 @@ func TestMergeDriverPollsOnlyWhenTheMergeIsStillPending(t *testing.T) {
 
 		// then: the normalized refusal is returned after one read
 		var blocked *forge.MergeBlockedError
-		if !errors.As(err, &blocked) {
-			t.Fatalf("expected forge.MergeBlockedError, got %v", err)
+		testastic.ErrorAs(t, err, &blocked)
+
+		if blocked == nil {
+			return
 		}
 
 		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
