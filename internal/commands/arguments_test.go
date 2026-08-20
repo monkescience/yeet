@@ -8,6 +8,8 @@ import (
 )
 
 func TestCommandsRejectPositionalArguments(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 	}{
@@ -18,19 +20,25 @@ func TestCommandsRejectPositionalArguments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: the named command from a fresh root command
 			command, _, err := commands.NewRoot().Find([]string{test.name})
 			testastic.NoError(t, err)
 
+			// when: an unexpected positional argument is validated
 			err = command.ValidateArgs([]string{"unexpected"})
-			if err == nil {
-				t.Fatal("expected positional argument to be rejected")
-			}
 
-			testastic.Equal(
-				t,
-				"unknown command \"unexpected\" for \"yeet "+test.name+"\"",
-				err.Error(),
-			)
+			// then: the command rejects it with the Cobra argument error
+			testastic.Error(t, err)
+
+			if err != nil {
+				testastic.Equal(
+					t,
+					"unknown command \"unexpected\" for \"yeet "+test.name+"\"",
+					err.Error(),
+				)
+			}
 		})
 	}
 }
