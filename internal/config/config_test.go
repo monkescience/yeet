@@ -305,18 +305,23 @@ func TestRepositoryFilePathValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a config with a repository file path outside the allowed boundary
 			cfg := config.Default()
 			cfg.Targets = map[string]config.Target{
 				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 			}
 			tt.configure(cfg)
 
+			// when: validating the config
 			err := cfg.Validate()
+
+			// then: the path is rejected with its field-specific error
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
 			if err == nil {
-				t.Fatal("expected repository file path to be rejected")
+				return
 			}
 
-			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
 	}
@@ -324,18 +329,23 @@ func TestRepositoryFilePathValidation(t *testing.T) {
 	t.Run("repository root is not a file", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a config that uses the repository root as its changelog file
 		cfg := config.Default()
 		cfg.Changelog.File = "./"
 		cfg.Targets = map[string]config.Target{
 			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 		}
 
+		// when: validating the config
 		err := cfg.Validate()
+
+		// then: the directory is rejected where a file is required
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
 		if err == nil {
-			t.Fatal("expected repository root file path to be rejected")
+			return
 		}
 
-		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, "invalid config: changelog.file must refer to a file", err.Error())
 	})
 }
@@ -392,11 +402,12 @@ func TestWindowsStyleRepositoryPathValidation(t *testing.T) {
 			err := cfg.Validate()
 
 			// then: the path is rejected consistently as outside the repository
+			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
 			if err == nil {
-				t.Fatal("expected Windows-style repository path to be rejected")
+				return
 			}
 
-			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
 	}
@@ -872,18 +883,23 @@ func TestValidate(t *testing.T) {
 	t.Run("blank stable branch fails", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a config whose stable branch contains only whitespace
 		cfg := config.Default()
 		cfg.Branch = " \t"
 		cfg.Targets = map[string]config.Target{
 			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 		}
 
+		// when: validating the config
 		err := cfg.Validate()
+
+		// then: the blank branch is rejected
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+
 		if err == nil {
-			t.Fatal("expected blank stable branch to be rejected")
+			return
 		}
 
-		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, "invalid config: branch must not be blank", err.Error())
 	})
 
