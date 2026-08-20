@@ -51,23 +51,31 @@ func TestSchemaDefaultsRejectGoOnlyDefault(t *testing.T) {
 	testastic.NoError(t, err)
 
 	propertiesValue, found := schemaDocument["properties"]
+	testastic.True(t, found)
+
 	if !found {
-		t.Fatal("schema has no root properties")
+		return
 	}
 
 	properties, ok := propertiesValue.(map[string]any)
+	testastic.True(t, ok)
+
 	if !ok {
-		t.Fatal("schema root properties are not an object")
+		return
 	}
 
 	branchValue, found := properties["branch"]
+	testastic.True(t, found)
+
 	if !found {
-		t.Fatal("schema has no branch property")
+		return
 	}
 
 	branch, ok := branchValue.(map[string]any)
+	testastic.True(t, ok)
+
 	if !ok {
-		t.Fatal("schema branch property is not an object")
+		return
 	}
 
 	delete(branch, "default")
