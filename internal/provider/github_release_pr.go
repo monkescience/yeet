@@ -15,11 +15,13 @@ import (
 var _ forgeMerge = (*gitHubMerge)(nil)
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
-	if err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra); err != nil {
+	err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra)
+	if err != nil {
 		return nil, wrapReleasePRLabelsError(err)
 	}
 
-	if err := g.validateReviewers(ctx, opts.Reviewers); err != nil {
+	err = g.validateReviewers(ctx, opts.Reviewers)
+	if err != nil {
 		return nil, err
 	}
 
@@ -346,7 +348,8 @@ func (g *GitHub) SetReleasePRLabels(
 	labels forge.ReleasePRLabels,
 	phase forge.ReleasePRPhase,
 ) error {
-	if err := g.labelDefinitions().prepare(ctx, labels, phase); err != nil {
+	err := g.labelDefinitions().prepare(ctx, labels, phase)
+	if err != nil {
 		return wrapReleasePRLabelsError(err)
 	}
 
@@ -362,12 +365,14 @@ func (g *GitHub) PreflightReleasePRTagging(ctx context.Context, taggedLabel stri
 // applyLabels sends every addition in one request, which puts the anchor on the
 // pull request before any removal is attempted.
 func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
-	if err := g.addIssueLabels(ctx, number, labelsAnchoredFirst(anchor, add)); err != nil {
+	err := g.addIssueLabels(ctx, number, labelsAnchoredFirst(anchor, add))
+	if err != nil {
 		return err
 	}
 
 	for _, label := range remove {
-		if err := g.removeIssueLabel(ctx, number, label); err != nil {
+		err = g.removeIssueLabel(ctx, number, label)
+		if err != nil {
 			return err
 		}
 	}
