@@ -109,7 +109,8 @@ func parseReleaseTextTemplate(
 	}
 
 	for _, parsed := range tmpl.Templates() {
-		if err := validateReleaseTextNode(parsed.Root, allowedFields); err != nil {
+		err = validateReleaseTextNode(parsed.Root, allowedFields)
+		if err != nil {
 			return nil, fmt.Errorf("%w: %s: %v", config.ErrInvalidConfig, name, err)
 		}
 	}
@@ -125,7 +126,8 @@ func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{})
 	switch typed := node.(type) {
 	case *parse.ListNode:
 		for _, child := range typed.Nodes {
-			if err := validateReleaseTextNode(child, allowedFields); err != nil {
+			err := validateReleaseTextNode(child, allowedFields)
+			if err != nil {
 				return err
 			}
 		}
@@ -133,13 +135,15 @@ func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{})
 		return validateReleaseTextNode(typed.Pipe, allowedFields)
 	case *parse.PipeNode:
 		for _, command := range typed.Cmds {
-			if err := validateReleaseTextNode(command, allowedFields); err != nil {
+			err := validateReleaseTextNode(command, allowedFields)
+			if err != nil {
 				return err
 			}
 		}
 	case *parse.CommandNode:
 		for _, argument := range typed.Args {
-			if err := validateReleaseTextNode(argument, allowedFields); err != nil {
+			err := validateReleaseTextNode(argument, allowedFields)
+			if err != nil {
 				return err
 			}
 		}
@@ -148,7 +152,8 @@ func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{})
 	case *parse.VariableNode:
 		return validateReleaseTextVariable(typed, allowedFields)
 	case *parse.ChainNode:
-		if err := validateReleaseTextNode(typed.Node, allowedFields); err != nil {
+		err := validateReleaseTextNode(typed.Node, allowedFields)
+		if err != nil {
 			return err
 		}
 
@@ -201,18 +206,21 @@ func validateReleaseTextBranch(
 	list, elseList *parse.ListNode,
 	allowedFields map[string]struct{},
 ) error {
-	if err := validateReleaseTextNode(pipe, allowedFields); err != nil {
+	err := validateReleaseTextNode(pipe, allowedFields)
+	if err != nil {
 		return err
 	}
 
 	if list != nil {
-		if err := validateReleaseTextNode(list, allowedFields); err != nil {
+		err = validateReleaseTextNode(list, allowedFields)
+		if err != nil {
 			return err
 		}
 	}
 
 	if elseList != nil {
-		if err := validateReleaseTextNode(elseList, allowedFields); err != nil {
+		err = validateReleaseTextNode(elseList, allowedFields)
+		if err != nil {
 			return err
 		}
 	}
@@ -319,7 +327,9 @@ func validateRenderedReleaseTitle(name, title string) (string, error) {
 
 func executeReleaseTextTemplate(tmpl *template.Template, data any) (string, error) {
 	var output bytes.Buffer
-	if err := tmpl.Execute(&output, data); err != nil {
+
+	err := tmpl.Execute(&output, data)
+	if err != nil {
 		return "", fmt.Errorf("execute template: %w", err)
 	}
 

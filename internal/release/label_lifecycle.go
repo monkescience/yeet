@@ -20,7 +20,8 @@ func newLabelLifecycle(core *releaseCore, setter releasePRLabelSetter) labelLife
 }
 
 func (l labelLifecycle) opened(ctx context.Context, number int) error {
-	if err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhasePending); err != nil {
+	err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhasePending)
+	if err != nil {
 		return fmt.Errorf("mark release PR pending: %w", err)
 	}
 
@@ -28,7 +29,8 @@ func (l labelLifecycle) opened(ctx context.Context, number int) error {
 }
 
 func (l labelLifecycle) published(ctx context.Context, number int) error {
-	if err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhaseTagged); err != nil {
+	err := l.setter.SetReleasePRLabels(ctx, number, l.labels, forge.ReleasePRPhaseTagged)
+	if err != nil {
 		return fmt.Errorf("mark release PR tagged: %w", err)
 	}
 

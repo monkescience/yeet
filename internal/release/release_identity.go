@@ -219,7 +219,9 @@ func (c *releaseCore) validateReleaseManifestEntry(
 	}
 
 	strategy := versionStrategyForResolvedTarget(target)
-	if _, err := strategy.strategy.Current(entry.Tag); err != nil {
+
+	_, err = strategy.strategy.Current(entry.Tag)
+	if err != nil {
 		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, targetID, err)
 	}
 

@@ -205,8 +205,9 @@ func channelChangelogFile(changelogFile string, channelName string) string {
 func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection releaseSelection) (*Result, error) {
 	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
 	if analysisErr == nil {
-		if err := r.validateRenderedReleaseText(plans); err != nil {
-			return nil, err
+		validationErr := r.validateRenderedReleaseText(plans)
+		if validationErr != nil {
+			return nil, validationErr
 		}
 	}
 
@@ -287,7 +288,8 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 		return nil, nil, err
 	}
 
-	if err := r.validateRenderedReleaseText(plans); err != nil {
+	err = r.validateRenderedReleaseText(plans)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -306,16 +308,19 @@ func (r *releaser) validateRenderedReleaseText(plans []TargetPlan) error {
 		return nil
 	}
 
-	if _, err := r.core.releasePRTitle(plans); err != nil {
+	_, err := r.core.releasePRTitle(plans)
+	if err != nil {
 		return err
 	}
 
-	if _, err := r.core.releaseCommitSubject(plans); err != nil {
+	_, err = r.core.releaseCommitSubject(plans)
+	if err != nil {
 		return err
 	}
 
 	for _, plan := range plans {
-		if _, err := r.core.releaseNameForPlan(plan); err != nil {
+		_, err = r.core.releaseNameForPlan(plan)
+		if err != nil {
 			return err
 		}
 	}

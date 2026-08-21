@@ -103,11 +103,13 @@ func prepareWithPath(
 
 	logRun(ctx, resolvedConfigPath, options)
 
-	if err := applyOptions(cfg, options); err != nil {
+	err = applyOptions(cfg, options)
+	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	if err := cfg.Validate(); err != nil {
+	err = cfg.Validate()
+	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
@@ -127,7 +129,8 @@ func prepareWithPath(
 		)
 	}
 
-	if err := resolveMode(cfg, currentBranch, options); err != nil {
+	err = resolveMode(cfg, currentBranch, options)
+	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
@@ -203,7 +206,8 @@ func resolveExplicitChannel(cfg *config.Config, currentBranch string, options Op
 }
 
 func applyOptions(cfg *config.Config, options Options) error {
-	if err := applyRepositoryOptions(cfg, options); err != nil {
+	err := applyRepositoryOptions(cfg, options)
+	if err != nil {
 		return err
 	}
 

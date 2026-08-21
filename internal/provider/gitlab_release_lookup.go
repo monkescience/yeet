@@ -62,7 +62,9 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 	)
 
 	commitSHA := release.Commit.ID
-	if err := validateReleaseTagCommit(opts.TagName, commitSHA, ref); err != nil {
+
+	err = validateReleaseTagCommit(opts.TagName, commitSHA, ref)
+	if err != nil {
 		return nil, err
 	}
 

@@ -57,7 +57,8 @@ func (u *releaseBranchUpdater) updateFiles(
 		files[target.Changelog.File] = changelogContent
 		changelogFiles[target.Changelog.File] = struct{}{}
 
-		if err := u.updateVersionFiles(ctx, files, target, plan.ID, plan.NextVersion); err != nil {
+		err = u.updateVersionFiles(ctx, files, target, plan.ID, plan.NextVersion)
+		if err != nil {
 			return err
 		}
 	}
@@ -105,10 +106,11 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 			slog.String("next_version", nextVersion),
 		)
 
-		if setErr := setBranchFileContent(files, versionFile.Path, forge.FileUpdate{
+		setErr := setBranchFileContent(files, versionFile.Path, forge.FileUpdate{
 			Content: updatedContent,
 			Exists:  true,
-		}); setErr != nil {
+		})
+		if setErr != nil {
 			return setErr
 		}
 	}

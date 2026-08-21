@@ -62,11 +62,10 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		return nil, err
 	}
 
-	if err := p.preflightReleasePRTagging(ctx); err != nil {
+	err = p.preflightReleasePRTagging(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	prerelease := manifest.Prerelease
 
 	releases := make([]FinalizedRelease, 0, len(manifest.Targets))
 	for index, targetManifest := range manifest.Targets {
@@ -76,7 +75,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 			releaseNames[index],
 			targetManifest.ChangelogFile,
 			releaseRef,
-			prerelease,
+			manifest.Prerelease,
 		)
 		if releaseErr != nil {
 			return nil, releaseErr
@@ -89,7 +88,8 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		})
 	}
 
-	if err := p.markReleasePRTagged(ctx, mergedPR); err != nil {
+	err = p.markReleasePRTagged(ctx, mergedPR)
+	if err != nil {
 		return nil, err
 	}
 
@@ -98,7 +98,9 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 
 func (p *releasePublisher) preflightReleasePRTagging(ctx context.Context) error {
 	taggedLabel := p.core.cfg.Release.Labels.Tagged
-	if err := p.publisher.PreflightReleasePRTagging(ctx, taggedLabel); err != nil {
+
+	err := p.publisher.PreflightReleasePRTagging(ctx, taggedLabel)
+	if err != nil {
 		return fmt.Errorf("preflight release PR tagging: %w", err)
 	}
 
@@ -240,7 +242,8 @@ func (p *releasePublisher) existingReleaseForTag(
 }
 
 func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest *forge.PullRequest) error {
-	if err := p.labels.published(ctx, pullRequest.Number); err != nil {
+	err := p.labels.published(ctx, pullRequest.Number)
+	if err != nil {
 		return err
 	}
 

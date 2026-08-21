@@ -83,7 +83,8 @@ func (a *releaseAnalyzer) scanHistory(
 		commits:      make(map[string][]history.CommitEntry),
 	}
 
-	if err := a.buildSharedHistoryIndex(ctx, scan, targets); err != nil {
+	err = a.buildSharedHistoryIndex(ctx, scan, targets)
+	if err != nil {
 		return nil, err
 	}
 

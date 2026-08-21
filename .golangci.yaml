@@ -88,6 +88,7 @@ linters:
     # These are strict, relaxed in test files via exclusions above.
     - err113          # dynamic errors must be wrapped or predefined
     - wrapcheck       # errors from external packages must be wrapped
+    - noinlineerr     # assign errors before checking them
 
     # --- Magic numbers ---
     - mnd             # no magic numbers (define constants instead)
@@ -210,7 +211,6 @@ linters:
   # - gocyclo: overlaps with gocognit
   # - ireturn: conflicts with idiomatic interfaces at package boundaries
   # - maintidx: aggregate score is less actionable than targeted complexity linters
-  # - noinlineerr: rejects idiomatic short `if err := call(); err != nil` guard checks
   # - varnamelen: high false-positive rate on idiomatic short local names
 
   # Deprecated: never enable. Use the current replacements instead.

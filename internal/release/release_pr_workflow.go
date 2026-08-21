@@ -59,11 +59,13 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPl
 	if len(pendingPRs) == 1 {
 		existing := pendingPRs[0]
 
-		if err := w.adoptUnlabeledReleasePR(ctx, existing); err != nil {
+		err = w.adoptUnlabeledReleasePR(ctx, existing)
+		if err != nil {
 			return nil, err
 		}
 
-		if err := w.preserveExistingChangelogEdits(ctx, existing, plans); err != nil {
+		err = w.preserveExistingChangelogEdits(ctx, existing, plans)
+		if err != nil {
 			return nil, err
 		}
 
@@ -95,7 +97,8 @@ func (w *releasePRWorkflow) adoptUnlabeledReleasePR(ctx context.Context, existin
 
 	slog.InfoContext(ctx, "adopting unlabelled release PR", slog.String("url", existing.URL))
 
-	if err := w.labels.opened(ctx, existing.Number); err != nil {
+	err := w.labels.opened(ctx, existing.Number)
+	if err != nil {
 		return err
 	}
 
@@ -255,7 +258,8 @@ func (w *releasePRWorkflow) autoMerge(
 		Method:            forge.MergeMethod(r.cfg.Release.AutoMergeMethod),
 	}
 
-	if err := w.publisher.preflightReleasePRTagging(ctx); err != nil {
+	err := w.publisher.preflightReleasePRTagging(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -275,7 +279,8 @@ func (w *releasePRWorkflow) autoMerge(
 		return nil, err
 	}
 
-	if err := w.publisher.markReleasePRTagged(ctx, pullRequest); err != nil {
+	err = w.publisher.markReleasePRTagged(ctx, pullRequest)
+	if err != nil {
 		return nil, err
 	}
 
@@ -298,11 +303,13 @@ func (w *releasePRWorkflow) updateExisting(
 	// publishes the older tag and the next run re-plans the newer version from
 	// it. The reverse order advertises tags and files the branch does not carry,
 	// which does not self-heal.
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
+	err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := w.prs.UpdateReleasePR(ctx, existing.Number, prOpts); err != nil {
+	err = w.prs.UpdateReleasePR(ctx, existing.Number, prOpts)
+	if err != nil {
 		return nil, fmt.Errorf("update release PR: %w", err)
 	}
 
@@ -319,7 +326,8 @@ func (w *releasePRWorkflow) createNew(
 	commitSubject string,
 	plans []TargetPlan,
 ) (*forge.PullRequest, error) {
-	if err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject); err != nil {
+	err := w.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject)
+	if err != nil {
 		return nil, err
 	}
 
@@ -328,7 +336,8 @@ func (w *releasePRWorkflow) createNew(
 		return nil, fmt.Errorf("create release PR: %w", err)
 	}
 
-	if err := w.labels.opened(ctx, pr.Number); err != nil {
+	err = w.labels.opened(ctx, pr.Number)
+	if err != nil {
 		return nil, err
 	}
 
