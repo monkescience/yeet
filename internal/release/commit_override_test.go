@@ -20,7 +20,9 @@ func TestCommitOverrideMessages(t *testing.T) {
 	t.Run("returns no override when markers are absent", func(t *testing.T) {
 		t.Parallel()
 
-		// when: parsing a body without override markers
+		// given: a pull request body without override markers
+
+		// when: parsing the body for commit overrides
 		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body", knownTypes)
 
 		// then: no override is reported
@@ -96,7 +98,9 @@ func TestCommitOverrideMessages(t *testing.T) {
 	t.Run("rejects missing end marker", func(t *testing.T) {
 		t.Parallel()
 
-		// when: parsing an override body without END_COMMIT_OVERRIDE
+		// given: an override body without its end marker
+
+		// when: parsing the override body
 		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug", knownTypes)
 
 		// then: the missing end marker is reported as an invalid override
