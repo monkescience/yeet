@@ -16,7 +16,8 @@ func TestMain(m *testing.M) {
 	testing.Init()
 	flag.Parse()
 
-	if err := clearInheritedBranchEnv(); err != nil {
+	err := clearInheritedBranchEnv()
+	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 
 		os.Exit(1)
@@ -48,7 +49,8 @@ func clearInheritedBranchEnv() error {
 		"BRANCH_NAME",
 		"BUILD_SOURCEBRANCH",
 	} {
-		if err := os.Unsetenv(envName); err != nil {
+		err := os.Unsetenv(envName)
+		if err != nil {
 			return fmt.Errorf("unset inherited branch environment %s: %w", envName, err)
 		}
 	}
