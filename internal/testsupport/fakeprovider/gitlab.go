@@ -432,7 +432,8 @@ func registerGitLabReleases(
 			Ref string `json:"ref"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		err := json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
 			http.Error(w, "invalid release request", http.StatusBadRequest)
 
 			return

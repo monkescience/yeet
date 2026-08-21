@@ -299,7 +299,8 @@ func writeGitHubContentNotFound(w http.ResponseWriter) {
 func decodeGitHubContentRequest(t *testing.T, w http.ResponseWriter, r *http.Request, value any) bool {
 	t.Helper()
 
-	if err := json.NewDecoder(r.Body).Decode(value); err != nil {
+	err := json.NewDecoder(r.Body).Decode(value)
+	if err != nil {
 		t.Errorf("fakeprovider/github content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
 

@@ -681,7 +681,8 @@ func githubRequestReviewersHandler(opts GitHubOptions, reviewersRequested *atomi
 			Reviewers []string `json:"reviewers"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		err := json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
 			http.Error(w, "invalid reviewer request", http.StatusBadRequest)
 
 			return
@@ -708,7 +709,9 @@ func expectGitHubPullRequest(t *testing.T, r *http.Request, opts GitHubOptions) 
 	}
 
 	var payload map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
 		t.Errorf("fakeprovider/github: decode %s %s: %v", r.Method, r.URL.Path, err)
 
 		return false
@@ -748,7 +751,9 @@ func expectGitHubFields(t *testing.T, r *http.Request, expected map[string]strin
 	}
 
 	var payload map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
 		t.Errorf("fakeprovider/github: decode %s %s: %v", r.Method, r.URL.Path, err)
 
 		return false

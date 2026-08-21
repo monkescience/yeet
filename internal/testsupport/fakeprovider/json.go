@@ -10,7 +10,9 @@ func readJSONString(t *testing.T, r *http.Request, field string) string {
 	t.Helper()
 
 	var payload map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
 		t.Errorf("fakeprovider: decode %s %s: %v", r.Method, r.URL.Path, err)
 
 		return ""

@@ -96,7 +96,8 @@ func gitLabContentCommit(t *testing.T, w http.ResponseWriter, r *http.Request, c
 		} `json:"actions"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
 		t.Errorf("fakeprovider/gitlab content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		writeGitLabContentError(w, http.StatusBadRequest, "invalid commit request")
 
