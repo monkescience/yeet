@@ -4,10 +4,10 @@
     "clientUser": "",
     "floatValue": 6,
     "payload": {
-      "Yeet.arch": "arm64",
+      "Yeet.arch": "{{regex `^(amd64|arm64)$`}}",
       "Yeet.command": "init",
       "Yeet.eventDay": "2026-08-21",
-      "Yeet.os": "{{anyString}}",
+      "Yeet.os": "{{regex `^(darwin|linux|windows)$`}}",
       "Yeet.outcome": "success",
       "Yeet.version": "1.4.0"
     },
