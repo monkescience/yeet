@@ -85,7 +85,9 @@ func TestClassifyMergeReason(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			// when: classifying a stable forge merge failure
+			// given: a stable forge merge failure
+
+			// when: classifying it for release reporting
 			actual := classifyMergeReason(testCase.cause)
 
 			// then: the forge reason maps to the release-owned reason
