@@ -405,7 +405,9 @@ func TestReleaseFailureMessage(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			// when: formatting one release-owned failure kind
+			// given: a release-owned failure kind and its expected command diagnostic
+
+			// when: formatting it for CLI output
 			actual := releaseFailureMessage(testCase.kind, testCase.configPath, testCase.reason)
 
 			// then: the command owns the exact problem and remediation text
@@ -469,7 +471,9 @@ func TestMergeBlockedMessage(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			// when: formatting one release-owned merge reason
+			// given: a release-owned merge refusal reason
+
+			// when: formatting its CLI remediation
 			actual := mergeBlockedMessage(testCase.reason)
 
 			// then: the command gives reason-specific remediation
