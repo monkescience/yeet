@@ -217,7 +217,8 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 
 	branchTip, err := a.branchTipSHA(ctx, branch)
 	if errors.Is(err, errAzureDevOpsBranchMissing) {
-		if err := a.createBranchAtSHA(ctx, branch, baseTip); err != nil {
+		err = a.createBranchAtSHA(ctx, branch, baseTip)
+		if err != nil {
 			return "", err
 		}
 

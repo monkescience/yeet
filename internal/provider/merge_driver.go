@@ -75,7 +75,8 @@ func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) 
 		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 	}
 
-	if err := checkMergeReadiness(current, opts.BypassMergeChecks); err != nil {
+	err = checkMergeReadiness(current, opts.BypassMergeChecks)
+	if err != nil {
 		return "", err
 	}
 
