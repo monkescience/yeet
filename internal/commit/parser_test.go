@@ -163,6 +163,8 @@ func TestParse(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
+				// given: the current header violates conventional commit syntax
+
 				// when: parsing a malformed conventional-looking header
 				c := commit.Parse(t.Context(), "bad1234", tt.raw)
 
