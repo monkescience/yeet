@@ -102,7 +102,8 @@ func validateGitHubRepositoryConfig(github *GitHubRepositoryConfig) error {
 		return fmt.Errorf("%w: repository.github.host must not be blank", ErrInvalidConfig)
 	}
 
-	if err := validateRepositoryURLs("repository.github", github.APIURL, github.WebURL); err != nil {
+	err := validateRepositoryURLs("repository.github", github.APIURL, github.WebURL)
+	if err != nil {
 		return err
 	}
 
@@ -161,7 +162,8 @@ func validateGitLabRepositoryConfig(gitlab *GitLabRepositoryConfig) error {
 		return fmt.Errorf("%w: repository.gitlab.host must not be blank", ErrInvalidConfig)
 	}
 
-	if err := validateRepositoryURLs("repository.gitlab", gitlab.APIURL, gitlab.WebURL); err != nil {
+	err := validateRepositoryURLs("repository.gitlab", gitlab.APIURL, gitlab.WebURL)
+	if err != nil {
 		return err
 	}
 
@@ -187,7 +189,8 @@ func validateAzureDevOpsRepositoryConfig(azure *AzureDevOpsRepositoryConfig) err
 		return fmt.Errorf("%w: repository.azuredevops.host must not be blank", ErrInvalidConfig)
 	}
 
-	if err := validateRepositoryURLs("repository.azuredevops", azure.APIURL, azure.WebURL); err != nil {
+	err := validateRepositoryURLs("repository.azuredevops", azure.APIURL, azure.WebURL)
+	if err != nil {
 		return err
 	}
 
@@ -234,7 +237,8 @@ func validateRepositoryURLs(path, apiURL, webURL string) error {
 			continue
 		}
 
-		if err := validateHTTPSURL(field.value); err != nil {
+		err := validateHTTPSURL(field.value)
+		if err != nil {
 			return fmt.Errorf("%w: %s.%s %v", ErrInvalidConfig, path, field.name, err)
 		}
 	}

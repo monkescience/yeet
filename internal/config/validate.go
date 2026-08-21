@@ -16,55 +16,71 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%w: branch must not be blank", ErrInvalidConfig)
 	}
 
-	if _, err := c.TimeLocation(); err != nil {
+	_, err := c.TimeLocation()
+	if err != nil {
 		return err
 	}
 
-	if err := validateProvider(c.Provider); err != nil {
+	err = validateProvider(c.Provider)
+	if err != nil {
 		return err
 	}
 
-	if err := validateBumpTypes(c.BumpTypes); err != nil {
+	err = validateBumpTypes(c.BumpTypes)
+	if err != nil {
 		return err
 	}
 
-	if err := validateRepositoryConfig(c.Provider, c.Repository); err != nil {
+	err = validateRepositoryConfig(c.Provider, c.Repository)
+	if err != nil {
 		return err
 	}
 
-	if err := validateNetworkConfig(c.Network); err != nil {
+	err = validateNetworkConfig(c.Network)
+	if err != nil {
 		return err
 	}
 
 	if strings.TrimSpace(c.Changelog.File) != "" {
-		if _, err := normalizedChangelogFile("changelog.file", c.Changelog.File); err != nil {
+		_, err = normalizedChangelogFile("changelog.file", c.Changelog.File)
+		if err != nil {
 			return err
 		}
 	}
 
-	if err := validateReferencesConfig("changelog.references", c.Changelog.References); err != nil {
+	err = validateReferencesConfig("changelog.references", c.Changelog.References)
+	if err != nil {
 		return err
 	}
 
-	if err := validateCalVerConfig("calver.format", c.CalVer); err != nil {
+	err = validateCalVerConfig("calver.format", c.CalVer)
+	if err != nil {
 		return err
 	}
 
 	for _, versionFile := range c.VersionFiles {
-		if err := validateVersionFile("version_files", versionFile); err != nil {
+		err = validateVersionFile("version_files", versionFile)
+		if err != nil {
 			return err
 		}
 	}
 
-	if err := validateReleaseConfig(c.Release); err != nil {
+	return c.validateReleaseAndTargets()
+}
+
+func (c *Config) validateReleaseAndTargets() error {
+	err := validateReleaseConfig(c.Release)
+	if err != nil {
 		return err
 	}
 
-	if err := validateReleaseChannelBranches(c.Branch, c.Release.Channels); err != nil {
+	err = validateReleaseChannelBranches(c.Branch, c.Release.Channels)
+	if err != nil {
 		return err
 	}
 
-	if _, err := c.resolveTargets(); err != nil {
+	_, err = c.resolveTargets()
+	if err != nil {
 		return err
 	}
 
@@ -236,7 +252,8 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 }
 
 func validateReleaseConfig(release ReleaseConfig) error {
-	if err := validateReleaseMergePolling(release.MergePolling); err != nil {
+	err := validateReleaseMergePolling(release.MergePolling)
+	if err != nil {
 		return err
 	}
 
@@ -250,15 +267,18 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		)
 	}
 
-	if err := validateReleaseLabels(release.Labels); err != nil {
+	err = validateReleaseLabels(release.Labels)
+	if err != nil {
 		return err
 	}
 
-	if err := validateReleaseReviewers(release.Reviewers); err != nil {
+	err = validateReleaseReviewers(release.Reviewers)
+	if err != nil {
 		return err
 	}
 
-	if err := validateReleaseChannels(release.Channels); err != nil {
+	err = validateReleaseChannels(release.Channels)
+	if err != nil {
 		return err
 	}
 
@@ -332,7 +352,8 @@ func validateReleaseLabels(labels ReleaseLabelsConfig) error {
 	}
 
 	for _, label := range lifecycle {
-		if err := validateLifecycleLabelName(label.path, label.name); err != nil {
+		err := validateLifecycleLabelName(label.path, label.name)
+		if err != nil {
 			return err
 		}
 	}
