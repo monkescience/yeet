@@ -50,7 +50,8 @@ type Strategy interface {
 // ValidatePrereleaseIdentifier reports whether identifier can name a prerelease
 // channel.
 func ValidatePrereleaseIdentifier(identifier string) error {
-	if _, err := semver.StrictNewVersion("1.0.0-" + identifier); err != nil {
+	_, err := semver.StrictNewVersion("1.0.0-" + identifier)
+	if err != nil {
 		return fmt.Errorf("invalid semver prerelease identifier %q: %w", identifier, err)
 	}
 
