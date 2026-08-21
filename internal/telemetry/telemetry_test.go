@@ -137,7 +137,7 @@ func TestDeliveryIsBoundedAndBestEffort(t *testing.T) {
 
 	manager.RecordInit(t.Context(), manager.now(), path, nil)
 	testastic.Equal(t, int32(1), requestCount.Load())
-	testastic.Equal(t, time.Second, manager.client.Timeout)
+	testastic.Equal(t, 3*time.Second, manager.client.Timeout)
 
 	event := wireEvent{AppID: strings.Repeat("x", maxPayloadSize), Type: eventType}
 	err := manager.deliver(t.Context(), event)
