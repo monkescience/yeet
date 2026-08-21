@@ -24,48 +24,41 @@ telemetry:
 This setting overrides the default. It is useful when everyone working with a
 repository should get the same behavior.
 
-The repository can also record an explicit opt-in:
+To explicitly enable telemetry for a repository:
 
 ```yaml
 telemetry:
   enabled: true
 ```
 
-To disable telemetry for yeet and every other tool that supports the shared
-standard, set:
+To disable telemetry for yeet and other tools that honor `DO_NOT_TRACK`, set:
 
 ```sh
 export DO_NOT_TRACK=1
 ```
 
-`DO_NOT_TRACK` also accepts `true`, `yes`, and `on`, without regard to case. It
-always wins over `.yeet.yaml`. There is no user-scoped yeet telemetry file.
+`DO_NOT_TRACK` also accepts `true`, `yes`, and `on` in any letter case. It always
+wins over `.yeet.yaml`. yeet has no separate user-level telemetry setting.
 
 The complete decision order is:
 
-1. A truthy `DO_NOT_TRACK` disables telemetry.
-2. `telemetry.enabled` in `.yeet.yaml` selects the repository behavior.
-3. Telemetry is enabled.
+1. `DO_NOT_TRACK=1`, `true`, `yes`, or `on` disables telemetry.
+2. Otherwise, yeet uses `telemetry.enabled` from `.yeet.yaml` when present.
+3. If neither is set, telemetry is enabled.
 
-Missing repository configuration uses the enabled default. Invalid or unreadable
-repository configuration disables telemetry because yeet cannot safely
-determine whether the repository opted out.
+If no repository configuration exists, telemetry remains enabled. If the
+configuration is invalid or cannot be read, telemetry is disabled because yeet
+cannot safely determine whether the repository opted out.
 
 ## Why yeet collects telemetry
 
-The maintainers use these execution counts to answer limited product questions:
+Aggregate usage data helps us prioritize support for yeet versions, operating
+systems, providers, release styles, and features. It also helps identify
+reliability and performance problems.
 
-- Which yeet versions and operating systems should receive the most testing and
-  support?
-- Which providers and release styles are actively used?
-- Are failures or slow executions common enough to require focused work?
-- Are features such as CalVer, prerelease channels, dry runs, and auto-merge
-  worth continued investment?
-
-The results cannot answer how many people or repositories use yeet. A
-repository that runs yeet frequently contributes more events than one that runs
-it occasionally. Opt-outs, offline runs, and blocked requests contribute no
-events.
+This data does not show how many people or repositories use yeet. Repositories
+that run yeet more often contribute more events. Opt-outs, offline runs, and
+blocked requests contribute no events.
 
 ## Exactly what is sent
 
@@ -92,9 +85,8 @@ When `release` successfully reads `.yeet.yaml`, the event can also contain:
 | `Yeet.release.channelsConfigured` | `true` or `false` | Understand prerelease-channel usage. |
 | `Yeet.release.autoMerge` | `off`, `normal`, or `force` | Prioritize auto-merge safety and provider behavior. |
 
-The envelope contains the public TelemetryDeck app ID, the fixed event type,
-and an empty `clientUser`. No session ID is sent. TelemetryDeck documents that
-an [empty `clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).
+No user or session identifier is sent. TelemetryDeck documents that an empty
+[`clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).
 
 The `help`, `version`, and completion commands do not send telemetry. Invalid
 commands do not send telemetry either.
@@ -120,9 +112,8 @@ yeet does not send:
 Official release binaries and images send directly over HTTPS to the
 [TelemetryDeck Ingest API](https://telemetrydeck.com/docs/ingest/v2/).
 
-Delivery has a 300 ms total timeout, no retries, no disk queue, no redirects,
-and a 4 KiB payload limit. A network or ingestion failure never changes yeet's
-command output, exit status, or release behavior.
+Telemetry is sent on a best-effort basis and is never queued or stored on disk.
+Delivery failures do not change yeet's output, exit status, or release behavior.
 
 TelemetryDeck documents that it does not store IP addresses. Its current
 privacy information is available in the

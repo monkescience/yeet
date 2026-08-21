@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	deliveryTimeout         = 300 * time.Millisecond
+	deliveryTimeout         = time.Second
 	maxPayloadSize          = 4 * 1024
 	maxResponseBodySize     = 4 * 1024
 	versionStrategyCapacity = 2
