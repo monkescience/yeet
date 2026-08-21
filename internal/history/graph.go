@@ -69,7 +69,8 @@ func (l *localHistory) commitsSinceRefs(
 		}
 
 		if includePaths {
-			if err := l.hydratePaths(ctx, hashes); err != nil {
+			err = l.hydratePaths(ctx, hashes)
+			if err != nil {
 				return CommitHistory{}, err
 			}
 		}
@@ -159,7 +160,8 @@ func (l *localHistory) branchGraph(ctx context.Context) (*branchGraph, error) {
 	index := 0
 
 	for len(pending) > 0 {
-		if err := ctx.Err(); err != nil {
+		err := ctx.Err()
+		if err != nil {
 			return nil, fmt.Errorf("build local commit graph: %w", err)
 		}
 

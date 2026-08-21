@@ -69,7 +69,8 @@ func Open(ctx context.Context, remote Remote, branch, dir string) (*Source, erro
 		return nil, err
 	}
 
-	if _, err := local.branchGraph(ctx); err != nil {
+	_, err = local.branchGraph(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("validate local commit graph: %w", err)
 	}
 
@@ -92,7 +93,8 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 // GetFile reads a blob from the validated local HEAD commit. Working-tree
 // changes are intentionally ignored so release inputs match the remote branch.
 func (s *Source) GetFile(ctx context.Context, path string) (string, error) {
-	if err := ctx.Err(); err != nil {
+	err := ctx.Err()
+	if err != nil {
 		return "", fmt.Errorf("read local file %q: %w", path, err)
 	}
 
@@ -128,7 +130,8 @@ func (s *Source) GetCommitsSinceRefs(
 	includePaths bool,
 	knownTags []forge.TagRef,
 ) (CommitHistory, error) {
-	if err := ctx.Err(); err != nil {
+	err := ctx.Err()
+	if err != nil {
 		return CommitHistory{}, fmt.Errorf("read local history: %w", err)
 	}
 
