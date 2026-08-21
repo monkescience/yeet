@@ -35,6 +35,8 @@ func TestValidateCalVerFormat(t *testing.T) {
 		t.Run("valid "+format, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a supported calendar version format
+
 			// when: validating the format
 			err := version.ValidateCalVerFormat(format)
 
@@ -65,6 +67,8 @@ func TestValidateCalVerFormat(t *testing.T) {
 	for _, format := range invalidFormats {
 		t.Run("invalid "+format, func(t *testing.T) {
 			t.Parallel()
+
+			// given: an unsupported calendar version format
 
 			// when: validating the format
 			err := version.ValidateCalVerFormat(format)
