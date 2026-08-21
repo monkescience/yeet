@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.13.8](https://github.com/monkescience/yeet/compare/v0.13.7...v0.13.8) (2026-08-21)
+
+### Bug Fixes
+
+- **deps:** update module charm.land/lipgloss/v2 to v2.0.6 (#229) ([71a7115](https://github.com/monkescience/yeet/commit/71a711581ec5636c3d8ec7d2e1ad72067f60a868))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.58.0 (#232) ([d562c9a](https://github.com/monkescience/yeet/commit/d562c9af3b285bd373976d1e47422eba7c9060a7))
+- **deps:** update module github.com/charmbracelet/x/ansi to v0.11.8 (#230) ([8e05ee4](https://github.com/monkescience/yeet/commit/8e05ee4952f981f96628fdf944d3ea01a56e94dc))
+
 ## [v0.13.7](https://github.com/monkescience/yeet/compare/v0.13.6...v0.13.7) (2026-08-16)
 
 ### Bug Fixes
