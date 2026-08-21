@@ -301,7 +301,8 @@ func collectSchemaDefaults(document map[string]any) ([]schemaDefault, error) {
 				return fmt.Errorf("schema property %s is not an object", strings.Join(append(path, name), "."))
 			}
 
-			if err := walk(property, append(path, name)); err != nil {
+			err := walk(property, append(path, name))
+			if err != nil {
 				return err
 			}
 		}
@@ -309,7 +310,8 @@ func collectSchemaDefaults(document map[string]any) ([]schemaDefault, error) {
 		return nil
 	}
 
-	if err := walk(document, nil); err != nil {
+	err := walk(document, nil)
+	if err != nil {
 		return nil, err
 	}
 
