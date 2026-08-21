@@ -1106,6 +1106,7 @@ func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 	t.Run("rejects an empty provider release name before creating a PR", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a stable release whose provider name template renders empty
 		cfg := config.Default()
 		cfg.Release.NameTemplate = "{{ if .Channel }}release {{ .Tag }}{{ end }}"
 
@@ -1117,8 +1118,10 @@ func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 
+		// when: running the release with mutations enabled
 		result, err := r.Release(context.Background(), false)
 
+		// then: validation fails before merged release lookup, publication, or pull request creation
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 0, stub.findMergedPRCalls)
@@ -1364,6 +1367,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 	t.Run("preflights tagging before merge and publication", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an auto-merged release whose tagged-label preflight fails
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
 
@@ -1378,8 +1382,10 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 
+		// when: running the release end-to-end
 		result, err := r.Release(context.Background(), false)
 
+		// then: the tagged label is preflighted before merge, release lookup, or publication
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 		testastic.Equal(t, (*Result)(nil), result)
@@ -2023,6 +2029,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 	t.Run("existing release branch freeform blocks are preserved on rerun", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an existing release branch changelog containing freeform blocks
 		cfg := config.Default()
 		existingPR := &forge.PullRequest{
 			Number: 42,
@@ -2048,8 +2055,10 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 
+		// when: updating the existing release pull request
 		result, err := r.Release(context.Background(), false)
 
+		// then: the freeform blocks remain in the plan, pull request body, and branch changelog
 		testastic.NoError(t, err)
 		testastic.AssertFile(t, fixtureDir+"plan_0_changelog.expected.md", changelog.Render(result.Plans[0].Entry))
 		testastic.AssertFile(t, fixtureDir+"pull_request_body.expected.md", result.PullRequest.Body)
@@ -2338,6 +2347,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Run("validates release names before provider preflight", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a merged release whose provider name template renders empty
 		cfg := config.Default()
 		cfg.Release.NameTemplate = "{{ if .Channel }}release {{ .Tag }}{{ end }}"
 		stub := newProviderStub()
@@ -2351,8 +2361,10 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 
+		// when: finalizing the merged release
 		_, err := r.finalizeMergedReleasePRs(context.Background())
 
+		// then: name validation fails before provider preflight, release lookup, or publication
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, 0, len(stub.preflightCalls))
 		testastic.Equal(t, 0, stub.getReleaseByTagCalls)
@@ -2362,6 +2374,7 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 	t.Run("preflights tagging before release lookup and publication", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a merged release whose tagged-label preflight fails
 		cfg := config.Default()
 		stub := newProviderStub()
 		stub.mergedPR = &forge.PullRequest{
@@ -2379,8 +2392,10 @@ func TestFinalizeMergedReleasePR(t *testing.T) {
 
 		r := newTestReleaser(t, cfg, stub)
 
+		// when: finalizing the merged release
 		_, err := r.finalizeMergedReleasePRs(context.Background())
 
+		// then: the tagged label is preflighted before release lookup or publication
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMissing)
 		testastic.SliceEqual(t, []string{cfg.Release.Labels.Tagged}, stub.preflightCalls)
