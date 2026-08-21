@@ -144,14 +144,17 @@ func TestParseEntry(t *testing.T) {
 	t.Run("round-trips a freeform intro containing fenced headings", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an intro containing fenced heading-shaped lines
 		text := "## v1.2.3 (2026-03-21)\n\nA heads-up note.\n\n" +
 			"```markdown\n### This is sample text\n```\n\n" +
 			"~~~markdown\n### This is another sample\n~~~~\n\n" +
 			"### Bug Fixes\n\n- patch issue (abc1234)\n"
 
+		// when: parsing and rendering the entry
 		entry := changelog.ParseEntry(text)
 		rendered := changelog.Render(entry)
 
+		// then: fenced headings remain and the bytes round-trip
 		testastic.Equal(t, text, rendered)
 		testastic.Equal(t, 1, len(entry.Sections))
 		testastic.Equal(t, "Bug Fixes", entry.Sections[0].Heading)
@@ -160,10 +163,13 @@ func TestParseEntry(t *testing.T) {
 	t.Run("round-trips headingless content when no sections exist", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a versioned entry with no sections
 		text := "## v1.2.3 (2026-03-21)\n\nA short release summary.\n"
 
+		// when: parsing and rendering the entry
 		rendered := changelog.Render(changelog.ParseEntry(text))
 
+		// then: the freeform body remains intact
 		testastic.Equal(t, text, rendered)
 	})
 

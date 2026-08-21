@@ -15,11 +15,14 @@ func TestGenerate(t *testing.T) {
 	t.Run("uses a captured release date", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a generator configured with a fixed release instant
 		date := time.Date(2025, time.December, 31, 16, 30, 0, 0, time.FixedZone("PST", -8*60*60))
 		gen := changelog.New(changelog.WithDate(date))
 
+		// when: generating an entry
 		entry := gen.Generate(t.Context(), "v1.2.3", "", nil)
 
+		// then: the captured instant is retained as the release date
 		testastic.Equal(t, date, entry.Date)
 	})
 
@@ -662,6 +665,7 @@ func TestRender(t *testing.T) {
 	t.Run("normalizes only freeform block edges", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an entry with blank outer edges and intentional internal spacing
 		entry := changelog.Entry{
 			Intro: []string{"", "First intro paragraph.", "", "", "Second intro paragraph.", ""},
 			Sections: []changelog.Section{{
@@ -671,8 +675,10 @@ func TestRender(t *testing.T) {
 			Outro: []string{"", "First outro paragraph.", "", "Second outro paragraph.", ""},
 		}
 
+		// when: rendering its body
 		output := changelog.RenderBody(entry)
 
+		// then: outer blanks are normalized and internal spacing is retained
 		testastic.Equal(
 			t,
 			"First intro paragraph.\n\n\nSecond intro paragraph.\n\n"+
