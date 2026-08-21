@@ -74,15 +74,18 @@ func TestPrepare(t *testing.T) {
 	})
 
 	t.Run("invalid provider override is rejected", func(t *testing.T) {
+		// given: a valid config with an unsupported provider override
 		t.Chdir(t.TempDir())
 		clearCurrentBranchEnv(t)
 		writeTestConfig(t, func(_ *config.Config) {})
 
+		// when: preparing a dry-run release
 		_, err := prepare(t.Context(), Options{
 			DryRun:   true,
 			Provider: new("wrongo"),
 		})
 
+		// then: option validation rejects the provider with a specific diagnostic
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 
@@ -97,16 +100,19 @@ func TestPrepare(t *testing.T) {
 	})
 
 	t.Run("invalid auto merge method override is rejected", func(t *testing.T) {
+		// given: a valid config with an unsupported auto-merge method override
 		t.Chdir(t.TempDir())
 		clearCurrentBranchEnv(t)
 		writeTestConfig(t, func(_ *config.Config) {})
 
+		// when: preparing a dry-run release
 		_, err := prepare(t.Context(), Options{
 			AutoMerge:       new(true),
 			AutoMergeMethod: new("wrongo"),
 			DryRun:          true,
 		})
 
+		// then: option validation rejects the method with a specific diagnostic
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 

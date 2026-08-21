@@ -100,6 +100,7 @@ func TestTargetsForActiveChannel(t *testing.T) {
 	t.Run("normalizes an explicit channel changelog file", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an active channel with a changelog path requiring normalization
 		cfg := config.Default()
 		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
@@ -114,8 +115,10 @@ func TestTargetsForActiveChannel(t *testing.T) {
 			},
 		}
 
+		// when: resolving targets for the active channel
 		resolved, err := targetsForActiveChannel(cfg, targets)
 
+		// then: the channel changelog path is cleaned before use
 		testastic.NoError(t, err)
 		testastic.Equal(t, "CHANGELOG.beta.md", resolved["app"].Changelog.File)
 	})
