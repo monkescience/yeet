@@ -13,6 +13,8 @@ func TestReleaseBranchName(t *testing.T) {
 	t.Run("uses the compatibility convention without provider settings", func(t *testing.T) {
 		t.Parallel()
 
+		// given: no release branch override is configured
+
 		// when: resolving a release branch for a directly constructed provider
 		branch := provider.ReleaseBranchNameForTest("", "main")
 
@@ -22,6 +24,8 @@ func TestReleaseBranchName(t *testing.T) {
 
 	t.Run("uses the configured branch exactly", func(t *testing.T) {
 		t.Parallel()
+
+		// given: an explicit release branch override is configured
 
 		// when: resolving a configured release branch
 		branch := provider.ReleaseBranchNameForTest("automation/main/release", "main")
