@@ -116,8 +116,8 @@ github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavM
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJuqunuUZ/Dhy/avygyECGrLceyNeo4LiM=
 github.com/yuin/goldmark v1.8.5 h1:r6N5afV5qj/5S4UTch8agZHJ8UxNCMwX7WjkkJam2NA=
 github.com/yuin/goldmark v1.8.5/go.mod h1:ip/1k0VRfGynBgxOz0yCqHrbZXhcjxyuS66Brc7iBKg=
-gitlab.com/gitlab-org/api/client-go/v2 v2.56.0 h1:2dWcjisjwmEXUZ841bzcJGoyEtCpVKXOAIMmbMPQ6YM=
-gitlab.com/gitlab-org/api/client-go/v2 v2.56.0/go.mod h1:gcqiTA4aFvyvPZspm+YwnMFObw2t8K3YCXxAwJgY51g=
+gitlab.com/gitlab-org/api/client-go/v2 v2.58.0 h1:quZfEo1oY4uK92HkI2ZVuAI8cktpBHv+tIrgi4P/RX0=
+gitlab.com/gitlab-org/api/client-go/v2 v2.58.0/go.mod h1:gcqiTA4aFvyvPZspm+YwnMFObw2t8K3YCXxAwJgY51g=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=
 go.yaml.in/yaml/v4 v4.0.0-rc.6/go.mod h1:aZqd9kCMsGL7AuUv/m/PvWLdg5sjJsZ4oHDEnfPPfY0=
