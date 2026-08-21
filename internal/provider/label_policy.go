@@ -176,17 +176,20 @@ func (d labelDefinitions) prepare(
 		return d.ensure(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
 	}
 
-	if err := d.validateExtras(ctx, labels.Extra); err != nil {
+	err := d.validateExtras(ctx, labels.Extra)
+	if err != nil {
 		return err
 	}
 
 	if labels.Yeet {
-		if err := d.ensure(ctx, ReleaseLabelYeet, releaseLabelYeetColor, releaseLabelYeetDescription); err != nil {
+		err = d.ensure(ctx, ReleaseLabelYeet, releaseLabelYeetColor, releaseLabelYeetDescription)
+		if err != nil {
 			return err
 		}
 	}
 
-	if err := d.ensure(ctx, labels.Pending, releaseLabelPendingColor, releaseLabelPendingDescription); err != nil {
+	err = d.ensure(ctx, labels.Pending, releaseLabelPendingColor, releaseLabelPendingDescription)
+	if err != nil {
 		return err
 	}
 
@@ -198,7 +201,8 @@ func (d labelDefinitions) prepare(
 // been mutated yet.
 func (d labelDefinitions) validateExtras(ctx context.Context, names []string) error {
 	for _, name := range names {
-		if err := d.validateExisting(ctx, name, "extra"); err != nil {
+		err := d.validateExisting(ctx, name, "extra")
+		if err != nil {
 			return err
 		}
 	}
@@ -247,7 +251,8 @@ func (d labelDefinitions) ensure(ctx context.Context, name, color, description s
 		return err
 	}
 
-	if err := d.create(ctx, name, color, description); err != nil {
+	err = d.create(ctx, name, color, description)
+	if err != nil {
 		return err
 	}
 
