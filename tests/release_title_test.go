@@ -55,6 +55,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects an unknown field in the pr title", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a PR title template referencing an unavailable field
+
+		// when: validating the template during a dry-run release
+
+		// then: the unavailable field is reported
 		assertReleaseTitleRejected(t, "unknown_field", fixture.ConfigOptions{
 			PRTitle: "ship {{ .Nope }}",
 		})
@@ -63,6 +68,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects an unknown field inside a conditional", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a PR title conditional referencing an unavailable field
+
+		// when: validating the template during a dry-run release
+
+		// then: the unavailable conditional field is reported
 		assertReleaseTitleRejected(t, "unknown_field_in_conditional", fixture.ConfigOptions{
 			PRTitle: "ship{{ if .Nope }} it{{ end }}",
 		})
@@ -71,6 +81,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects a field reached through a variable", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a PR title template reaching an unavailable field through a variable
+
+		// when: validating the template during a dry-run release
+
+		// then: the indirect field access is reported as unavailable
 		assertReleaseTitleRejected(t, "field_through_variable", fixture.ConfigOptions{
 			PRTitle: "{{ $plan := . }}ship {{ $plan.Target }}",
 		})
@@ -79,6 +94,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects a single-release field in the group pr title", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a group PR title template using a single-release field
+
+		// when: validating the template during a dry-run release
+
+		// then: the single-release field is reported as unavailable
 		assertReleaseTitleRejected(t, "single_field_in_group_title", fixture.ConfigOptions{
 			PRTitleGroup: "ship {{ .Target }}",
 		})
@@ -87,6 +107,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects a pr title that renders empty", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a PR title template that renders empty
+
+		// when: validating the template during a dry-run release
+
+		// then: the empty rendered title is rejected
 		assertReleaseTitleRejected(t, "renders_empty", fixture.ConfigOptions{
 			PRTitle: "{{ .Channel }}",
 		})
@@ -95,6 +120,11 @@ func TestReleaseTitleTemplates(t *testing.T) {
 	t.Run("rejects a pr title that renders more than one line", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a PR title template that renders more than one line
+
+		// when: validating the template during a dry-run release
+
+		// then: the multiline rendered title is rejected
 		assertReleaseTitleRejected(t, "renders_multiple_lines", fixture.ConfigOptions{
 			PRTitle: `ship{{ "\n" }}{{ .Tag }}`,
 		})

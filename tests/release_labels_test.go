@@ -28,6 +28,11 @@ func TestReleaseLabelConfigValidation(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			t.Parallel()
 
+			// given: the invalid release label configuration for this scenario
+
+			// when: running a dry-run release with that configuration
+
+			// then: the command rejects it with the expected diagnostic
 			assertReleaseConfigRejected(t, scenario)
 		})
 	}
