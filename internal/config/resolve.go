@@ -51,11 +51,13 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 		resolved[resolvedTarget.ID] = resolvedTarget
 	}
 
-	if err := validateResolvedTargets(resolved); err != nil {
+	err := validateResolvedTargets(resolved)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validateTargetVersionFileOwnership(c.Targets); err != nil {
+	err = validateTargetVersionFileOwnership(c.Targets)
+	if err != nil {
 		return nil, err
 	}
 
@@ -86,7 +88,8 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		Includes:                   normalizeTargetIDs(target.Includes),
 	}
 
-	if err := validateResolvedTargetConfig(targetID, target, &resolved); err != nil {
+	err = validateResolvedTargetConfig(targetID, target, &resolved)
+	if err != nil {
 		return ResolvedTarget{}, err
 	}
 
@@ -95,7 +98,8 @@ func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error)
 		return ResolvedTarget{}, err
 	}
 
-	if err := validateTargetShape(resolved); err != nil {
+	err = validateTargetShape(resolved)
+	if err != nil {
 		return ResolvedTarget{}, err
 	}
 
@@ -118,7 +122,8 @@ func resolveTargetType(targetID string, value TargetType) (TargetType, error) {
 }
 
 func validateResolvedTargetConfig(targetID string, target Target, resolved *ResolvedTarget) error {
-	if err := validatePreMajorCalVer(targetID, resolved.Versioning, target); err != nil {
+	err := validatePreMajorCalVer(targetID, resolved.Versioning, target)
+	if err != nil {
 		return err
 	}
 
@@ -126,7 +131,8 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved *Reso
 		return fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
 	}
 
-	if err := validateTargetVersioning(targetID, *resolved); err != nil {
+	err = validateTargetVersioning(targetID, *resolved)
+	if err != nil {
 		return err
 	}
 
@@ -140,14 +146,15 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved *Reso
 
 	resolved.Changelog.File = normalizedChangelogPath
 
-	if err := validateTargetChangelog(targetID, resolved.Changelog); err != nil {
+	err = validateTargetChangelog(targetID, resolved.Changelog)
+	if err != nil {
 		return err
 	}
 
 	for index, versionFile := range resolved.VersionFiles {
-		normalized, err := normalizedVersionFile("targets."+targetID+".version_files", versionFile)
-		if err != nil {
-			return err
+		normalized, normalizeErr := normalizedVersionFile("targets."+targetID+".version_files", versionFile)
+		if normalizeErr != nil {
+			return normalizeErr
 		}
 
 		resolved.VersionFiles[index] = normalized
@@ -516,11 +523,13 @@ func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 		return fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
 	}
 
-	if err := validateUniqueTagPrefixes(targets); err != nil {
+	err := validateUniqueTagPrefixes(targets)
+	if err != nil {
 		return err
 	}
 
-	if err := validateDerivedIncludes(targets); err != nil {
+	err = validateDerivedIncludes(targets)
+	if err != nil {
 		return err
 	}
 
