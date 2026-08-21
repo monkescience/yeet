@@ -7,7 +7,7 @@ require (
 	charm.land/log/v2 v2.0.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/charmbracelet/x/ansi v0.11.7
+	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/go-git/go-git/v6 v6.0.0-alpha.5
 	github.com/google/go-github/v90 v90.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -42,7 +42,7 @@ require (
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
-	github.com/mattn/go-runewidth v0.0.23 // indirect
+	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
