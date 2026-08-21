@@ -223,8 +223,12 @@ func TestDetectType(t *testing.T) {
 	t.Run("detects github hosts", func(t *testing.T) {
 		t.Parallel()
 
+		// given: the public GitHub host
+
+		// when: detecting its provider type
 		providerType, err := provider.DetectTypeForTest("github.com")
 
+		// then: GitHub is detected
 		testastic.NoError(t, err)
 		testastic.Equal(t, "github", providerType)
 	})
@@ -232,8 +236,12 @@ func TestDetectType(t *testing.T) {
 	t.Run("detects gitlab hosts", func(t *testing.T) {
 		t.Parallel()
 
+		// given: the public GitLab host
+
+		// when: detecting its provider type
 		providerType, err := provider.DetectTypeForTest("gitlab.com")
 
+		// then: GitLab is detected
 		testastic.NoError(t, err)
 		testastic.Equal(t, "gitlab", providerType)
 	})
@@ -241,8 +249,12 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on github custom hosts", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a custom GitHub host
+
+		// when: detecting its provider type
 		_, err := provider.DetectTypeForTest("github.company.com")
 
+		// then: the host is reported as unsupported
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 	})
@@ -250,8 +262,12 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on gitlab custom hosts", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a custom GitLab host
+
+		// when: detecting its provider type
 		_, err := provider.DetectTypeForTest("gitlab.company.com")
 
+		// then: the host is reported as unsupported
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 	})
@@ -259,8 +275,12 @@ func TestDetectType(t *testing.T) {
 	t.Run("fails on unsupported hosts", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a host belonging to no supported provider
+
+		// when: detecting its provider type
 		_, err := provider.DetectTypeForTest("code.company.com")
 
+		// then: the host is reported as unsupported
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, provider.ErrUnsupportedHost)
 	})

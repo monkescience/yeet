@@ -40,6 +40,8 @@ func TestValidateHostFormat(t *testing.T) {
 	t.Run("rejects an empty host", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an empty host value
+
 		// when: validating an empty host
 		err := validateHostFormat("")
 
@@ -282,9 +284,11 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 	t.Run("accepts a configured API URL on the repository host", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a custom GitHub host and API URL on that host
 		cfg := githubTrustConfig("github.company.com")
 		cfg.Repository.GitHub.APIURL = "https://github.company.com/root/api/v3"
 
+		// when: resolving against a matching repository remote
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -293,6 +297,7 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 			},
 		)
 
+		// then: the configured API URL is accepted
 		testastic.NoError(t, err)
 		testastic.Equal(t, cfg.Repository.GitHub.APIURL, repository.APIURL)
 	})
@@ -300,9 +305,11 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 	t.Run("rejects a configured API URL on another host", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a custom GitHub host and API URL on another host
 		cfg := githubTrustConfig("github.company.com")
 		cfg.Repository.GitHub.APIURL = "https://credentials.example/api/v3"
 
+		// when: resolving against a matching repository remote
 		_, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -311,6 +318,7 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 			},
 		)
 
+		// then: the cross-host API URL is rejected as untrusted
 		testastic.ErrorIs(t, err, ErrUntrustedHost)
 		testastic.Equal(
 			t,

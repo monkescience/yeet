@@ -84,6 +84,7 @@ func TestResolveRepository(t *testing.T) {
 	t.Run("preserves configured API and web URLs through remote resolution", func(t *testing.T) {
 		t.Parallel()
 
+		// given: GitLab URLs with repository coordinates left to the remote
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitLab
 		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
@@ -91,6 +92,7 @@ func TestResolveRepository(t *testing.T) {
 			WebURL: "https://gitlab.company.com/root",
 		}
 
+		// when: resolving the repository from a GitLab SSH remote
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
@@ -99,6 +101,7 @@ func TestResolveRepository(t *testing.T) {
 			},
 		)
 
+		// then: the configured provider URLs are preserved
 		testastic.NoError(t, err)
 		testastic.Equal(t, "https://gitlab.company.com/root/api/v4", repository.APIURL)
 		testastic.Equal(t, "https://gitlab.company.com/root", repository.WebURL)
