@@ -1475,6 +1475,8 @@ func TestGitLabMergeReleasePRFastRefusal(t *testing.T) {
 
 		// given: a GitLab server that rejects the accept the way it rejects a
 		// conflicting or already closed merge request
+
+		// when: attempting the merge against that refusal
 		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/method_not_allowed.json")
@@ -1488,6 +1490,8 @@ func TestGitLabMergeReleasePRFastRefusal(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab server that accepts the request but reports why it did not merge
+
+		// when: attempting the merge against the reported refusal
 		polls := gitLabRefusedAcceptServer(t, func(w http.ResponseWriter, _ *http.Request) {
 			writeJSONFixture(t, w, "contracts/gitlab/refused_accept/merge_error.json")
 		})
