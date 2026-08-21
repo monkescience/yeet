@@ -36,18 +36,21 @@ func resolveRepository(
 		return nil, err
 	}
 
-	if err := resolveRepositoryProvider(repository); err != nil {
+	err = resolveRepositoryProvider(repository)
+	if err != nil {
 		return nil, err
 	}
 
 	applyRepositoryProviderDefaults(repository)
 	normalizeRepositoryDescriptor(repository)
 
-	if err := validateRepositoryDescriptor(repository); err != nil {
+	err = validateRepositoryDescriptor(repository)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := validateProviderHostTrust(ctx, repository, getRemoteURL); err != nil {
+	err = validateProviderHostTrust(ctx, repository, getRemoteURL)
+	if err != nil {
 		return nil, err
 	}
 
@@ -59,8 +62,9 @@ func repositoryDescriptorFromSources(
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
 ) (*repositoryDescriptor, error) {
-	if err := validateAutoProviderCoordinates(cfg); err != nil {
-		return nil, err
+	coordinateErr := validateAutoProviderCoordinates(cfg)
+	if coordinateErr != nil {
+		return nil, coordinateErr
 	}
 
 	repository := repositoryFromConfig(cfg)
@@ -306,7 +310,8 @@ func normalizeRepositoryDescriptor(repository *repositoryDescriptor) {
 }
 
 func validateRepositoryDescriptor(repository *repositoryDescriptor) error {
-	if err := validateRepositoryCoordinates(repository); err != nil {
+	err := validateRepositoryCoordinates(repository)
+	if err != nil {
 		return err
 	}
 

@@ -37,12 +37,15 @@ func validateProviderHostTrust(
 	getRemoteURL gitRemoteURLGetter,
 ) error {
 	host := strings.TrimSpace(repository.Host)
-	if err := validateHostFormat(host); err != nil {
+
+	err := validateHostFormat(host)
+	if err != nil {
 		return err
 	}
 
 	if spec, known := forgeSpecs[repository.Provider]; known && spec.endpointOverride() == "" {
-		if err := validateConfiguredAPIHost(repository.APIURL, host); err != nil {
+		err = validateConfiguredAPIHost(repository.APIURL, host)
+		if err != nil {
 			return err
 		}
 	}
@@ -51,7 +54,8 @@ func validateProviderHostTrust(
 		return nil
 	}
 
-	if _, err := detectType(host); err == nil {
+	_, err = detectType(host)
+	if err == nil {
 		return nil
 	}
 
@@ -83,7 +87,9 @@ func validateConfiguredAPIHost(apiURL, repositoryHost string) error {
 	}
 
 	repositoryHostname := repositoryHost
-	if parsedRepositoryHost, parseErr := url.Parse("https://" + repositoryHost); parseErr == nil {
+
+	parsedRepositoryHost, parseErr := url.Parse("https://" + repositoryHost)
+	if parseErr == nil {
 		repositoryHostname = parsedRepositoryHost.Hostname()
 	}
 
