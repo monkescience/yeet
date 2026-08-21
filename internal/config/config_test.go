@@ -64,11 +64,14 @@ func TestTimezoneValidation(t *testing.T) {
 		t.Run("accepts "+name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a config using the selected valid timezone
 			cfg := config.Default()
 			cfg.Timezone = name
 
+			// when: resolving the configured timezone
 			location, err := cfg.TimeLocation()
 
+			// then: the location preserves the configured timezone name
 			testastic.NoError(t, err)
 			testastic.Equal(t, name, location.String())
 		})
@@ -100,11 +103,14 @@ func TestTimezoneValidation(t *testing.T) {
 		t.Run("rejects "+tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a config using the selected invalid timezone
 			cfg := config.Default()
 			cfg.Timezone = tt.timezone
 
+			// when: validating the config
 			err := cfg.Validate()
 
+			// then: validation returns the expected timezone error
 			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
@@ -156,6 +162,7 @@ func TestRepositoryURLValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a GitHub config using the selected invalid repository URL
 			cfg := config.Default()
 			cfg.Provider = config.ProviderGitHub
 			cfg.Repository.GitHub = &config.GitHubRepositoryConfig{
@@ -166,8 +173,10 @@ func TestRepositoryURLValidation(t *testing.T) {
 				Repo:   "yeet",
 			}
 
+			// when: validating the config
 			err := cfg.Validate()
 
+			// then: validation returns the expected URL error
 			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
@@ -176,6 +185,7 @@ func TestRepositoryURLValidation(t *testing.T) {
 	t.Run("accepts HTTPS paths and ports for every provider", func(t *testing.T) {
 		t.Parallel()
 
+		// given: provider configs using valid HTTPS URLs with paths and ports
 		configs := []*config.Config{config.Default(), config.Default(), config.Default()}
 
 		configs[0].Provider = config.ProviderGitHub
@@ -197,11 +207,13 @@ func TestRepositoryURLValidation(t *testing.T) {
 			Project: "tools", Repo: "yeet",
 		}
 
+		// when: validating each provider config
 		for _, cfg := range configs {
 			cfg.Targets = map[string]config.Target{
 				"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 			}
 
+			// then: every provider accepts its configured URLs
 			testastic.NoError(t, cfg.Validate())
 		}
 	})
@@ -462,11 +474,14 @@ func TestReleaseMergePollingValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a config using the selected invalid merge polling setting
 			cfg := config.Default()
 			tt.configure(&cfg.Release.MergePolling)
 
+			// when: validating the config
 			err := cfg.Validate()
 
+			// then: validation returns the expected merge polling error
 			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
@@ -522,11 +537,14 @@ func TestNetworkValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a config using the selected invalid network setting
 			cfg := config.Default()
 			tt.configure(&cfg.Network)
 
+			// when: validating the config
 			err := cfg.Validate()
 
+			// then: validation returns the expected network error
 			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 			testastic.Equal(t, tt.message, err.Error())
 		})
@@ -1171,14 +1189,17 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid provider fails", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a config with a valid target and an unsupported provider
 		cfg := config.Default()
 		cfg.Targets = map[string]config.Target{
 			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 		}
 		cfg.Provider = "wrongo"
 
+		// when: validating the config
 		err := cfg.Validate()
 
+		// then: validation returns the unsupported provider error
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 
@@ -2638,14 +2659,17 @@ func TestResolvedTargets_Merging(t *testing.T) {
 	t.Run("normalizes inherited version file paths", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a target inheriting a version file path with whitespace and dot segments
 		cfg := config.Default()
 		cfg.VersionFiles = []config.VersionFile{{Path: " ./config/../VERSION "}}
 		cfg.Targets = map[string]config.Target{
 			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
 		}
 
+		// when: resolving targets
 		resolved, err := cfg.ResolvedTargets(t.Context())
 
+		// then: the inherited path is normalized
 		testastic.NoError(t, err)
 		testastic.Equal(t, "VERSION", resolved["app"].VersionFiles[0].Path)
 	})
@@ -2922,7 +2946,6 @@ func TestResolvedTargets_Merging(t *testing.T) {
 func TestRepoPathContains(t *testing.T) {
 	t.Parallel()
 
-	// given: a base path and candidates with various relationships
 	cases := map[string]struct {
 		base, candidate string
 		want            bool
@@ -2938,6 +2961,8 @@ func TestRepoPathContains(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
+			// given: the selected base path, candidate, and expected result
 
 			// when: checking containment
 			got := config.RepoPathContains(tc.base, tc.candidate)
