@@ -71,14 +71,14 @@ After `init` or `release` finishes, yeet attempts at most one
 | `Yeet.version` | Official release version | Guide version support and upgrade messaging. Development and dirty versions are omitted. |
 | `Yeet.os` | `linux`, `darwin`, `windows`, or another Go operating-system name | Prioritize platform testing and distribution. |
 | `Yeet.command` | `init` or `release` | Compare setup and release workflows. |
-| `Yeet.outcome` | `success`, `failure`, or `canceled` | Identify reliability work. |
+| `Yeet.outcome` | `success` or `failure` | Identify reliability work. |
 | `Yeet.duration` | `under_1s`, `1s_to_5s`, `5s_to_30s`, `30s_to_120s`, or `over_120s` | Identify broad performance problems without collecting exact timings. |
 
 When `release` successfully reads `.yeet.yaml`, the event can also contain:
 
 | Field | Possible value | Purpose |
 |---|---|---|
-| `Yeet.release.provider` | `auto`, `github`, `gitlab`, or `azuredevops` | Prioritize provider support. |
+| `Yeet.release.provider` | `auto`, `github`, `gitlab`, or `azuredevops` | Prioritize provider support. Successful releases report the resolved provider. |
 | `Yeet.release.layout` | `single` or `monorepo` | Understand monorepo usage. |
 | `Yeet.release.versioning` | `semver`, `calver`, or `mixed` | Prioritize versioning support. |
 | `Yeet.release.dryRun` | `true` or `false` | Understand preview usage. |
@@ -89,7 +89,7 @@ No user or session identifier is sent. TelemetryDeck documents that an empty
 [`clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).
 
 The `help`, `version`, and completion commands do not send telemetry. Invalid
-commands do not send telemetry either.
+commands and commands canceled before delivery do not send telemetry either.
 
 ## What is never sent
 

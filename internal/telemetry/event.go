@@ -121,13 +121,15 @@ func officialVersion(raw string) string {
 	return version.String()
 }
 
-func releaseProfile(cfg *config.Config, opts release.Options) *releaseFields {
+func releaseProfile(cfg *config.Config, opts release.Options, result *release.Result) *releaseFields {
 	if cfg == nil {
 		return nil
 	}
 
 	provider := cfg.Provider
-	if opts.Provider != nil {
+	if result != nil && result.Provider != "" {
+		provider = result.Provider
+	} else if opts.Provider != nil {
 		provider = config.ProviderType(strings.TrimSpace(*opts.Provider))
 	}
 

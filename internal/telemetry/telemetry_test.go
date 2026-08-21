@@ -206,8 +206,6 @@ func TestEventFields(t *testing.T) {
 
 		testastic.Equal(t, "success", outcome(nil))
 		testastic.Equal(t, "failure", outcome(errors.New("failed")))
-		testastic.Equal(t, "canceled", outcome(context.Canceled))
-		testastic.Equal(t, "canceled", outcome(context.DeadlineExceeded))
 	})
 
 	t.Run("release profile", func(t *testing.T) {
@@ -224,10 +222,23 @@ func TestEventFields(t *testing.T) {
 		}
 		cfg.Release.AutoMerge = true
 		finished := time.Date(2026, time.August, 21, 12, 0, 0, 0, time.UTC)
-		profile := releaseProfile(cfg, release.Options{DryRun: true})
+		profile := releaseProfile(
+			cfg,
+			release.Options{DryRun: true},
+			&release.Result{Provider: config.ProviderGitHub},
+		)
 		event := newEvent("test-app", "v1.4.0", "linux", "release", finished, finished.Add(-6*time.Second), nil, profile)
 
 		testastic.AssertJSON(t, "testdata/release_event.expected.json", []wireEvent{event})
+	})
+
+	t.Run("resolved provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := config.Default()
+		profile := releaseProfile(cfg, release.Options{}, &release.Result{Provider: config.ProviderGitLab})
+
+		testastic.Equal(t, string(config.ProviderGitLab), profile.provider)
 	})
 }
 

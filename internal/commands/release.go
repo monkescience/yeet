@@ -54,13 +54,13 @@ complete (not shallow) and match the remote release branch.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			started := time.Now()
 			options := releaseOptionsFromCommand(cmd, *flags)
-			err := runRelease(
+			result, err := runRelease(
 				cmd.Context(),
 				newColorWriter(cmd.OutOrStdout(), bootstrap.noColor),
 				strings.TrimSpace(configFile),
 				options,
 			)
-			manager.RecordRelease(cmd.Context(), started, strings.TrimSpace(configFile), options, err)
+			manager.RecordRelease(cmd.Context(), started, strings.TrimSpace(configFile), options, result, err)
 
 			return err
 		},
@@ -177,26 +177,33 @@ func changedFlag[T any](cmd *cobra.Command, name string, value *T) *T {
 	return value
 }
 
-func runRelease(ctx context.Context, output io.Writer, configPath string, options release.Options) error {
+func runRelease(
+	ctx context.Context,
+	output io.Writer,
+	configPath string,
+	options release.Options,
+) (*release.Result, error) {
 	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
 		if failure, ok := errors.AsType[*release.Failure](err); ok {
-			return wrapReleaseFailure(failure)
+			return nil, wrapReleaseFailure(failure)
 		}
 
-		return fmt.Errorf("release failed: unexpected failure: %w", err)
+		return nil, fmt.Errorf("release failed: unexpected failure: %w", err)
 	}
 
-	return handleReleaseResult(ctx, output, result, options.DryRun)
+	handleReleaseResult(ctx, output, result, options.DryRun)
+
+	return result, nil
 }
 
-func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
+func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) {
 	if len(result.Plans) > 0 {
 		if dryRun {
 			printDryRun(output, result)
 		}
 
-		return nil
+		return
 	}
 
 	if len(result.Releases) > 0 {
@@ -204,12 +211,10 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 			slog.String("tag", result.Releases[0].Release.TagName),
 		)
 
-		return nil
+		return
 	}
 
 	slog.InfoContext(ctx, "no release needed")
-
-	return nil
 }
 
 func wrapReleaseFailure(failure *release.Failure) error {

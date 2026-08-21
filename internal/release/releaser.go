@@ -27,6 +27,7 @@ var (
 
 type Result struct {
 	BaseBranch  string
+	Provider    config.ProviderType
 	Plans       []TargetPlan
 	PullRequest *forge.PullRequest
 	Releases    []FinalizedRelease

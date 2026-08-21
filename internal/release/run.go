@@ -52,7 +52,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	p, err := provider.Open(ctx, cfg, releaseBranch)
+	p, resolvedProvider, err := provider.Open(ctx, cfg, releaseBranch)
 	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
@@ -81,6 +81,8 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
+
+	result.Provider = resolvedProvider
 
 	return result, resolvedConfigPath, nil
 }

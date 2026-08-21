@@ -93,6 +93,7 @@ func (m *Manager) RecordRelease(
 	started time.Time,
 	configPath string,
 	opts release.Options,
+	result *release.Result,
 	commandErr error,
 ) {
 	cfg, enabled := m.recordingConfig(ctx, configPath)
@@ -100,7 +101,7 @@ func (m *Manager) RecordRelease(
 		return
 	}
 
-	profile := releaseProfile(cfg, opts)
+	profile := releaseProfile(cfg, opts, result)
 	m.record(ctx, "release", started, commandErr, profile)
 }
 
@@ -145,12 +146,9 @@ func (m *Manager) record(
 }
 
 func outcome(commandErr error) string {
-	switch {
-	case commandErr == nil:
+	if commandErr == nil {
 		return "success"
-	case errors.Is(commandErr, context.Canceled), errors.Is(commandErr, context.DeadlineExceeded):
-		return "canceled"
-	default:
-		return "failure"
 	}
+
+	return "failure"
 }

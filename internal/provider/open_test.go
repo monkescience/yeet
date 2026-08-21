@@ -64,7 +64,7 @@ func TestOpen(t *testing.T) {
 		cfg.Repository.Remote = "upstream"
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
+		_, resolvedProvider, err := openResolved(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(_ context.Context, remote string) (string, error) {
 				testastic.Equal(t, "upstream", remote)
 
@@ -81,6 +81,7 @@ func TestOpen(t *testing.T) {
 
 		// then: remote resolution and automatic detection complete before construction
 		testastic.NoError(t, err)
+		testastic.Equal(t, config.ProviderGitLab, resolvedProvider)
 	})
 
 	t.Run("unsupported automatic host prevents adapter construction", func(t *testing.T) {
@@ -171,7 +172,7 @@ func TestOpenReportsMissingCredentialsAfterRepositoryResolution(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 
 	// when: opening the production provider
-	_, err := Open(t.Context(), cfg, "yeet/release-main")
+	_, _, err := Open(t.Context(), cfg, "yeet/release-main")
 
 	// then: repository resolution succeeds before credential lookup fails
 	testastic.ErrorIs(t, err, ErrMissingToken)

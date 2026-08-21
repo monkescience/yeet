@@ -12,8 +12,12 @@ type openDependencies struct {
 	create       func(*repositoryDescriptor, providerSettings) (forge.Provider, error)
 }
 
-func Open(ctx context.Context, cfg *config.Config, releaseBranch string) (forge.Provider, error) {
-	return open(ctx, cfg, providerSettings{releaseBranch: releaseBranch}, openDependencies{
+func Open(
+	ctx context.Context,
+	cfg *config.Config,
+	releaseBranch string,
+) (forge.Provider, config.ProviderType, error) {
+	return openResolved(ctx, cfg, providerSettings{releaseBranch: releaseBranch}, openDependencies{
 		getRemoteURL: gitRemoteURL,
 		create:       createConfigured,
 	})
@@ -25,15 +29,31 @@ func open(
 	settings providerSettings,
 	dependencies openDependencies,
 ) (forge.Provider, error) {
+	provider, _, err := openResolved(ctx, cfg, settings, dependencies)
+
+	return provider, err
+}
+
+func openResolved(
+	ctx context.Context,
+	cfg *config.Config,
+	settings providerSettings,
+	dependencies openDependencies,
+) (forge.Provider, config.ProviderType, error) {
 	settings.network = &cfg.Network
 	settings.mergePolling = &cfg.Release.MergePolling
 
 	repository, err := resolveRepository(ctx, cfg, dependencies.getRemoteURL)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return dependencies.create(repository, settings)
+	provider, err := dependencies.create(repository, settings)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return provider, config.ProviderType(repository.Provider), nil
 }
 
 type providerSettings struct {

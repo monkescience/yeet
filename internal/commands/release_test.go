@@ -225,10 +225,9 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result
-		err := handleReleaseResult(context.Background(), &buf, result, false)
+		handleReleaseResult(context.Background(), &buf, result, false)
 
-		// then: nothing is written and no error is returned
-		testastic.NoError(t, err)
+		// then: nothing is written
 		testastic.Equal(t, "", buf.String())
 	})
 
@@ -247,10 +246,9 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result
-		err := handleReleaseResult(context.Background(), &buf, result, false)
+		handleReleaseResult(context.Background(), &buf, result, false)
 
-		// then: the writer is untouched (the message goes through slog) and no error is returned
-		testastic.NoError(t, err)
+		// then: the writer is untouched because the message goes through slog
 		testastic.Equal(t, "", buf.String())
 	})
 
@@ -275,11 +273,9 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result in dry-run mode
-		err := handleReleaseResult(context.Background(), &buf, result, true)
+		handleReleaseResult(context.Background(), &buf, result, true)
 
 		// then: the writer receives the dry-run summary
-		testastic.NoError(t, err)
-
 		output := ansi.Strip(buf.String())
 		testastic.True(t, len(output) > 0)
 		testastic.AssertFile(
@@ -306,10 +302,9 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result without dry-run
-		err := handleReleaseResult(context.Background(), &buf, result, false)
+		handleReleaseResult(context.Background(), &buf, result, false)
 
-		// then: the writer is untouched and no error is returned
-		testastic.NoError(t, err)
+		// then: the writer is untouched
 		testastic.Equal(t, "", buf.String())
 	})
 }
@@ -503,10 +498,9 @@ func TestReleaseLogMessages(t *testing.T) {
 		})
 
 		// when: handling the finalized release
-		err := handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false)
+		handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false)
 
 		// then: the log message uses plain sentence wording
-		testastic.NoError(t, err)
 		testastic.True(
 			t,
 			strings.Contains(
