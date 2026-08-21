@@ -586,20 +586,23 @@ func (a *AzureDevOps) PreflightReleasePRTagging(context.Context, string) error {
 // label API. The anchor goes first and fails the whole call, and everything
 // after it is best effort so a single rejected label cannot strand the rest.
 func (a *AzureDevOps) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
-	if err := a.attachPullRequestLabel(ctx, number, anchor); err != nil {
+	err := a.attachPullRequestLabel(ctx, number, anchor)
+	if err != nil {
 		return err
 	}
 
 	var errs []error
 
 	for _, label := range add {
-		if err := a.attachPullRequestLabel(ctx, number, label); err != nil {
+		err = a.attachPullRequestLabel(ctx, number, label)
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}
 
 	for _, label := range remove {
-		if err := a.detachPullRequestLabel(ctx, number, label); err != nil {
+		err = a.detachPullRequestLabel(ctx, number, label)
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}
