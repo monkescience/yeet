@@ -137,7 +137,7 @@ func (m *Manager) record(
 	commandErr error,
 	profile *releaseFields,
 ) {
-	event := newEvent(m.appID, m.version, runtime.GOOS, command, m.now(), started, commandErr, profile)
+	event := newEvent(m.appID, m.version, runtime.GOOS, runtime.GOARCH, command, m.now(), started, commandErr, profile)
 
 	err := m.deliver(ctx, event)
 	if err != nil {

@@ -2,20 +2,21 @@
   {
     "appID": "test-app",
     "clientUser": "",
-    "type": "Yeet.Command.executed",
+    "floatValue": 6,
     "payload": {
-      "Yeet.eventDay": "2026-08-21",
-      "Yeet.version": "1.4.0",
-      "Yeet.os": "linux",
+      "Yeet.arch": "arm64",
       "Yeet.command": "release",
+      "Yeet.eventDay": "2026-08-21",
+      "Yeet.os": "linux",
       "Yeet.outcome": "success",
-      "Yeet.duration": "5s_to_30s",
-      "Yeet.release.provider": "github",
-      "Yeet.release.layout": "monorepo",
-      "Yeet.release.versioning": "mixed",
-      "Yeet.release.dryRun": "true",
+      "Yeet.release.autoMerge": "normal",
       "Yeet.release.channelsConfigured": "true",
-      "Yeet.release.autoMerge": "normal"
-    }
+      "Yeet.release.dryRun": "true",
+      "Yeet.release.layout": "monorepo",
+      "Yeet.release.provider": "github",
+      "Yeet.release.versioning": "mixed",
+      "Yeet.version": "1.4.0"
+    },
+    "type": "Yeet.Command.executed"
   }
 ]

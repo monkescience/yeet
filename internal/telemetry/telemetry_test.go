@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -173,23 +175,12 @@ func TestRecordingStopsBeforeDelivery(t *testing.T) {
 func TestEventFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("duration buckets", func(t *testing.T) {
+	t.Run("duration seconds", func(t *testing.T) {
 		t.Parallel()
 
-		tests := []struct {
-			duration time.Duration
-			want     string
-		}{
-			{duration: 999 * time.Millisecond, want: "under_1s"},
-			{duration: time.Second, want: "1s_to_5s"},
-			{duration: 5 * time.Second, want: "5s_to_30s"},
-			{duration: 30 * time.Second, want: "30s_to_120s"},
-			{duration: 120 * time.Second, want: "over_120s"},
-		}
-
-		for _, tt := range tests {
-			testastic.Equal(t, tt.want, durationBucket(tt.duration))
-		}
+		testastic.Equal(t, 1.5, durationSeconds(1500*time.Millisecond))
+		testastic.Equal(t, 0.001, durationSeconds(1234567*time.Nanosecond))
+		testastic.Equal(t, 6.0, durationSeconds(6*time.Second))
 	})
 
 	t.Run("official versions", func(t *testing.T) {
@@ -206,6 +197,21 @@ func TestEventFields(t *testing.T) {
 
 		testastic.Equal(t, "success", outcome(nil))
 		testastic.Equal(t, "failure", outcome(errors.New("failed")))
+	})
+
+	t.Run("failure categories", func(t *testing.T) {
+		t.Parallel()
+
+		testastic.Equal(t, "", failureCategory(nil))
+		testastic.Equal(t, "config_exists", failureCategory(fmt.Errorf("init: %w", config.ErrExists)))
+		testastic.Equal(t, "config_invalid", failureCategory(fmt.Errorf("load: %w", config.ErrInvalidConfig)))
+
+		refused := &url.Error{Op: "Post", URL: "https://api.invalid", Err: errors.New("refused")}
+		testastic.Equal(t, "network", failureCategory(refused))
+		testastic.Equal(t, "unexpected", failureCategory(errors.New("boom")))
+
+		_, err := release.Run(t.Context(), filepath.Join(t.TempDir(), "missing.yaml"), release.Options{})
+		testastic.Equal(t, "config_missing", failureCategory(fmt.Errorf("release failed: %w", err)))
 	})
 
 	t.Run("release profile", func(t *testing.T) {
@@ -227,7 +233,8 @@ func TestEventFields(t *testing.T) {
 			release.Options{DryRun: true},
 			&release.Result{Provider: config.ProviderGitHub},
 		)
-		event := newEvent("test-app", "v1.4.0", "linux", "release", finished, finished.Add(-6*time.Second), nil, profile)
+		started := finished.Add(-6 * time.Second)
+		event := newEvent("test-app", "v1.4.0", "linux", "arm64", "release", finished, started, nil, profile)
 
 		testastic.AssertJSON(t, "testdata/release_event.expected.json", []wireEvent{event})
 	})
@@ -249,6 +256,7 @@ func TestPayloadExcludesProhibitedData(t *testing.T) {
 		"test-app",
 		"v1.4.0",
 		"linux",
+		"arm64",
 		"release",
 		time.Date(2026, time.August, 21, 12, 0, 0, 0, time.UTC),
 		time.Date(2026, time.August, 21, 11, 59, 59, 0, time.UTC),

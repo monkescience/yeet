@@ -70,9 +70,14 @@ After `init` or `release` finishes, yeet attempts at most one
 | `Yeet.eventDay` | UTC calendar date | Show broad usage trends without sending the local time. |
 | `Yeet.version` | Official release version | Guide version support and upgrade messaging. Development and dirty versions are omitted. |
 | `Yeet.os` | `linux`, `darwin`, `windows`, or another Go operating-system name | Prioritize platform testing and distribution. |
+| `Yeet.arch` | `amd64`, `arm64`, or another Go architecture name | Prioritize build and distribution targets. |
 | `Yeet.command` | `init` or `release` | Compare setup and release workflows. |
 | `Yeet.outcome` | `success` or `failure` | Identify reliability work. |
-| `Yeet.duration` | `under_1s`, `1s_to_5s`, `5s_to_30s`, `30s_to_120s`, or `over_120s` | Identify broad performance problems without collecting exact timings. |
+| `Yeet.failure.category` | A failure kind such as `config_missing`, `config_invalid`, `config_exists`, `authentication`, `host_trust`, `repository`, `checkout`, `release_branch`, `release_state`, `merge_blocked`, `merge_timeout`, `reviewer`, `labels`, `network`, or `unexpected` | Only sent for failures. Show which kinds of failures dominate without sending error details. |
+
+The event also sets TelemetryDeck's top-level `floatValue` field to the command
+runtime in seconds, rounded to whole milliseconds, so average and percentile
+runtimes can be charted.
 
 When `release` successfully reads `.yeet.yaml`, the event can also contain:
 
@@ -105,7 +110,7 @@ yeet does not send:
 - Credentials, tokens, request headers, error messages, logs, stack traces, or
   provider response bodies
 - An IP address in the event payload, or a username, hostname, locale,
-  timezone, CPU architecture, device model, or operating-system version
+  timezone, device model, or operating-system version
 
 ## How events are delivered
 

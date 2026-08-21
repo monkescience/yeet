@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -28,6 +30,7 @@ type wireEvent struct {
 	AppID      string      `json:"appID"`
 	ClientUser string      `json:"clientUser"`
 	Type       string      `json:"type"`
+	FloatValue float64     `json:"floatValue"`
 	Payload    eventFields `json:"payload"`
 }
 
@@ -35,9 +38,10 @@ type eventFields struct {
 	EventDay                  string `json:"Yeet.eventDay"`
 	Version                   string `json:"Yeet.version,omitempty"`
 	OS                        string `json:"Yeet.os"`
+	Arch                      string `json:"Yeet.arch"`
 	Command                   string `json:"Yeet.command"`
 	Outcome                   string `json:"Yeet.outcome"`
-	Duration                  string `json:"Yeet.duration"`
+	FailureCategory           string `json:"Yeet.failure.category,omitempty"`
 	ReleaseProvider           string `json:"Yeet.release.provider,omitempty"`
 	ReleaseLayout             string `json:"Yeet.release.layout,omitempty"`
 	ReleaseVersioning         string `json:"Yeet.release.versioning,omitempty"`
@@ -59,6 +63,7 @@ func newEvent(
 	appID string,
 	version string,
 	operatingSystem string,
+	architecture string,
 	command string,
 	finished time.Time,
 	started time.Time,
@@ -66,12 +71,13 @@ func newEvent(
 	profile *releaseFields,
 ) wireEvent {
 	fields := eventFields{
-		EventDay: finished.UTC().Format(time.DateOnly),
-		Version:  officialVersion(version),
-		OS:       operatingSystem,
-		Command:  command,
-		Outcome:  outcome(commandErr),
-		Duration: durationBucket(finished.Sub(started)),
+		EventDay:        finished.UTC().Format(time.DateOnly),
+		Version:         officialVersion(version),
+		OS:              operatingSystem,
+		Arch:            architecture,
+		Command:         command,
+		Outcome:         outcome(commandErr),
+		FailureCategory: failureCategory(commandErr),
 	}
 
 	if profile != nil {
@@ -87,23 +93,50 @@ func newEvent(
 		AppID:      appID,
 		ClientUser: "",
 		Type:       eventType,
+		FloatValue: durationSeconds(finished.Sub(started)),
 		Payload:    fields,
 	}
 }
 
-func durationBucket(duration time.Duration) string {
-	switch {
-	case duration < time.Second:
-		return "under_1s"
-	case duration < 5*time.Second:
-		return "1s_to_5s"
-	case duration < 30*time.Second:
-		return "5s_to_30s"
-	case duration < 120*time.Second:
-		return "30s_to_120s"
-	default:
-		return "over_120s"
+const millisecondsPerSecond = 1000
+
+func durationSeconds(duration time.Duration) float64 {
+	return math.Round(duration.Seconds()*millisecondsPerSecond) / millisecondsPerSecond
+}
+
+func failureCategory(commandErr error) string {
+	if commandErr == nil {
+		return ""
 	}
+
+	if failure, ok := errors.AsType[*release.Failure](commandErr); ok {
+		if failure.Kind() == release.FailureUnexpected && isNetworkError(commandErr) {
+			return "network"
+		}
+
+		return string(failure.Kind())
+	}
+
+	switch {
+	case errors.Is(commandErr, config.ErrExists):
+		return "config_exists"
+	case errors.Is(commandErr, config.ErrInvalidConfig):
+		return "config_invalid"
+	case isNetworkError(commandErr):
+		return "network"
+	default:
+		return "unexpected"
+	}
+}
+
+func isNetworkError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	var netErr net.Error
+
+	return errors.As(err, &netErr)
 }
 
 func officialVersion(raw string) string {

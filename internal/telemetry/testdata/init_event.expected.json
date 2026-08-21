@@ -2,14 +2,15 @@
   {
     "appID": "test-app",
     "clientUser": "",
-    "type": "Yeet.Command.executed",
+    "floatValue": 6,
     "payload": {
-      "Yeet.eventDay": "2026-08-21",
-      "Yeet.version": "1.4.0",
-      "Yeet.os": "{{anyString}}",
+      "Yeet.arch": "arm64",
       "Yeet.command": "init",
+      "Yeet.eventDay": "2026-08-21",
+      "Yeet.os": "{{anyString}}",
       "Yeet.outcome": "success",
-      "Yeet.duration": "5s_to_30s"
-    }
+      "Yeet.version": "1.4.0"
+    },
+    "type": "Yeet.Command.executed"
   }
 ]
