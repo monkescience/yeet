@@ -31,7 +31,8 @@ func Initialize(ctx context.Context, path string) error {
 
 	content := renderInitial(deriveTargetName(resolvedPath))
 
-	if err := os.WriteFile(resolvedPath, []byte(content), 0o600); err != nil { //nolint:mnd // secure file permissions
+	err = os.WriteFile(resolvedPath, []byte(content), 0o600) //nolint:mnd // secure file permissions
+	if err != nil {
 		return fmt.Errorf("write %s: %w", resolvedPath, err)
 	}
 

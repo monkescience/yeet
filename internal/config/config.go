@@ -311,7 +311,8 @@ func parse(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
 	}
 
-	if err := validateAgainstSchema(instance); err != nil {
+	err = validateAgainstSchema(instance)
+	if err != nil {
 		return nil, err
 	}
 
@@ -325,11 +326,13 @@ func parse(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
 	}
 
-	if err := validateRepositorySubsection(&cfg.Repository, cfg.Provider); err != nil {
+	err = validateRepositorySubsection(&cfg.Repository, cfg.Provider)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := cfg.Validate(); err != nil {
+	err = cfg.Validate()
+	if err != nil {
 		return nil, err
 	}
 
