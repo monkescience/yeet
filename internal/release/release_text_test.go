@@ -366,6 +366,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 	t.Run("multi target keeps freeform blocks with their target", func(t *testing.T) {
 		t.Parallel()
 
+		// given: target entries with freeform intro and outro blocks
 		plans := []TargetPlan{
 			{
 				ID:   "api",
@@ -389,8 +390,10 @@ func TestCombinedPRChangelog(t *testing.T) {
 			},
 		}
 
+		// when: building pull request sections for the targets
 		sections := buildPRSections(plans)
 
+		// then: each target keeps its freeform blocks around its generated sections
 		testastic.Equal(t, 2, len(sections))
 		testastic.Equal(t, "API intro.\n\n### Features\n\n- add tokens\n\nAPI outro.\n", sections[0].body)
 		testastic.Equal(t, "Web intro.\n\n### Bug Fixes\n\n- patch filters\n\nWeb outro.\n", sections[1].body)
@@ -753,6 +756,7 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 	t.Run("preserves manual content outside level-3 sections", func(t *testing.T) {
 		t.Parallel()
 
+		// given: regenerated notes and an existing entry with freeform and manual content
 		generatedEntry := strings.TrimSpace(readTestFile(
 			t,
 			"testdata/preserve_manual_changelog_sections/"+
@@ -764,8 +768,10 @@ func TestPreserveManualChangelogSections(t *testing.T) {
 				"drops_manual_content_outside_level_3_sections/existing_entry.input.md",
 		))
 
+		// when: preserving manual content from the existing entry
 		updatedEntry := preserveManualChangelogSections(generatedEntry, existingEntry)
 
+		// then: the freeform intro and manual section both remain
 		testastic.AssertFile(t, "testdata/preserve_manual_drops_non_level3.expected.md", updatedEntry)
 	})
 }

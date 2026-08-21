@@ -213,16 +213,19 @@ func TestReleaseNameTemplate(t *testing.T) {
 	t.Run("uses tag by default", func(t *testing.T) {
 		t.Parallel()
 
+		// given: the default release name template and a single-target plan
 		cfg := config.Default()
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
 		core := &releaseCore{cfg: cfg, titles: titles}
 
+		// when: rendering the release name
 		name, err := core.releaseNameForPlan(TargetPlan{
 			ID: "api", NextVersion: "1.2.3", NextTag: "api-v1.2.3",
 		})
 
+		// then: the plan tag becomes the release name
 		testastic.NoError(t, err)
 		testastic.Equal(t, "api-v1.2.3", name)
 	})
@@ -230,6 +233,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 	t.Run("renders every allowlisted field", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a release name template containing every allowed field
 		cfg := config.Default()
 		cfg.Branch = "beta"
 		cfg.ActiveChannel = "beta"
@@ -239,10 +243,12 @@ func TestReleaseNameTemplate(t *testing.T) {
 
 		core := &releaseCore{cfg: cfg, titles: titles}
 
+		// when: rendering the name for an active channel plan
 		name, err := core.releaseNameForPlan(TargetPlan{
 			ID: "api", NextVersion: "1.2.3-beta.1", NextTag: "api-v1.2.3-beta.1",
 		})
 
+		// then: every field uses its release context value
 		testastic.NoError(t, err)
 		testastic.Equal(t, "beta|beta|api|1.2.3-beta.1|api-v1.2.3-beta.1", name)
 	})
@@ -251,9 +257,11 @@ func TestReleaseNameTemplate(t *testing.T) {
 		t.Run("rejects invalid release name "+source, func(t *testing.T) {
 			t.Parallel()
 
+			// given: a release name template that is invalid before or after rendering
 			cfg := config.Default()
 			cfg.Release.NameTemplate = source
 
+			// when: preparing or rendering the release name
 			titles, err := newReleaseTitleTemplates(cfg.Release)
 			if err == nil {
 				core := &releaseCore{cfg: cfg, titles: titles}
@@ -262,6 +270,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 				})
 			}
 
+			// then: the invalid release name is rejected
 			testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		})
 	}
