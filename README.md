@@ -96,6 +96,7 @@ Archives and container images are signed with Sigstore and carry GitHub build pr
 | Add provider CI | [CI setup](docs/ci.md) |
 | Configure a repository or monorepo | [Configuration](docs/configuration.md) |
 | Customize versions and changelogs | [Versioning](docs/versioning.md) and [Changelog generation](docs/changelog-generation.md) |
+| Review or disable anonymous analytics | [Telemetry](docs/telemetry.md) |
 | Recover from a failed release | [Troubleshooting](docs/troubleshooting.md) |
 | Migrate from release-please | [Migration guide](docs/migrate-from-release-please.md) |
 

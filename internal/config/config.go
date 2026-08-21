@@ -59,12 +59,17 @@ type Config struct {
 	BumpTypes                  BumpTypesConfig    `yaml:"bump_types"`
 	Repository                 RepositoryConfig   `yaml:"repository"`
 	Network                    NetworkConfig      `yaml:"network"`
+	Telemetry                  TelemetryConfig    `yaml:"telemetry,omitempty"`
 	VersionFiles               []VersionFile      `yaml:"version_files,omitempty"`
 	Release                    ReleaseConfig      `yaml:"release"`
 	Changelog                  ChangelogConfig    `yaml:"changelog"`
 	CalVer                     CalVerConfig       `yaml:"calver"`
 	Targets                    map[string]Target  `yaml:"targets"`
 	ActiveChannel              string             `yaml:"-"`
+}
+
+type TelemetryConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 type NetworkConfig struct {
@@ -282,7 +287,13 @@ var (
 var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
 func load(ctx context.Context, path string) (*Config, error) {
-	slog.DebugContext(ctx, "config: loading file", slog.String("path", path))
+	return loadFile(ctx, path, true)
+}
+
+func loadFile(ctx context.Context, path string, logLoad bool) (*Config, error) {
+	if logLoad {
+		slog.DebugContext(ctx, "config: loading file", slog.String("path", path))
+	}
 
 	data, err := os.ReadFile(path) //nolint:gosec // path is from user config, not user input
 	if err != nil {
@@ -294,11 +305,13 @@ func load(ctx context.Context, path string) (*Config, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "config: loaded file",
-		slog.String("path", path),
-		slog.Int("bytes", len(data)),
-		slog.Int("targets", len(cfg.Targets)),
-	)
+	if logLoad {
+		slog.DebugContext(ctx, "config: loaded file",
+			slog.String("path", path),
+			slog.Int("bytes", len(data)),
+			slog.Int("targets", len(cfg.Targets)),
+		)
+	}
 
 	return cfg, nil
 }

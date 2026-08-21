@@ -90,6 +90,8 @@ jobs:
           IMAGE_REVISION: ${{ github.sha }}
           IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
           IMAGE_TITLE: yeet
+          TELEMETRYDECK_NAMESPACE: ${{ vars.TELEMETRYDECK_NAMESPACE }}
+          TELEMETRYDECK_APP_ID: ${{ vars.TELEMETRYDECK_APP_ID }}
           VERSION: ${{ env.RELEASE_TAG }}
 
       - name: Attest image provenance

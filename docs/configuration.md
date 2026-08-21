@@ -217,6 +217,7 @@ Block markers use `x-yeet-start-<scope>` and `x-yeet-end`. Calver substitution p
 ## Related documentation
 
 - [Documentation index](README.md)
+- [Telemetry](telemetry.md)
 - [Versioning](versioning.md)
 - [Changelog generation](changelog-generation.md)
 - [Release PRs and MRs](release.md)

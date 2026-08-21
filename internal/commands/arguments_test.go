@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/build"
 	"github.com/monkescience/yeet/internal/commands"
+	"github.com/monkescience/yeet/internal/telemetry"
 )
 
 func TestCommandsRejectPositionalArguments(t *testing.T) {
@@ -23,7 +25,7 @@ func TestCommandsRejectPositionalArguments(t *testing.T) {
 			t.Parallel()
 
 			// given: the named command from a fresh root command
-			command, _, err := commands.NewRoot().Find([]string{test.name})
+			command, _, err := commands.NewRoot(telemetry.New(build.Version())).Find([]string{test.name})
 			testastic.NoError(t, err)
 
 			// when: an unexpected positional argument is validated

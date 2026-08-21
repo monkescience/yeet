@@ -13,6 +13,7 @@ Choose the task you want to complete.
 | Configure release PRs, reviewers, and channels | Use [Release PRs and MRs](release.md) for lifecycle and provider behavior. |
 | Troubleshoot a failed release | Match the error prefix or label state in [Troubleshooting](troubleshooting.md). |
 | Verify downloaded artifacts | Check signatures and provenance with [Artifact verification](verification.md). |
+| Review or disable anonymous analytics | See exactly what is collected and how opt-out works in [Telemetry](telemetry.md). |
 | Migrate from release-please | Follow the ordered [Migration guide](migrate-from-release-please.md). |
 | Contribute or report a vulnerability | Read [Contributing](../CONTRIBUTING.md) or use the private process in [Security Policy](../SECURITY.md). |
 

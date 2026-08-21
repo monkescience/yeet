@@ -7,15 +7,17 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/release"
+	"github.com/monkescience/yeet/internal/telemetry"
 	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
 )
 
-func releaseCmd(bootstrap *bootstrapOptions) *cobra.Command {
+func releaseCmd(bootstrap *bootstrapOptions, manager *telemetry.Manager) *cobra.Command {
 	flags := &releaseFlagValues{}
 
 	var configFile string
@@ -50,12 +52,17 @@ complete (not shallow) and match the remote release branch.`,
   yeet release --auto-merge
   yeet release --provider github --owner platform --repo yeet --dry-run`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runRelease(
+			started := time.Now()
+			options := releaseOptionsFromCommand(cmd, *flags)
+			err := runRelease(
 				cmd.Context(),
 				newColorWriter(cmd.OutOrStdout(), bootstrap.noColor),
 				strings.TrimSpace(configFile),
-				releaseOptionsFromCommand(cmd, *flags),
+				options,
 			)
+			manager.RecordRelease(cmd.Context(), started, strings.TrimSpace(configFile), options, err)
+
+			return err
 		},
 	}
 

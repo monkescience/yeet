@@ -13,3 +13,5 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/monkescience/yeet/internal/build.version={{.Env.VERSION}}
+      - -X github.com/monkescience/yeet/internal/telemetry.namespace={{ index .Env "TELEMETRYDECK_NAMESPACE" }}
+      - -X github.com/monkescience/yeet/internal/telemetry.appID={{ index .Env "TELEMETRYDECK_APP_ID" }}

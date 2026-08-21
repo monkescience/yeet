@@ -39,6 +39,12 @@ jobs:
           repositories: ${{ github.event.repository.name }}
 
       - name: Run yeet release
-        run: go run ./cmd/yeet --verbose release
+        run: >-
+          go run
+          -ldflags "-X github.com/monkescience/yeet/internal/telemetry.namespace=${TELEMETRYDECK_NAMESPACE}
+          -X github.com/monkescience/yeet/internal/telemetry.appID=${TELEMETRYDECK_APP_ID}"
+          ./cmd/yeet --verbose release
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          TELEMETRYDECK_NAMESPACE: ${{ vars.TELEMETRYDECK_NAMESPACE }}
+          TELEMETRYDECK_APP_ID: ${{ vars.TELEMETRYDECK_APP_ID }}

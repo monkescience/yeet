@@ -1,0 +1,15 @@
+[
+  {
+    "appID": "test-app",
+    "clientUser": "",
+    "type": "Yeet.Command.executed",
+    "payload": {
+      "Yeet.eventDay": "2026-08-21",
+      "Yeet.version": "1.4.0",
+      "Yeet.os": "{{anyString}}",
+      "Yeet.command": "init",
+      "Yeet.outcome": "success",
+      "Yeet.duration": "5s_to_30s"
+    }
+  }
+]

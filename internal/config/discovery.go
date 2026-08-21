@@ -10,12 +10,20 @@ import (
 )
 
 func LoadResolved(ctx context.Context, path string) (*Config, string, error) {
+	return loadResolved(ctx, path, true)
+}
+
+func LoadResolvedQuiet(ctx context.Context, path string) (*Config, string, error) {
+	return loadResolved(ctx, path, false)
+}
+
+func loadResolved(ctx context.Context, path string, logLoad bool) (*Config, string, error) {
 	resolvedPath, err := resolvePath(ctx, path)
 	if err != nil {
 		return nil, resolvedPath, err
 	}
 
-	cfg, err := load(ctx, resolvedPath)
+	cfg, err := loadFile(ctx, resolvedPath, logLoad)
 	if err != nil {
 		return nil, resolvedPath, fmt.Errorf("load config: %w", err)
 	}
