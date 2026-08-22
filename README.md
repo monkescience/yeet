@@ -7,9 +7,9 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13506/badge)](https://www.bestpractices.dev/projects/13506)
 [![License](https://img.shields.io/github/license/monkescience/yeet)](LICENSE)
 
-Release automation for **GitHub, GitLab, and Azure DevOps**, driven by [conventional commits](https://www.conventionalcommits.org/).
+Automate releases on **GitHub, GitLab, or Azure DevOps** from your [conventional commits](https://www.conventionalcommits.org/).
 
-yeet calculates the next semver or calver version, generates changelogs, opens a release PR/MR, and tags the release after it merges. It ships as a single static binary with no runtime dependencies.
+With yeet, you can calculate the next semver or calver version, generate a changelog, open a release PR/MR, and publish the release after it merges. yeet ships as a single static binary with no runtime dependencies.
 
 yeet is designed to run from CI on every push to a release branch. The local CLI is the setup and preview tool. Your CI workflow performs the recurring release work.
 
