@@ -12,9 +12,6 @@ release:
     beta:
       branch: beta
       prerelease: beta
-    rc:
-      branch: rc
-      prerelease: rc
 
 targets:
   yeet:
