@@ -1,5 +1,35 @@
 # Changelog
 
+## [v0.14.0](https://github.com/monkescience/yeet/compare/v0.13.8...v0.14.0) (2026-08-22)
+
+### Migration Notes
+
+Official yeet binaries and images now send limited anonymous telemetry for the `init` and
+`release` commands by default.
+
+Disable telemetry for a repository:
+
+```yaml
+telemetry:
+  enabled: false
+```
+
+Or disable it globally for tools that support `DO_NOT_TRACK`:
+
+```sh
+export DO_NOT_TRACK=1
+```
+
+See [Telemetry](docs/telemetry.md) for the complete payload, behavior, and privacy details.
+
+### ⚠ BREAKING CHANGES
+
+- add anonymous usage telemetry ([654cfe5](https://github.com/monkescience/yeet/commit/654cfe58850f719d6133546674d26d67c5c97e38))
+
+### Features
+
+- add anonymous usage telemetry ([654cfe5](https://github.com/monkescience/yeet/commit/654cfe58850f719d6133546674d26d67c5c97e38))
+
 ## [v0.13.8](https://github.com/monkescience/yeet/compare/v0.13.7...v0.13.8) (2026-08-21)
 
 ### Bug Fixes
