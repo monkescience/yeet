@@ -113,7 +113,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Run Trivy filesystem scan
-        uses: docker://ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+        uses: docker://ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
         with:
           args: fs --format sarif --output trivy-fs.sarif --severity HIGH,CRITICAL --exit-code 1 .
 
@@ -165,7 +165,7 @@ jobs:
         run: ko build --tarball=image.tar --push=false --platform=linux/amd64 ./cmd/yeet
 
       - name: Scan image with Trivy
-        uses: docker://ghcr.io/aquasecurity/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+        uses: docker://ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
         with:
           args: image --input image.tar --format sarif --output trivy-image.sarif --severity HIGH,CRITICAL --exit-code 1
 
