@@ -140,13 +140,13 @@ func findAncestorContaining(
 
 		candidatePath := filepath.Join(currentDir, targetName)
 
-		_, err := os.Stat(candidatePath)
+		_, statErr := os.Stat(candidatePath)
 		switch {
-		case err == nil:
+		case statErr == nil:
 			return currentDir, true, nil
-		case errors.Is(err, os.ErrNotExist):
+		case errors.Is(statErr, os.ErrNotExist):
 		default:
-			return "", false, fmt.Errorf("stat %s: %w", candidatePath, err)
+			return "", false, fmt.Errorf("stat %s: %w", candidatePath, statErr)
 		}
 
 		if resolvedStopDir != "" && currentDir == resolvedStopDir {

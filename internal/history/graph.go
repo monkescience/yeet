@@ -249,9 +249,9 @@ func (l *localHistory) commitPaths(ctx context.Context, hash plumbing.Hash) ([]s
 	var parentTree *object.Tree
 
 	if commit.NumParents() > 0 {
-		parent, err := commit.Parent(0)
-		if err != nil {
-			return nil, fmt.Errorf("read first parent of local commit %s: %w", hash, err)
+		parent, parentErr := commit.Parent(0)
+		if parentErr != nil {
+			return nil, fmt.Errorf("read first parent of local commit %s: %w", hash, parentErr)
 		}
 
 		parentTree, err = parent.Tree()

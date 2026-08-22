@@ -95,12 +95,12 @@ func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]g
 	reviewers := make([]git.IdentityRefWithVote, 0, len(names))
 
 	for _, name := range names {
-		identities, err := identityClient.ReadIdentities(ctx, identity.ReadIdentitiesArgs{
+		identities, readErr := identityClient.ReadIdentities(ctx, identity.ReadIdentitiesArgs{
 			SearchFilter: new("General"),
 			FilterValue:  new(name),
 		})
-		if err != nil {
-			return nil, fmt.Errorf("look up reviewer %q: %w", name, err)
+		if readErr != nil {
+			return nil, fmt.Errorf("look up reviewer %q: %w", name, readErr)
 		}
 
 		if identities == nil || len(*identities) == 0 {
