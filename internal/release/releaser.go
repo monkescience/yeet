@@ -122,8 +122,14 @@ func newReleaseCoreAt(
 
 // newReleaser wires a validated source to the provider-side capabilities.
 // History and base-branch files are served by the local-git source, while every
-// provider-side capability comes from provider.
-func newReleaser(core *releaseCore, provider releaseProvider, source releaseSource) (*releaser, error) {
+// provider-side capability is passed to the capability that consumes it.
+func newReleaser(
+	core *releaseCore,
+	source releaseSource,
+	prs releasePRProvider,
+	files releaseFileProvider,
+	publisher releasePublishingProvider,
+) (*releaser, error) {
 	if source == nil {
 		return nil, errNilHistorySource
 	}
@@ -131,9 +137,9 @@ func newReleaser(core *releaseCore, provider releaseProvider, source releaseSour
 	return &releaser{
 		core:      core,
 		source:    source,
-		prs:       provider,
-		files:     provider,
-		publisher: provider,
+		prs:       prs,
+		files:     files,
+		publisher: publisher,
 	}, nil
 }
 
