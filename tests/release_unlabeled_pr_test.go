@@ -17,7 +17,7 @@ func TestReleaseUnlabeledOpenPR(t *testing.T) {
 		// given: an open release MR on the release branch carrying no labels at all
 		existingBody := readTestFile(
 			t,
-			"testdata/release_unlabeled_open_p_r/gitlab_adopts_unlabeled_release_m_r/"+
+			"testdata/release/gitlab_adopts_unlabeled_release_m_r/"+
 				"existing_merge_request_body.input.md",
 		)
 
@@ -61,7 +61,7 @@ func TestReleaseUnlabeledOpenPR(t *testing.T) {
 		// given: an open release MR labelled with something other than the pending label
 		existingBody := readTestFile(
 			t,
-			"testdata/release_unlabeled_open_p_r/gitlab_adopts_unlabeled_release_m_r/"+
+			"testdata/release/gitlab_adopts_unlabeled_release_m_r/"+
 				"existing_merge_request_body.input.md",
 		)
 
@@ -98,7 +98,7 @@ func TestReleaseUnlabeledOpenPR(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_unlabeled_open_p_r/gitlab_refuses_foreign_label_release_m_r/"+
+			"testdata/release/gitlab_refuses_foreign_label_release_m_r/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)

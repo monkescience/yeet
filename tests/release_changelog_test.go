@@ -54,7 +54,7 @@ func TestReleaseChangelogReferences(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_changelog_references/github_patterns_and_footers/stdout.expected.txt",
+			"testdata/release/github_patterns_and_footers/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -99,7 +99,7 @@ func TestReleaseChangelogReferences(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_changelog_references/github_bare_footer/stdout.expected.txt",
+			"testdata/release/github_bare_footer/stdout.expected.txt",
 			result.Stdout,
 		)
 	})

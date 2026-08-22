@@ -27,7 +27,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// given: a VERSION.txt that wraps prose in an x-yeet-start-version block
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_blocks/"+
+			"testdata/release/"+
 				"github_replaces_semver_inside_an_x_yeet_start/end_block/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -67,7 +67,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// given: a VERSION.txt whose x-yeet-start block has no matching x-yeet-end
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_blocks/"+
+			"testdata/release/"+
 				"github_rejects_an_unclosed_x_yeet_start_block/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -101,7 +101,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_blocks/github_rejects_an_unclosed_x_yeet_start_block/"+
+			"testdata/release/github_rejects_an_unclosed_x_yeet_start_block/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -113,7 +113,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// given: a VERSION.txt that opens a second block inside an already-open one
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_blocks/"+
+			"testdata/release/"+
 				"github_rejects_nested_x_yeet_start_markers/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -147,7 +147,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_blocks/github_rejects_nested_x_yeet_start_markers/"+
+			"testdata/release/github_rejects_nested_x_yeet_start_markers/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -159,7 +159,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		// given: a VERSION.txt with no markers at all
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_blocks/"+
+			"testdata/release/"+
 				"github_rejects_a_file_that_has_no_yeet_markers/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -193,7 +193,7 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_blocks/github_rejects_a_file_that_has_no_yeet_markers/"+
+			"testdata/release/github_rejects_a_file_that_has_no_yeet_markers/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -209,7 +209,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		// given: a VERSION.txt that breaks the version across major/minor/patch markers
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_semver_scopes/"+
+			"testdata/release/"+
 				"github_updates_major__minor_and_patch_inline_markers/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -249,7 +249,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		// given: a VERSION.txt that uses `x-yeet-year` under a semver scheme
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_version_file_semver_scopes/"+
+			"testdata/release/"+
 				"github_surfaces_semver_suggestion_for_a_calver_only_marker/VERSION.txt",
 		)}
 		repoDir, shas := versionFileHistory(t, files)
@@ -283,7 +283,7 @@ func TestReleaseVersionFileSemverScopes(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_semver_scopes/"+
+			"testdata/release/"+
 				"github_surfaces_semver_suggestion_for_a_calver_only_marker/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -299,7 +299,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		// given: a calver config with a week-based format and an x-yeet-minor marker
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_cal_ver_marker_suggestions/"+
+			"testdata/release/"+
 				"week_format_suggests_x_yeet_week_for_x_yeet_minor/VERSION.txt",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
@@ -339,7 +339,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_cal_ver_marker_suggestions/"+
+			"testdata/release/"+
 				"week_format_suggests_x_yeet_week_for_x_yeet_minor/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -351,7 +351,7 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		// given: a calver format that exposes year/month/day/micro markers
 		files := map[string]string{"VERSION.txt": readTestFile(
 			t,
-			"testdata/release_cal_ver_marker_suggestions/"+
+			"testdata/release/"+
 				"day_aware_format_substitutes_the_x_yeet_day_marker/VERSION.txt",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",

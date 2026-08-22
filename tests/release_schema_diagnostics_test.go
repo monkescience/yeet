@@ -37,7 +37,7 @@ func TestReleaseSchemaDiagnostics(t *testing.T) {
 			t.Parallel()
 
 			// given: a configuration fixture that violates one schema rule.
-			fixtureDir := "testdata/release_schema_diagnostics/" + scenario
+			fixtureDir := "testdata/release/" + scenario
 
 			// when: validating the configuration through a release dry run.
 			result := binary.RunWithOptions(

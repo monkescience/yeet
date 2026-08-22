@@ -41,7 +41,7 @@ func TestReleaseLabelConfigValidation(t *testing.T) {
 func assertReleaseConfigRejected(t *testing.T, scenario string) {
 	t.Helper()
 
-	dir := "testdata/release_config_validation/" + scenario
+	dir := "testdata/release/" + scenario
 
 	result := binary.RunWithOptions(t,
 		[]string{"release", "--dry-run", "--config", absoluteTestFile(t, dir+"/input.yaml")},
@@ -93,7 +93,7 @@ func TestReleaseExtraLabels(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_extra_labels/github_missing_extra_label/stderr.expected.txt",
+			"testdata/release/github_missing_extra_label/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -173,7 +173,7 @@ func TestReleaseExtraLabels(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_extra_labels/gitlab_missing_extra_label/stderr.expected.txt",
+			"testdata/release/gitlab_missing_extra_label/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -255,7 +255,7 @@ func TestReleaseExtraLabels(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_extra_labels/gitlab_scoped_label_conflict/stderr.expected.txt",
+			"testdata/release/gitlab_scoped_label_conflict/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

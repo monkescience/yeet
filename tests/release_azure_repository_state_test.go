@@ -175,7 +175,7 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_azure_repository_state/missing_changelog/input.yaml",
+			"testdata/release/missing_changelog/input.yaml",
 		)
 		// when: creating a release pull request.
 		result := binary.RunWithOptions(
@@ -237,7 +237,7 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 		testastic.Equal(t, "", result.Stdout)
 		testastic.AssertFile(
 			t,
-			"testdata/release_azure_repository_state/rejected_branch_reset/stderr.expected.txt",
+			"testdata/release/rejected_branch_reset/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

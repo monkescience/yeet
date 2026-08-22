@@ -140,7 +140,7 @@ func TestReleaseProviderPagination(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_provider_pagination/"+
+			"testdata/release/"+
 				"github_local_history_serves_more_than_100_commits_since_the_tag/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -156,7 +156,7 @@ func TestReleaseExistingOpenPRUpdate(t *testing.T) {
 		// given: an open release PR whose body already contains Features but is stale
 		existingBody := readTestFile(
 			t,
-			"testdata/release_existing_open_p_r_update/"+
+			"testdata/release/"+
 				"github_updates_open_release_p_r_while_replacing_c_h_a_n_g_e_l_o_g_sections/"+
 				"existing_pull_request_body.input.md",
 		)
@@ -317,7 +317,7 @@ func TestReleaseTargetFilterErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_target_filter_errors/github_rejects___target_naming_an_unknown_target/"+
+			"testdata/release/github_rejects___target_naming_an_unknown_target/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -333,7 +333,7 @@ func TestReleaseGitLabExistingPRUpdate(t *testing.T) {
 		// given: an open release MR with stale body
 		existingBody := readTestFile(
 			t,
-			"testdata/release_git_lab_existing_p_r_update/"+
+			"testdata/release/"+
 				"gitlab_updates_open_release_m_r_with_stale_body_sections/"+
 				"existing_pull_request_body.input.md",
 		)

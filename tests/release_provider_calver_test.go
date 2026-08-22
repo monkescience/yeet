@@ -191,7 +191,7 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_extra_tags_cross_provider/"+
+			"testdata/release/"+
 				"azuredevops_picks_the_highest_among_multiple_tags/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -244,7 +244,7 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_azure_auto_merge_force_rejects_draft/"+
+			"testdata/release/"+
 				"azuredevops___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
 			result.Stderr,
 		)

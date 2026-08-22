@@ -17,7 +17,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		t.Parallel()
 
 		// given: a config whose versioning is neither semver nor calver
-		configPath := absoluteTestFile(t, "testdata/release_config_validation/rejects_invalid_versioning_value/input.yaml")
+		configPath := absoluteTestFile(t, "testdata/release/rejects_invalid_versioning_value/input.yaml")
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -29,7 +29,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_invalid_versioning_value/stderr.expected.txt",
+			"testdata/release/rejects_invalid_versioning_value/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -40,7 +40,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a calver config whose format is invalid
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_calver_format_without_required_tokens/"+
+			"testdata/release/rejects_calver_format_without_required_tokens/"+
 				"input.yaml",
 		)
 
@@ -54,7 +54,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_calver_format_without_required_tokens/"+
+			"testdata/release/rejects_calver_format_without_required_tokens/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -66,7 +66,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a bump_types entry naming an unsupported commit type
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_unknown_commit_type_under_bump_types/"+
+			"testdata/release/rejects_unknown_commit_type_under_bump_types/"+
 				"input.yaml",
 		)
 
@@ -80,7 +80,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_unknown_commit_type_under_bump_types/"+
+			"testdata/release/rejects_unknown_commit_type_under_bump_types/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -90,7 +90,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		t.Parallel()
 
 		// given: a config that empties the changelog include list
-		configPath := absoluteTestFile(t, "testdata/release_config_validation/rejects_empty_changelog_include/input.yaml")
+		configPath := absoluteTestFile(t, "testdata/release/rejects_empty_changelog_include/input.yaml")
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -102,7 +102,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_empty_changelog_include/stderr.expected.txt",
+			"testdata/release/rejects_empty_changelog_include/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -111,7 +111,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		t.Parallel()
 
 		// given: a release channel missing the branch field
-		configPath := absoluteTestFile(t, "testdata/release_config_validation/rejects_channel_with_no_branch/input.yaml")
+		configPath := absoluteTestFile(t, "testdata/release/rejects_channel_with_no_branch/input.yaml")
 
 		// when: invoking `yeet release --dry-run --channel beta`
 		result := binary.RunWithOptions(t,
@@ -123,7 +123,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_channel_with_no_branch/stderr.expected.txt",
+			"testdata/release/rejects_channel_with_no_branch/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -134,7 +134,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a release channel using the reserved stable name
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_reserved_stable_release_channel/input.yaml",
+			"testdata/release/rejects_reserved_stable_release_channel/input.yaml",
 		)
 
 		// when: invoking `yeet release --dry-run`
@@ -147,7 +147,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_reserved_stable_release_channel/"+
+			"testdata/release/rejects_reserved_stable_release_channel/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -159,7 +159,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: two prerelease channels pointing at the same branch
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_duplicate_release_channel_branches/input.yaml",
+			"testdata/release/rejects_duplicate_release_channel_branches/input.yaml",
 		)
 
 		// when: invoking `yeet release --dry-run`
@@ -172,7 +172,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_duplicate_release_channel_branches/"+
+			"testdata/release/rejects_duplicate_release_channel_branches/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -184,7 +184,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: two prerelease channels that would publish the same semver identifier
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/"+
+			"testdata/release/"+
 				"rejects_duplicate_release_channel_prerelease_identifiers/input.yaml",
 		)
 
@@ -198,7 +198,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/"+
+			"testdata/release/"+
 				"rejects_duplicate_release_channel_prerelease_identifiers/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -210,7 +210,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a prerelease identifier that semver cannot encode
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/"+
+			"testdata/release/"+
 				"rejects_invalid_release_channel_prerelease_identifier/input.yaml",
 		)
 
@@ -224,7 +224,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/"+
+			"testdata/release/"+
 				"rejects_invalid_release_channel_prerelease_identifier/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -236,7 +236,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a prerelease channel pointed at the stable release branch
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_channel_branch_matching_stable_branch/"+
+			"testdata/release/rejects_channel_branch_matching_stable_branch/"+
 				"input.yaml",
 		)
 
@@ -250,7 +250,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_channel_branch_matching_stable_branch/"+
+			"testdata/release/rejects_channel_branch_matching_stable_branch/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -262,7 +262,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a calver target with semver-only pre-major behavior configured
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_calver_target_with_pre_major_flags/input.yaml",
+			"testdata/release/rejects_calver_target_with_pre_major_flags/input.yaml",
 		)
 
 		// when: invoking `yeet release --dry-run`
@@ -275,7 +275,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_calver_target_with_pre_major_flags/"+
+			"testdata/release/rejects_calver_target_with_pre_major_flags/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -287,7 +287,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a version file with an unknown format
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_unsupported_version_file_format/input.yaml",
+			"testdata/release/rejects_unsupported_version_file_format/input.yaml",
 		)
 
 		// when: invoking `yeet release --dry-run`
@@ -300,7 +300,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_unsupported_version_file_format/"+
+			"testdata/release/rejects_unsupported_version_file_format/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -312,7 +312,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a JSON version file without a pointer to the version string
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_json_version_file_without_json_pointer/"+
+			"testdata/release/rejects_json_version_file_without_json_pointer/"+
 				"input.yaml",
 		)
 
@@ -326,7 +326,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_json_version_file_without_json_pointer/"+
+			"testdata/release/rejects_json_version_file_without_json_pointer/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -338,7 +338,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		// given: a JSON pointer containing an escape sequence not allowed by RFC 6901
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_validation/rejects_malformed_json_pointer_escape/input.yaml",
+			"testdata/release/rejects_malformed_json_pointer_escape/input.yaml",
 		)
 
 		// when: invoking `yeet release --dry-run`
@@ -351,7 +351,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_malformed_json_pointer_escape/"+
+			"testdata/release/rejects_malformed_json_pointer_escape/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -361,7 +361,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		t.Parallel()
 
 		// given: a release config with an invalid auto_merge_method
-		configPath := absoluteTestFile(t, "testdata/release_config_validation/rejects_unknown_auto_merge_method/input.yaml")
+		configPath := absoluteTestFile(t, "testdata/release/rejects_unknown_auto_merge_method/input.yaml")
 
 		// when: invoking `yeet release --dry-run`
 		result := binary.RunWithOptions(t,
@@ -373,7 +373,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_validation/rejects_unknown_auto_merge_method/stderr.expected.txt",
+			"testdata/release/rejects_unknown_auto_merge_method/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -406,7 +406,7 @@ func TestReleaseExplicitConfigDiscovery(t *testing.T) {
 
 		configBody, err := os.ReadFile(absoluteTestFile(
 			t,
-			"testdata/release_explicit_config_discovery/"+
+			"testdata/release/"+
 				"resolves_config_search_root_from_a_deep_subdirectory/input.yaml",
 		))
 		testastic.NoError(t, err)

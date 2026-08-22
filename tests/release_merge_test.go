@@ -129,7 +129,7 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_auto_merge_methods/"+
+			"testdata/release/"+
 				"gitlab___auto_merge_method_rebase_reports_incompatible_project_setting/"+
 				"stderr.expected.txt",
 			result.Stderr,
@@ -248,7 +248,7 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_auto_merge_methods/gitlab_rejects_multiple_pending_release_m_rs/"+
+			"testdata/release/gitlab_rejects_multiple_pending_release_m_rs/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -290,7 +290,7 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_auto_merge_methods/gitlab_blocks___auto_merge_when_m_r_is_gated/"+
+			"testdata/release/gitlab_blocks___auto_merge_when_m_r_is_gated/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)

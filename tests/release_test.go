@@ -49,7 +49,7 @@ func TestReleaseDryRun(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_dry_run/gitlab/stdout.expected.txt",
+			"testdata/release/gitlab/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -94,7 +94,7 @@ func TestReleaseDryRun(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_dry_run/azuredevops/stdout.expected.txt",
+			"testdata/release/azuredevops/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -137,12 +137,12 @@ func TestReleaseDryRun(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_dry_run/github/stdout.expected.txt",
+			"testdata/release/github/stdout.expected.txt",
 			result.Stdout,
 		)
 		testastic.AssertFile(
 			t,
-			"testdata/release_dry_run/github/stderr.expected.txt",
+			"testdata/release/github/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -378,7 +378,7 @@ func TestReleaseReviewers(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_reviewers/gitlab_fails_the_release_for_an_unknown_reviewer/"+
+			"testdata/release/gitlab_fails_the_release_for_an_unknown_reviewer/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -672,7 +672,7 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_azure_full_flow/multiple_pending_prs/stderr.expected.txt",
+			"testdata/release/multiple_pending_prs/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -717,7 +717,7 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_azure_full_flow/merge_blocked/stderr.expected.txt",
+			"testdata/release/merge_blocked/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -973,7 +973,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		// given: a project with a package.json containing /version
 		files := map[string]string{"package.json": readTestFile(
 			t,
-			"testdata/release_j_s_o_n_pointer_version_file/"+
+			"testdata/release/"+
 				"github_bumps_a_top_level_package_json_version/package.json",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
@@ -1019,7 +1019,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		// given: a manifest.json with a version at /packages/0/version
 		files := map[string]string{"manifest.json": readTestFile(
 			t,
-			"testdata/release_j_s_o_n_pointer_version_file/"+
+			"testdata/release/"+
 				"github_bumps_a_nested_array_j_s_o_n_pointer/manifest.json",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
@@ -1065,7 +1065,7 @@ func TestReleaseJSONPointerVersionFile(t *testing.T) {
 		// given: a JSON pointer that uses ~0 and ~1 escapes
 		files := map[string]string{"escaped.json": readTestFile(
 			t,
-			"testdata/release_j_s_o_n_pointer_version_file/github_escapes___and/"+
+			"testdata/release/github_escapes___and/"+
 				"in_the_j_s_o_n_pointer/escaped.json",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
@@ -1146,7 +1146,7 @@ func TestReleaseBreakingChange(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_breaking_change/github_major_bump/stdout.expected.txt",
+			"testdata/release/github_major_bump/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1197,7 +1197,7 @@ func TestReleaseMultiTarget(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_multi_target/github_filter_api/stdout.expected.txt",
+			"testdata/release/github_filter_api/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1243,7 +1243,7 @@ func TestReleasePreMajor(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_pre_major/github_feat_patch/stdout.expected.txt",
+			"testdata/release/github_feat_patch/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1331,7 +1331,7 @@ func TestReleaseMergeErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_merge_errors/github_multiple_pending_prs/stderr.expected.txt",
+			"testdata/release/github_multiple_pending_prs/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -1384,7 +1384,7 @@ func TestReleaseMultiTagHistory(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_multi_tag_history/github_semver/stdout.expected.txt",
+			"testdata/release/github_semver/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1631,7 +1631,7 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		// given: an already-open release MR with a yeet manifest in its body
 		existingBody := readTestFile(
 			t,
-			"testdata/release_updates_existing_p_r/"+
+			"testdata/release/"+
 				"gitlab_updates_the_open_release_m_r_in_place/"+
 				"existing_pull_request_body.input.md",
 		)
@@ -1674,7 +1674,7 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		// given: an already-open release PR carrying a yeet manifest
 		existingBody := readTestFile(
 			t,
-			"testdata/release_updates_existing_p_r/"+
+			"testdata/release/"+
 				"azuredevops_updates_the_open_release_p_r_in_place/"+
 				"existing_pull_request_body.input.md",
 		)
@@ -1721,7 +1721,7 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		// given: an open release PR whose body carries a reviewer-added "Notes" section
 		existingBody := readTestFile(
 			t,
-			"testdata/release_updates_existing_p_r/"+
+			"testdata/release/"+
 				"github_updates_the_open_release_p_r_while_preserving_manual_sections/"+
 				"existing_pull_request_body.input.md",
 		)
@@ -1801,7 +1801,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_footer/pins_planned_version/stdout.expected.txt",
+			"testdata/release/pins_planned_version/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1843,7 +1843,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_footer/overrides_smaller_bump/stdout.expected.txt",
+			"testdata/release/overrides_smaller_bump/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1893,7 +1893,7 @@ func TestReleaseCommitOverride(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_commit_override/begin_end_block/stdout.expected.txt",
+			"testdata/release/begin_end_block/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -1942,7 +1942,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_errors/semver_rejects_calver_marker/stderr.expected.txt",
+			"testdata/release/semver_rejects_calver_marker/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -1989,7 +1989,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_version_file_errors/calver_rejects_semver_marker/stderr.expected.txt",
+			"testdata/release/calver_rejects_semver_marker/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -2000,7 +2000,7 @@ func TestReleaseVersionFileErrors(t *testing.T) {
 		// given: a calver BUILD.txt with year/month/micro markers
 		files := map[string]string{"BUILD.txt": readTestFile(
 			t,
-			"testdata/release_version_file_errors/"+
+			"testdata/release/"+
 				"calver_target_updates_month_and_micro_markers_in_b_u_i_l_d_txt/BUILD.txt",
 		)}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
@@ -2060,7 +2060,7 @@ func TestReleaseConfigErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_errors/missing_config_file/stderr.expected.txt",
+			"testdata/release/missing_config_file/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -2084,7 +2084,7 @@ func TestReleaseConfigErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_errors/malformed_yaml/stderr.expected.txt",
+			"testdata/release/malformed_yaml/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -2115,7 +2115,7 @@ func TestReleaseConfigErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_errors/github_missing_token/stderr.expected.txt",
+			"testdata/release/github_missing_token/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -2141,7 +2141,7 @@ func TestReleaseConfigErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_errors/unsupported_remote_host/stderr.expected.txt",
+			"testdata/release/unsupported_remote_host/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

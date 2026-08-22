@@ -52,7 +52,7 @@ func TestReleaseHostTrust(t *testing.T) {
 
 		// then: host validation succeeds and the release plan is printed.
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.AssertFile(t, "testdata/release_autodetect/github_https/stdout.expected.txt", result.Stdout)
+		testastic.AssertFile(t, "testdata/release/github_https/stdout.expected.txt", result.Stdout)
 	})
 
 	t.Run("rejects a custom host that differs from the git remote", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_host_trust/mismatched_custom_host/stderr.expected.txt",
+			"testdata/release/mismatched_custom_host/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -108,7 +108,7 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_host_trust/provider_host_with_scheme/stderr.expected.txt",
+			"testdata/release/provider_host_with_scheme/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -131,7 +131,7 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_host_trust/unsupported_auto_detect_host/stderr.expected.txt",
+			"testdata/release/unsupported_auto_detect_host/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -156,7 +156,7 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_host_trust/redacted_invalid_remote/stderr.expected.txt",
+			"testdata/release/redacted_invalid_remote/stderr.expected.txt",
 			result.Stderr,
 		)
 		testastic.Equal(t, false, strings.Contains(result.Stderr, "fixture-password"))
@@ -186,7 +186,7 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_host_trust/missing_remote/stderr.expected.txt",
+			"testdata/release/missing_remote/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

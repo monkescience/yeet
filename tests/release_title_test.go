@@ -162,5 +162,5 @@ func assertReleaseTitleRejected(t *testing.T, scenario string, opts fixture.Conf
 	)
 
 	testastic.Equal(t, 1, result.ExitCode)
-	testastic.AssertFile(t, "testdata/release_title/"+scenario+"/stderr.expected.txt", result.Stderr)
+	testastic.AssertFile(t, "testdata/release/"+scenario+"/stderr.expected.txt", result.Stderr)
 }

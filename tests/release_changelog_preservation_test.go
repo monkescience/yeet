@@ -15,7 +15,7 @@ func TestReleaseChangelogPreservation(t *testing.T) {
 		t.Parallel()
 
 		// given: a release branch CHANGELOG carrying hand-written sections around the generated one
-		dir := "testdata/release_changelog_preservation/github_preserves_manual_sections/"
+		dir := "testdata/release/github_preserves_manual_sections/"
 
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{

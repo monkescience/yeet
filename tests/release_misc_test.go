@@ -31,7 +31,7 @@ func TestReleaseConfigPerTargetReferences(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_per_target_references/"+
+			"testdata/release/"+
 				"per_target_references_override_top_level_patterns/input.yaml",
 		)
 
@@ -46,7 +46,7 @@ func TestReleaseConfigPerTargetReferences(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_per_target_references/"+
+			"testdata/release/"+
 				"per_target_references_override_top_level_patterns/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -76,7 +76,7 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_changelog_section_override/"+
+			"testdata/release/"+
 				"custom_sections_rename_a_default_commit_type/input.yaml",
 		)
 
@@ -91,7 +91,7 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_changelog_section_override/"+
+			"testdata/release/"+
 				"custom_sections_rename_a_default_commit_type/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -117,7 +117,7 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_changelog_section_override/"+
+			"testdata/release/"+
 				"custom_include_adds_a_non_default_commit_type_via_capitalized_fallback/input.yaml",
 		)
 
@@ -132,7 +132,7 @@ func TestReleaseChangelogSectionOverride(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_changelog_section_override/"+
+			"testdata/release/"+
 				"custom_include_adds_a_non_default_commit_type_via_capitalized_fallback/"+
 				"stdout.expected.txt",
 			result.Stdout,
@@ -181,7 +181,7 @@ func TestReleaseDryRunWithExtraTags(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_dry_run_with_extra_tags/"+
+			"testdata/release/"+
 				"gitlab_picks_highest_among_multiple_advertised_tags/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -209,14 +209,14 @@ func TestReleaseChangelogNonDefaultFile(t *testing.T) {
 			BranchHeadSHA: shas[1],
 			Files: map[string]string{"CHANGES.md": readTestFile(
 				t,
-				"testdata/release_changelog_non_default_file/"+
+				"testdata/release/"+
 					"github_writes_to_a_custom_changelog_file_path/CHANGES.md",
 			)},
 		})
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_changelog_non_default_file/"+
+			"testdata/release/"+
 				"github_writes_to_a_custom_changelog_file_path/input.yaml",
 		)
 
@@ -255,7 +255,7 @@ func TestReleaseConfigPerTargetChangelog(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_config_per_target_changelog/"+
+			"testdata/release/"+
 				"per_target_changelog_overrides_file__include_and_sections/input.yaml",
 		)
 
@@ -270,7 +270,7 @@ func TestReleaseConfigPerTargetChangelog(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_config_per_target_changelog/"+
+			"testdata/release/"+
 				"per_target_changelog_overrides_file__include_and_sections/stdout.expected.txt",
 			result.Stdout,
 		)

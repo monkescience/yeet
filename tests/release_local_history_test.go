@@ -52,7 +52,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_local_history/matching_checkout_serves_commit_ranges_from_local_git/"+
+			"testdata/release/matching_checkout_serves_commit_ranges_from_local_git/"+
 				"stdout.expected.txt",
 			result.Stdout,
 		)
@@ -96,7 +96,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_local_history/stale_checkout_fails_with_an_actionable_error/"+
+			"testdata/release/stale_checkout_fails_with_an_actionable_error/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -142,7 +142,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_local_history/stale_checkout_is_rejected_before_remote_mutation/"+
+			"testdata/release/stale_checkout_is_rejected_before_remote_mutation/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -216,7 +216,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_local_history/missing_repository_fails_with_an_actionable_error/"+
+			"testdata/release/missing_repository_fails_with_an_actionable_error/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)

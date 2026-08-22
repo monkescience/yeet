@@ -82,7 +82,7 @@ func TestReleaseAzureDevOpsAuth(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_azure_dev_ops_auth/"+
+			"testdata/release/"+
 				"azuredevops_requires_a_z_u_r_e_d_e_v_o_p_s_s_y_s_t_e_m_a_c_c_e_s_s_t_o_k_e_n_or_e_x_t_p_a_t/"+
 				"stderr.expected.txt",
 			result.Stderr,

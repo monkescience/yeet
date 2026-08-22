@@ -52,7 +52,7 @@ func TestReleaseUnreachableAncestor(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_unreachable_ancestor/"+
+			"testdata/release/"+
 				"github_skips_a_newer_unreachable_tag_in_favor_of_an_older_reachable_one/"+
 				"stdout.expected.txt",
 			result.Stdout,
@@ -98,7 +98,7 @@ func TestReleaseUnreachableAncestor(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_unreachable_ancestor/"+
+			"testdata/release/"+
 				"github_surfaces_an_unreachable_boundary_as_a_branch_ancestry_error/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -131,7 +131,7 @@ func TestReleaseChannelChangelogFile(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_channel_changelog_file/"+
+			"testdata/release/"+
 				"github_prerelease_writes_to_the_channel_s_changelog_file/input.yaml",
 		)
 
@@ -170,7 +170,7 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_p_r_body_header_footer/"+
+			"testdata/release/"+
 				"github_uses_configured_pr_body_header_and_pr_body_footer/input.yaml",
 		)
 
@@ -205,7 +205,7 @@ func TestReleasePRBodyHeaderFooter(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_p_r_body_header_footer/github_title_templates_shape_subjects/"+
+			"testdata/release/github_title_templates_shape_subjects/"+
 				"input.yaml",
 		)
 

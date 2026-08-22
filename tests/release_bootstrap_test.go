@@ -46,7 +46,7 @@ func TestReleaseSemverBootstrap(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_semver_bootstrap/github_initial/stdout.expected.txt",
+			"testdata/release/github_initial/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -95,7 +95,7 @@ func TestReleaseCommitMix(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_commit_mix/github_all_sections/stdout.expected.txt",
+			"testdata/release/github_all_sections/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -145,7 +145,7 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_auto_merge_force/github___auto_merge_force_does_not_bypass_draft_state/"+
+			"testdata/release/github___auto_merge_force_does_not_bypass_draft_state/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)

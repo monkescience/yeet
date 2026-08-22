@@ -34,7 +34,7 @@ func TestReleaseScalarVersionFile(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_scalar_version_file/"+
+			"testdata/release/"+
 				"github_accepts_scalar_shorthand_for_version_files_entries/input.yaml",
 		)
 
@@ -78,7 +78,7 @@ func TestReleasePerTargetOverrides(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_per_target_overrides/"+
+			"testdata/release/"+
 				"github_honours_per_target_versioning_and_tag_prefix/input.yaml",
 		)
 
@@ -93,7 +93,7 @@ func TestReleasePerTargetOverrides(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_per_target_overrides/"+
+			"testdata/release/"+
 				"github_honours_per_target_versioning_and_tag_prefix/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -123,7 +123,7 @@ func TestReleaseCustomBumpTypes(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_custom_bump_types/"+
+			"testdata/release/"+
 				"github_classifies__chore__as_patch_when_configured_under_bump_types/input.yaml",
 		)
 
@@ -138,7 +138,7 @@ func TestReleaseCustomBumpTypes(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_custom_bump_types/"+
+			"testdata/release/"+
 				"github_classifies__chore__as_patch_when_configured_under_bump_types/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -169,7 +169,7 @@ func TestReleaseDerivedExclude(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_derived_exclude/"+
+			"testdata/release/"+
 				"github_derived_target_ignores_path_target_commits_via_exclude_paths/input.yaml",
 		)
 
@@ -184,7 +184,7 @@ func TestReleaseDerivedExclude(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_derived_exclude/"+
+			"testdata/release/"+
 				"github_derived_target_ignores_path_target_commits_via_exclude_paths/stdout.expected.txt",
 			result.Stdout,
 		)
@@ -214,7 +214,7 @@ func TestReleasePreMajorOverride(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_pre_major_override/"+
+			"testdata/release/"+
 				"github_respects_pre_major_breaking_bumps_minor_false/input.yaml",
 		)
 
@@ -229,7 +229,7 @@ func TestReleasePreMajorOverride(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_pre_major_override/"+
+			"testdata/release/"+
 				"github_respects_pre_major_breaking_bumps_minor_false/stdout.expected.txt",
 			result.Stdout,
 		)

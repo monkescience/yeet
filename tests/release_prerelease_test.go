@@ -54,7 +54,7 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_prerelease_counter/github_increment/stdout.expected.txt",
+			"testdata/release/github_increment/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -99,7 +99,7 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_prerelease_counter/github_release_as/stdout.expected.txt",
+			"testdata/release/github_release_as/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -146,7 +146,7 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_footer_errors/conflicting_values/stderr.expected.txt",
+			"testdata/release/conflicting_values/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -188,7 +188,7 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_footer_errors/invalid_value/stderr.expected.txt",
+			"testdata/release/invalid_value/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

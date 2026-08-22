@@ -43,7 +43,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/github_https/stdout.expected.txt",
+			"testdata/release/github_https/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -75,7 +75,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/github_ssh/stdout.expected.txt",
+			"testdata/release/github_ssh/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -114,7 +114,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/github_https/stdout.expected.txt",
+			"testdata/release/github_https/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -145,7 +145,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/gitlab_nested_group/stdout.expected.txt",
+			"testdata/release/gitlab_nested_group/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -179,7 +179,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/azuredevops_https/stdout.expected.txt",
+			"testdata/release/azuredevops_https/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -213,7 +213,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/azuredevops_ssh/stdout.expected.txt",
+			"testdata/release/azuredevops_ssh/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -247,7 +247,7 @@ func TestReleaseAutoDetect(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_autodetect/azuredevops_visualstudio/stdout.expected.txt",
+			"testdata/release/azuredevops_visualstudio/stdout.expected.txt",
 			result.Stdout,
 		)
 	})

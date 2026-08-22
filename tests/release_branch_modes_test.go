@@ -51,7 +51,7 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_branch_modes/github_auto_beta/stdout.expected.txt",
+			"testdata/release/github_auto_beta/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -92,7 +92,7 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_branch_auto_channel/github_rejects_unknown___channel_value/"+
+			"testdata/release/github_rejects_unknown___channel_value/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -123,7 +123,7 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_branch_auto_channel/"+
+			"testdata/release/"+
 				"github_rejects_explicit_channel_from_the_wrong_branch/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -165,7 +165,7 @@ func TestReleaseBranchAutoChannel(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_branch_auto_channel/"+
+			"testdata/release/"+
 				"github_rejects_non_dry_run_release_from_an_unconfigured_branch/stderr.expected.txt",
 			result.Stderr,
 		)

@@ -32,7 +32,7 @@ func TestReleaseGitHubProjectOnly(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release_git_hub_project_only/github_accepts_owner/"+
+			"testdata/release/github_accepts_owner/"+
 				"repo_derived_from_project_alone/input.yaml",
 		)
 
@@ -91,7 +91,7 @@ func TestReleaseProviderOverride(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_provider_override/gitlab_project/stdout.expected.txt",
+			"testdata/release/gitlab_project/stdout.expected.txt",
 			result.Stdout,
 		)
 	})
@@ -180,7 +180,7 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_commit_override_empty_block/"+
+			"testdata/release/"+
 				"github_rejects_an_empty_commit_override_block/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -223,7 +223,7 @@ func TestReleaseCommitOverrideEmptyBlock(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_commit_override_empty_block/"+
+			"testdata/release/"+
 				"github_rejects_missing_e_n_d_c_o_m_m_i_t_o_v_e_r_r_i_d_e/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -240,17 +240,17 @@ func TestReleaseMultipleVersionFiles(t *testing.T) {
 		files := map[string]string{
 			"VERSION.txt": readTestFile(
 				t,
-				"testdata/release_multiple_version_files/"+
+				"testdata/release/"+
 					"github_bumps_multiple_configured_version_files/VERSION.txt",
 			),
 			"package.json": readTestFile(
 				t,
-				"testdata/release_multiple_version_files/"+
+				"testdata/release/"+
 					"github_bumps_multiple_configured_version_files/package.json",
 			),
 			"chart/Chart.yaml": readTestFile(
 				t,
-				"testdata/release_multiple_version_files/"+
+				"testdata/release/"+
 					"github_bumps_multiple_configured_version_files/chart/Chart.yaml",
 			),
 		}
@@ -368,7 +368,7 @@ func TestReleaseMissingProviderTokens(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_missing_provider_tokens/"+
+			"testdata/release/"+
 				"gitlab_missing_token_surfaces_env_var_requirement/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -436,7 +436,7 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 			BranchHeadSHA: shas[1],
 			Files: map[string]string{"CHANGELOG.md": readTestFile(
 				t,
-				"testdata/release_changelog_prepend/"+
+				"testdata/release/"+
 					"github_prepends_a_new_entry_to_a____changelog__headed_file/CHANGELOG.md",
 			)},
 		})
@@ -503,7 +503,7 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_git_lab_auto_merge_force/"+
+			"testdata/release/"+
 				"gitlab___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
 			result.Stderr,
 		)

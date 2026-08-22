@@ -75,17 +75,17 @@ func TestReleaseCalVerInvalidFormats(t *testing.T) {
 		{
 			name:         "missing year",
 			format:       "MM.DD",
-			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_missing_year/stderr.expected.txt",
+			expectedFile: "testdata/release/rejects_missing_year/stderr.expected.txt",
 		},
 		{
 			name:         "duplicate year tokens",
 			format:       "YYYY.YYYY.MICRO",
-			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_duplicate_year_tokens/stderr.expected.txt",
+			expectedFile: "testdata/release/rejects_duplicate_year_tokens/stderr.expected.txt",
 		},
 		{
 			name:         "unknown token",
 			format:       "YYYY.MM.FOO",
-			expectedFile: "testdata/release_cal_ver_invalid_formats/rejects_unknown_token/stderr.expected.txt",
+			expectedFile: "testdata/release/rejects_unknown_token/stderr.expected.txt",
 		},
 	}
 
@@ -161,7 +161,7 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_prerelease_rejected/"+
+			"testdata/release/"+
 				"github_rejects_release_as_pinning_a_prerelease_version/stderr.expected.txt",
 			result.Stderr,
 		)
@@ -204,7 +204,7 @@ func TestReleaseAsPrereleaseRejected(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release_as_prerelease_rejected/"+
+			"testdata/release/"+
 				"github_rejects_release_as_that_doesn_t_advance_the_version/stderr.expected.txt",
 			result.Stderr,
 		)
