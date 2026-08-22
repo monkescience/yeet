@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monkescience/yeet/internal/build"
+	"github.com/monkescience/yeet/internal/telemetry"
 )
 
 var errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
@@ -21,7 +22,7 @@ type bootstrapOptions struct {
 	noColor bool
 }
 
-func NewRoot() *cobra.Command {
+func NewRoot(manager *telemetry.Manager) *cobra.Command {
 	options := &bootstrapOptions{}
 
 	cmd := &cobra.Command{
@@ -49,8 +50,8 @@ the configured tagged lifecycle label.`,
 	cmd.PersistentFlags().BoolVar(&options.noColor, "no-color", false, "disable colored output")
 
 	cmd.AddCommand(
-		releaseCmd(options),
-		initCmd(),
+		releaseCmd(options, manager),
+		initCmd(manager),
 		versionCmd(),
 	)
 

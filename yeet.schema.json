@@ -56,6 +56,9 @@
     "network": {
       "$ref": "#/$defs/network"
     },
+    "telemetry": {
+      "$ref": "#/$defs/telemetry"
+    },
     "version_files": {
       "type": "array",
       "description": "Default version files for targets that do not override them.",
@@ -84,6 +87,17 @@
     "targets"
   ],
   "$defs": {
+    "telemetry": {
+      "type": "object",
+      "description": "Anonymous per-command usage analytics for this repository.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable or disable telemetry for this repository. Telemetry is enabled by default. DO_NOT_TRACK=1 always disables it."
+        }
+      }
+    },
     "network": {
       "type": "object",
       "description": "Timeout and retry bounds for provider API requests.",

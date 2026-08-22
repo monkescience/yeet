@@ -18,6 +18,8 @@ builds:
     ldflags:
       - -s -w
       - -X {{ .ModulePath }}/internal/build.version={{.Version}}
+      - -X {{ .ModulePath }}/internal/telemetry.namespace={{ index .Env "TELEMETRYDECK_NAMESPACE" }}
+      - -X {{ .ModulePath }}/internal/telemetry.appID={{ index .Env "TELEMETRYDECK_APP_ID" }}
 
 archives:
   - formats:

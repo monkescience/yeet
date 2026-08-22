@@ -18,6 +18,8 @@ network:
     max_attempts: 6
     min_backoff: 2s
     max_backoff: 20s
+telemetry:
+  enabled: false
 changelog:
   file: CHANGES.md
   include:

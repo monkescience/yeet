@@ -26,6 +26,7 @@ func TestParse(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, VersioningSemver, cfg.Versioning)
 		testastic.Equal(t, "main", cfg.Branch)
+		testastic.Nil(t, cfg.Telemetry.Enabled)
 	})
 
 	t.Run("config with prerelease channels", func(t *testing.T) {
@@ -119,6 +120,8 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, 6, cfg.Network.Retry.MaxAttempts)
 		testastic.Equal(t, 2*time.Second, cfg.Network.Retry.MinBackoff)
 		testastic.Equal(t, 20*time.Second, cfg.Network.Retry.MaxBackoff)
+		testastic.NotNil(t, cfg.Telemetry.Enabled)
+		testastic.False(t, *cfg.Telemetry.Enabled)
 		testastic.Equal(t, "automation/release-{{ .Branch }}", cfg.Release.BranchTemplate)
 		testastic.Equal(t, "{{ .Target }} {{ .Version }}", cfg.Release.NameTemplate)
 		testastic.Equal(t, 500*time.Millisecond, cfg.Release.MergePolling.InitialInterval)

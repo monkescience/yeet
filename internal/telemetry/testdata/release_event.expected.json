@@ -1,0 +1,22 @@
+[
+  {
+    "appID": "test-app",
+    "clientUser": "",
+    "floatValue": 6,
+    "payload": {
+      "Yeet.arch": "arm64",
+      "Yeet.command": "release",
+      "Yeet.eventDay": "2026-08-21",
+      "Yeet.os": "linux",
+      "Yeet.outcome": "success",
+      "Yeet.release.autoMerge": "normal",
+      "Yeet.release.channelsConfigured": "true",
+      "Yeet.release.dryRun": "true",
+      "Yeet.release.layout": "monorepo",
+      "Yeet.release.provider": "github",
+      "Yeet.release.versioning": "mixed",
+      "Yeet.version": "1.4.0"
+    },
+    "type": "Yeet.Command.executed"
+  }
+]

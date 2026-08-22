@@ -8,7 +8,9 @@ import (
 	"syscall"
 	_ "time/tzdata"
 
+	"github.com/monkescience/yeet/internal/build"
 	"github.com/monkescience/yeet/internal/commands"
+	"github.com/monkescience/yeet/internal/telemetry"
 )
 
 func main() {
@@ -23,5 +25,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return commands.NewRoot().ExecuteContext(ctx) //nolint:wrapcheck // preserve user-facing error verbatim
+	manager := telemetry.New(build.Version())
+
+	return commands.NewRoot(manager).ExecuteContext(ctx) //nolint:wrapcheck // preserve user-facing error verbatim
 }

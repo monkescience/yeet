@@ -11,6 +11,7 @@ import (
 	git "github.com/go-git/go-git/v6"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/telemetry"
 	"github.com/spf13/cobra"
 )
 
@@ -181,7 +182,7 @@ func TestInitCommand(t *testing.T) {
 func TestRootCommand(t *testing.T) {
 	t.Run("version rejects config flag", func(t *testing.T) {
 		// given: the version command, which does not load configuration
-		command := NewRoot()
+		command := newTestRoot()
 		command.SetArgs([]string{"version", "--config", "ignored.yaml"})
 
 		// when: executing version with the config flag
@@ -199,7 +200,7 @@ func TestRootCommand(t *testing.T) {
 
 	t.Run("completion command is available for bash", func(t *testing.T) {
 		// given: the root command tree
-		command := NewRoot()
+		command := newTestRoot()
 
 		// when: resolving the bash completion subcommand
 		completionCommand, _, err := command.Find([]string{"completion", "bash"})
@@ -253,7 +254,7 @@ func executeRootCommand(t *testing.T, args ...string) (string, string, error) {
 
 	var stderr bytes.Buffer
 
-	command := NewRoot()
+	command := newTestRoot()
 	setCommandWriters(command, &stdout, &stderr)
 	command.SetArgs(args)
 
@@ -266,6 +267,10 @@ func executeRootCommand(t *testing.T, args ...string) (string, string, error) {
 	err := command.Execute()
 
 	return stdout.String(), stderr.String(), err
+}
+
+func newTestRoot() *cobra.Command {
+	return NewRoot(telemetry.New("dev"))
 }
 
 func setCommandWriters(command *cobra.Command, stdout *bytes.Buffer, stderr *bytes.Buffer) {

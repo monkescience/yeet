@@ -1,0 +1,16 @@
+[
+  {
+    "appID": "test-app",
+    "clientUser": "",
+    "floatValue": 6,
+    "payload": {
+      "Yeet.arch": "{{regex `^(amd64|arm64)$`}}",
+      "Yeet.command": "init",
+      "Yeet.eventDay": "2026-08-21",
+      "Yeet.os": "{{regex `^(darwin|linux|windows)$`}}",
+      "Yeet.outcome": "success",
+      "Yeet.version": "1.4.0"
+    },
+    "type": "Yeet.Command.executed"
+  }
+]
