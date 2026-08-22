@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.1](https://github.com/monkescience/yeet/compare/v0.14.0...v0.14.1) (2026-08-22)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.58.2 (#238) ([ee29608](https://github.com/monkescience/yeet/commit/ee296085212746cc7b0c6dfa3268ac8c5f1b1481))
+
 ## [v0.14.0](https://github.com/monkescience/yeet/compare/v0.13.8...v0.14.0) (2026-08-22)
 
 ### Migration Notes
