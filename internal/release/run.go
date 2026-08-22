@@ -52,8 +52,12 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	p, resolvedProvider, err := provider.Open(ctx, cfg, releaseBranch)
+	p, resolvedProvider, err := provider.Open(ctx, cfg, releaseBranch, repositoryOverrides(options))
 	if err != nil {
+		if errors.Is(err, config.ErrInvalidConfig) {
+			return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
+		}
+
 		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
 
@@ -87,6 +91,17 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 	return result, resolvedConfigPath, nil
 }
 
+func repositoryOverrides(options Options) provider.RepositoryOverrides {
+	return provider.RepositoryOverrides{
+		Provider: options.Provider,
+		Remote:   options.RepositoryRemote,
+		Host:     options.RepositoryHost,
+		Owner:    options.RepositoryOwner,
+		Repo:     options.RepositoryRepo,
+		Project:  options.RepositoryProject,
+	}
+}
+
 func prepare(ctx context.Context, options Options) (*config.Config, error) {
 	cfg, _, err := prepareWithPath(ctx, config.DefaultFile, options)
 
@@ -105,10 +120,7 @@ func prepareWithPath(
 
 	logRun(ctx, resolvedConfigPath, options)
 
-	err = applyOptions(cfg, options)
-	if err != nil {
-		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
-	}
+	applyBehaviorOptions(cfg, options)
 
 	err = cfg.Validate()
 	if err != nil {
@@ -205,182 +217,6 @@ func resolveExplicitChannel(cfg *config.Config, currentBranch string, options Op
 	cfg.ActiveChannel = channelName
 
 	return nil
-}
-
-func applyOptions(cfg *config.Config, options Options) error {
-	err := applyRepositoryOptions(cfg, options)
-	if err != nil {
-		return err
-	}
-
-	applyBehaviorOptions(cfg, options)
-
-	return nil
-}
-
-func applyRepositoryOptions(cfg *config.Config, options Options) error {
-	previousProvider := cfg.Provider
-
-	if options.Provider != nil {
-		cfg.Provider = config.ProviderType(*options.Provider)
-	}
-
-	if options.RepositoryRemote != nil {
-		cfg.Repository.Remote = *options.RepositoryRemote
-	}
-
-	hasRepoFieldOverride := options.RepositoryHost != nil ||
-		options.RepositoryOwner != nil ||
-		options.RepositoryRepo != nil ||
-		options.RepositoryProject != nil
-
-	if cfg.Provider == config.ProviderAuto {
-		if hasRepoFieldOverride {
-			return fmt.Errorf(
-				"%w: repository field flags require an explicit --provider (auto cannot route them)",
-				config.ErrInvalidConfig,
-			)
-		}
-
-		cfg.Repository.GitHub = nil
-		cfg.Repository.GitLab = nil
-		cfg.Repository.AzureDevOps = nil
-
-		return nil
-	}
-
-	if providerChanged(previousProvider, cfg.Provider) {
-		cfg.Repository.GitHub = nil
-		cfg.Repository.GitLab = nil
-		cfg.Repository.AzureDevOps = nil
-	}
-
-	switch cfg.Provider {
-	case config.ProviderGitHub:
-		return applyGitHubOverrides(&cfg.Repository, options)
-	case config.ProviderGitLab:
-		return applyGitLabOverrides(&cfg.Repository, options)
-	case config.ProviderAzureDevOps:
-		return applyAzureDevOpsOverrides(&cfg.Repository, options)
-	case config.ProviderAuto:
-	}
-
-	return nil
-}
-
-func applyGitHubOverrides(repository *config.RepositoryConfig, options Options) error {
-	if repository.GitHub == nil {
-		repository.GitHub = &config.GitHubRepositoryConfig{}
-	}
-
-	github := repository.GitHub
-
-	if options.RepositoryHost != nil {
-		github.Host = *options.RepositoryHost
-	}
-
-	if options.RepositoryOwner != nil {
-		github.Owner = *options.RepositoryOwner
-	}
-
-	if options.RepositoryRepo != nil {
-		github.Repo = *options.RepositoryRepo
-	}
-
-	if options.RepositoryProject != nil {
-		github.Project = *options.RepositoryProject
-
-		if options.RepositoryOwner == nil {
-			github.Owner = ""
-		}
-
-		if options.RepositoryRepo == nil {
-			github.Repo = ""
-		}
-	}
-
-	if options.RepositoryProject == nil &&
-		(options.RepositoryOwner != nil || options.RepositoryRepo != nil) &&
-		strings.TrimSpace(github.Owner) != "" &&
-		strings.TrimSpace(github.Repo) != "" {
-		github.Project = ""
-	}
-
-	return nil
-}
-
-func applyGitLabOverrides(repository *config.RepositoryConfig, options Options) error {
-	if options.RepositoryOwner != nil || options.RepositoryRepo != nil {
-		return fmt.Errorf(
-			"%w: --owner/--repo are not valid for provider gitlab. Use --project",
-			config.ErrInvalidConfig,
-		)
-	}
-
-	if repository.GitLab == nil {
-		repository.GitLab = &config.GitLabRepositoryConfig{}
-	}
-
-	gitlab := repository.GitLab
-
-	if options.RepositoryHost != nil {
-		gitlab.Host = *options.RepositoryHost
-	}
-
-	if options.RepositoryProject != nil {
-		gitlab.Project = *options.RepositoryProject
-	}
-
-	return nil
-}
-
-func applyAzureDevOpsOverrides(repository *config.RepositoryConfig, options Options) error {
-	if options.RepositoryOwner != nil {
-		return fmt.Errorf(
-			"%w: --owner is not valid for provider azuredevops",
-			config.ErrInvalidConfig,
-		)
-	}
-
-	if repository.AzureDevOps == nil {
-		repository.AzureDevOps = &config.AzureDevOpsRepositoryConfig{}
-	}
-
-	azure := repository.AzureDevOps
-
-	if options.RepositoryHost != nil {
-		azure.Host = *options.RepositoryHost
-	}
-
-	if options.RepositoryRepo != nil {
-		azure.Repo = *options.RepositoryRepo
-	}
-
-	if options.RepositoryProject != nil {
-		azure.Project = *options.RepositoryProject
-	}
-
-	return nil
-}
-
-func providerChanged(previous, next config.ProviderType) bool {
-	previousProvider := normalizedProvider(previous)
-	nextProvider := normalizedProvider(next)
-
-	if previousProvider == "" || nextProvider == "" {
-		return false
-	}
-
-	return previousProvider != nextProvider
-}
-
-func normalizedProvider(providerType config.ProviderType) string {
-	providerName := strings.TrimSpace(string(providerType))
-	if config.ProviderType(providerName) == config.ProviderAuto {
-		return ""
-	}
-
-	return providerName
 }
 
 func applyBehaviorOptions(cfg *config.Config, options Options) {

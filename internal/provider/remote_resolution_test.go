@@ -34,6 +34,7 @@ func TestResolveRepository(t *testing.T) {
 
 				return "https://gitlab.company.com/group/subgroup/service.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the custom host is accepted only after matching the git remote
@@ -69,6 +70,7 @@ func TestResolveRepository(t *testing.T) {
 
 				return "", errors.New("git remote lookup should not run")
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: explicit github coordinates resolve without git remote access
@@ -99,6 +101,7 @@ func TestResolveRepository(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@gitlab.company.com:group/service.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the configured provider URLs are preserved
@@ -123,6 +126,7 @@ func TestResolveRepository(t *testing.T) {
 
 				return "git@github.com:platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the configured remote name is forwarded and coordinates are detected
@@ -148,6 +152,7 @@ func TestResolveRepository(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@code.company.com:team/service.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: resolution reports an unsupported host with remediation
@@ -175,6 +180,7 @@ func TestResolveRepository(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@github.company.com:platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: github custom hosts require an explicit provider override
@@ -203,6 +209,7 @@ func TestResolveRepository(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@code.company.com:group/subgroup/service.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the explicit provider is used and coordinates are detected from the remote
@@ -232,6 +239,7 @@ func TestResolveRepository(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@github.com:other/repo.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: explicit config wins over remote detection
@@ -260,6 +268,7 @@ func TestResolveRepositoryRejectsConfiguredCoordinatesUnderAutoProvider(t *testi
 		func(context.Context, string) (string, error) {
 			return "git@github.com:other/repo.git", nil
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: auto rejects the coordinates it cannot route instead of ignoring them
@@ -290,6 +299,7 @@ func TestResolveRepositoryAcceptsMixedCaseProjectAndOwner(t *testing.T) {
 		func(context.Context, string) (string, error) {
 			return "", errors.New("git remote lookup should not run")
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: the case difference is not reported as a coordinate conflict
@@ -297,4 +307,198 @@ func TestResolveRepositoryAcceptsMixedCaseProjectAndOwner(t *testing.T) {
 	testastic.Equal(t, "Acme/Widgets", repository.Project)
 	testastic.Equal(t, "acme", repository.Owner)
 	testastic.Equal(t, "widgets", repository.Repo)
+}
+
+func TestResolveRepositoryAppliesCommandOverridesWithoutMutatingConfig(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitLab config and command overrides selecting GitHub
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitLab
+	cfg.Repository.Remote = "upstream"
+	cfg.Repository.GitLab = &config.GitLabRepositoryConfig{
+		Host:    "gitlab.company.com",
+		Project: "group/service",
+	}
+	providerName := string(config.ProviderGitHub)
+	owner := "platform"
+	repo := "yeet"
+	overrides := RepositoryOverrides{Provider: &providerName, Owner: &owner, Repo: &repo}
+
+	// when: resolving the effective repository
+	repository, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", errors.New("remote lookup should not run")
+		},
+		overrides,
+	)
+
+	// then: the selected provider receives only the override representation
+	testastic.NoError(t, err)
+	testastic.Equal(t, providerNameGitHub, repository.Provider)
+	testastic.Equal(t, DefaultGitHubHost, repository.Host)
+	testastic.Equal(t, "platform", repository.Owner)
+	testastic.Equal(t, "yeet", repository.Repo)
+	testastic.Equal(t, "platform/yeet", repository.Project)
+	testastic.Equal(t, "upstream", repository.Remote)
+	testastic.Equal(t, config.ProviderGitLab, cfg.Provider)
+	testastic.NotNil(t, cfg.Repository.GitLab)
+}
+
+func TestResolveRepositoryAppliesSameProviderFieldOverrides(t *testing.T) {
+	t.Parallel()
+
+	// given: configured GitHub coordinates and same-provider command overrides
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitHub
+	cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "old", Repo: "old"}
+	host := DefaultGitHubHost
+	owner := "platform"
+	repo := "yeet"
+	overrides := RepositoryOverrides{Host: &host, Owner: &owner, Repo: &repo}
+
+	// when: resolving the effective repository
+	repository, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", errors.New("remote lookup should not run")
+		},
+		overrides,
+	)
+
+	// then: command values take precedence without changing the loaded config
+	testastic.NoError(t, err)
+	testastic.Equal(t, "platform", repository.Owner)
+	testastic.Equal(t, "yeet", repository.Repo)
+	testastic.Equal(t, "platform/yeet", repository.Project)
+	testastic.Equal(t, "old", cfg.Repository.GitHub.Owner)
+	testastic.Equal(t, "old", cfg.Repository.GitHub.Repo)
+}
+
+func TestApplyRepositoryOverridesGitHubProjectClearsRawOwnerAndRepo(t *testing.T) {
+	t.Parallel()
+
+	// given: a descriptor with existing GitHub owner and repo
+	repository := &repositoryDescriptor{
+		Provider: providerNameGitHub,
+		Owner:    "platform",
+		Repo:     "yeet",
+	}
+	project := "other/widgets"
+
+	// when: applying a project-only override before normalization
+	applyRepositoryOverrides(repository, config.ProviderGitHub, RepositoryOverrides{Project: &project})
+
+	// then: stale owner and repo are cleared at the provider seam
+	testastic.Equal(t, "", repository.Owner)
+	testastic.Equal(t, "", repository.Repo)
+	testastic.Equal(t, "other/widgets", repository.Project)
+}
+
+func TestResolveRepositoryProviderAutoOverrideDiscardsConfiguredCoordinates(t *testing.T) {
+	t.Parallel()
+
+	// given: configured GitHub coordinates and an auto provider override
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitHub
+	cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
+	providerType := string(config.ProviderAuto)
+
+	// when: resolving from the configured remote after switching to auto
+	repository, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "git@github.com:other/repo.git", nil
+		},
+		RepositoryOverrides{Provider: &providerType},
+	)
+
+	// then: the old provider coordinates are not reused
+	testastic.NoError(t, err)
+	testastic.Equal(t, providerNameGitHub, repository.Provider)
+	testastic.Equal(t, "other", repository.Owner)
+	testastic.Equal(t, "repo", repository.Repo)
+	testastic.Equal(t, "other/repo", repository.Project)
+}
+
+func TestResolveRepositoryPreservesExplicitEmptyDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	// given: complete GitHub coordinates and an explicit empty owner override
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitHub
+	cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
+	emptyOwner := ""
+
+	// when: resolving the explicitly cleared coordinates
+	_, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", errors.New("remote lookup should not run")
+		},
+		RepositoryOverrides{Owner: &emptyOwner},
+	)
+
+	// then: the original pair diagnostic remains stable
+	testastic.Equal(
+		t,
+		"invalid config: repository.github.owner and repository.github.repo must be set together",
+		err.Error(),
+	)
+}
+
+func TestResolveRepositoryRejectsInvalidProviderOverride(t *testing.T) {
+	t.Parallel()
+
+	// given: a provider override outside the supported set
+	cfg := config.Default()
+	providerType := "wrongo"
+
+	// when: resolving the provider-owned override record
+	_, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", errors.New("remote lookup should not run")
+		},
+		RepositoryOverrides{Provider: &providerType},
+	)
+
+	// then: the same invalid-provider diagnostic remains available at the seam
+	testastic.Equal(
+		t,
+		"invalid config: provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got \"wrongo\"",
+		err.Error(),
+	)
+}
+
+func TestResolveRepositoryRejectsCoordinateOverridesUnderAutoProvider(t *testing.T) {
+	t.Parallel()
+
+	// given: auto detection and coordinate flags without a provider
+	cfg := config.Default()
+	owner := "platform"
+	overrides := RepositoryOverrides{Owner: &owner}
+
+	// when: resolving the effective repository
+	_, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "git@github.com:platform/yeet.git", nil
+		},
+		overrides,
+	)
+
+	// then: routing remains provider-owned and reports the existing diagnostic
+	testastic.Equal(
+		t,
+		"invalid config: repository field flags require an explicit --provider (auto cannot route them)",
+		err.Error(),
+	)
 }

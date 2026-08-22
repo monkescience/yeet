@@ -156,6 +156,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "https://github.company.com/platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the host is accepted
@@ -176,6 +177,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "https://github.com/platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: yeet refuses to send the token to the mismatched host
@@ -200,6 +202,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "", errors.New("git remote lookup should not run for a public host")
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the public host is trusted without consulting the remote
@@ -220,6 +223,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "", errors.New("git remote lookup should not run for a malformed host")
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the malformed host is rejected before any remote lookup
@@ -245,6 +249,7 @@ func TestResolveRepositoryHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "", errors.New("no remote")
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: trust cannot be established, so the host is rejected
@@ -271,6 +276,7 @@ func TestResolveRepositoryHostTrustHonorsProviderURLEnv(t *testing.T) {
 		func(context.Context, string) (string, error) {
 			return "https://github.com/platform/yeet.git", nil
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: the operator-controlled env var is trusted regardless of the remote
@@ -295,6 +301,7 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@github.company.com:platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the configured API URL is accepted
@@ -316,6 +323,7 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 			func(context.Context, string) (string, error) {
 				return "git@github.company.com:platform/yeet.git", nil
 			},
+			RepositoryOverrides{},
 		)
 
 		// then: the cross-host API URL is rejected as untrusted
@@ -348,6 +356,7 @@ func TestResolveRepositoryRejectsHostUnrelatedToProviderURLEnv(t *testing.T) {
 		func(context.Context, string) (string, error) {
 			return "https://gitlab.selfhosted.test/group/service.git", nil
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: the unrelated host is not trusted by the environment variable
@@ -379,6 +388,7 @@ func TestResolveRepositoryTrustsHostOfProviderURLEnv(t *testing.T) {
 		func(context.Context, string) (string, error) {
 			return "https://gitlab.com/group/service.git", nil
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: the operator-controlled host is trusted without consulting the remote
@@ -404,6 +414,7 @@ func TestResolveRepositoryWrapsGitRemoteFailure(t *testing.T) {
 		func(context.Context, string) (string, error) {
 			return "", ErrGitRemoteNotFound
 		},
+		RepositoryOverrides{},
 	)
 
 	// then: both the trust sentinel and the underlying cause are recoverable

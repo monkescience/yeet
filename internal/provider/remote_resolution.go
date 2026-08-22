@@ -30,8 +30,9 @@ func resolveRepository(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
+	overrides RepositoryOverrides,
 ) (*repositoryDescriptor, error) {
-	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL)
+	repository, err := repositoryDescriptorFromSources(ctx, cfg, getRemoteURL, overrides)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +62,21 @@ func repositoryDescriptorFromSources(
 	ctx context.Context,
 	cfg *config.Config,
 	getRemoteURL gitRemoteURLGetter,
+	overrides RepositoryOverrides,
 ) (*repositoryDescriptor, error) {
-	coordinateErr := validateAutoProviderCoordinates(cfg)
+	coordinateErr := validateRepositoryOverrides(cfg, overrides)
 	if coordinateErr != nil {
 		return nil, coordinateErr
 	}
 
 	repository := repositoryFromConfig(cfg)
+	applyRepositoryOverrides(repository, cfg.Provider, overrides)
+
+	overrideErr := validateOverriddenRepositoryFields(cfg, repository, overrides)
+	if overrideErr != nil {
+		return nil, overrideErr
+	}
+
 	if repository.Remote == "" {
 		repository.Remote = "origin"
 	}
@@ -90,6 +99,167 @@ func repositoryDescriptorFromSources(
 	normalizeRepositoryDescriptor(repository)
 
 	return repository, nil
+}
+
+func validateOverriddenRepositoryFields(
+	cfg *config.Config,
+	repository *repositoryDescriptor,
+	overrides RepositoryOverrides,
+) error {
+	hasFieldOverride := overrides.Host != nil || overrides.Owner != nil ||
+		overrides.Repo != nil || overrides.Project != nil
+
+	hasAzureProviderOverride := overrides.Provider != nil &&
+		strings.EqualFold(strings.TrimSpace(*overrides.Provider), providerNameAzureDevOps)
+	if !hasFieldOverride && !hasAzureProviderOverride {
+		return nil
+	}
+
+	fieldError := func(path, field, message string) error {
+		return fmt.Errorf("%w: %s.%s %s", config.ErrInvalidConfig, path, field, message)
+	}
+
+	if overrides.Host != nil && *overrides.Host != "" && strings.TrimSpace(*overrides.Host) == "" {
+		path := "repository." + repository.Provider
+
+		return fieldError(path, "host", "must not be blank")
+	}
+
+	switch repository.Provider {
+	case providerNameGitHub:
+		return validateGitHubOverrideFields(repository, overrides, fieldError)
+
+	case providerNameGitLab:
+		return validateGitLabOverrideFields(repository, overrides, fieldError)
+
+	case providerNameAzureDevOps:
+		return validateAzureOverrideFields(cfg, repository, overrides, fieldError)
+	}
+
+	return nil
+}
+
+func validateGitHubOverrideFields(
+	repository *repositoryDescriptor,
+	overrides RepositoryOverrides,
+	fieldError func(string, string, string) error,
+) error {
+	owner := strings.TrimSpace(repository.Owner)
+	repo := strings.TrimSpace(repository.Repo)
+	project := normalizeRepositoryProjectPath(repository.Project)
+
+	if overrides.Owner != nil && *overrides.Owner != "" && owner == "" {
+		return fieldError("repository.github", "owner", "must not be blank")
+	}
+
+	if overrides.Repo != nil && *overrides.Repo != "" && repo == "" {
+		return fieldError("repository.github", "repo", "must not be blank")
+	}
+
+	if overrides.Project != nil && *overrides.Project != "" && project == "" {
+		return fieldError("repository.github", "project", "must not be blank")
+	}
+
+	if (owner == "") != (repo == "") {
+		return fmt.Errorf(
+			"%w: repository.github.owner and repository.github.repo must be set together",
+			config.ErrInvalidConfig,
+		)
+	}
+
+	if project != "" && owner != "" && repo != "" && project != owner+"/"+repo {
+		return fmt.Errorf(
+			"%w: repository.github.project must match repository.github.owner/repo",
+			config.ErrInvalidConfig,
+		)
+	}
+
+	if strings.Contains(owner, "/") {
+		return fieldError("repository.github", "owner", "must not contain '/'")
+	}
+
+	if project == "" {
+		return nil
+	}
+
+	projectOwner, _, ok := splitGitHubProjectPath(project)
+	if !ok || strings.Contains(projectOwner, "/") {
+		return fieldError("repository.github", "project", "must be in owner/repo form")
+	}
+
+	return nil
+}
+
+func validateGitLabOverrideFields(
+	repository *repositoryDescriptor,
+	overrides RepositoryOverrides,
+	fieldError func(string, string, string) error,
+) error {
+	if overrides.Project == nil || *overrides.Project == "" || normalizeRepositoryProjectPath(repository.Project) != "" {
+		return nil
+	}
+
+	return fieldError("repository.gitlab", "project", "must not be blank")
+}
+
+func validateAzureOverrideFields(
+	cfg *config.Config,
+	repository *repositoryDescriptor,
+	overrides RepositoryOverrides,
+	fieldError func(string, string, string) error,
+) error {
+	organization := strings.TrimSpace(repository.Organization)
+	project := normalizeRepositoryProjectPath(repository.Project)
+	repo := strings.TrimSpace(repository.Repo)
+
+	if overrides.Project != nil && *overrides.Project != "" && project == "" {
+		return fieldError("repository.azuredevops", "project", "must not be blank")
+	}
+
+	if overrides.Repo != nil && *overrides.Repo != "" && repo == "" {
+		return fieldError("repository.azuredevops", "repo", "must not be blank")
+	}
+
+	requiresExplicitCoordinates := overrides.Provider != nil || cfg.Provider == config.ProviderAzureDevOps
+	if !requiresExplicitCoordinates {
+		return nil
+	}
+
+	if organization == "" {
+		return fmt.Errorf("%w: repository.azuredevops.organization is required", config.ErrInvalidConfig)
+	}
+
+	if project == "" {
+		return fmt.Errorf("%w: repository.azuredevops.project is required", config.ErrInvalidConfig)
+	}
+
+	if repo == "" {
+		return fmt.Errorf("%w: repository.azuredevops.repo is required", config.ErrInvalidConfig)
+	}
+
+	return nil
+}
+
+func normalizeRepositoryProjectPath(project string) string {
+	return strings.Trim(strings.TrimSpace(project), "/")
+}
+
+const githubProjectSegments = 2
+
+func splitGitHubProjectPath(project string) (string, string, bool) {
+	parts := strings.Split(project, "/")
+	if len(parts) != githubProjectSegments {
+		return "", "", false
+	}
+
+	owner := strings.TrimSpace(parts[0])
+
+	repo := strings.TrimSpace(parts[1])
+	if owner == "" || repo == "" {
+		return "", "", false
+	}
+
+	return owner, repo, true
 }
 
 func resolveRepositoryProvider(repository *repositoryDescriptor) error {
@@ -130,29 +300,90 @@ func unsupportedAutoProviderError(host string, err error) error {
 	)
 }
 
-func validateAutoProviderCoordinates(cfg *config.Config) error {
-	if cfg.Provider != config.ProviderAuto {
-		return nil
+func validateRepositoryOverrides(cfg *config.Config, overrides RepositoryOverrides) error {
+	provider := cfg.Provider
+	if provider == config.ProviderAuto && overrides.Provider == nil {
+		var section string
+
+		switch {
+		case cfg.Repository.GitHub != nil:
+			section = providerNameGitHub
+		case cfg.Repository.GitLab != nil:
+			section = providerNameGitLab
+		case cfg.Repository.AzureDevOps != nil:
+			section = providerNameAzureDevOps
+		}
+
+		if section != "" {
+			return fmt.Errorf(
+				"%w: repository.%s set but provider is auto. Set an explicit provider",
+				config.ErrInvalidConfig,
+				section,
+			)
+		}
 	}
 
-	var section string
+	if overrides.Provider != nil {
+		provider = config.ProviderType(*overrides.Provider)
 
-	switch {
-	case cfg.Repository.GitHub != nil:
-		section = providerNameGitHub
-	case cfg.Repository.GitLab != nil:
-		section = providerNameGitLab
-	case cfg.Repository.AzureDevOps != nil:
-		section = providerNameAzureDevOps
+		providerErr := validateOverrideProvider(provider)
+		if providerErr != nil {
+			return providerErr
+		}
+	}
+
+	if overrides.Remote != nil && strings.TrimSpace(*overrides.Remote) == "" {
+		return fmt.Errorf("%w: repository.remote must not be empty", config.ErrInvalidConfig)
+	}
+
+	hasCoordinates := overrides.Host != nil || overrides.Owner != nil ||
+		overrides.Repo != nil || overrides.Project != nil
+	if provider == config.ProviderAuto && hasCoordinates {
+		return fmt.Errorf(
+			"%w: repository field flags require an explicit --provider (auto cannot route them)",
+			config.ErrInvalidConfig,
+		)
+	}
+
+	return validateRepositoryOverrideRouting(provider, overrides)
+}
+
+func validateRepositoryOverrideRouting(
+	provider config.ProviderType,
+	overrides RepositoryOverrides,
+) error {
+	switch provider {
+	case config.ProviderGitLab:
+		if overrides.Owner != nil || overrides.Repo != nil {
+			return fmt.Errorf(
+				"%w: --owner/--repo are not valid for provider gitlab. Use --project",
+				config.ErrInvalidConfig,
+			)
+		}
+	case config.ProviderAzureDevOps:
+		if overrides.Owner != nil {
+			return fmt.Errorf(
+				"%w: --owner is not valid for provider azuredevops",
+				config.ErrInvalidConfig,
+			)
+		}
+	case config.ProviderAuto, config.ProviderGitHub:
+	}
+
+	return nil
+}
+
+func validateOverrideProvider(provider config.ProviderType) error {
+	switch provider {
+	case config.ProviderAuto, config.ProviderGitHub, config.ProviderGitLab, config.ProviderAzureDevOps:
+		return nil
 	default:
-		return nil
+		return fmt.Errorf(
+			"%w: provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got %q",
+			config.ErrInvalidConfig,
+			provider,
+		)
 	}
-
-	return fmt.Errorf(
-		"%w: repository.%s set but provider is auto. Set an explicit provider",
-		config.ErrInvalidConfig,
-		section,
-	)
 }
 
 func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
@@ -198,6 +429,61 @@ func repositoryFromConfig(cfg *config.Config) *repositoryDescriptor {
 	}
 
 	return descriptor
+}
+
+func applyRepositoryOverrides(
+	repository *repositoryDescriptor,
+	configuredProvider config.ProviderType,
+	overrides RepositoryOverrides,
+) {
+	if overrides.Provider != nil {
+		overrideProvider := strings.TrimSpace(*overrides.Provider)
+
+		remote := repository.Remote
+		if overrideProvider == providerNameAuto ||
+			(normalizedRepositoryProvider(configuredProvider) != "" &&
+				overrideProvider != normalizedRepositoryProvider(configuredProvider)) {
+			*repository = repositoryDescriptor{}
+			repository.Remote = remote
+		}
+
+		repository.Provider = normalizedRepositoryProvider(config.ProviderType(overrideProvider))
+	}
+
+	if overrides.Remote != nil {
+		repository.Remote = *overrides.Remote
+	}
+
+	if overrides.Host != nil {
+		repository.Host = *overrides.Host
+	}
+
+	if overrides.Owner != nil {
+		repository.Owner = *overrides.Owner
+	}
+
+	if overrides.Repo != nil {
+		repository.Repo = *overrides.Repo
+	}
+
+	if overrides.Project != nil {
+		repository.Project = *overrides.Project
+
+		if overrides.Owner == nil {
+			repository.Owner = ""
+		}
+
+		if overrides.Repo == nil {
+			repository.Repo = ""
+		}
+	}
+
+	if overrides.Project == nil &&
+		(overrides.Owner != nil || overrides.Repo != nil) &&
+		strings.TrimSpace(repository.Owner) != "" &&
+		strings.TrimSpace(repository.Repo) != "" {
+		repository.Project = ""
+	}
 }
 
 func normalizedRepositoryProvider(providerType config.ProviderType) string {
@@ -377,6 +663,38 @@ type repositoryDescriptor struct {
 	Organization string
 	Collection   string
 	Remote       string
+}
+
+func resolvedRepositoryFromDescriptor(repository *repositoryDescriptor) (resolvedRepository, error) {
+	switch repository.Provider {
+	case providerNameGitHub:
+		return &resolvedGitHubRepository{
+			Host:   repository.Host,
+			APIURL: repository.APIURL,
+			WebURL: repository.WebURL,
+			Owner:  repository.Owner,
+			Repo:   repository.Repo,
+		}, nil
+	case providerNameGitLab:
+		return &resolvedGitLabRepository{
+			Host:    repository.Host,
+			APIURL:  repository.APIURL,
+			WebURL:  repository.WebURL,
+			Project: repository.Project,
+		}, nil
+	case providerNameAzureDevOps:
+		return &resolvedAzureDevOpsRepository{
+			Host:         repository.Host,
+			APIURL:       repository.APIURL,
+			WebURL:       repository.WebURL,
+			Organization: repository.Organization,
+			Collection:   repository.Collection,
+			Project:      repository.Project,
+			Repo:         repository.Repo,
+		}, nil
+	default:
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
+	}
 }
 
 func parseRemote(remoteURL string) (*repositoryDescriptor, error) {

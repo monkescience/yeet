@@ -50,18 +50,16 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 	t.Setenv(gitlabURLEnv, "")
 	t.Setenv(azureURLEnv, "")
 
-	descriptors := map[string]*repositoryDescriptor{
-		providerNameGitHub: {
-			Provider: providerNameGitHub,
-			Owner:    "platform",
-			Repo:     "yeet",
+	descriptors := map[string]resolvedRepository{
+		providerNameGitHub: &resolvedGitHubRepository{
+			Host:  DefaultGitHubHost,
+			Owner: "platform",
+			Repo:  "yeet",
 		},
-		providerNameGitLab: {
-			Provider: providerNameGitLab,
-			Project:  "group/service",
+		providerNameGitLab: &resolvedGitLabRepository{
+			Project: "group/service",
 		},
-		providerNameAzureDevOps: {
-			Provider:     providerNameAzureDevOps,
+		providerNameAzureDevOps: &resolvedAzureDevOpsRepository{
 			Organization: "platform",
 			Project:      "release-tools",
 			Repo:         "yeet",
@@ -294,7 +292,7 @@ func TestGitLabMutationRequestsAreNotRetried(t *testing.T) {
 	t.Setenv(gitlabURLEnv, server.URL+"/api/v4")
 
 	created, err := createProvider(
-		&repositoryDescriptor{Provider: providerNameGitLab, Project: "group/project"},
+		&resolvedGitLabRepository{Project: "group/project"},
 		func(forge string) *retryablehttp.Client {
 			client := newTracedRetryableClient(forge)
 			client.RetryWaitMin = time.Millisecond

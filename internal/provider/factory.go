@@ -28,18 +28,47 @@ const (
 const azureDevOpsSystemAccessTokenEnv = "AZURE_DEVOPS_SYSTEM_ACCESSTOKEN"
 
 type forgeSpec struct {
+	providerName  string
 	tokenEnvVars  []string
 	urlEnvVar     string
 	apiPathSuffix string
 	defaultHost   string
-	construct     func(
-		forgeSpec,
-		*repositoryDescriptor,
-		forgeToken,
-		*retryablehttp.Client,
-		providerSettings,
-	) (forge.Provider, error)
 }
+
+type resolvedRepository interface {
+	providerName() string
+}
+
+type resolvedGitHubRepository struct {
+	Host   string
+	APIURL string
+	WebURL string
+	Owner  string
+	Repo   string
+}
+
+func (*resolvedGitHubRepository) providerName() string { return providerNameGitHub }
+
+type resolvedGitLabRepository struct {
+	Host    string
+	APIURL  string
+	WebURL  string
+	Project string
+}
+
+func (*resolvedGitLabRepository) providerName() string { return providerNameGitLab }
+
+type resolvedAzureDevOpsRepository struct {
+	Host         string
+	APIURL       string
+	WebURL       string
+	Organization string
+	Collection   string
+	Project      string
+	Repo         string
+}
+
+func (*resolvedAzureDevOpsRepository) providerName() string { return providerNameAzureDevOps }
 
 // forgeToken records which environment variable supplied the token, because
 // Azure DevOps authenticates a pipeline system token differently from a PAT.
@@ -50,32 +79,32 @@ type forgeToken struct {
 
 var forgeSpecs = map[string]forgeSpec{
 	providerNameGitHub: {
+		providerName:  providerNameGitHub,
 		tokenEnvVars:  []string{"GITHUB_TOKEN", "GH_TOKEN"},
 		urlEnvVar:     githubURLEnv,
 		apiPathSuffix: "/api/v3/",
 		defaultHost:   DefaultGitHubHost,
-		construct:     newGitHubProvider,
 	},
 	providerNameGitLab: {
+		providerName:  providerNameGitLab,
 		tokenEnvVars:  []string{"GITLAB_TOKEN", "GL_TOKEN"},
 		urlEnvVar:     gitlabURLEnv,
 		apiPathSuffix: "/api/v4",
 		defaultHost:   DefaultGitLabHost,
-		construct:     newGitLabProvider,
 	},
 	providerNameAzureDevOps: {
+		providerName: providerNameAzureDevOps,
 		tokenEnvVars: []string{azureDevOpsSystemAccessTokenEnv, "AZURE_DEVOPS_EXT_PAT"},
 		urlEnvVar:    azureURLEnv,
 		defaultHost:  DefaultAzureDevOpsHost,
-		construct:    newAzureDevOpsProvider,
 	},
 }
 
-func create(repository *repositoryDescriptor) (forge.Provider, error) {
+func create(repository resolvedRepository) (forge.Provider, error) {
 	return createProvider(repository, newTracedRetryableClient)
 }
 
-func createConfigured(repository *repositoryDescriptor, settings providerSettings) (forge.Provider, error) {
+func createConfigured(repository resolvedRepository, settings providerSettings) (forge.Provider, error) {
 	network := config.Default().Network
 	if settings.network != nil {
 		network = *settings.network
@@ -87,27 +116,29 @@ func createConfigured(repository *repositoryDescriptor, settings providerSetting
 }
 
 func createProvider(
-	repository *repositoryDescriptor,
+	repository resolvedRepository,
 	newHTTPClient func(forge string) *retryablehttp.Client,
 ) (forge.Provider, error) {
 	return createProviderConfigured(repository, providerSettings{}, newHTTPClient)
 }
 
 func createProviderConfigured(
-	repository *repositoryDescriptor,
+	repository resolvedRepository,
 	settings providerSettings,
 	newHTTPClient func(forge string) *retryablehttp.Client,
 ) (forge.Provider, error) {
-	spec, known := forgeSpecs[repository.Provider]
+	provider := repository.providerName()
+
+	spec, known := forgeSpecs[provider]
 	if !known {
-		if repository.Provider == providerNameAuto {
+		if provider == providerNameAuto {
 			return nil, fmt.Errorf(
 				"%w: %s (provider auto must be resolved before creation)",
-				ErrUnsupportedProvider, repository.Provider,
+				ErrUnsupportedProvider, provider,
 			)
 		}
 
-		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, repository.Provider)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, provider)
 	}
 
 	token, err := spec.resolveToken()
@@ -115,7 +146,18 @@ func createProviderConfigured(
 		return nil, err
 	}
 
-	return spec.construct(spec, repository, token, newHTTPClient(repository.Provider), settings)
+	httpClient := newHTTPClient(provider)
+
+	switch repository := repository.(type) {
+	case *resolvedGitHubRepository:
+		return newGitHubProvider(spec, repository, token, httpClient, settings)
+	case *resolvedGitLabRepository:
+		return newGitLabProvider(spec, repository, token, httpClient, settings)
+	case *resolvedAzureDevOpsRepository:
+		return newAzureDevOpsProvider(spec, repository, token, httpClient, settings)
+	default:
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedProvider, provider)
+	}
 }
 
 func (s forgeSpec) resolveToken() (forgeToken, error) {
@@ -136,17 +178,17 @@ func (s forgeSpec) endpointOverride() string {
 	return strings.TrimSpace(os.Getenv(s.urlEnvVar))
 }
 
-func (s forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
+func (s forgeSpec) apiBaseURL(apiURL, host string) string {
 	if override := s.endpointOverride(); override != "" {
 		return override
 	}
 
-	if repository.APIURL != "" {
-		return repository.APIURL
+	if apiURL != "" {
+		return apiURL
 	}
 
-	host := strings.TrimSpace(repository.Host)
-	if repository.Provider == providerNameAzureDevOps {
+	host = strings.TrimSpace(host)
+	if s.providerName == providerNameAzureDevOps {
 		return "https://" + azureDevOpsAPIHost(host)
 	}
 
@@ -157,17 +199,16 @@ func (s forgeSpec) apiBaseURL(repository *repositoryDescriptor) string {
 	return "https://" + host + s.apiPathSuffix
 }
 
-func (s forgeSpec) webBaseURL(repository *repositoryDescriptor) string {
-	if repository.WebURL != "" {
-		return strings.TrimRight(repository.WebURL, "/")
+func (s forgeSpec) webBaseURL(webURL, host string) string {
+	if webURL != "" {
+		return strings.TrimRight(webURL, "/")
 	}
 
 	if override := s.endpointOverride(); override != "" {
-		return webBaseFromAPIURL(repository.Provider, override)
+		return webBaseFromAPIURL(s.providerName, override)
 	}
 
-	host := repository.Host
-	if repository.Provider == providerNameAzureDevOps {
+	if s.providerName == providerNameAzureDevOps {
 		host = azureDevOpsAPIHost(host)
 	}
 
@@ -189,7 +230,7 @@ func webBaseFromAPIURL(providerType, apiURL string) string {
 
 func newGitHubProvider(
 	spec forgeSpec,
-	repository *repositoryDescriptor,
+	repository *resolvedGitHubRepository,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
@@ -202,7 +243,7 @@ func newGitHubProvider(
 		github.WithAuthToken(token.value),
 	}
 
-	if baseURL := spec.apiBaseURL(repository); baseURL != "" {
+	if baseURL := spec.apiBaseURL(repository.APIURL, repository.Host); baseURL != "" {
 		opts = append(opts, github.WithEnterpriseURLs(baseURL, baseURL))
 	}
 
@@ -217,7 +258,7 @@ func newGitHubProvider(
 		repository.Repo,
 		configuredMergePollingOptions(settings)...,
 	)
-	provider.baseURL = spec.webBaseURL(repository)
+	provider.baseURL = spec.webBaseURL(repository.WebURL, repository.Host)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -225,7 +266,7 @@ func newGitHubProvider(
 
 func newGitLabProvider(
 	spec forgeSpec,
-	repository *repositoryDescriptor,
+	repository *resolvedGitLabRepository,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
@@ -240,7 +281,7 @@ func newGitLabProvider(
 		gitlab.WithOnlyIdempotentRetries(),
 	}
 
-	if baseURL := spec.apiBaseURL(repository); baseURL != "" {
+	if baseURL := spec.apiBaseURL(repository.APIURL, repository.Host); baseURL != "" {
 		opts = append(opts, gitlab.WithBaseURL(baseURL))
 	}
 
@@ -250,7 +291,7 @@ func newGitLabProvider(
 	}
 
 	provider := NewGitLab(client, repository.Project, configuredMergePollingOptions(settings)...)
-	provider.repoURL = spec.webBaseURL(repository) + "/" + repository.Project
+	provider.repoURL = spec.webBaseURL(repository.WebURL, repository.Host) + "/" + repository.Project
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
@@ -258,12 +299,12 @@ func newGitLabProvider(
 
 func newAzureDevOpsProvider(
 	spec forgeSpec,
-	repository *repositoryDescriptor,
+	repository *resolvedAzureDevOpsRepository,
 	token forgeToken,
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
 ) (forge.Provider, error) {
-	baseURL := spec.apiBaseURL(repository)
+	baseURL := spec.apiBaseURL(repository.APIURL, repository.Host)
 	if baseURL == "" {
 		baseURL = "https://" + azureDevOpsAPIHost(repository.Host)
 	}
@@ -291,7 +332,7 @@ func newAzureDevOpsProvider(
 			repo,
 			configuredMergePollingOptions(settings)...,
 		)
-		provider.baseURL = spec.webBaseURL(repository)
+		provider.baseURL = spec.webBaseURL(repository.WebURL, repository.Host)
 		provider.releaseBranch = settings.releaseBranch
 
 		return provider, nil
@@ -307,7 +348,7 @@ func newAzureDevOpsProvider(
 		repo,
 		configuredMergePollingOptions(settings)...,
 	)
-	provider.baseURL = spec.webBaseURL(repository)
+	provider.baseURL = spec.webBaseURL(repository.WebURL, repository.Host)
 	provider.releaseBranch = settings.releaseBranch
 
 	return provider, nil
