@@ -25,13 +25,13 @@ func (f *fakeForgeMerge) state(context.Context) (mergeState, error) {
 	return current, nil
 }
 
-func (f *fakeForgeMerge) resolveMethod(context.Context, forge.MergeMethod) (any, error) {
+func (f *fakeForgeMerge) resolveMethod(context.Context, forge.MergeMethod) (forge.MergeMethod, error) {
 	f.methodCalls++
 
 	return forge.MergeMethodSquash, nil
 }
 
-func (f *fakeForgeMerge) execute(context.Context, mergeState, any) (string, bool, error) {
+func (f *fakeForgeMerge) execute(context.Context, mergeState, forge.MergeMethod) (string, bool, error) {
 	f.executeCalls++
 
 	return f.executeSHA, !f.executeEnded, nil
@@ -47,9 +47,9 @@ func mergeableState() mergeState {
 	}
 }
 
-func newTestMergeDriver(forge forgeMerge) mergeDriver {
-	return mergeDriver{
-		forge:   forge,
+func newTestMergeDriver(adapter forgeMerge[forge.MergeMethod]) mergeDriver[forge.MergeMethod] {
+	return mergeDriver[forge.MergeMethod]{
+		forge:   adapter,
 		polling: newMergePolling(WithMergePolling(time.Millisecond, time.Millisecond, time.Second)),
 	}
 }

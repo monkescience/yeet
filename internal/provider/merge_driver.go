@@ -44,19 +44,19 @@ type mergeRefusal struct {
 // execute reports pending when the forge accepted the merge but has not applied
 // it, which is what sends the driver into the polling loop. A forge whose API
 // reveals a refusal immediately returns an error instead.
-type forgeMerge interface {
+type forgeMerge[M any] interface {
 	state(ctx context.Context) (mergeState, error)
-	resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error)
-	execute(ctx context.Context, current mergeState, method any) (string, bool, error)
+	resolveMethod(ctx context.Context, requested forge.MergeMethod) (M, error)
+	execute(ctx context.Context, current mergeState, method M) (string, bool, error)
 }
 
-type mergeDriver struct {
-	forge         forgeMerge
+type mergeDriver[M any] struct {
+	forge         forgeMerge[M]
 	polling       mergePolling
 	releaseBranch string
 }
 
-func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) (string, error) {
+func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROptions) (string, error) {
 	current, err := d.forge.state(ctx)
 	if err != nil {
 		return "", err
@@ -97,7 +97,7 @@ func (d mergeDriver) run(ctx context.Context, opts forge.MergeReleasePROptions) 
 	return d.awaitMergeCommit(ctx, current.Reference)
 }
 
-func (d mergeDriver) awaitMergeCommit(ctx context.Context, reference string) (string, error) {
+func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) (string, error) {
 	return d.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
 		current, err := d.forge.state(pollCtx)
 		if err != nil {
@@ -141,8 +141,4 @@ func checkMergeReadiness(current mergeState, bypassMergeChecks bool) error {
 
 func blockedMerge(reference string, reason forge.MergeBlockedReason, detail string) error {
 	return &forge.MergeBlockedError{Reference: reference, Reason: reason, Detail: detail}
-}
-
-func unsupportedResolvedMethod(method any) error {
-	return fmt.Errorf("%w: %T", forge.ErrMergeMethodUnsupported, method)
 }

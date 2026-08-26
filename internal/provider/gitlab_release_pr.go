@@ -21,7 +21,7 @@ const gitlabMergeRequestClosedState = "closed"
 
 const gitLabLabelColorPrefix = "#"
 
-var _ forgeMerge = (*gitLabMerge)(nil)
+var _ forgeMerge[*gitlab.AcceptMergeRequestOptions] = (*gitLabMerge)(nil)
 
 var errGitLabReleasePRLabelsInvalid = errors.New("invalid GitLab release PR labels")
 
@@ -498,7 +498,7 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
-	driver := mergeDriver{
+	driver := mergeDriver[*gitlab.AcceptMergeRequestOptions]{
 		forge: &gitLabMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
 	}
 
@@ -529,7 +529,10 @@ func (m *gitLabMerge) state(ctx context.Context) (mergeState, error) {
 	return gitLabMergeState(reference, mergeRequest), nil
 }
 
-func (m *gitLabMerge) resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error) {
+func (m *gitLabMerge) resolveMethod(
+	ctx context.Context,
+	requested forge.MergeMethod,
+) (*gitlab.AcceptMergeRequestOptions, error) {
 	project, err := m.provider.projectMergeSettings(ctx)
 	if err != nil {
 		return nil, err
@@ -543,12 +546,11 @@ func (m *gitLabMerge) resolveMethod(ctx context.Context, requested forge.MergeMe
 	return options, nil
 }
 
-func (m *gitLabMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
-	acceptOptions, ok := method.(*gitlab.AcceptMergeRequestOptions)
-	if !ok {
-		return "", false, unsupportedResolvedMethod(method)
-	}
-
+func (m *gitLabMerge) execute(
+	ctx context.Context,
+	current mergeState,
+	acceptOptions *gitlab.AcceptMergeRequestOptions,
+) (string, bool, error) {
 	if current.HeadSHA != "" {
 		acceptOptions.SHA = new(current.HeadSHA)
 	}

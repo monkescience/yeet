@@ -12,7 +12,7 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-var _ forgeMerge = (*gitHubMerge)(nil)
+var _ forgeMerge[forge.MergeMethod] = (*gitHubMerge)(nil)
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
 	err := g.labelDefinitions().validateExtras(ctx, opts.Labels.Extra)
@@ -383,7 +383,7 @@ func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 
-	driver := mergeDriver{
+	driver := mergeDriver[forge.MergeMethod]{
 		forge: &gitHubMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
 	}
 
@@ -409,22 +409,12 @@ func (m *gitHubMerge) state(ctx context.Context) (mergeState, error) {
 	return gitHubMergeState(m.provider.repo, m.number, pullRequest), nil
 }
 
-func (m *gitHubMerge) resolveMethod(ctx context.Context, requested forge.MergeMethod) (any, error) {
-	method, err := m.provider.resolveGitHubMergeMethod(ctx, requested)
-	if err != nil {
-		return nil, err
-	}
-
-	return method, nil
+func (m *gitHubMerge) resolveMethod(ctx context.Context, requested forge.MergeMethod) (forge.MergeMethod, error) {
+	return m.provider.resolveGitHubMergeMethod(ctx, requested)
 }
 
-func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
-	mergeMethod, ok := method.(forge.MergeMethod)
-	if !ok {
-		return "", false, unsupportedResolvedMethod(method)
-	}
-
-	mergeOptions := &github.PullRequestOptions{MergeMethod: string(mergeMethod)}
+func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method forge.MergeMethod) (string, bool, error) {
+	mergeOptions := &github.PullRequestOptions{MergeMethod: string(method)}
 	if current.HeadSHA != "" {
 		mergeOptions.SHA = current.HeadSHA
 	}
@@ -452,7 +442,7 @@ func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method an
 
 	slog.DebugContext(ctx, "github: merged pull request",
 		slog.Int("pr_number", m.number),
-		slog.String("method", string(mergeMethod)),
+		slog.String("method", string(method)),
 		slog.String("merge_sha", result.GetSHA()),
 	)
 

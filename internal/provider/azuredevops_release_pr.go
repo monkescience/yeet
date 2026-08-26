@@ -22,7 +22,7 @@ const azureDevOpsPRPageSize = 100
 // Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/update
 const azureDevOpsMaxPRBodyLength = 4000
 
-var _ forgeMerge = (*azureDevOpsMerge)(nil)
+var _ forgeMerge[git.GitPullRequestMergeStrategy] = (*azureDevOpsMerge)(nil)
 
 var errAzureDevOpsLabelIDMissing = errors.New("azure devops label id missing")
 
@@ -392,7 +392,7 @@ func (a *AzureDevOps) MergeReleasePR(
 ) (string, error) {
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
-	driver := mergeDriver{
+	driver := mergeDriver[git.GitPullRequestMergeStrategy]{
 		forge: &azureDevOpsMerge{provider: a, number: number}, polling: a.polling, releaseBranch: a.releaseBranch,
 	}
 
@@ -413,21 +413,18 @@ func (m *azureDevOpsMerge) state(ctx context.Context) (mergeState, error) {
 	return m.provider.azureDevOpsMergeState(m.number, pullRequest), nil
 }
 
-func (m *azureDevOpsMerge) resolveMethod(_ context.Context, requested forge.MergeMethod) (any, error) {
-	strategy, err := azureDevOpsMergeStrategy(requested)
-	if err != nil {
-		return nil, err
-	}
-
-	return strategy, nil
+func (m *azureDevOpsMerge) resolveMethod(
+	_ context.Context,
+	requested forge.MergeMethod,
+) (git.GitPullRequestMergeStrategy, error) {
+	return azureDevOpsMergeStrategy(requested)
 }
 
-func (m *azureDevOpsMerge) execute(ctx context.Context, current mergeState, method any) (string, bool, error) {
-	strategy, ok := method.(git.GitPullRequestMergeStrategy)
-	if !ok {
-		return "", false, unsupportedResolvedMethod(method)
-	}
-
+func (m *azureDevOpsMerge) execute(
+	ctx context.Context,
+	current mergeState,
+	strategy git.GitPullRequestMergeStrategy,
+) (string, bool, error) {
 	gitClient, err := m.provider.client(ctx)
 	if err != nil {
 		return "", false, err
