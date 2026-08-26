@@ -26,10 +26,11 @@ func newGitLabContractProvider(
 ) forge.Provider {
 	t.Helper()
 
+	httpClient := server.Client()
 	client, err := gitlabapi.NewClient(
 		"",
 		gitlabapi.WithBaseURL(server.URL),
-		gitlabapi.WithHTTPClient(server.Client()),
+		gitlabapi.WithHTTPClient(httpClient),
 		gitlabapi.WithoutRetries(),
 	)
 	testastic.NoError(t, err)
@@ -252,7 +253,7 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 	// first one on the created MR (Free-tier truncation behavior)
 	pendingMarked := false
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
 			writeGitLabMemberFixture(t, w, r.URL.Query().Get("query"))
@@ -268,7 +269,6 @@ func TestGitLabFailsWhenReviewerIsDropped(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 
@@ -299,7 +299,7 @@ func TestGitLabFindsReviewerOnLaterMemberPage(t *testing.T) {
 
 	// given: a GitLab server whose member list spans two pages, with the
 	// requested reviewer only on the second
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/members/all":
 			testastic.Equal(t, providerContractReviewerAlice, r.URL.Query().Get("query"))
@@ -330,7 +330,6 @@ func TestGitLabFindsReviewerOnLaterMemberPage(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 
@@ -470,7 +469,7 @@ func TestGitLabCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T)
 	// given: a GitLab label registry containing every managed label
 	lookups := make(map[string]int)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
 			name := decodedPathTail(t, r)
@@ -482,7 +481,6 @@ func TestGitLabCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T)
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 	labels := providerContractManagedLabels()
@@ -582,7 +580,7 @@ func TestGitLabCreateReleaseRejectsConflictingCommit(t *testing.T) {
 	t.Parallel()
 
 	// given: GitLab creates a release for a pre-existing tag at another commit
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isGitLabCreateReleaseRequest(r) {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -594,7 +592,6 @@ func TestGitLabCreateReleaseRejectsConflictingCommit(t *testing.T) {
 			"commit":   map[string]any{"id": providerContractTagCommitSHA},
 		})
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 
@@ -783,10 +780,9 @@ func TestGitLabCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			t.Parallel()
 
 			// given: a GitLab provider whose server fails any request it receives
-			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}))
-			defer server.Close()
 
 			p := newGitLabContractProvider(t, server)
 
@@ -811,7 +807,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: GitLab returns a fast-forward merged MR without merge or squash commit SHAs
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -821,7 +817,6 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 			assertJSONRequest(t, r, "contracts/gitlab/find_merged_pr_fast_forward/request.json")
 			writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_fast_forward/prs.json")
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -841,7 +836,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		// first still withholds one and re-reading the second fails
 		var rereads []string
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.EscapedPath() {
 			case "/api/v4/projects/o%2Fr/merge_requests":
 				writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_undated/prs.json")
@@ -857,7 +852,6 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -874,7 +868,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 
 		// given: two merged release MRs where the most recently updated one was
 		// merged earlier than the other
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -884,7 +878,6 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 			assertJSONRequest(t, r, "contracts/gitlab/find_merged_pr_most_recent/request.json")
 			writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr_most_recent/prs.json")
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -932,7 +925,7 @@ func TestGitLabEnsureLabel(t *testing.T) {
 			// given: a GitLab API where the labels do not exist
 			var created []string
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.Method == http.MethodGet && strings.Contains(r.URL.EscapedPath(), "/labels/"):
 					w.WriteHeader(http.StatusNotFound)
@@ -952,7 +945,6 @@ func TestGitLabEnsureLabel(t *testing.T) {
 					fatalUnexpectedProviderRequest(t, "GitLab", r)
 				}
 			}))
-			defer server.Close()
 
 			p := newGitLabContractProvider(t, server)
 			labels := defaultReleasePRLabels()
@@ -975,7 +967,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab project that allows squashing but does not force it
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_squash/pr.json")
@@ -988,7 +980,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1005,7 +996,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab project that forbids squashing
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_auto_no_squash/pr.json")
@@ -1018,7 +1009,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1035,7 +1025,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab project using fast-forward merges without squashing
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_fast_forward/pr.json")
@@ -1047,7 +1037,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1067,7 +1056,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		// given: GitLab accepts the MR asynchronously and reports it merged shortly after
 		var accepted atomic.Bool
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				if accepted.Load() {
@@ -1086,7 +1075,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(
 			t,
@@ -1108,7 +1096,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		t.Parallel()
 
 		// given: GitLab accepts the MR but never reports it merged
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_never_finalizes/pr.json")
@@ -1120,7 +1108,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(
 			t,
@@ -1141,7 +1128,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab project with squash disabled
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/1":
 				writeJSONFixture(t, w, "contracts/gitlab/merge_methods_squash_forbidden/pr.json")
@@ -1151,7 +1138,6 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1173,7 +1159,7 @@ func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
 	// given: a GitLab project whose only release MR was left unlabelled
 	var listings atomic.Int32
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -1185,7 +1171,6 @@ func TestGitLabFindsUnlabelledOpenReleaseMRInOneListing(t *testing.T) {
 		assertJSONRequest(t, r, "contracts/gitlab/find_open_prs_unlabelled_single_listing/request.json")
 		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs_unlabelled_single_listing/prs.json")
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 
@@ -1205,7 +1190,7 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 
 	// given: an open release MR labelled in a different case than the configured
 	// pending label, which GitLab treats as a distinct label
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests" {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -1215,7 +1200,6 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 		assertJSONRequest(t, r, "contracts/gitlab/find_open_prs_case_sensitive/request.json")
 		writeJSONFixture(t, w, "contracts/gitlab/find_open_prs_case_sensitive/prs.json")
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 
@@ -1242,11 +1226,10 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 		// given: sequential lifecycle labels in one GitLab exclusive scope
 		var calls atomic.Int32
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			calls.Add(1)
 			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1267,11 +1250,10 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 		// given: a permanent extra label sharing the pending lifecycle scope
 		var calls atomic.Int32
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			calls.Add(1)
 			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 		labels := forge.ReleasePRLabels{
@@ -1298,11 +1280,10 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 				// given: a GitLab server and a reserved pending label name
 				var calls atomic.Int32
 
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					calls.Add(1)
 					writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
 				}))
-				defer server.Close()
 
 				p := newGitLabContractProvider(t, server)
 
@@ -1338,7 +1319,7 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 			RemoveLabels string `json:"remove_labels"`
 		}
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/api/v4/projects/o%2Fr/labels/"):
 				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
@@ -1349,7 +1330,6 @@ func TestGitLabReleasePRStateTransitions(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1382,7 +1362,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 			// given: a GitLab server reporting a transient merge status while recomputing readiness
 			merged := false
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
 					writeJSONFixture(t, w, "contracts/gitlab/merge_transient_status/pr_"+status+".json")
@@ -1396,7 +1376,6 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 					fatalUnexpectedProviderRequest(t, "GitLab", r)
 				}
 			}))
-			defer server.Close()
 
 			p := newGitLabContractProvider(t, server)
 
@@ -1413,7 +1392,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab server reporting MR 8 as opened with a not_approved merge status
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/merge_requests/8" {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -1422,7 +1401,6 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 			writeJSONFixture(t, w, "contracts/gitlab/merge_blocked_not_approved/pr.json")
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1439,7 +1417,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab server reporting MR 8 as blocked with squash always enabled at the project level
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
 				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/pr.json")
@@ -1452,7 +1430,6 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitLabContractProvider(t, server)
 
@@ -1508,7 +1485,7 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 
 	polls := new(atomic.Int32)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
 			if accepted.Load() {
@@ -1525,7 +1502,6 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(
 		t,
@@ -1546,7 +1522,7 @@ func TestGitLabUpdateFiles(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitLab server accepting one commit that carries every file action
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.EscapedPath() != "/api/v4/projects/o%2Fr/repository/commits" {
 			fatalUnexpectedProviderRequest(t, "GitLab", r)
 
@@ -1556,7 +1532,6 @@ func TestGitLabUpdateFiles(t *testing.T) {
 		assertJSONRequest(t, r, "contracts/gitlab/update_files_commit/request.json")
 		writeJSONFixture(t, w, "contracts/gitlab/update_files_commit/commit.json")
 	}))
-	defer server.Close()
 
 	p := newGitLabContractProvider(t, server)
 

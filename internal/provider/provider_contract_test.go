@@ -52,6 +52,7 @@ func (r providerContractLabelRegistry) status(name string) (int, bool) {
 
 type providerContractHarness struct {
 	name                      string
+	inMemoryServer            bool
 	newProvider               providerContractProviderFactory
 	handler                   func(t *testing.T, scenario providerContractScenario) http.Handler
 	labelHandler              providerContractLabelHandlerFactory
@@ -61,6 +62,19 @@ type providerContractHarness struct {
 	expectedReviewerError     string
 	expectedPathPrefix        string
 	rejectsUnknownExtraLabels bool
+}
+
+func (h providerContractHarness) newServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+
+	if h.inMemoryServer {
+		return httptest.NewTestServer(t, handler)
+	}
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 type providerContractLabelStore struct {
@@ -265,8 +279,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server for the current harness
-				server := httptest.NewServer(harness.handler(t, providerContractListTags))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractListTags))
 
 				p := harness.newProvider(t, server)
 
@@ -280,8 +293,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning tags with their peeled commit targets
-				server := httptest.NewServer(harness.handler(t, providerContractListTags))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractListTags))
 
 				p := harness.newProvider(t, server)
 
@@ -298,8 +310,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server serving the tag list across two pages
-				server := httptest.NewServer(harness.handler(t, providerContractListTagsPaged))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractListTagsPaged))
 
 				p := harness.newProvider(t, server)
 
@@ -315,8 +326,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server exposing the base branch head
-				server := httptest.NewServer(harness.handler(t, providerContractBranchHead))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractBranchHead))
 
 				p := harness.newProvider(t, server)
 
@@ -332,8 +342,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server without the requested branch
-				server := httptest.NewServer(harness.handler(t, providerContractBranchHeadMissing))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractBranchHeadMissing))
 
 				p := harness.newProvider(t, server)
 
@@ -349,8 +358,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a release for the contract tag
-				server := httptest.NewServer(harness.handler(t, providerContractGetReleaseByTag))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractGetReleaseByTag))
 
 				p := harness.newProvider(t, server)
 
@@ -369,8 +377,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server accepting a new release pull request for the release branch
-				server := httptest.NewServer(harness.handler(t, providerContractCreateReleasePR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractCreateReleasePR))
 
 				p := harness.newProvider(t, server)
 
@@ -395,8 +402,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server accepting a new release pull request and reviewer assignment
-				server := httptest.NewServer(harness.handler(t, providerContractCreateReleasePRReviewers))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractCreateReleasePRReviewers))
 
 				p := harness.newProvider(t, server)
 
@@ -418,8 +424,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that cannot resolve or assign the requested reviewer
-				server := httptest.NewServer(harness.handler(t, providerContractUnknownReviewer))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractUnknownReviewer))
 
 				p := harness.newProvider(t, server)
 
@@ -442,8 +447,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server accepting updates to an existing release pull request
-				server := httptest.NewServer(harness.handler(t, providerContractUpdateReleasePR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractUpdateReleasePR))
 
 				p := harness.newProvider(t, server)
 
@@ -462,8 +466,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a single open pending release PR targeting the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractFindOpenPRs))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractFindOpenPRs))
 
 				p := harness.newProvider(t, server)
 
@@ -485,8 +488,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a trusted release PR carrying a stale lifecycle label
-				server := httptest.NewServer(harness.handler(t, providerContractFindOpenPRsUnlabeled))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractFindOpenPRsUnlabeled))
 
 				p := harness.newProvider(t, server)
 
@@ -507,8 +509,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a trusted release PR left unlabelled by an interrupted run
-				server := httptest.NewServer(harness.handler(t, providerContractFindOpenPRsAdoptable))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractFindOpenPRsAdoptable))
 
 				p := harness.newProvider(t, server)
 
@@ -530,8 +531,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a recently merged release PR for the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractFindMergedPR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractFindMergedPR))
 
 				p := harness.newProvider(t, server)
 
@@ -556,8 +556,7 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server tracking the labels on PR 42
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(t, store, providerContractLabelRegistry{}))
-				defer server.Close()
+				server := harness.newServer(t, harness.labelHandler(t, store, providerContractLabelRegistry{}))
 
 				p := harness.newProvider(t, server)
 
@@ -592,8 +591,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server reporting PR 42 as ready to merge
-				server := httptest.NewServer(harness.handler(t, providerContractMergeReleasePR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractMergeReleasePR))
 
 				p := harness.newProvider(t, server)
 
@@ -611,8 +609,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider accepting the merge before the commit is applied
-				server := httptest.NewServer(harness.handler(t, providerContractAsyncMergeReleasePR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractAsyncMergeReleasePR))
 
 				p := harness.newProvider(
 					t,
@@ -634,8 +631,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server accepting a new prerelease at the head commit
-				server := httptest.NewServer(harness.handler(t, providerContractCreateRelease))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractCreateRelease))
 
 				p := harness.newProvider(t, server)
 
@@ -660,8 +656,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a CHANGELOG.md file on the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractGetFile))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractGetFile))
 
 				p := harness.newProvider(t, server)
 
@@ -677,8 +672,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server accepting file updates on the release branch
-				server := httptest.NewServer(harness.handler(t, providerContractUpdateFiles))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractUpdateFiles))
 
 				p := harness.newProvider(t, server)
 
@@ -702,8 +696,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that reports MISSING.md as not found on the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractMissingFile))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractMissingFile))
 
 				p := harness.newProvider(t, server)
 
@@ -719,8 +712,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that reports no release for the contract tag
-				server := httptest.NewServer(harness.handler(t, providerContractMissingRelease))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractMissingRelease))
 
 				p := harness.newProvider(t, server)
 
@@ -736,8 +728,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that reports no merged release PR on the base branch
-				server := httptest.NewServer(harness.handler(t, providerContractMissingPR))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractMissingPR))
 
 				p := harness.newProvider(t, server)
 
@@ -757,8 +748,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server reporting PR 42 as not ready to merge
-				server := httptest.NewServer(harness.handler(t, providerContractBlockedMerge))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractBlockedMerge))
 
 				p := harness.newProvider(t, server)
 
@@ -774,8 +764,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server prepared for a merge attempt with an unsupported method
-				server := httptest.NewServer(harness.handler(t, providerContractUnsupportedMerge))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractUnsupportedMerge))
 
 				p := harness.newProvider(t, server)
 
@@ -795,12 +784,11 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server that does not define the configured extra label
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(
+				server := harness.newServer(t, harness.labelHandler(
 					t,
 					store,
 					providerContractLabelRegistry{undefined: []string{providerContractMissingExtraLabelName}},
 				))
-				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
@@ -841,12 +829,11 @@ func TestProviderContract(t *testing.T) {
 					providerContractMissingExtraLabelName,
 				)
 
-				server := httptest.NewServer(harness.labelHandler(
+				server := harness.newServer(t, harness.labelHandler(
 					t,
 					store,
 					providerContractLabelRegistry{undefined: []string{providerContractMissingExtraLabelName}},
 				))
-				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
@@ -873,8 +860,7 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server where the tagged label exists
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(t, store, providerContractLabelRegistry{}))
-				defer server.Close()
+				server := harness.newServer(t, harness.labelHandler(t, store, providerContractLabelRegistry{}))
 
 				p := harness.newProvider(t, server)
 
@@ -895,12 +881,11 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server where the tagged label is undefined
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(
+				server := harness.newServer(t, harness.labelHandler(
 					t,
 					store,
 					providerContractLabelRegistry{undefined: []string{providerContractTaggedLabel}},
 				))
-				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
@@ -935,12 +920,11 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server where the tagged label lookup fails
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(
+				server := harness.newServer(t, harness.labelHandler(
 					t,
 					store,
 					providerContractLabelRegistry{unreachable: []string{providerContractTaggedLabel}},
 				))
-				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
@@ -968,12 +952,11 @@ func TestProviderContract(t *testing.T) {
 				// given: a provider server that fails the extra label lookup
 				store := newProviderContractLabelStore()
 
-				server := httptest.NewServer(harness.labelHandler(
+				server := harness.newServer(t, harness.labelHandler(
 					t,
 					store,
 					providerContractLabelRegistry{unreachable: []string{providerContractUnreachableLabelName}},
 				))
-				defer server.Close()
 
 				p := harness.newProvider(t, server)
 
@@ -1000,8 +983,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server that always announces another page of tags
-				server := httptest.NewServer(harness.handler(t, providerContractTagPaginationLimit))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractTagPaginationLimit))
 
 				p := harness.newProvider(t, server)
 
@@ -1017,8 +999,7 @@ func TestProviderContract(t *testing.T) {
 				t.Parallel()
 
 				// given: a provider server returning a PR on the release branch from another repository
-				server := httptest.NewServer(harness.handler(t, providerContractForcedMergeUntrusted))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractForcedMergeUntrusted))
 
 				p := harness.newProvider(t, server)
 
@@ -1038,8 +1019,7 @@ func TestProviderContract(t *testing.T) {
 
 				// given: a provider server reporting PR 42 as conflicted, whose handler
 				// fails the test if a merge is attempted
-				server := httptest.NewServer(harness.handler(t, providerContractForcedMergeConflicted))
-				defer server.Close()
+				server := harness.newServer(t, harness.handler(t, providerContractForcedMergeConflicted))
 
 				p := harness.newProvider(t, server)
 
@@ -1061,6 +1041,7 @@ func providerContractHarnesses() []providerContractHarness {
 	return []providerContractHarness{
 		{
 			name:                      "github",
+			inMemoryServer:            true,
 			newProvider:               newGitHubContractProvider,
 			handler:                   newGitHubContractHandler,
 			labelHandler:              newGitHubContractLabelHandler,
@@ -1073,6 +1054,7 @@ func providerContractHarnesses() []providerContractHarness {
 		},
 		{
 			name:                      "gitlab",
+			inMemoryServer:            true,
 			newProvider:               newGitLabContractProvider,
 			handler:                   newGitLabContractHandler,
 			labelHandler:              newGitLabContractLabelHandler,

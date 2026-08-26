@@ -289,10 +289,11 @@ func TestDetectType(t *testing.T) {
 func newGitHubTestClient(t *testing.T, server *httptest.Server) *githubapi.Client {
 	t.Helper()
 
+	httpClient := server.Client()
 	baseURL := server.URL + "/"
 
 	client, err := githubapi.NewClient(
-		githubapi.WithHTTPClient(server.Client()),
+		githubapi.WithHTTPClient(httpClient),
 		githubapi.WithURLs(&baseURL, &baseURL),
 	)
 	testastic.NoError(t, err)

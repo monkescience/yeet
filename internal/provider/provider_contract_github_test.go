@@ -252,7 +252,7 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 
 	// given: a GitHub server where pre-validation passes but the reviewer
 	// request itself is rejected after the PR exists
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/collaborators/"+providerContractReviewerAlice:
 			w.WriteHeader(http.StatusNoContent)
@@ -265,7 +265,6 @@ func TestGitHubFailsWhenReviewerRequestIsRejectedAfterCreate(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -293,7 +292,7 @@ func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
 
 	// given: an open release PR labelled in a different case than the configured
 	// pending label
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/repos/o/r/pulls" {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 
@@ -303,7 +302,6 @@ func TestGitHubMatchesThePendingLabelCaseInsensitively(t *testing.T) {
 		assertJSONRequest(t, r, "contracts/github/find_open_prs_case_insensitive/request.json")
 		writeJSONFixture(t, w, "contracts/github/find_open_prs_case_insensitive/prs.json")
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -395,7 +393,7 @@ func TestGitHubFindMergedReleasePRUsesOneListAndOneDetailRequest(t *testing.T) {
 		detailRequests atomic.Int32
 	)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
 			listRequests.Add(1)
@@ -407,7 +405,6 @@ func TestGitHubFindMergedReleasePRUsesOneListAndOneDetailRequest(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -432,7 +429,7 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 		t.Parallel()
 
 		// given: an undated candidate the re-read reports unmerged, competing with a dated one
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
 				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs.json")
@@ -444,7 +441,6 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -464,7 +460,7 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 		t.Parallel()
 
 		// given: a re-read of the undated candidate that fails
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
 				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs.json")
@@ -474,7 +470,6 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -496,7 +491,7 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 		// stays undated and the second would fail
 		var rereads []string
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls":
 				writeJSONFixture(t, w, "contracts/github/find_merged_pr_undated_candidate/prs_with_later_failure.json")
@@ -512,7 +507,6 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -572,7 +566,7 @@ func TestGitHubCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T)
 	// given: a GitHub label registry containing every managed label
 	lookups := make(map[string]int)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
 			name := decodedPathTail(t, r)
@@ -586,7 +580,6 @@ func TestGitHubCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T)
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 	labels := providerContractManagedLabels()
@@ -732,7 +725,7 @@ func TestGitHubConcurrentTagCreationValidatesCommit(t *testing.T) {
 				releaseCreates atomic.Int32
 			)
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 					w.WriteHeader(http.StatusNotFound)
@@ -754,7 +747,6 @@ func TestGitHubConcurrentTagCreationValidatesCommit(t *testing.T) {
 					fatalUnexpectedProviderRequest(t, "GitHub", r)
 				}
 			}))
-			defer server.Close()
 
 			p := newGitHubContractProvider(t, server)
 
@@ -936,7 +928,7 @@ func TestGitHubCreateRelease(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub repository that does not carry the release tag yet
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 			w.WriteHeader(http.StatusNotFound)
@@ -956,7 +948,6 @@ func TestGitHubCreateRelease(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -981,7 +972,7 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub repository where the target tag already exists
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/tags/"+providerContractTag:
 			writeJSONFixture(t, w, "contracts/github/create_release_existing_tag/tag_ref.json")
@@ -993,7 +984,6 @@ func TestGitHubCreateReleaseReusesExistingTag(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -1027,10 +1017,9 @@ func TestGitHubCreateReleaseRejectsRefsThatAreNotCommitSHAs(t *testing.T) {
 			t.Parallel()
 
 			// given: a GitHub provider whose server fails any request it receives
-			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}))
-			defer server.Close()
 
 			p := newGitHubContractProvider(t, server)
 
@@ -1082,7 +1071,7 @@ func TestGitHubEnsureLabel(t *testing.T) {
 			// given: a GitHub API where the labels do not exist
 			var created []string
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/labels/"):
 					w.WriteHeader(http.StatusNotFound)
@@ -1104,7 +1093,6 @@ func TestGitHubEnsureLabel(t *testing.T) {
 					fatalUnexpectedProviderRequest(t, "GitHub", r)
 				}
 			}))
-			defer server.Close()
 
 			p := newGitHubContractProvider(t, server)
 			labels := defaultReleasePRLabels()
@@ -1145,8 +1133,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that allows squash merge
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_squash.json", "squash_merge_request.json"))
-		defer server.Close()
+		server := httptest.NewTestServer(t, newGitHubMergeMethodHandler(t, "repo_squash.json", "squash_merge_request.json"))
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1164,8 +1151,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that only allows merge commits
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_merge_commit.json", ""))
-		defer server.Close()
+		server := httptest.NewTestServer(t, newGitHubMergeMethodHandler(t, "repo_merge_commit.json", ""))
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1184,8 +1170,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository that allows only rebase
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_rebase.json", "rebase_merge_request.json"))
-		defer server.Close()
+		server := httptest.NewTestServer(t, newGitHubMergeMethodHandler(t, "repo_rebase.json", "rebase_merge_request.json"))
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1203,8 +1188,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository with all merge methods disabled
-		server := httptest.NewServer(newGitHubMergeMethodHandler(t, "repo_none.json", ""))
-		defer server.Close()
+		server := httptest.NewTestServer(t, newGitHubMergeMethodHandler(t, "repo_none.json", ""))
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1231,7 +1215,7 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 
 		removedLabel := ""
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
 				writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
@@ -1247,7 +1231,6 @@ func TestGitHubReleasePRStateTransitions(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1276,7 +1259,7 @@ func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
 	// given: a GitHub server that rejects the label addition on PR 42
 	var removals atomic.Int32
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.EscapedPath(), "/repos/o/r/labels/"):
 			writeJSON(t, w, map[string]any{"name": decodedPathTail(t, r)})
@@ -1290,7 +1273,6 @@ func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -1310,7 +1292,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub server reporting PR 42 as open with a blocked mergeable state
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/pulls/42" {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 
@@ -1319,7 +1301,6 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 			writeJSONFixture(t, w, "contracts/github/blocked_merge/pr.json")
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1336,7 +1317,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub server reporting PR 42 as blocked with squash merging allowed on the repo
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
 				writeJSONFixture(t, w, "contracts/github/forced_merge/pr.json")
@@ -1349,7 +1330,6 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
 		}))
-		defer server.Close()
 
 		p := newGitHubContractProvider(t, server)
 
@@ -1368,7 +1348,7 @@ func TestGitHubUpdateFiles(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub server exposing the base branch git data and accepting new objects
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractBaseBranch:
 			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
@@ -1393,7 +1373,6 @@ func TestGitHubUpdateFiles(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
@@ -1417,7 +1396,7 @@ func TestGitHubUpdateFilesRejectsMissingExistingFile(t *testing.T) {
 	t.Parallel()
 
 	// given: a GitHub base tree that does not contain a file marked as existing
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractBaseBranch:
 			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
@@ -1433,7 +1412,6 @@ func TestGitHubUpdateFilesRejectsMissingExistingFile(t *testing.T) {
 			fatalUnexpectedProviderRequest(t, "GitHub", r)
 		}
 	}))
-	defer server.Close()
 
 	p := newGitHubContractProvider(t, server)
 
