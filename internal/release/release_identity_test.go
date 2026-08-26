@@ -2,6 +2,7 @@
 package release
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -127,6 +128,22 @@ func TestReleaseManifestFromBody(t *testing.T) {
 		if len(manifest.Targets) > 0 {
 			testastic.Equal(t, "v1.2.3", manifest.Targets[0].Tag)
 		}
+	})
+
+	t.Run("rejects duplicate manifest members", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a manifest marker with two base branch members
+		body := "<!-- yeet-release-manifest\n" +
+			`{"base_branch":"main","base_branch":"release","targets":` +
+			`[{"id":"default","type":"path","tag":"v1.2.3","changelog_file":"CHANGELOG.md"}]}` +
+			"\n-->"
+
+		// when: parsing the manifest marker from the pull request body
+		_, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: body})
+
+		// then: the ambiguous manifest is rejected before it can be trusted
+		testastic.ErrorIs(t, err, jsontext.ErrDuplicateName)
 	})
 
 	t.Run("rejects a body carrying more than one manifest marker", func(t *testing.T) {

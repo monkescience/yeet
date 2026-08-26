@@ -2,7 +2,7 @@ package telemetry //nolint:testpackage // Tests exercise private event and deliv
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"

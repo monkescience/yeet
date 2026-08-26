@@ -2,7 +2,7 @@ package fakeprovider
 
 import (
 	_ "embed"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -344,7 +344,7 @@ func azurePullRequestQueryHandler(opts AzureOptions) http.HandlerFunc {
 			} `json:"queries"`
 		}
 
-		_ = json.NewDecoder(r.Body).Decode(&request)
+		_ = json.UnmarshalRead(r.Body, &request)
 
 		matches := map[string][]map[string]any{}
 
@@ -399,7 +399,7 @@ func azureUpdatePullRequestHandler(opts AzureOptions, merged *atomic.Bool) http.
 			Status string `json:"status"`
 		}
 
-		_ = json.NewDecoder(r.Body).Decode(&request)
+		_ = json.UnmarshalRead(r.Body, &request)
 		if request.Status == azureStatusCompleted {
 			merged.Store(true)
 			writeJSON(w, azureMergedPendingPR(opts))

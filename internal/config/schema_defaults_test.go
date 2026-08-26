@@ -1,7 +1,7 @@
 package config //nolint:testpackage // exercises the embedded schema alongside Default
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"strings"
@@ -123,12 +123,12 @@ func validateSchemaDefaultParity(schemaDocument, defaultDocument map[string]any)
 			return fmt.Errorf("%s has schema default but no Go default", path)
 		}
 
-		expectedJSON, err := json.Marshal(expected)
+		expectedJSON, err := json.Marshal(expected, json.Deterministic(true))
 		if err != nil {
 			return fmt.Errorf("encode schema default at %s: %w", path, err)
 		}
 
-		actualJSON, err := json.Marshal(actual)
+		actualJSON, err := json.Marshal(actual, json.Deterministic(true))
 		if err != nil {
 			return fmt.Errorf("encode Go default at %s: %w", path, err)
 		}

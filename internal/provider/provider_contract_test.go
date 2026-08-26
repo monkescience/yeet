@@ -2,7 +2,8 @@ package provider_test
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -1084,7 +1085,7 @@ func providerContractHarnesses() []providerContractHarness {
 func decodeJSONRequest(t *testing.T, r *http.Request, value any) {
 	t.Helper()
 
-	err := json.NewDecoder(r.Body).Decode(value)
+	err := json.UnmarshalRead(r.Body, value)
 	testastic.NoError(t, err)
 }
 
@@ -1106,7 +1107,7 @@ type contractRequest struct {
 	Method string              `json:"method"`
 	Path   string              `json:"path"`
 	Query  map[string][]string `json:"query,omitempty"`
-	Body   json.RawMessage     `json:"body,omitempty"`
+	Body   jsontext.Value      `json:"body,omitempty"`
 }
 
 func TestAssertJSONRequestPreservesQueryValueCardinality(t *testing.T) {
@@ -1141,7 +1142,7 @@ func assertJSONRequest(t *testing.T, r *http.Request, name string) {
 	testastic.NoError(t, err)
 
 	if len(body) > 0 {
-		recorded.Body = json.RawMessage(body)
+		recorded.Body = jsontext.Value(body)
 	}
 
 	testastic.AssertJSON(t, filepath.Join("testdata", name), recorded)

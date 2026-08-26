@@ -2,7 +2,8 @@ package versionfile
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,12 +27,11 @@ func ApplyJSONPointer(content, nextVersion, pointer string) (string, bool, error
 	}
 
 	data := []byte(content)
-	if !json.Valid(data) {
+	if !jsontext.Value(data).IsValid() {
 		return content, false, ErrInvalidJSON
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
+	decoder := jsontext.NewDecoder(bytes.NewReader(data))
 
 	span, err := locateJSONPointerString(decoder, data, path)
 	if err != nil {
@@ -100,15 +100,14 @@ func unescapeJSONPointerPart(part string) (string, error) {
 	return builder.String(), nil
 }
 
-func locateJSONPointerString(decoder *json.Decoder, data []byte, path []string) (byteSpan, error) {
-	token, err := decoder.Token()
+func locateJSONPointerString(decoder *jsontext.Decoder, data []byte, path []string) (byteSpan, error) {
+	token, err := decoder.ReadToken()
 	if err != nil {
 		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
 
 	if len(path) == 0 {
-		_, ok := token.(string)
-		if !ok {
+		if token.Kind() != jsontext.KindString {
 			return byteSpan{}, ErrJSONPointerNonString
 		}
 
@@ -124,33 +123,29 @@ func locateJSONPointerString(decoder *json.Decoder, data []byte, path []string) 
 		return byteSpan{start: start, end: end}, nil
 	}
 
-	delim, ok := token.(json.Delim)
-	if !ok {
-		return byteSpan{}, ErrJSONPointerNotFound
+	if token.Kind() == jsontext.KindBeginObject {
+		return locateObjectJSONPointerString(decoder, data, path)
 	}
 
-	switch delim {
-	case '{':
-		return locateObjectJSONPointerString(decoder, data, path)
-	case '[':
+	if token.Kind() == jsontext.KindBeginArray {
 		return locateArrayJSONPointerString(decoder, data, path)
-	default:
-		return byteSpan{}, ErrJSONPointerNotFound
 	}
+
+	return byteSpan{}, ErrJSONPointerNotFound
 }
 
-func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []string) (byteSpan, error) {
-	for decoder.More() {
-		keyToken, err := decoder.Token()
+func locateObjectJSONPointerString(decoder *jsontext.Decoder, data []byte, path []string) (byteSpan, error) {
+	for decoder.PeekKind() != jsontext.KindEndObject {
+		keyToken, err := decoder.ReadToken()
 		if err != nil {
 			return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 		}
 
-		key, ok := keyToken.(string)
-		if !ok {
+		if keyToken.Kind() != jsontext.KindString {
 			return byteSpan{}, ErrInvalidJSON
 		}
 
+		key := keyToken.String()
 		if key == path[0] {
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
@@ -161,7 +156,7 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 		}
 	}
 
-	_, err := decoder.Token()
+	_, err := decoder.ReadToken()
 	if err != nil {
 		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
@@ -169,13 +164,13 @@ func locateObjectJSONPointerString(decoder *json.Decoder, data []byte, path []st
 	return byteSpan{}, ErrJSONPointerNotFound
 }
 
-func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []string) (byteSpan, error) {
+func locateArrayJSONPointerString(decoder *jsontext.Decoder, data []byte, path []string) (byteSpan, error) {
 	index, err := strconv.Atoi(path[0])
 	if err != nil || index < 0 {
 		return byteSpan{}, ErrJSONPointerNotFound
 	}
 
-	for current := 0; decoder.More(); current++ {
+	for current := 0; decoder.PeekKind() != jsontext.KindEndArray; current++ {
 		if current == index {
 			return locateJSONPointerString(decoder, data, path[1:])
 		}
@@ -186,7 +181,7 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 		}
 	}
 
-	_, err = decoder.Token()
+	_, err = decoder.ReadToken()
 	if err != nil {
 		return byteSpan{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
@@ -194,42 +189,8 @@ func locateArrayJSONPointerString(decoder *json.Decoder, data []byte, path []str
 	return byteSpan{}, ErrJSONPointerNotFound
 }
 
-func skipJSONValue(decoder *json.Decoder) error {
-	token, err := decoder.Token()
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
-	}
-
-	delim, ok := token.(json.Delim)
-	if !ok {
-		return nil
-	}
-
-	switch delim {
-	case '{':
-		for decoder.More() {
-			_, err = decoder.Token()
-			if err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
-			}
-
-			err = skipJSONValue(decoder)
-			if err != nil {
-				return err
-			}
-		}
-	case '[':
-		for decoder.More() {
-			err = skipJSONValue(decoder)
-			if err != nil {
-				return err
-			}
-		}
-	default:
-		return nil
-	}
-
-	_, err = decoder.Token()
+func skipJSONValue(decoder *jsontext.Decoder) error {
+	err := decoder.SkipValue()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}

@@ -1,7 +1,7 @@
 package fakeprovider
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"testing"
 )
@@ -11,7 +11,7 @@ func readJSONString(t *testing.T, r *http.Request, field string) string {
 
 	var payload map[string]any
 
-	err := json.NewDecoder(r.Body).Decode(&payload)
+	err := json.UnmarshalRead(r.Body, &payload)
 	if err != nil {
 		t.Errorf("fakeprovider: decode %s %s: %v", r.Method, r.URL.Path, err)
 

@@ -117,6 +117,36 @@ func TestApplyJSONPointer(t *testing.T) {
 		testastic.Equal(t, content, updated)
 	})
 
+	t.Run("rejects duplicate object names", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a document with two members that have the same name
+		content := `{"version":"1.0.0","version":"2.0.0"}`
+
+		// when: applying a JSON pointer replacement
+		updated, changed, err := versionfile.ApplyJSONPointer(content, "3.0.0", "/version")
+
+		// then: strict JSON validation rejects the ambiguous document without changing it
+		testastic.ErrorIs(t, err, versionfile.ErrInvalidJSON)
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
+	t.Run("rejects invalid utf8", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a syntactically complete document containing invalid UTF-8 in a string
+		content := "{\"version\":\"1.0.0" + string([]byte{0xff}) + "\"}"
+
+		// when: applying a JSON pointer replacement
+		updated, changed, err := versionfile.ApplyJSONPointer(content, "2.0.0", "/version")
+
+		// then: strict JSON validation rejects the invalid encoding without changing it
+		testastic.ErrorIs(t, err, versionfile.ErrInvalidJSON)
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
 	t.Run("invalid pointer returns error", func(t *testing.T) {
 		t.Parallel()
 

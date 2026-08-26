@@ -1,7 +1,7 @@
 package provider_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -305,7 +305,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, value any) {
 	t.Helper()
 
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(value)
+	err := json.MarshalWrite(w, value)
 	testastic.NoError(t, err)
 }
 

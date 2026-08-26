@@ -1,7 +1,7 @@
 package fakeprovider
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"net/http"

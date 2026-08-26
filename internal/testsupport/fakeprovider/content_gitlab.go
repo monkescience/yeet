@@ -1,7 +1,7 @@
 package fakeprovider
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -96,7 +96,7 @@ func gitLabContentCommit(t *testing.T, w http.ResponseWriter, r *http.Request, c
 		} `json:"actions"`
 	}
 
-	err := json.NewDecoder(r.Body).Decode(&request)
+	err := json.UnmarshalRead(r.Body, &request)
 	if err != nil {
 		t.Errorf("fakeprovider/gitlab content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		writeGitLabContentError(w, http.StatusBadRequest, "invalid commit request")

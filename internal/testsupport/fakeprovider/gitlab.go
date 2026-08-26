@@ -1,7 +1,7 @@
 package fakeprovider
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -314,7 +314,7 @@ func handleGitLabCreateMR(w http.ResponseWriter, r *http.Request) {
 		ReviewerIDs []int64 `json:"reviewer_ids"`
 	}
 
-	_ = json.NewDecoder(r.Body).Decode(&request)
+	_ = json.UnmarshalRead(r.Body, &request)
 
 	mr := gitlabFakeMR()
 
@@ -432,7 +432,7 @@ func registerGitLabReleases(
 			Ref string `json:"ref"`
 		}
 
-		err := json.NewDecoder(r.Body).Decode(&request)
+		err := json.UnmarshalRead(r.Body, &request)
 		if err != nil {
 			http.Error(w, "invalid release request", http.StatusBadRequest)
 

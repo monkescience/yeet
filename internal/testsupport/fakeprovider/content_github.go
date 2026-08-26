@@ -2,7 +2,7 @@ package fakeprovider
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -299,7 +299,7 @@ func writeGitHubContentNotFound(w http.ResponseWriter) {
 func decodeGitHubContentRequest(t *testing.T, w http.ResponseWriter, r *http.Request, value any) bool {
 	t.Helper()
 
-	err := json.NewDecoder(r.Body).Decode(value)
+	err := json.UnmarshalRead(r.Body, value)
 	if err != nil {
 		t.Errorf("fakeprovider/github content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		http.Error(w, "invalid request", http.StatusBadRequest)

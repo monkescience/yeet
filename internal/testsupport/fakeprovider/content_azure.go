@@ -1,7 +1,7 @@
 package fakeprovider
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -108,7 +108,7 @@ func azureContentUpdateRefs(t *testing.T, w http.ResponseWriter, r *http.Request
 		NewObjectID string `json:"newObjectId"`
 	}
 
-	err := json.NewDecoder(r.Body).Decode(&request)
+	err := json.UnmarshalRead(r.Body, &request)
 	if err != nil {
 		t.Errorf("fakeprovider/azure content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		http.Error(w, "invalid ref update", http.StatusBadRequest)
@@ -154,7 +154,7 @@ func azureContentPush(t *testing.T, w http.ResponseWriter, r *http.Request, cont
 
 	var push azurePushRequest
 
-	err := json.NewDecoder(r.Body).Decode(&push)
+	err := json.UnmarshalRead(r.Body, &push)
 	if err != nil {
 		t.Errorf("fakeprovider/azure content: decode %s %s: %v", r.Method, r.URL.Path, err)
 		http.Error(w, "invalid push", http.StatusBadRequest)

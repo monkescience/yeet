@@ -1,7 +1,7 @@
 package release
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"regexp"
@@ -19,7 +19,7 @@ const (
 type releaseManifest struct {
 	BaseBranch string                 `json:"base_branch"`
 	Channel    string                 `json:"channel,omitempty"`
-	Prerelease bool                   `json:"prerelease,omitempty"`
+	Prerelease bool                   `json:"prerelease,omitzero"`
 	Targets    []releaseManifestEntry `json:"targets"`
 }
 
