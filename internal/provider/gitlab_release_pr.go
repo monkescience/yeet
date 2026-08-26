@@ -737,12 +737,12 @@ func validateGitLabLifecycleLabel(name string) error {
 }
 
 func gitLabLabelScope(name string) (string, bool) {
-	separator := strings.LastIndex(name, "::")
-	if separator <= 0 || separator+2 == len(name) {
+	scope, suffix, found := strings.CutLast(name, "::")
+	if !found || scope == "" || suffix == "" {
 		return "", false
 	}
 
-	return name[:separator], true
+	return scope, true
 }
 
 func isGitLabMergeStatusMergeable(status string) bool {
