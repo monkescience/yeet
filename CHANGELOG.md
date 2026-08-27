@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.2](https://github.com/monkescience/yeet/compare/v0.14.1...v0.14.2) (2026-08-27)
+
+### Features
+
+- **release:** improve dry-run output ([2d41cfa](https://github.com/monkescience/yeet/commit/2d41cfab7b0abbc046f4dc222e41b43884849e91))
+- **release:** centralize rendered release text ([d0cebb2](https://github.com/monkescience/yeet/commit/d0cebb2d13f1f4d5014a692af074432b0479cd91))
+
 ## [v0.14.1](https://github.com/monkescience/yeet/compare/v0.14.0...v0.14.1) (2026-08-22)
 
 ### Bug Fixes
