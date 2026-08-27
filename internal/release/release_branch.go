@@ -59,15 +59,6 @@ func validateReleaseBranchTemplates(cfg *config.Config) error {
 	return nil
 }
 
-func releaseBranchForConfig(cfg *config.Config) (string, error) {
-	tmpl, err := newReleaseBranchTemplate(cfg.Release.BranchTemplate)
-	if err != nil {
-		return "", err
-	}
-
-	return renderReleaseBranch(tmpl, cfg.Branch, cfg.ActiveChannel)
-}
-
 func newReleaseBranchTemplate(source string) (*template.Template, error) {
 	if strings.TrimSpace(source) == "" {
 		return nil, fmt.Errorf("%w: %s must not be blank", config.ErrInvalidConfig, releaseBranchTemplateName)

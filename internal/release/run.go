@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/history"
@@ -42,17 +41,12 @@ func Run(ctx context.Context, configPath string, options Options) (*Result, erro
 }
 
 func rawRun(ctx context.Context, configPath string, options Options) (*Result, string, error) {
-	cfg, resolvedConfigPath, err := prepareWithPath(ctx, configPath, options)
+	cfg, run, resolvedConfigPath, err := prepareWithPath(ctx, configPath, options)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
 
-	releaseBranch, err := releaseBranchForConfig(cfg)
-	if err != nil {
-		return nil, resolvedConfigPath, err
-	}
-
-	p, resolvedProvider, err := provider.Open(ctx, cfg, releaseBranch, repositoryOverrides(options))
+	p, resolvedProvider, err := provider.Open(ctx, cfg, run.releaseBranch, repositoryOverrides(options))
 	if err != nil {
 		if errors.Is(err, config.ErrInvalidConfig) {
 			return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
@@ -61,7 +55,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, fmt.Errorf("provider setup failed: %w", err)
 	}
 
-	core, err := newReleaseCore(ctx, cfg, p, releaseBranch)
+	core, err := newReleaseCore(ctx, cfg, p, run)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}
@@ -71,7 +65,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	historySource, err := history.Open(ctx, p, cfg.Branch, ".")
+	historySource, err := history.Open(ctx, p, run.baseBranch, ".")
 	if err != nil {
 		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
@@ -102,40 +96,38 @@ func repositoryOverrides(options Options) provider.RepositoryOverrides {
 	}
 }
 
-func prepare(ctx context.Context, options Options) (*config.Config, error) {
-	cfg, _, err := prepareWithPath(ctx, config.DefaultFile, options)
+func prepare(ctx context.Context, options Options) (*config.Config, releaseRun, error) {
+	cfg, run, _, err := prepareWithPath(ctx, config.DefaultFile, options)
 
-	return cfg, err
+	return cfg, run, err
 }
 
 func prepareWithPath(
 	ctx context.Context,
 	configPath string,
 	options Options,
-) (*config.Config, string, error) {
+) (*config.Config, releaseRun, string, error) {
 	cfg, resolvedConfigPath, err := config.LoadResolved(ctx, configPath)
 	if err != nil {
-		return nil, resolvedConfigPath, fmt.Errorf("load release config: %w", err)
+		return nil, releaseRun{}, resolvedConfigPath, fmt.Errorf("load release config: %w", err)
 	}
 
 	logRun(ctx, resolvedConfigPath, options)
 
-	applyBehaviorOptions(cfg, options)
-
 	err = cfg.Validate()
 	if err != nil {
-		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
+		return nil, releaseRun{}, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
 	err = validateReleaseBranchTemplates(cfg)
 	if err != nil {
-		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
+		return nil, releaseRun{}, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
 	currentBranch, branchErr := currentGitBranch(ctx)
 	if branchErr != nil {
 		if !options.DryRun && (errors.Is(branchErr, errCINonBranchRef) || len(cfg.Release.Channels) > 0) {
-			return nil, resolvedConfigPath, fmt.Errorf("resolve current branch: %w", branchErr)
+			return nil, releaseRun{}, resolvedConfigPath, fmt.Errorf("resolve current branch: %w", branchErr)
 		}
 
 		slog.DebugContext(ctx, "could not determine current branch (using configured default branch)",
@@ -143,101 +135,12 @@ func prepareWithPath(
 		)
 	}
 
-	err = resolveMode(cfg, currentBranch, options)
+	run, err := resolveRun(cfg, currentBranch, options)
 	if err != nil {
-		return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
+		return nil, releaseRun{}, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)
 	}
 
-	return cfg, resolvedConfigPath, nil
-}
-
-func resolveMode(cfg *config.Config, currentBranch string, options Options) error {
-	currentBranch = strings.TrimSpace(currentBranch)
-
-	if options.Channel != nil {
-		return resolveExplicitChannel(cfg, currentBranch, options)
-	}
-
-	if currentBranch == cfg.Branch {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	if currentBranch == "" && len(cfg.Release.Channels) == 0 {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	for channelName, channel := range cfg.Release.Channels {
-		if currentBranch != strings.TrimSpace(channel.Branch) {
-			continue
-		}
-
-		cfg.Branch = strings.TrimSpace(channel.Branch)
-		cfg.ActiveChannel = strings.TrimSpace(channelName)
-
-		return nil
-	}
-
-	if options.DryRun {
-		cfg.ActiveChannel = ""
-
-		return nil
-	}
-
-	return fmt.Errorf(
-		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
-		errUnconfiguredReleaseBranch,
-		currentBranch,
-	)
-}
-
-func resolveExplicitChannel(cfg *config.Config, currentBranch string, options Options) error {
-	channelName := strings.TrimSpace(*options.Channel)
-
-	channel, exists := cfg.Release.Channels[channelName]
-	if !exists {
-		return fmt.Errorf("%w: %q", errUnknownReleaseChannel, channelName)
-	}
-
-	channelBranch := strings.TrimSpace(channel.Branch)
-	if !options.DryRun && strings.TrimSpace(currentBranch) != channelBranch {
-		return fmt.Errorf(
-			"%w: channel %q must run on branch %q, got %q",
-			errUnconfiguredReleaseBranch,
-			channelName,
-			channelBranch,
-			currentBranch,
-		)
-	}
-
-	cfg.Branch = channelBranch
-	cfg.ActiveChannel = channelName
-
-	return nil
-}
-
-func applyBehaviorOptions(cfg *config.Config, options Options) {
-	if options.AutoMerge != nil {
-		cfg.Release.AutoMerge = *options.AutoMerge
-		if !*options.AutoMerge {
-			cfg.Release.AutoMergeForce = false
-		}
-	}
-
-	if options.AutoMergeForce != nil {
-		cfg.Release.AutoMergeForce = *options.AutoMergeForce
-	}
-
-	if options.AutoMergeMethod != nil {
-		cfg.Release.AutoMergeMethod = config.AutoMergeMethod(*options.AutoMergeMethod)
-	}
-
-	if cfg.Release.AutoMergeForce {
-		cfg.Release.AutoMerge = true
-	}
+	return cfg, run, resolvedConfigPath, nil
 }
 
 func logRun(ctx context.Context, configPath string, options Options) {

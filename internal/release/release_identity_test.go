@@ -234,7 +234,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			// given: a valid release manifest altered at one trust boundary
 			cfg := config.Default()
 			r := newTestReleaser(t, cfg, newProviderStub())
-			pullRequest := &forge.PullRequest{Branch: r.core.releaseBranch}
+			pullRequest := &forge.PullRequest{Branch: r.core.run.releaseBranch}
 			manifest := releaseManifest{
 				BaseBranch: cfg.Branch,
 				Targets: []releaseManifestEntry{
@@ -262,7 +262,7 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 
 	cfg := config.Default()
 	r := newTestReleaser(t, cfg, newProviderStub())
-	pullRequest := &forge.PullRequest{Branch: r.core.releaseBranch}
+	pullRequest := &forge.PullRequest{Branch: r.core.run.releaseBranch}
 	manifest := releaseManifest{
 		BaseBranch: cfg.Branch,
 		Targets: []releaseManifestEntry{

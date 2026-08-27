@@ -257,14 +257,9 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		return err
 	}
 
-	switch release.AutoMergeMethod {
-	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:
-	default:
-		return fmt.Errorf(
-			"%w: release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", or \"merge\", got %q",
-			ErrInvalidConfig,
-			release.AutoMergeMethod,
-		)
+	err = ValidateAutoMergeMethod(release.AutoMergeMethod)
+	if err != nil {
+		return err
 	}
 
 	err = validateReleaseLabels(release.Labels)
@@ -280,6 +275,21 @@ func validateReleaseConfig(release ReleaseConfig) error {
 	err = validateReleaseChannels(release.Channels)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// ValidateAutoMergeMethod reports whether method is supported by release providers.
+func ValidateAutoMergeMethod(method AutoMergeMethod) error {
+	switch method {
+	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:
+	default:
+		return fmt.Errorf(
+			"%w: release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", or \"merge\", got %q",
+			ErrInvalidConfig,
+			method,
+		)
 	}
 
 	return nil

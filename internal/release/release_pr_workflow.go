@@ -42,7 +42,7 @@ func newReleasePRWorkflow(
 func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPlan) (*forge.PullRequest, error) {
 	r := w.core
 
-	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.cfg.Branch, r.cfg.Release.Labels.Pending)
+	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.run.baseBranch, r.cfg.Release.Labels.Pending)
 	if err != nil {
 		return nil, fmt.Errorf("find pending release PRs: %w", err)
 	}
@@ -77,7 +77,7 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPl
 		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, plans)
 	}
 
-	releaseBranch := r.releaseBranch
+	releaseBranch := r.run.releaseBranch
 
 	prOpts, err := r.releasePROptions(ctx, plans, releaseBranch, w.prs.MaxPRBodyLength())
 	if err != nil {
@@ -248,14 +248,13 @@ func (w *releasePRWorkflow) autoMerge(
 ) ([]FinalizedRelease, error) {
 	r := w.core
 
-	autoMergeEnabled := r.cfg.Release.AutoMerge || r.cfg.Release.AutoMergeForce
-	if !autoMergeEnabled || pullRequest == nil {
+	if !r.run.autoMerge.enabled || pullRequest == nil {
 		return nil, nil
 	}
 
 	mergeOptions := forge.MergeReleasePROptions{
-		BypassMergeChecks: r.cfg.Release.AutoMergeForce,
-		Method:            forge.MergeMethod(r.cfg.Release.AutoMergeMethod),
+		BypassMergeChecks: r.run.autoMerge.force,
+		Method:            forge.MergeMethod(r.run.autoMerge.method),
 	}
 
 	err := w.publisher.preflightReleasePRTagging(ctx)

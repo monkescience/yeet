@@ -85,7 +85,7 @@ func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, re
 }
 
 func (a *releaseAnalyzer) channelRefAllowed(strategy version.Strategy, currentVersion string) bool {
-	return strategy.PrereleaseAllowed(currentVersion, a.core.activePrereleaseIdentifier())
+	return strategy.PrereleaseAllowed(currentVersion, a.core.run.prerelease)
 }
 
 func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *historyScan, ref string) (bool, error) {
@@ -166,8 +166,8 @@ func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref 
 		"previous release ref %q is not reachable from release branch %q for target %q. "+
 			"Verify the latest tag or release and branch ancestry: %w",
 		ref,
-		a.core.cfg.Branch,
+		a.core.run.baseBranch,
 		target.ID,
-		&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
+		&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.run.baseBranch},
 	)
 }

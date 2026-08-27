@@ -35,15 +35,13 @@ func TestPrepare(t *testing.T) {
 			writeTestConfig(t, func(cfg *config.Config) {})
 
 			// when: resolving release configuration for a dry run
-			cfg, err := prepare(context.Background(), Options{DryRun: true})
+			cfg, run, err := prepare(context.Background(), Options{DryRun: true})
 
 			// then: stable preview mode is selected despite the synthetic PR ref
 			testastic.NoError(t, err)
 			testastic.NotNil(t, cfg)
 
-			if cfg != nil {
-				testastic.Equal(t, "", cfg.ActiveChannel)
-			}
+			testastic.Equal(t, "", run.channelName)
 		})
 	}
 
@@ -60,7 +58,7 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration
-		_, err := prepare(t.Context(), Options{DryRun: true})
+		_, _, err := prepare(t.Context(), Options{DryRun: true})
 
 		// then: the coordinates are rejected instead of being silently discarded
 		testastic.Error(t, err)
@@ -80,7 +78,7 @@ func TestPrepare(t *testing.T) {
 		writeTestConfig(t, func(_ *config.Config) {})
 
 		// when: preparing a dry-run release
-		_, err := prepare(t.Context(), Options{
+		_, _, err := prepare(t.Context(), Options{
 			AutoMerge:       new(true),
 			AutoMergeMethod: new("wrongo"),
 			DryRun:          true,
@@ -116,7 +114,7 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration without a detectable branch
-		_, err := prepare(t.Context(), Options{DryRun: true})
+		_, _, err := prepare(t.Context(), Options{DryRun: true})
 
 		// then: the fallback is logged without compressed punctuation
 		testastic.NoError(t, err)
@@ -156,6 +154,37 @@ func TestRepositoryOverrides(t *testing.T) {
 func TestResolveReleaseMode(t *testing.T) {
 	t.Parallel()
 
+	t.Run("empty current branch uses stable mode without channels", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a stable-only config and no detected current branch
+		cfg := config.Default()
+
+		// when: resolving the run
+		run, err := resolveRun(cfg, "", Options{})
+
+		// then: the configured stable branch is retained
+		testastic.NoError(t, err)
+		testastic.Equal(t, "main", run.baseBranch)
+		testastic.Equal(t, "", run.channelName)
+	})
+
+	t.Run("empty current branch is rejected with channels", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a channel config and no detected current branch
+		cfg := config.Default()
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "beta", Prerelease: "beta"},
+		}
+
+		// when: resolving a mutating run
+		_, err := resolveRun(cfg, "", Options{})
+
+		// then: the missing branch cannot select a release mode
+		testastic.ErrorIs(t, err, errUnconfiguredReleaseBranch)
+	})
+
 	t.Run("stable branch uses stable mode", func(t *testing.T) {
 		t.Parallel()
 
@@ -166,12 +195,12 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on main
-		err := resolveMode(cfg, "main", Options{})
+		run, err := resolveRun(cfg, "main", Options{})
 
 		// then: stable mode is selected
 		testastic.NoError(t, err)
-		testastic.Equal(t, "main", cfg.Branch)
-		testastic.Equal(t, "", cfg.ActiveChannel)
+		testastic.Equal(t, "main", run.baseBranch)
+		testastic.Equal(t, "", run.channelName)
 	})
 
 	t.Run("channel branch selects channel mode", func(t *testing.T) {
@@ -184,12 +213,13 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on beta
-		err := resolveMode(cfg, "beta", Options{})
+		run, err := resolveRun(cfg, "beta", Options{})
 
 		// then: beta mode is selected and branch is scoped to beta
 		testastic.NoError(t, err)
-		testastic.Equal(t, "beta", cfg.Branch)
-		testastic.Equal(t, "beta", cfg.ActiveChannel)
+		testastic.Equal(t, "beta", run.baseBranch)
+		testastic.Equal(t, "beta", run.channelName)
+		testastic.Equal(t, "beta", run.prerelease)
 	})
 
 	t.Run("unconfigured branch fails for mutating release", func(t *testing.T) {
@@ -202,7 +232,7 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode on an unconfigured branch
-		err := resolveMode(cfg, "feature/demo", Options{})
+		_, err := resolveRun(cfg, "feature/demo", Options{})
 
 		// then: mutating release is rejected
 		testastic.Error(t, err)
@@ -219,12 +249,12 @@ func TestResolveReleaseMode(t *testing.T) {
 		}
 
 		// when: resolving release mode for dry-run on an unconfigured branch
-		err := resolveMode(cfg, "feature/demo", Options{DryRun: true})
+		run, err := resolveRun(cfg, "feature/demo", Options{DryRun: true})
 
 		// then: dry-run falls back to stable branch planning
 		testastic.NoError(t, err)
-		testastic.Equal(t, "main", cfg.Branch)
-		testastic.Equal(t, "", cfg.ActiveChannel)
+		testastic.Equal(t, "main", run.baseBranch)
+		testastic.Equal(t, "", run.channelName)
 	})
 }
 
@@ -241,7 +271,7 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: requesting a channel that does not exist
-		err := resolveExplicitChannel(cfg, "beta", Options{Channel: new("alpha")})
+		_, err := resolveRun(cfg, "beta", Options{Channel: new("alpha")})
 
 		// then: the unknown channel error is returned
 		testastic.Error(t, err)
@@ -258,12 +288,12 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: resolving the explicit channel on its branch
-		err := resolveExplicitChannel(cfg, "beta", Options{Channel: new("beta")})
+		run, err := resolveRun(cfg, "beta", Options{Channel: new("beta")})
 
 		// then: the channel becomes active and the branch is scoped
 		testastic.NoError(t, err)
-		testastic.Equal(t, "beta", cfg.Branch)
-		testastic.Equal(t, "beta", cfg.ActiveChannel)
+		testastic.Equal(t, "beta", run.baseBranch)
+		testastic.Equal(t, "beta", run.channelName)
 	})
 
 	t.Run("branch mismatch is rejected for mutating release", func(t *testing.T) {
@@ -276,7 +306,7 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: requesting beta from a non-beta branch
-		err := resolveExplicitChannel(cfg, "main", Options{Channel: new("beta")})
+		_, err := resolveRun(cfg, "main", Options{Channel: new("beta")})
 
 		// then: the unconfigured branch error is returned
 		testastic.Error(t, err)
@@ -293,7 +323,7 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: dry-running the explicit channel from a different branch
-		err := resolveExplicitChannel(
+		run, err := resolveRun(
 			cfg,
 			"main",
 			Options{Channel: new("beta"), DryRun: true},
@@ -301,8 +331,8 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 
 		// then: the channel is activated despite the branch mismatch
 		testastic.NoError(t, err)
-		testastic.Equal(t, "beta", cfg.Branch)
-		testastic.Equal(t, "beta", cfg.ActiveChannel)
+		testastic.Equal(t, "beta", run.baseBranch)
+		testastic.Equal(t, "beta", run.channelName)
 	})
 
 	t.Run("channel name whitespace is trimmed", func(t *testing.T) {
@@ -315,16 +345,30 @@ func TestResolveExplicitReleaseChannel(t *testing.T) {
 		}
 
 		// when: resolving with surrounding whitespace in the channel option
-		err := resolveExplicitChannel(cfg, "beta", Options{Channel: new("  beta  ")})
+		run, err := resolveRun(cfg, "beta", Options{Channel: new("  beta  ")})
 
 		// then: the channel is found and activated
 		testastic.NoError(t, err)
-		testastic.Equal(t, "beta", cfg.ActiveChannel)
+		testastic.Equal(t, "beta", run.channelName)
 	})
 }
 
 func TestApplyReleaseBehaviorOptions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("invalid auto merge method is rejected without mutating config", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid config and an unsupported method override
+		cfg := config.Default()
+
+		// when: resolving the run
+		_, err := resolveRun(cfg, "main", Options{AutoMergeMethod: new("wrongo")})
+
+		// then: validation rejects the resolved method and preserves the config
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
+	})
 
 	t.Run("explicit auto merge false disables configured force", func(t *testing.T) {
 		t.Parallel()
@@ -339,11 +383,12 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		}
 
 		// when: applying options
-		applyBehaviorOptions(cfg, options)
+		run, err := resolveRun(cfg, "main", options)
 
 		// then: the explicit flag disables both normal and forced auto-merge
-		testastic.False(t, cfg.Release.AutoMerge)
-		testastic.False(t, cfg.Release.AutoMergeForce)
+		testastic.NoError(t, err)
+		testastic.False(t, run.autoMerge.enabled)
+		testastic.False(t, run.autoMerge.force)
 	})
 
 	t.Run("auto merge force implies auto merge", func(t *testing.T) {
@@ -358,11 +403,12 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		}
 
 		// when: applying options
-		applyBehaviorOptions(cfg, options)
+		run, err := resolveRun(cfg, "main", options)
 
 		// then: auto merge is enabled by force
-		testastic.True(t, cfg.Release.AutoMerge)
-		testastic.True(t, cfg.Release.AutoMergeForce)
+		testastic.NoError(t, err)
+		testastic.True(t, run.autoMerge.enabled)
+		testastic.True(t, run.autoMerge.force)
 	})
 
 	t.Run("auto merge method is set", func(t *testing.T) {
@@ -376,10 +422,11 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		}
 
 		// when: applying options
-		applyBehaviorOptions(cfg, options)
+		run, err := resolveRun(cfg, "main", options)
 
 		// then: merge method is applied
-		testastic.Equal(t, config.AutoMergeMethodSquash, cfg.Release.AutoMergeMethod)
+		testastic.NoError(t, err)
+		testastic.Equal(t, config.AutoMergeMethodSquash, run.autoMerge.method)
 	})
 }
 

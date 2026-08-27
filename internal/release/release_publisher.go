@@ -34,7 +34,7 @@ func newReleasePublisher(
 }
 
 func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]FinalizedRelease, error) {
-	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, p.core.cfg.Branch, p.core.cfg.Release.Labels.Pending)
+	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, p.core.run.baseBranch, p.core.cfg.Release.Labels.Pending)
 	if err != nil {
 		return nil, fmt.Errorf("find merged release PR: %w", err)
 	}
@@ -128,7 +128,7 @@ func (p *releasePublisher) ensureReleasesForPlans(
 			releaseName,
 			ref,
 			releaseBody,
-			p.core.isPrerelease(),
+			p.core.run.isPrerelease(),
 		)
 		if err != nil {
 			return nil, err
@@ -259,7 +259,7 @@ func (p *releasePublisher) releaseNotesFromChangelog(
 ) (string, error) {
 	r := p.core
 
-	changelogBody, err := p.changelogs.get(r.cfg.Branch, changelogFile, func() (string, error) {
+	changelogBody, err := p.changelogs.get(r.run.baseBranch, changelogFile, func() (string, error) {
 		content, getErr := p.source.GetFile(ctx, changelogFile)
 		if getErr != nil {
 			return "", fmt.Errorf("get changelog file %s: %w", changelogFile, getErr)

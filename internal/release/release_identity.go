@@ -132,7 +132,7 @@ func (c *releaseCore) validateReleaseManifest(
 		return releaseManifest{}, fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
 	}
 
-	expectedBranch := c.releaseBranch
+	expectedBranch := c.run.releaseBranch
 	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
 		return releaseManifest{}, fmt.Errorf(
 			"%w: pull request branch %q does not match %q",
@@ -142,25 +142,25 @@ func (c *releaseCore) validateReleaseManifest(
 		)
 	}
 
-	if strings.TrimSpace(manifest.BaseBranch) != strings.TrimSpace(c.cfg.Branch) {
+	if strings.TrimSpace(manifest.BaseBranch) != c.run.baseBranch {
 		return releaseManifest{}, fmt.Errorf(
 			"%w: base branch %q does not match %q",
 			errInvalidReleaseManifest,
 			manifest.BaseBranch,
-			c.cfg.Branch,
+			c.run.baseBranch,
 		)
 	}
 
-	if strings.TrimSpace(manifest.Channel) != strings.TrimSpace(c.cfg.ActiveChannel) {
+	if strings.TrimSpace(manifest.Channel) != c.run.channelName {
 		return releaseManifest{}, fmt.Errorf(
 			"%w: channel %q does not match %q",
 			errInvalidReleaseManifest,
 			manifest.Channel,
-			c.cfg.ActiveChannel,
+			c.run.channelName,
 		)
 	}
 
-	if manifest.Prerelease != c.isPrerelease() {
+	if manifest.Prerelease != c.run.isPrerelease() {
 		return releaseManifest{}, fmt.Errorf(
 			"%w: prerelease value does not match active release mode",
 			errInvalidReleaseManifest,

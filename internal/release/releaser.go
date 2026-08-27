@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path"
 	"strings"
 	"time"
 
@@ -78,16 +77,16 @@ func newReleaseCore(
 	ctx context.Context,
 	cfg *config.Config,
 	metadata repoMetadataProvider,
-	releaseBranch string,
+	run releaseRun,
 ) (*releaseCore, error) {
-	return newReleaseCoreAt(ctx, cfg, metadata, releaseBranch, time.Now())
+	return newReleaseCoreAt(ctx, cfg, metadata, run, time.Now())
 }
 
 func newReleaseCoreAt(
 	ctx context.Context,
 	cfg *config.Config,
 	metadata repoMetadataProvider,
-	releaseBranch string,
+	run releaseRun,
 	now time.Time,
 ) (*releaseCore, error) {
 	location, err := cfg.TimeLocation()
@@ -100,7 +99,7 @@ func newReleaseCoreAt(
 		return nil, fmt.Errorf("resolve release targets: %w", err)
 	}
 
-	targets, err = targetsForActiveChannel(cfg, targets)
+	targets, err = run.withChannelChangelogs(targets)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +110,12 @@ func newReleaseCoreAt(
 	}
 
 	return &releaseCore{
-		cfg:           cfg,
-		targets:       targets,
-		metadata:      metadata,
-		titles:        titles,
-		releaseBranch: releaseBranch,
-		releaseTime:   now.In(location),
+		cfg:         cfg,
+		run:         run,
+		targets:     targets,
+		metadata:    metadata,
+		titles:      titles,
+		releaseTime: now.In(location),
 	}, nil
 }
 
@@ -143,72 +142,6 @@ func newReleaser(
 	}, nil
 }
 
-func targetsForActiveChannel(
-	cfg *config.Config,
-	targets map[string]config.ResolvedTarget,
-) (map[string]config.ResolvedTarget, error) {
-	channelName := strings.TrimSpace(cfg.ActiveChannel)
-	if channelName == "" {
-		return targets, nil
-	}
-
-	channel, exists := cfg.Release.Channels[channelName]
-	if !exists {
-		return nil, fmt.Errorf("%w: unknown active release channel %q", config.ErrInvalidConfig, channelName)
-	}
-
-	channelChangelogPath := ""
-
-	if strings.TrimSpace(channel.ChangelogFile) != "" {
-		normalizedPath, err := config.NormalizeRepoFilePath(channel.ChangelogFile)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"%w: release.channels.%s.changelog_file %v",
-				config.ErrInvalidConfig,
-				channelName,
-				err,
-			)
-		}
-
-		channelChangelogPath = normalizedPath
-	}
-
-	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
-	for targetID, target := range targets {
-		if !versionStrategyForResolvedTarget(target).strategy.SupportsPrerelease() {
-			return nil, fmt.Errorf(
-				"%w: prerelease channel %q supports semver targets only. Target %q uses %q",
-				config.ErrInvalidConfig,
-				channelName,
-				targetID,
-				target.Versioning,
-			)
-		}
-
-		if channelChangelogPath != "" && len(targets) == 1 {
-			target.Changelog.File = channelChangelogPath
-		} else {
-			target.Changelog.File = channelChangelogFile(target.Changelog.File, channelName)
-		}
-
-		channelTargets[targetID] = target
-	}
-
-	return channelTargets, nil
-}
-
-func channelChangelogFile(changelogFile string, channelName string) string {
-	dir, file := path.Split(changelogFile)
-	ext := path.Ext(file)
-
-	base := strings.TrimSuffix(file, ext)
-	if base == "" {
-		return changelogFile
-	}
-
-	return dir + base + "." + channelName + ext
-}
-
 func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection releaseSelection) (*Result, error) {
 	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
 	if analysisErr == nil {
@@ -225,7 +158,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection re
 
 		r.logReleaseAnalysis(ctx, plans)
 
-		return &Result{BaseBranch: r.core.cfg.Branch, Plans: plans}, nil
+		return &Result{BaseBranch: r.core.run.baseBranch, Plans: plans}, nil
 	}
 
 	plans, finalized, err := r.finalizeAndRefreshReleaseAnalysis(ctx, selection, plans, analysisErr)
@@ -241,7 +174,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection re
 	}
 
 	return &Result{
-		BaseBranch:  r.core.cfg.Branch,
+		BaseBranch:  r.core.run.baseBranch,
 		Plans:       plans,
 		PullRequest: pullRequest,
 		Releases:    append(finalized, published...),

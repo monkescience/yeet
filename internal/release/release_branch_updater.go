@@ -63,7 +63,7 @@ func (u *releaseBranchUpdater) updateFiles(
 		}
 	}
 
-	err := u.files.UpdateFiles(ctx, branch, r.cfg.Branch, files, commitSubject)
+	err := u.files.UpdateFiles(ctx, branch, r.run.baseBranch, files, commitSubject)
 	if err != nil {
 		return fmt.Errorf("update release branch files: %w", err)
 	}

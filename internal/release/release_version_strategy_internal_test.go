@@ -40,18 +40,19 @@ func TestVersionStrategyForResolvedTarget(t *testing.T) {
 func TestChannelRefAllowed(t *testing.T) {
 	t.Parallel()
 
-	analyzerWithChannel := func(channelName string) *releaseAnalyzer {
+	analyzerWithPrerelease := func(prerelease string) *releaseAnalyzer {
 		cfg := config.Default()
-		cfg.ActiveChannel = channelName
 
-		return &releaseAnalyzer{core: &releaseCore{cfg: cfg}}
+		return &releaseAnalyzer{core: &releaseCore{
+			cfg: cfg, run: releaseRun{baseBranch: cfg.Branch, prerelease: prerelease},
+		}}
 	}
 
-	t.Run("keeps a stable ref when the active channel is undefined", func(t *testing.T) {
+	t.Run("keeps a stable ref for a stable run", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an active channel absent from the configured channels
-		analyzer := analyzerWithChannel("missing")
+		// given: a stable run
+		analyzer := analyzerWithPrerelease("")
 
 		// when: a stable version is offered as a version boundary
 		allowed := analyzer.channelRefAllowed(&version.SemVer{Prefix: "v"}, "1.2.3")
@@ -60,11 +61,11 @@ func TestChannelRefAllowed(t *testing.T) {
 		testastic.Equal(t, true, allowed)
 	})
 
-	t.Run("rejects a prerelease ref when the active channel is undefined", func(t *testing.T) {
+	t.Run("rejects a prerelease ref for a stable run", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an active channel absent from the configured channels
-		analyzer := analyzerWithChannel("missing")
+		// given: a stable run
+		analyzer := analyzerWithPrerelease("")
 
 		// when: a prerelease version is offered as a version boundary
 		allowed := analyzer.channelRefAllowed(&version.SemVer{Prefix: "v"}, "1.2.3-beta.1")
@@ -77,12 +78,7 @@ func TestChannelRefAllowed(t *testing.T) {
 		t.Parallel()
 
 		// given: an active beta channel and a strategy that counts membership checks
-		cfg := config.Default()
-		cfg.ActiveChannel = "beta"
-		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
-			"beta": {Branch: "beta", Prerelease: "beta"},
-		}
-		analyzer := &releaseAnalyzer{core: &releaseCore{cfg: cfg}}
+		analyzer := analyzerWithPrerelease("beta")
 		strategy := &prereleaseCountingStrategy{Strategy: &version.SemVer{Prefix: "v"}}
 
 		// when: a beta version is offered as a version boundary
@@ -94,7 +90,7 @@ func TestChannelRefAllowed(t *testing.T) {
 	})
 }
 
-func TestTargetsForActiveChannel(t *testing.T) {
+func TestReleaseRunWithChannelChangelogs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("normalizes an explicit channel changelog file", func(t *testing.T) {
@@ -102,7 +98,6 @@ func TestTargetsForActiveChannel(t *testing.T) {
 
 		// given: an active channel with a changelog path requiring normalization
 		cfg := config.Default()
-		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {
 				Branch: "beta", Prerelease: "beta", ChangelogFile: " ./docs/../CHANGELOG.beta.md ",
@@ -116,7 +111,9 @@ func TestTargetsForActiveChannel(t *testing.T) {
 		}
 
 		// when: resolving targets for the active channel
-		resolved, err := targetsForActiveChannel(cfg, targets)
+		run, err := resolveRun(cfg, "beta", Options{})
+		testastic.NoError(t, err)
+		resolved, err := run.withChannelChangelogs(targets)
 
 		// then: the channel changelog path is cleaned before use
 		testastic.NoError(t, err)
@@ -128,7 +125,6 @@ func TestTargetsForActiveChannel(t *testing.T) {
 
 		// given: an active prerelease channel and a target with an unknown scheme
 		cfg := config.Default()
-		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -137,7 +133,9 @@ func TestTargetsForActiveChannel(t *testing.T) {
 		}
 
 		// when: the channel narrows the target set
-		_, err := targetsForActiveChannel(cfg, targets)
+		run, err := resolveRun(cfg, "beta", Options{})
+		testastic.NoError(t, err)
+		_, err = run.withChannelChangelogs(targets)
 
 		// then: the target is reported as unsupported rather than panicking
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)

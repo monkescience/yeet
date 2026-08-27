@@ -24,12 +24,12 @@ const prBodyOmittedNotice = "_Release notes omitted to fit this provider's pull 
 // component holding a *releaseCore can read config and render text but cannot
 // reach the provider that talks to the forge.
 type releaseCore struct {
-	cfg           *config.Config
-	targets       map[string]config.ResolvedTarget
-	metadata      repoMetadataProvider
-	titles        *releaseTitleTemplates
-	releaseBranch string
-	releaseTime   time.Time
+	cfg         *config.Config
+	run         releaseRun
+	targets     map[string]config.ResolvedTarget
+	metadata    repoMetadataProvider
+	titles      *releaseTitleTemplates
+	releaseTime time.Time
 }
 
 func (c *releaseCore) timestamp() time.Time {
@@ -40,33 +40,15 @@ func (c *releaseCore) timestamp() time.Time {
 	return c.releaseTime
 }
 
-func (c *releaseCore) activePrereleaseIdentifier() string {
-	channelName := strings.TrimSpace(c.cfg.ActiveChannel)
-	if channelName == "" {
-		return ""
-	}
-
-	channel, exists := c.cfg.Release.Channels[channelName]
-	if !exists {
-		return ""
-	}
-
-	return strings.TrimSpace(channel.Prerelease)
-}
-
-func (c *releaseCore) isPrerelease() bool {
-	return c.activePrereleaseIdentifier() != ""
-}
-
 func (c *releaseCore) releasePROptions(
 	ctx context.Context,
 	plans []TargetPlan,
 	releaseBranch string,
 	providerBodyLimit int,
 ) (forge.ReleasePROptions, error) {
-	manifest := releaseManifestForPlans(c.cfg.Branch, plans)
-	manifest.Channel = strings.TrimSpace(c.cfg.ActiveChannel)
-	manifest.Prerelease = c.isPrerelease()
+	manifest := releaseManifestForPlans(c.run.baseBranch, plans)
+	manifest.Channel = c.run.channelName
+	manifest.Prerelease = c.run.isPrerelease()
 
 	manifestMarker, err := releaseManifestMarker(manifest)
 	if err != nil {
@@ -96,7 +78,7 @@ func (c *releaseCore) releasePROptions(
 	return forge.ReleasePROptions{
 		Title:         title,
 		Body:          body,
-		BaseBranch:    c.cfg.Branch,
+		BaseBranch:    c.run.baseBranch,
 		ReleaseBranch: releaseBranch,
 		Reviewers:     c.cfg.Release.Reviewers,
 		Labels:        c.releasePRLabels(),
@@ -146,7 +128,7 @@ func (c *releaseCore) combinedPRChangelog(plans []TargetPlan) string {
 
 	var body strings.Builder
 	body.WriteString("## Release wave\n\n")
-	fmt.Fprintf(&body, "Base branch: `%s`\n", c.cfg.Branch)
+	fmt.Fprintf(&body, "Base branch: `%s`\n", c.run.baseBranch)
 	fmt.Fprintf(&body, "Targets: %s", formatSectionTargetList(sections))
 
 	for _, section := range sections {

@@ -65,7 +65,6 @@ type Config struct {
 	Changelog                  ChangelogConfig    `yaml:"changelog"`
 	CalVer                     CalVerConfig       `yaml:"calver"`
 	Targets                    map[string]Target  `yaml:"targets"`
-	ActiveChannel              string             `yaml:"-"`
 }
 
 type TelemetryConfig struct {

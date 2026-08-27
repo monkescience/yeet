@@ -17,12 +17,13 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 		// given: a single-target title template and release plan
 		cfg := config.Default()
 		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.PRTitle = " {{ .Branch }}|{{ .Channel }}|{{ .Target }}|{{ .Version }}|{{ .Tag }} "
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{
+			cfg: cfg, run: releaseRun{baseBranch: cfg.Branch, channelName: "beta"}, titles: titles,
+		}
 		plans := []TargetPlan{{
 			ID:          "api",
 			NextVersion: "1.2.3-beta.1",
@@ -46,7 +47,7 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 		plans := []TargetPlan{{ID: "api"}, {ID: "web"}}
 
 		// when: rendering the PR title
@@ -96,7 +97,7 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 		title, err := core.releasePRTitle([]TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}})
 
 		// then: validation uses the actual branch instead of synthetic data
@@ -129,7 +130,7 @@ func TestReleasePRTitleTemplates(t *testing.T) {
 			// when: preparing or rendering the template
 			titles, err := newReleaseTitleTemplates(cfg.Release)
 			if err == nil {
-				core := &releaseCore{cfg: cfg, titles: titles}
+				core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 				_, err = core.releasePRTitle([]TargetPlan{{ID: "root", NextVersion: "1.0.0", NextTag: "v1.0.0"}})
 			}
 
@@ -152,7 +153,7 @@ func TestReleaseCommitSubjectTemplates(t *testing.T) {
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 		plans := []TargetPlan{{
 			ID:          "api",
 			NextVersion: "1.2.3",
@@ -176,12 +177,13 @@ func TestReleaseCommitSubjectTemplates(t *testing.T) {
 		// given: a group commit subject template
 		cfg := config.Default()
 		cfg.Branch = "beta"
-		cfg.ActiveChannel = "rc"
 		cfg.Release.CommitSubjectGroup = "commit {{ .Branch }} {{ .Channel }} {{ .TargetCount }}"
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{
+			cfg: cfg, run: releaseRun{baseBranch: cfg.Branch, channelName: "rc"}, titles: titles,
+		}
 		plans := []TargetPlan{{ID: "api"}, {ID: "web"}}
 
 		// when: rendering the commit subject
@@ -218,7 +220,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 
 		// when: rendering the release name
 		name, err := core.releaseNameForPlan(TargetPlan{
@@ -236,12 +238,13 @@ func TestReleaseNameTemplate(t *testing.T) {
 		// given: a release name template containing every allowed field
 		cfg := config.Default()
 		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.NameTemplate = "{{ .Branch }}|{{ .Channel }}|{{ .Target }}|{{ .Version }}|{{ .Tag }}"
 		titles, err := newReleaseTitleTemplates(cfg.Release)
 		testastic.NoError(t, err)
 
-		core := &releaseCore{cfg: cfg, titles: titles}
+		core := &releaseCore{
+			cfg: cfg, run: releaseRun{baseBranch: cfg.Branch, channelName: "beta"}, titles: titles,
+		}
 
 		// when: rendering the name for an active channel plan
 		name, err := core.releaseNameForPlan(TargetPlan{
@@ -264,7 +267,7 @@ func TestReleaseNameTemplate(t *testing.T) {
 			// when: preparing or rendering the release name
 			titles, err := newReleaseTitleTemplates(cfg.Release)
 			if err == nil {
-				core := &releaseCore{cfg: cfg, titles: titles}
+				core := &releaseCore{cfg: cfg, run: releaseRun{baseBranch: cfg.Branch}, titles: titles}
 				_, err = core.releaseNameForPlan(TargetPlan{
 					ID: "api", NextVersion: "1.2.3", NextTag: "api-v1.2.3",
 				})

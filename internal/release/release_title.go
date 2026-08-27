@@ -268,8 +268,8 @@ func (c *releaseCore) renderReleaseName(target, versionValue, tag string) (strin
 	}
 
 	return renderReleaseTitle(c.titles.releaseName, singleReleaseTitleData{
-		Branch:  c.cfg.Branch,
-		Channel: strings.TrimSpace(c.cfg.ActiveChannel),
+		Branch:  c.run.baseBranch,
+		Channel: c.run.channelName,
 		Target:  target,
 		Version: versionValue,
 		Tag:     tag,
@@ -284,8 +284,8 @@ func (c *releaseCore) releaseTemplatedSubject(
 		plan := plans[0]
 
 		return renderReleaseTitle(single, singleReleaseTitleData{
-			Branch:  c.cfg.Branch,
-			Channel: strings.TrimSpace(c.cfg.ActiveChannel),
+			Branch:  c.run.baseBranch,
+			Channel: c.run.channelName,
 			Target:  plan.ID,
 			Version: plan.NextVersion,
 			Tag:     plan.NextTag,
@@ -294,8 +294,8 @@ func (c *releaseCore) releaseTemplatedSubject(
 
 	if len(plans) > 1 && grouped != nil {
 		return renderReleaseTitle(grouped, groupReleaseTitleData{
-			Branch:      c.cfg.Branch,
-			Channel:     strings.TrimSpace(c.cfg.ActiveChannel),
+			Branch:      c.run.baseBranch,
+			Channel:     c.run.channelName,
 			TargetCount: len(plans),
 		})
 	}

@@ -18,11 +18,11 @@ func TestReleaseBranchTemplate(t *testing.T) {
 		cfg := config.Default()
 
 		// when: resolving the release branch
-		branch, err := releaseBranchForConfig(cfg)
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
 
 		// then: the existing branch convention is preserved
 		testastic.NoError(t, err)
-		testastic.Equal(t, "yeet/release-main", branch)
+		testastic.Equal(t, "yeet/release-main", run.releaseBranch)
 	})
 
 	t.Run("renders branch and channel fields", func(t *testing.T) {
@@ -30,16 +30,17 @@ func TestReleaseBranchTemplate(t *testing.T) {
 
 		// given: an active beta channel and a custom branch template
 		cfg := config.Default()
-		cfg.Branch = "release/beta"
-		cfg.ActiveChannel = "beta"
+		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+			"beta": {Branch: "release/beta", Prerelease: "beta"},
+		}
 		cfg.Release.BranchTemplate = "automation/{{ .Channel }}/{{ .Branch }}"
 
 		// when: resolving the release branch
-		branch, err := releaseBranchForConfig(cfg)
+		run, err := resolveRun(cfg, "release/beta", Options{})
 
 		// then: both allowlisted fields are rendered
 		testastic.NoError(t, err)
-		testastic.Equal(t, "automation/beta/release/beta", branch)
+		testastic.Equal(t, "automation/beta/release/beta", run.releaseBranch)
 	})
 }
 

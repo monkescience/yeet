@@ -81,7 +81,7 @@ func (a *releaseAnalyzer) nextVersionPlan(
 		currentVersionWithInitial(target, currentVersion),
 		bumpType,
 		releaseAsVersion,
-		a.core.activePrereleaseIdentifier(),
+		a.core.run.prerelease,
 	)
 }
 

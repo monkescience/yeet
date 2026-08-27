@@ -91,7 +91,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 		scan.extraTags,
 	)
 	if err != nil {
-		return fmt.Errorf("get commits from branch %q: %w", a.core.cfg.Branch, err)
+		return fmt.Errorf("get commits from branch %q: %w", a.core.run.baseBranch, err)
 	}
 
 	missingRefs := make(map[string]struct{}, len(scanned.MissingRefs))
@@ -101,7 +101,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 
 	if len(scanned.MissingRefs) > 0 {
 		slog.WarnContext(ctx, "shared history scan: refs unreachable from branch",
-			slog.String("branch", a.core.cfg.Branch),
+			slog.String("branch", a.core.run.baseBranch),
 			slog.Any("missing_refs", scanned.MissingRefs),
 		)
 	}
@@ -127,7 +127,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 	scan.index = index
 
 	slog.DebugContext(ctx, "shared history index built",
-		slog.String("branch", a.core.cfg.Branch),
+		slog.String("branch", a.core.run.baseBranch),
 		slog.Int("targets_total", len(targets)),
 		slog.Int("targets_indexed", len(index)),
 		slog.Int("refs_requested", len(refs)),
@@ -203,7 +203,7 @@ func (a *releaseAnalyzer) commitsSince(
 
 	history, err := a.history.GetCommitsSinceRefs(ctx, []string{ref}, scan.includePaths, scan.extraTags)
 	if err != nil {
-		return nil, fmt.Errorf("get commits from branch %q: %w", a.core.cfg.Branch, err)
+		return nil, fmt.Errorf("get commits from branch %q: %w", a.core.run.baseBranch, err)
 	}
 
 	if slices.Contains(history.MissingRefs, ref) {
@@ -211,8 +211,8 @@ func (a *releaseAnalyzer) commitsSince(
 			"previous release ref %q is not reachable from release branch %q. "+
 				"Verify the latest tag or release and branch ancestry: %w",
 			ref,
-			a.core.cfg.Branch,
-			&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.cfg.Branch},
+			a.core.run.baseBranch,
+			&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.run.baseBranch},
 		)
 	}
 

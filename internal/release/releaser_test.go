@@ -263,7 +263,6 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// given: a prerelease channel with a calver target
 		cfg := config.Default()
-		cfg.ActiveChannel = "beta"
 		cfg.Versioning = config.VersioningCalVer
 		cfg.Targets = map[string]config.Target{
 			"default": {
@@ -280,7 +279,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		stub := newProviderStub()
 
 		// when: constructing the releaser
-		_, err := newStubReleaser(context.Background(), cfg, stub)
+		_, err := newStubReleaser(context.Background(), cfg, stub, Options{Channel: new("beta")})
 
 		// then: the error identifies the incompatible target
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
@@ -323,8 +322,6 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// given: a beta channel on the beta branch
 		cfg := config.Default()
-		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -337,7 +334,7 @@ func TestPrereleaseChannels(t *testing.T) {
 			Message: "feat: add export command",
 		}}
 
-		r := newTestReleaser(t, cfg, stub)
+		r := newTestReleaser(t, cfg, stub, Options{Channel: new("beta")})
 
 		// when: calculating a prerelease
 		result, err := r.Release(context.Background(), true)
@@ -354,8 +351,6 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// given: a beta channel with an existing beta tag
 		cfg := config.Default()
-		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -369,7 +364,7 @@ func TestPrereleaseChannels(t *testing.T) {
 			}},
 		}
 
-		r := newTestReleaser(t, cfg, stub)
+		r := newTestReleaser(t, cfg, stub, Options{Channel: new("beta")})
 
 		// when: calculating the next beta release
 		result, err := r.Release(context.Background(), true)
@@ -386,8 +381,6 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// given: a beta channel with a derived target whose release comes from a child feature
 		cfg := config.Default()
-		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -414,7 +407,7 @@ func TestPrereleaseChannels(t *testing.T) {
 			Paths:   []string{"services/api/main.go"},
 		}}
 
-		r := newTestReleaser(t, cfg, stub)
+		r := newTestReleaser(t, cfg, stub, Options{Channel: new("beta")})
 
 		// when: calculating the beta release wave
 		result, err := r.Release(context.Background(), true)
@@ -429,8 +422,6 @@ func TestPrereleaseChannels(t *testing.T) {
 	t.Run("channel release writes channel changelog", func(t *testing.T) {
 		// given: a beta channel release with a version file
 		cfg := config.Default()
-		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
@@ -445,7 +436,7 @@ func TestPrereleaseChannels(t *testing.T) {
 			Message: "feat: add export command",
 		}}
 
-		r := newTestReleaser(t, cfg, stub)
+		r := newTestReleaser(t, cfg, stub, Options{Channel: new("beta")})
 
 		// when: creating the prerelease PR
 		_, err := r.Release(context.Background(), false)
@@ -475,8 +466,6 @@ func TestPrereleaseChannels(t *testing.T) {
 
 		// given: auto-merge enabled for a beta channel
 		cfg := config.Default()
-		cfg.Branch = "beta"
-		cfg.ActiveChannel = "beta"
 		cfg.Release.AutoMerge = true
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
@@ -490,7 +479,7 @@ func TestPrereleaseChannels(t *testing.T) {
 			Message: "feat: add export command",
 		}}
 
-		r := newTestReleaser(t, cfg, stub)
+		r := newTestReleaser(t, cfg, stub, Options{Channel: new("beta")})
 
 		// when: running the prerelease flow end-to-end
 		result, err := r.Release(context.Background(), false)

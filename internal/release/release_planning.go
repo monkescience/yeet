@@ -235,7 +235,7 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 		slog.String("target", target.ID),
 		slog.String("current_version", targetHist.currentVersion),
 		slog.String("boundary_ref", targetHist.ref),
-		slog.String("branch", a.core.cfg.Branch),
+		slog.String("branch", a.core.run.baseBranch),
 	)
 
 	entries := filterEntriesForTarget(targetHist.entries, target)
@@ -397,7 +397,7 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		currentVersionWithInitial(target, currentVersion),
 		finalBumpType,
 		"",
-		a.core.activePrereleaseIdentifier(),
+		a.core.run.prerelease,
 	)
 	if err != nil {
 		//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.

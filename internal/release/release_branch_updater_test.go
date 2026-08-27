@@ -77,10 +77,10 @@ func newUpdateFilesUpdaterWithSource(
 		}
 	}
 
-	releaseBranch, err := releaseBranchForConfig(cfg)
+	run, err := resolveRun(cfg, cfg.Branch, Options{})
 	testastic.NoError(t, err)
 
-	core, err := newReleaseCore(t.Context(), cfg, forge, releaseBranch)
+	core, err := newReleaseCore(t.Context(), cfg, forge, run)
 	testastic.NoError(t, err)
 
 	return newReleaseBranchUpdater(core, source, forge)

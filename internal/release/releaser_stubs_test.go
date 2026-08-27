@@ -42,8 +42,13 @@ func sourceFromTestDeps(branch string, deps testSourceDeps) releaseSource {
 	return testReleaseSource{versionHistoryProvider: deps, files: deps, branch: branch}
 }
 
-func newStubReleaser(ctx context.Context, cfg *config.Config, deps testReleaserDeps) (*releaser, error) {
-	return newStubReleaserWithSource(ctx, cfg, deps, deps)
+func newStubReleaser(
+	ctx context.Context,
+	cfg *config.Config,
+	deps testReleaserDeps,
+	options ...Options,
+) (*releaser, error) {
+	return newStubReleaserWithSource(ctx, cfg, deps, deps, options...)
 }
 
 func newStubReleaserWithSource(
@@ -51,13 +56,25 @@ func newStubReleaserWithSource(
 	cfg *config.Config,
 	deps testReleaserDeps,
 	source testSourceDeps,
+	options ...Options,
 ) (*releaser, error) {
-	releaseBranch, err := releaseBranchForConfig(cfg)
+	resolvedOptions := Options{}
+	if len(options) > 0 {
+		resolvedOptions = options[0]
+	}
+
+	currentBranch := cfg.Branch
+	if resolvedOptions.Channel != nil {
+		channel := cfg.Release.Channels[strings.TrimSpace(*resolvedOptions.Channel)]
+		currentBranch = channel.Branch
+	}
+
+	run, err := resolveRun(cfg, currentBranch, resolvedOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	core, err := newReleaseCore(ctx, cfg, deps, releaseBranch)
+	core, err := newReleaseCore(ctx, cfg, deps, run)
 	if err != nil {
 		return nil, err
 	}
@@ -66,10 +83,15 @@ func newStubReleaserWithSource(
 		return newReleaser(core, nil, deps, deps, deps)
 	}
 
-	return newReleaser(core, sourceFromTestDeps(cfg.Branch, source), deps, deps, deps)
+	return newReleaser(core, sourceFromTestDeps(run.baseBranch, source), deps, deps, deps)
 }
 
-func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *releaser {
+func newTestReleaser(
+	t *testing.T,
+	cfg *config.Config,
+	deps testReleaserDeps,
+	options ...Options,
+) *releaser {
 	t.Helper()
 
 	if len(cfg.Targets) == 0 {
@@ -82,7 +104,7 @@ func newTestReleaser(t *testing.T, cfg *config.Config, deps testReleaserDeps) *r
 		}
 	}
 
-	r, err := newStubReleaser(t.Context(), cfg, deps)
+	r, err := newStubReleaser(t.Context(), cfg, deps, options...)
 	testastic.NoError(t, err)
 
 	if err != nil {
