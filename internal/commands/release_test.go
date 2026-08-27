@@ -185,6 +185,7 @@ func TestReleaseCommand(t *testing.T) {
 		// given: a valid config file and provider-incompatible CLI flags
 		tempDir := t.TempDir()
 		t.Chdir(tempDir)
+		clearBranchEnv(t)
 		writeTestConfig(t, func(cfg *config.Config) {})
 
 		// when: running release with gitlab provider but github-shaped --owner/--repo
