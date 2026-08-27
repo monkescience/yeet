@@ -70,7 +70,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
 
-	r, err := newReleaser(core, historySource, p, p, p)
+	r, err := newReleaser(core, historySource, p)
 	if err != nil {
 		return nil, resolvedConfigPath, err
 	}

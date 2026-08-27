@@ -18,9 +18,7 @@ import (
 type testReleaserDeps interface {
 	repoMetadataProvider
 	versionHistoryProvider
-	releasePRProvider
-	releaseFileProvider
-	releasePublishingProvider
+	releaseForge
 }
 
 type testSourceDeps interface {
@@ -80,10 +78,10 @@ func newStubReleaserWithSource(
 	}
 
 	if source == nil {
-		return newReleaser(core, nil, deps, deps, deps)
+		return newReleaser(core, nil, deps)
 	}
 
-	return newReleaser(core, sourceFromTestDeps(run.baseBranch, source), deps, deps, deps)
+	return newReleaser(core, sourceFromTestDeps(run.baseBranch, source), deps)
 }
 
 func newTestReleaser(

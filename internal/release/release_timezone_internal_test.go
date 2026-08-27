@@ -37,7 +37,7 @@ func TestReleaseTimezoneUsesOneCapturedCalendarDate(t *testing.T) {
 	core, err := newReleaseCoreAt(t.Context(), cfg, stub, run, now)
 	testastic.NoError(t, err)
 
-	r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub, stub, stub)
+	r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
 	testastic.NoError(t, err)
 
 	result, err := r.Release(context.Background(), true)

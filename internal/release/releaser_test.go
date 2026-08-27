@@ -255,6 +255,19 @@ func TestNewHistorySource(t *testing.T) {
 	})
 }
 
+func TestReleaserSharesPublisherWithWorkflow(t *testing.T) {
+	t.Parallel()
+
+	// given: a releaser that owns the publisher for one run
+	r := newTestReleaser(t, config.Default(), newProviderStub())
+
+	// when: constructing its release PR workflow
+	workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+
+	// then: the workflow uses the releaser's publisher instance
+	testastic.True(t, workflow.publisher == r.publisher)
+}
+
 func TestPrereleaseChannels(t *testing.T) {
 	t.Parallel()
 
@@ -1745,7 +1758,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3", Entry: changelog.ParseEntry("## api-v1.2.3 (2026-03-01)")},
 			{ID: "web", NextTag: "web-v2.3.4", Entry: changelog.ParseEntry("## web-v2.3.4 (2026-03-01)")},
@@ -1782,7 +1795,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		existing := &forge.PullRequest{Branch: "yeet/release-main"}
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3"},
 			{ID: "web", NextTag: "web-v2.3.4"},
@@ -1830,7 +1843,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 `)
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{{
 			ID:      "default",
 			NextTag: "v1.2.3",

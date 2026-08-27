@@ -128,7 +128,7 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 `)
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
 
 		webPlan := TargetPlan{
 			ID: "web",

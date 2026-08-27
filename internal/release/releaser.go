@@ -61,9 +61,8 @@ type TargetPlan struct {
 type releaser struct {
 	core      *releaseCore
 	source    releaseSource
-	prs       releasePRProvider
-	files     releaseFileProvider
-	publisher releasePublishingProvider
+	forge     releaseForge
+	publisher *releasePublisher
 }
 
 type versionStrategy struct {
@@ -119,15 +118,10 @@ func newReleaseCoreAt(
 	}, nil
 }
 
-// newReleaser wires a validated source to the provider-side capabilities.
-// History and base-branch files are served by the local-git source, while every
-// provider-side capability is passed to the capability that consumes it.
 func newReleaser(
 	core *releaseCore,
 	source releaseSource,
-	prs releasePRProvider,
-	files releaseFileProvider,
-	publisher releasePublishingProvider,
+	forge releaseForge,
 ) (*releaser, error) {
 	if source == nil {
 		return nil, errNilHistorySource
@@ -136,9 +130,8 @@ func newReleaser(
 	return &releaser{
 		core:      core,
 		source:    source,
-		prs:       prs,
-		files:     files,
-		publisher: publisher,
+		forge:     forge,
+		publisher: newReleasePublisher(core, forge, source),
 	}, nil
 }
 
@@ -189,7 +182,7 @@ func (r *releaser) publishReleaseWave(
 		return nil, nil, nil
 	}
 
-	workflow := newReleasePRWorkflow(r.core, r.source, r.prs, r.files, r.publisher)
+	workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
 
 	pullRequest, err := workflow.createOrUpdate(ctx, plans)
 	if err != nil {
@@ -279,7 +272,7 @@ func (r *releaser) logReleaseAnalysis(ctx context.Context, plans []TargetPlan) {
 }
 
 func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]FinalizedRelease, error) {
-	return newReleasePublisher(r.core, r.publisher, r.source).finalizeMergedReleasePR(ctx)
+	return r.publisher.finalizeMergedReleasePR(ctx)
 }
 
 func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {

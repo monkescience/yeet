@@ -68,3 +68,9 @@ type releasePublishingProvider interface {
 	releasePRLabelSetter
 	releasePRTaggingPreflighter
 }
+
+type releaseForge interface {
+	releasePRProvider
+	releaseFileProvider
+	releasePublishingProvider
+}

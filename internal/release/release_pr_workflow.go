@@ -24,18 +24,17 @@ type releasePRWorkflow struct {
 func newReleasePRWorkflow(
 	core *releaseCore,
 	source releaseSource,
-	prs releasePRProvider,
-	files releaseFileProvider,
-	publisher releasePublishingProvider,
+	forge releaseForge,
+	publisher *releasePublisher,
 ) *releasePRWorkflow {
 	return &releasePRWorkflow{
 		core:          core,
-		prs:           prs,
-		files:         files,
-		branchUpdater: newReleaseBranchUpdater(core, source, files),
-		publisher:     newReleasePublisher(core, publisher, source),
+		prs:           forge,
+		files:         forge,
+		branchUpdater: newReleaseBranchUpdater(core, source, forge),
+		publisher:     publisher,
 		changelogs:    newChangelogFileCache(),
-		labels:        newLabelLifecycle(core, prs),
+		labels:        newLabelLifecycle(core, forge),
 	}
 }
 
