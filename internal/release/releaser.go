@@ -28,6 +28,7 @@ type Result struct {
 	BaseBranch  string
 	Provider    config.ProviderType
 	Plans       []TargetPlan
+	Text        *RenderedRelease
 	PullRequest *forge.PullRequest
 	Releases    []FinalizedRelease
 }
@@ -60,6 +61,7 @@ type TargetPlan struct {
 
 type releaser struct {
 	core      *releaseCore
+	text      *releaseText
 	source    releaseSource
 	forge     releaseForge
 	publisher *releasePublisher
@@ -103,17 +105,11 @@ func newReleaseCoreAt(
 		return nil, err
 	}
 
-	titles, err := newReleaseTitleTemplates(cfg.Release)
-	if err != nil {
-		return nil, err
-	}
-
 	return &releaseCore{
 		cfg:         cfg,
 		run:         run,
 		targets:     targets,
 		metadata:    metadata,
-		titles:      titles,
 		releaseTime: now.In(location),
 	}, nil
 }
@@ -127,31 +123,42 @@ func newReleaser(
 		return nil, errNilHistorySource
 	}
 
+	text, err := newReleaseText(core.cfg, core.run, core.targets)
+	if err != nil {
+		return nil, err
+	}
+
 	return &releaser{
 		core:      core,
+		text:      text,
 		source:    source,
 		forge:     forge,
-		publisher: newReleasePublisher(core, forge, source),
+		publisher: newReleasePublisher(core, text, forge, source),
 	}, nil
 }
 
 func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection releaseSelection) (*Result, error) {
 	plans, analysisErr := analyze(ctx, r.core, r.source, selection, nil)
-	if analysisErr == nil {
-		validationErr := r.validateRenderedReleaseText(plans)
-		if validationErr != nil {
-			return nil, validationErr
-		}
-	}
-
 	if dryRun {
 		if analysisErr != nil {
 			return nil, analysisErr
 		}
 
+		text, err := r.text.render(plans, r.core.run.releaseBranch, r.forge.MaxPRBodyLength())
+		if err != nil {
+			return nil, err
+		}
+
 		r.logReleaseAnalysis(ctx, plans)
 
-		return &Result{BaseBranch: r.core.run.baseBranch, Plans: plans}, nil
+		return &Result{BaseBranch: r.core.run.baseBranch, Plans: plans, Text: text}, nil
+	}
+
+	if analysisErr == nil {
+		validationErr := r.text.validate(plans, r.forge.MaxPRBodyLength())
+		if validationErr != nil {
+			return nil, validationErr
+		}
 	}
 
 	plans, finalized, err := r.finalizeAndRefreshReleaseAnalysis(ctx, selection, plans, analysisErr)
@@ -161,7 +168,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection re
 
 	r.logReleaseAnalysis(ctx, plans)
 
-	pullRequest, published, err := r.publishReleaseWave(ctx, plans)
+	pullRequest, text, published, err := r.publishReleaseWave(ctx, plans)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +176,7 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection re
 	return &Result{
 		BaseBranch:  r.core.run.baseBranch,
 		Plans:       plans,
+		Text:        text,
 		PullRequest: pullRequest,
 		Releases:    append(finalized, published...),
 	}, nil
@@ -177,24 +185,24 @@ func (r *releaser) releaseTargets(ctx context.Context, dryRun bool, selection re
 func (r *releaser) publishReleaseWave(
 	ctx context.Context,
 	plans []TargetPlan,
-) (*forge.PullRequest, []FinalizedRelease, error) {
+) (*forge.PullRequest, *RenderedRelease, []FinalizedRelease, error) {
 	if len(plans) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
-	workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+	workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
 
-	pullRequest, err := workflow.createOrUpdate(ctx, plans)
+	pullRequest, text, err := workflow.createOrUpdate(ctx, plans)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	published, err := workflow.autoMerge(ctx, pullRequest, plans)
+	published, err := workflow.autoMerge(ctx, pullRequest, plans, text.ReleaseNames)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return pullRequest, published, nil
+	return pullRequest, text, published, nil
 }
 
 func (r *releaser) finalizeAndRefreshReleaseAnalysis(
@@ -221,7 +229,7 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 		return nil, nil, err
 	}
 
-	err = r.validateRenderedReleaseText(plans)
+	err = r.text.validate(plans, r.forge.MaxPRBodyLength())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -234,31 +242,6 @@ func (r *releaser) finalizeAndRefreshReleaseAnalysis(
 	}
 
 	return plans, finalized, nil
-}
-
-func (r *releaser) validateRenderedReleaseText(plans []TargetPlan) error {
-	if len(plans) == 0 {
-		return nil
-	}
-
-	_, err := r.core.releasePRTitle(plans)
-	if err != nil {
-		return err
-	}
-
-	_, err = r.core.releaseCommitSubject(plans)
-	if err != nil {
-		return err
-	}
-
-	for _, plan := range plans {
-		_, err = r.core.releaseNameForPlan(plan)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (r *releaser) logReleaseAnalysis(ctx context.Context, plans []TargetPlan) {

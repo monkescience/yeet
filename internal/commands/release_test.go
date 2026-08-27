@@ -257,6 +257,10 @@ func TestHandleReleaseResult(t *testing.T) {
 
 		// given: a result with one plan and dry-run enabled
 		result := &release.Result{
+			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+				Title: "chore: release 1.1.0",
+				Body:  "Rendered release pull request body.",
+			}},
 			Plans: []release.TargetPlan{
 				{
 					ID:             "default",
@@ -519,6 +523,10 @@ func TestPrintDryRun(t *testing.T) {
 
 		// given: a result with one plan
 		result := &release.Result{
+			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+				Title: "chore: release 1.1.0",
+				Body:  "Rendered release pull request body.",
+			}},
 			Plans: []release.TargetPlan{
 				{
 					ID:             "default",

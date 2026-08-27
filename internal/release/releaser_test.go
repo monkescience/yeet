@@ -58,6 +58,9 @@ func TestReleaseSemVerPreMajorBumps(t *testing.T) {
 
 		// then: version bumps to next minor instead of 1.0.0
 		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*RenderedRelease)(nil), result.Text)
+		testastic.Equal(t, "chore: release 0.5.0", result.Text.PROptions.Title)
+		testastic.Contains(t, result.Text.PROptions.Body, "v0.5.0")
 		testastic.Equal(t, "0.4.2", result.Plans[0].CurrentVersion)
 		testastic.Equal(t, "0.5.0", result.Plans[0].NextVersion)
 		testastic.Equal(t, "v0.5.0", result.Plans[0].NextTag)
@@ -262,7 +265,7 @@ func TestReleaserSharesPublisherWithWorkflow(t *testing.T) {
 	r := newTestReleaser(t, config.Default(), newProviderStub())
 
 	// when: constructing its release PR workflow
-	workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+	workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
 
 	// then: the workflow uses the releaser's publisher instance
 	testastic.True(t, workflow.publisher == r.publisher)
@@ -1079,6 +1082,33 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("dry run enforces the provider body limit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider limits that the configured header cannot satisfy
+		cfg := config.Default()
+		cfg.Release.PRBodyHeader = strings.Repeat("h", 4001)
+		cfg.Release.PRBodyFooter = ""
+
+		stub := newProviderStub()
+		stub.maxPRBodyLength = 4000
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "fix: patch bug",
+		}}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: rendering the dry-run result
+		result, err := r.Release(t.Context(), true)
+
+		// then: the dry run fails before any provider mutation just like a real run
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(t, (*Result)(nil), result)
+		testastic.Equal(t, 0, stub.updateFilesCalls)
+		testastic.Equal(t, 0, stub.createPRCalls)
+	})
+
 	t.Run("dry run rejects an empty title for actual release data", func(t *testing.T) {
 		t.Parallel()
 
@@ -1633,6 +1663,10 @@ func TestReleaseSubjectFormatting(t *testing.T) {
 
 		// then: provider title and branch commit use their respective templates
 		testastic.NoError(t, err)
+		testastic.NotEqual(t, (*RenderedRelease)(nil), result.Text)
+		testastic.Equal(t, result.PullRequest.Title, result.Text.PROptions.Title)
+		testastic.Equal(t, result.PullRequest.Body, result.Text.PROptions.Body)
+		testastic.Equal(t, "commit main "+result.Plans[0].NextVersion, result.Text.CommitSubject)
 		testastic.Equal(t, "PR "+result.Plans[0].NextTag, result.PullRequest.Title)
 		testastic.Equal(t, "commit main "+result.Plans[0].NextVersion, stub.updateFilesMessages[0])
 	})
@@ -1758,7 +1792,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3", Entry: changelog.ParseEntry("## api-v1.2.3 (2026-03-01)")},
 			{ID: "web", NextTag: "web-v2.3.4", Entry: changelog.ParseEntry("## web-v2.3.4 (2026-03-01)")},
@@ -1795,7 +1829,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		existing := &forge.PullRequest{Branch: "yeet/release-main"}
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3"},
 			{ID: "web", NextTag: "web-v2.3.4"},
@@ -1843,7 +1877,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 `)
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.source, r.forge, r.publisher)
+		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
 		result := &Result{Plans: []TargetPlan{{
 			ID:      "default",
 			NextTag: "v1.2.3",

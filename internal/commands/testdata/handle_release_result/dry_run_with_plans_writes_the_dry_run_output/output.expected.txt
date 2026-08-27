@@ -6,11 +6,8 @@ Dry Run
   Tag               v1.1.0
   Commits           3
 
-  ────────────────────────────────
+  PR Title          chore: release 1.1.0
 
-## v1.1.0 (2026-03-01)
+  PR Body
 
-### Features
-
-- something new
-{{regex `^$`}}
+Rendered release pull request body.

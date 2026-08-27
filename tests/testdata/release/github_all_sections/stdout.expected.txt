@@ -6,9 +6,13 @@ Dry Run
   Tag               v1.1.0
   Commits           4
 
-  ────────────────────────────────
+  PR Title          chore: release 1.1.0
 
-## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+  PR Body
+
+## ٩(^ᴗ^)۶ release created
+
+## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...c6c0c2baa5dd249340215ca6ad79ae33a5c78341) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
 ### Features
 
@@ -26,3 +30,10 @@ Dry Run
 
 - roll back the prior feat ([13e75ae](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/13e75ae7cdbedaf3c646528dddf05ca656f70521))
 
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

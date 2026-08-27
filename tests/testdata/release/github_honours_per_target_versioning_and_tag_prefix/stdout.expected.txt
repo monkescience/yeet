@@ -6,25 +6,48 @@ Dry Run
   Tag               api-v1.1.0
   Commits           1
 
-  ────────────────────────────────
-
-## [api-v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/api-v1.0.0...api-v1.1.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
-
-### Features
-
-- api change ([fda0b65](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/fda0b65f1c5c984d85a3bbfe658153709ba90d3b))
-
-
   Target            web
   Version           2025.05.0 → {{regex `\d{4}\.(?:0[1-9]|1[0-2])\.1`}} (minor)
   Tag               web-v{{regex `\d{4}\.(?:0[1-9]|1[0-2])\.1`}}
   Commits           1
 
-  ────────────────────────────────
+  PR Title          chore: release wave
 
-## [web-v{{regex `\d{4}\.(?:0[1-9]|1[0-2])\.1`}}](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/web-v2025.05.0...web-v{{regex `\d{4}\.(?:0[1-9]|1[0-2])\.1`}}) ({{regex `\d{4}-\d{2}-\d{2}`}})
+  PR Body
+
+## ٩(^ᴗ^)۶ release created
+
+## Release wave
+
+Base branch: `main`
+Targets: `api`, `web`
+
+## api
+
+Tag: `api-v1.0.0` -> `api-v1.1.0`
+Bump: `minor`
+Date: `{{regex `\d{4}-\d{2}-\d{2}`}}`
+Compare: [api-v1.0.0...fda0b65f1c5c984d85a3bbfe658153709ba90d3b](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/api-v1.0.0...fda0b65f1c5c984d85a3bbfe658153709ba90d3b)
+
+### Features
+
+- api change ([fda0b65](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/fda0b65f1c5c984d85a3bbfe658153709ba90d3b))
+
+## web
+
+Tag: `web-v2025.05.0` -> `web-v2026.08.1`
+Bump: `minor`
+Date: `{{regex `\d{4}-\d{2}-\d{2}`}}`
+Compare: [web-v2025.05.0...59ef4c1bf0789f87b84f640391ee547ff77b9633](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/web-v2025.05.0...59ef4c1bf0789f87b84f640391ee547ff77b9633)
 
 ### Features
 
 - web change ([59ef4c1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/59ef4c1bf0789f87b84f640391ee547ff77b9633))
-{{regex `^$`}}
+
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"api","type":"path","tag":"api-v1.1.0","changelog_file":"CHANGELOG.md"},{"id":"web","type":"path","tag":"web-v2026.08.1","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

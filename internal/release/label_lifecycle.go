@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -15,8 +16,8 @@ type labelLifecycle struct {
 	labels forge.ReleasePRLabels
 }
 
-func newLabelLifecycle(core *releaseCore, setter releasePRLabelSetter) labelLifecycle {
-	return labelLifecycle{setter: setter, labels: core.releasePRLabels()}
+func newLabelLifecycle(cfg *config.Config, setter releasePRLabelSetter) labelLifecycle {
+	return labelLifecycle{setter: setter, labels: releasePRLabels(cfg)}
 }
 
 func (l labelLifecycle) opened(ctx context.Context, number int) error {

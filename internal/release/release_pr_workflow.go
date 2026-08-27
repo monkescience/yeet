@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/forge"
@@ -13,6 +14,7 @@ import (
 
 type releasePRWorkflow struct {
 	core          *releaseCore
+	text          *releaseText
 	prs           releasePRProvider
 	files         releaseFileProvider
 	branchUpdater *releaseBranchUpdater
@@ -23,36 +25,36 @@ type releasePRWorkflow struct {
 
 func newReleasePRWorkflow(
 	core *releaseCore,
+	text *releaseText,
 	source releaseSource,
 	forge releaseForge,
 	publisher *releasePublisher,
 ) *releasePRWorkflow {
 	return &releasePRWorkflow{
 		core:          core,
+		text:          text,
 		prs:           forge,
 		files:         forge,
 		branchUpdater: newReleaseBranchUpdater(core, source, forge),
 		publisher:     publisher,
 		changelogs:    newChangelogFileCache(),
-		labels:        newLabelLifecycle(core, forge),
+		labels:        newLabelLifecycle(core.cfg, forge),
 	}
 }
 
-func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPlan) (*forge.PullRequest, error) {
+func (w *releasePRWorkflow) createOrUpdate(
+	ctx context.Context,
+	plans []TargetPlan,
+) (*forge.PullRequest, *RenderedRelease, error) {
 	r := w.core
 
 	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.run.baseBranch, r.cfg.Release.Labels.Pending)
 	if err != nil {
-		return nil, fmt.Errorf("find pending release PRs: %w", err)
+		return nil, nil, fmt.Errorf("find pending release PRs: %w", err)
 	}
 
 	if len(pendingPRs) > 1 {
-		return nil, multiplePendingReleasePRError(pendingPRs)
-	}
-
-	commitSubject, err := r.releaseCommitSubject(plans)
-	if err != nil {
-		return nil, err
+		return nil, nil, multiplePendingReleasePRError(pendingPRs)
 	}
 
 	if len(pendingPRs) == 1 {
@@ -60,30 +62,67 @@ func (w *releasePRWorkflow) createOrUpdate(ctx context.Context, plans []TargetPl
 
 		err = w.adoptUnlabeledReleasePR(ctx, existing)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		err = w.preserveExistingChangelogEdits(ctx, existing, plans)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		prOpts, prErr := r.releasePROptions(ctx, plans, existing.Branch, w.prs.MaxPRBodyLength())
-		if prErr != nil {
-			return nil, prErr
+		rendered, renderErr := w.render(ctx, plans, existing.Branch)
+		if renderErr != nil {
+			return nil, nil, renderErr
 		}
 
-		return w.updateExisting(ctx, existing, existing.Branch, prOpts, commitSubject, plans)
+		pullRequest, updateErr := w.updateExisting(
+			ctx,
+			existing,
+			existing.Branch,
+			rendered.PROptions,
+			rendered.CommitSubject,
+			plans,
+		)
+
+		return pullRequest, rendered, updateErr
 	}
 
 	releaseBranch := r.run.releaseBranch
 
-	prOpts, err := r.releasePROptions(ctx, plans, releaseBranch, w.prs.MaxPRBodyLength())
+	rendered, err := w.render(ctx, plans, releaseBranch)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pullRequest, err := w.createNew(
+		ctx,
+		releaseBranch,
+		rendered.PROptions,
+		rendered.CommitSubject,
+		plans,
+	)
+
+	return pullRequest, rendered, err
+}
+
+func (w *releasePRWorkflow) render(
+	ctx context.Context,
+	plans []TargetPlan,
+	releaseBranch string,
+) (*RenderedRelease, error) {
+	rendered, err := w.text.render(plans, releaseBranch, w.prs.MaxPRBodyLength())
 	if err != nil {
 		return nil, err
 	}
 
-	return w.createNew(ctx, releaseBranch, prOpts, commitSubject, plans)
+	if rendered.NotesOmitted {
+		slog.WarnContext(ctx, "omitted release notes from PR body to fit provider limit",
+			slog.Int("limit", rendered.bodyLimit),
+			slog.Int("body_length", utf8.RuneCountInString(rendered.PROptions.Body)),
+		)
+	}
+
+	return rendered, nil
 }
 
 // adoptUnlabeledReleasePR recovers a release PR that was created but never
@@ -244,6 +283,7 @@ func (w *releasePRWorkflow) autoMerge(
 	ctx context.Context,
 	pullRequest *forge.PullRequest,
 	plans []TargetPlan,
+	releaseNames map[string]string,
 ) ([]FinalizedRelease, error) {
 	r := w.core
 
@@ -272,7 +312,7 @@ func (w *releasePRWorkflow) autoMerge(
 
 	slog.InfoContext(ctx, "merged release PR", slog.String("url", pullRequest.URL))
 
-	releases, err := w.publisher.ensureReleasesForPlans(ctx, plans, strings.TrimSpace(mergeSHA))
+	releases, err := w.publisher.ensureReleasesForPlans(ctx, plans, releaseNames, strings.TrimSpace(mergeSHA))
 	if err != nil {
 		return nil, err
 	}

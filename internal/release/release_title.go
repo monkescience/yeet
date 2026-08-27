@@ -228,55 +228,41 @@ func validateReleaseTextBranch(
 	return nil
 }
 
-func (c *releaseCore) releasePRTitle(plans []TargetPlan) (string, error) {
-	if c.titles == nil {
-		return c.releaseSubject(plans), nil
+func (t *releaseText) releasePRTitle(plans []TargetPlan) (string, error) {
+	if t.titles == nil {
+		return t.releaseSubject(plans), nil
 	}
 
-	return c.releaseTemplatedSubject(plans, c.titles.single, c.titles.group)
+	return t.releaseTemplatedSubject(plans, t.titles.single, t.titles.group)
 }
 
-func (c *releaseCore) releaseCommitSubject(plans []TargetPlan) (string, error) {
-	if c.titles == nil {
-		return c.releaseSubject(plans), nil
+func (t *releaseText) releaseCommitSubject(plans []TargetPlan) (string, error) {
+	if t.titles == nil {
+		return t.releaseSubject(plans), nil
 	}
 
-	return c.releaseTemplatedSubject(plans, c.titles.commitSingle, c.titles.commitGrouped)
+	return t.releaseTemplatedSubject(plans, t.titles.commitSingle, t.titles.commitGrouped)
 }
 
-func (c *releaseCore) releaseNameForPlan(plan TargetPlan) (string, error) {
-	return c.renderReleaseName(plan.ID, plan.NextVersion, plan.NextTag)
+func (t *releaseText) releaseNameForPlan(plan TargetPlan) (string, error) {
+	return t.renderReleaseName(plan.ID, plan.NextVersion, plan.NextTag)
 }
 
-func (c *releaseCore) releaseNameForManifest(entry releaseManifestEntry) (string, error) {
-	target, exists := c.targets[entry.ID]
-	if !exists {
-		return "", fmt.Errorf("%w: unknown target %q", errInvalidReleaseManifest, entry.ID)
-	}
-
-	versionValue, err := versionStrategyForResolvedTarget(target).strategy.Current(entry.Tag)
-	if err != nil {
-		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, entry.ID, err)
-	}
-
-	return c.renderReleaseName(entry.ID, versionValue, entry.Tag)
-}
-
-func (c *releaseCore) renderReleaseName(target, versionValue, tag string) (string, error) {
-	if c.titles == nil || c.titles.releaseName == nil {
+func (t *releaseText) renderReleaseName(target, versionValue, tag string) (string, error) {
+	if t.titles == nil || t.titles.releaseName == nil {
 		return tag, nil
 	}
 
-	return renderReleaseTitle(c.titles.releaseName, singleReleaseTitleData{
-		Branch:  c.run.baseBranch,
-		Channel: c.run.channelName,
+	return renderReleaseTitle(t.titles.releaseName, singleReleaseTitleData{
+		Branch:  t.run.baseBranch,
+		Channel: t.run.channelName,
 		Target:  target,
 		Version: versionValue,
 		Tag:     tag,
 	})
 }
 
-func (c *releaseCore) releaseTemplatedSubject(
+func (t *releaseText) releaseTemplatedSubject(
 	plans []TargetPlan,
 	single, grouped *template.Template,
 ) (string, error) {
@@ -284,8 +270,8 @@ func (c *releaseCore) releaseTemplatedSubject(
 		plan := plans[0]
 
 		return renderReleaseTitle(single, singleReleaseTitleData{
-			Branch:  c.run.baseBranch,
-			Channel: c.run.channelName,
+			Branch:  t.run.baseBranch,
+			Channel: t.run.channelName,
 			Target:  plan.ID,
 			Version: plan.NextVersion,
 			Tag:     plan.NextTag,
@@ -294,13 +280,13 @@ func (c *releaseCore) releaseTemplatedSubject(
 
 	if len(plans) > 1 && grouped != nil {
 		return renderReleaseTitle(grouped, groupReleaseTitleData{
-			Branch:      c.run.baseBranch,
-			Channel:     c.run.channelName,
+			Branch:      t.run.baseBranch,
+			Channel:     t.run.channelName,
 			TargetCount: len(plans),
 		})
 	}
 
-	return c.releaseSubject(plans), nil
+	return t.releaseSubject(plans), nil
 }
 
 func renderReleaseTitle(tmpl *template.Template, data any) (string, error) {

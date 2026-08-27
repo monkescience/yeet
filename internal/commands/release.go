@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/telemetry"
@@ -318,6 +317,20 @@ func printDryRun(w io.Writer, result *release.Result) {
 
 		printDryRunTarget(w, plan)
 	}
+
+	if result.Text == nil {
+		return
+	}
+
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "  %s  %s\n",
+		ui.Label.Render("PR Title"),
+		result.Text.PROptions.Title,
+	)
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "  %s\n", ui.Faint.Render("PR Body"))
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, result.Text.PROptions.Body)
 }
 
 func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
@@ -342,9 +355,4 @@ func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
 		ui.Label.Render("Commits"),
 		plan.CommitCount,
 	)
-
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintf(w, "  %s\n", ui.Faint.Render(ui.Separator))
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, changelog.Render(plan.Entry))
 }

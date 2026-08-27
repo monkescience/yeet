@@ -6,7 +6,11 @@ Dry Run
   Tag               api/v0.0.1
   Commits           1
 
-  ────────────────────────────────
+  PR Title          chore: release 0.0.1
+
+  PR Body
+
+## ٩(^ᴗ^)۶ release created
 
 ## api/v0.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
@@ -14,3 +18,10 @@ Dry Run
 
 - add api endpoint ([8e931a1](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/8e931a18799355720bfb280a8dbcacc9a2c46194))
 
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"api","type":"path","tag":"api/v0.0.1","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

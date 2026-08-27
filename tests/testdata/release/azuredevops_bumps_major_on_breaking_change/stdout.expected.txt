@@ -6,9 +6,13 @@ Dry Run
   Tag               v2.0.0
   Commits           1
 
-  ────────────────────────────────
+  PR Title          chore: release 2.0.0
 
-## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.0.0&targetVersion=GTv2.0.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+  PR Body
+
+## ٩(^ᴗ^)۶ release created
+
+## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.0.0&targetVersion=GCce66a46ed63049f7b845345eeef4476f6f2e225e) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
 ### ⚠ BREAKING CHANGES
 
@@ -17,4 +21,11 @@ Dry Run
 ### Features
 
 - redesign api ([ce66a46](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/ce66a46ed63049f7b845345eeef4476f6f2e225e))
-{{regex `^$`}}
+
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v2.0.0","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._

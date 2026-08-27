@@ -13,6 +13,7 @@ import (
 
 type releasePublisher struct {
 	core       *releaseCore
+	text       *releaseText
 	publisher  releasePublishingProvider
 	source     releaseSource
 	changelogs *changelogFileCache
@@ -21,15 +22,17 @@ type releasePublisher struct {
 
 func newReleasePublisher(
 	core *releaseCore,
+	text *releaseText,
 	publisher releasePublishingProvider,
 	source releaseSource,
 ) *releasePublisher {
 	return &releasePublisher{
 		core:       core,
+		text:       text,
 		publisher:  publisher,
 		source:     source,
 		changelogs: newChangelogFileCache(),
-		labels:     newLabelLifecycle(core, publisher),
+		labels:     newLabelLifecycle(core.cfg, publisher),
 	}
 }
 
@@ -51,7 +54,7 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 
 	releaseNames := make([]string, len(manifest.Targets))
 	for index, targetManifest := range manifest.Targets {
-		releaseNames[index], err = p.core.releaseNameForManifest(targetManifest)
+		releaseNames[index], err = p.text.nameForManifest(targetManifest)
 		if err != nil {
 			return nil, err
 		}
@@ -110,6 +113,7 @@ func (p *releasePublisher) preflightReleasePRTagging(ctx context.Context) error 
 func (p *releasePublisher) ensureReleasesForPlans(
 	ctx context.Context,
 	plans []TargetPlan,
+	releaseNames map[string]string,
 	ref string,
 ) ([]FinalizedRelease, error) {
 	releases := make([]FinalizedRelease, 0, len(plans))
@@ -117,15 +121,10 @@ func (p *releasePublisher) ensureReleasesForPlans(
 	for _, plan := range plans {
 		releaseBody := changelog.Render(plan.Entry)
 
-		releaseName, err := p.core.releaseNameForPlan(plan)
-		if err != nil {
-			return nil, err
-		}
-
 		releaseInfo, err := p.ensureReleaseForTag(
 			ctx,
 			plan.NextTag,
-			releaseName,
+			releaseNames[plan.ID],
 			ref,
 			releaseBody,
 			p.core.run.isPrerelease(),

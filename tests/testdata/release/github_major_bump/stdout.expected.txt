@@ -6,9 +6,13 @@ Dry Run
   Tag               v2.0.0
   Commits           1
 
-  ────────────────────────────────
+  PR Title          chore: release 2.0.0
 
-## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...v2.0.0) ({{regex `\d{4}-\d{2}-\d{2}`}})
+  PR Body
+
+## ٩(^ᴗ^)۶ release created
+
+## [v2.0.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...08ed30b3a7b751a556fa475a4d3eeac652d2da96) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
 ### ⚠ BREAKING CHANGES
 
@@ -18,3 +22,10 @@ Dry Run
 
 - redesign api ([08ed30b](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/08ed30b3a7b751a556fa475a4d3eeac652d2da96))
 
+<!-- yeet-release-manifest
+{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v2.0.0","changelog_file":"CHANGELOG.md"}]}
+-->
+
+_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
