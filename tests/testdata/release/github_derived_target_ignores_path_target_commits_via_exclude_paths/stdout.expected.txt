@@ -1,33 +1,39 @@
 
 Dry Run
+No changes will be made.
 
-  Target            root
-  Version           1.0.0 → 1.1.0 (minor)
-  Tag               v1.1.0
-  Commits           2
+Release Plan
 
-  PR Title          chore: release 1.1.0
+  Target      root
+  Version     1.0.0 → 1.1.0
+  Bump        minor
+  Tag         v1.1.0
+  Commits     2
 
-  PR Body
+Pull Request
 
-## ٩(^ᴗ^)۶ release created
+  Action      create or update
+  Title       chore: release 1.1.0
+  Branch      yeet/release-main → main
 
-## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...d8637f5f19ed9bf12a47081135a1107350ae0fdc) ({{regex `\d{4}-\d{2}-\d{2}`}})
+Body Preview
 
-### Features
+  ٩(^ᴗ^)۶ release created
 
-- root change ([d8637f5](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/d8637f5f19ed9bf12a47081135a1107350ae0fdc))
+  v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
-### api
+  Features
 
-### Features
+  • root change (d8637f5)
 
-- api change ([fb95ff2](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/fb95ff294e4bd231b8fdc786da3592f9c9710cb1))
+  api
 
-<!-- yeet-release-manifest
-{"base_branch":"main","targets":[{"id":"root","type":"derived","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}
--->
+  Features
 
-_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+  • api change (fb95ff2)
 
-_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 1 target, 2 commits, 1 pull request.

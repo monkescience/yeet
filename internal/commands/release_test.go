@@ -225,7 +225,7 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result
-		handleReleaseResult(context.Background(), &buf, result, false)
+		testastic.NoError(t, handleReleaseResult(context.Background(), &buf, result, false))
 
 		// then: nothing is written
 		testastic.Equal(t, "", buf.String())
@@ -246,7 +246,7 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result
-		handleReleaseResult(context.Background(), &buf, result, false)
+		testastic.NoError(t, handleReleaseResult(context.Background(), &buf, result, false))
 
 		// then: the writer is untouched because the message goes through slog
 		testastic.Equal(t, "", buf.String())
@@ -258,8 +258,10 @@ func TestHandleReleaseResult(t *testing.T) {
 		// given: a result with one plan and dry-run enabled
 		result := &release.Result{
 			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
-				Title: "chore: release 1.1.0",
-				Body:  "Rendered release pull request body.",
+				Title:         "chore: release 1.1.0",
+				Body:          dryRunTestBody,
+				BaseBranch:    "main",
+				ReleaseBranch: "release",
 			}},
 			Plans: []release.TargetPlan{
 				{
@@ -277,7 +279,7 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result in dry-run mode
-		handleReleaseResult(context.Background(), &buf, result, true)
+		testastic.NoError(t, handleReleaseResult(context.Background(), &buf, result, true))
 
 		// then: the writer receives the dry-run summary
 		output := ansi.Strip(buf.String())
@@ -306,7 +308,7 @@ func TestHandleReleaseResult(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: handling the result without dry-run
-		handleReleaseResult(context.Background(), &buf, result, false)
+		testastic.NoError(t, handleReleaseResult(context.Background(), &buf, result, false))
 
 		// then: the writer is untouched
 		testastic.Equal(t, "", buf.String())
@@ -502,7 +504,7 @@ func TestReleaseLogMessages(t *testing.T) {
 		})
 
 		// when: handling the finalized release
-		handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false)
+		testastic.NoError(t, handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false))
 
 		// then: the log message uses plain sentence wording
 		testastic.True(
@@ -524,8 +526,10 @@ func TestPrintDryRun(t *testing.T) {
 		// given: a result with one plan
 		result := &release.Result{
 			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
-				Title: "chore: release 1.1.0",
-				Body:  "Rendered release pull request body.",
+				Title:         "chore: release 1.1.0",
+				Body:          dryRunTestBody,
+				BaseBranch:    "main",
+				ReleaseBranch: "release",
 			}},
 			Plans: []release.TargetPlan{
 				{
@@ -543,7 +547,7 @@ func TestPrintDryRun(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: printing the dry run
-		printDryRun(&buf, result)
+		testastic.NoError(t, printDryRun(&buf, result))
 
 		// then: output matches expected layout
 		output := ansi.Strip(buf.String())
@@ -559,13 +563,30 @@ func TestPrintDryRun(t *testing.T) {
 		var buf bytes.Buffer
 
 		// when: printing the dry run
-		printDryRun(&buf, result)
+		testastic.NoError(t, printDryRun(&buf, result))
 
 		// then: output matches expected empty layout
 		output := ansi.Strip(buf.String())
 		testastic.AssertFile(t, "testdata/dry_run_empty.expected.txt", output)
 	})
 }
+
+const dryRunTestBody = `## ٩(^ᴗ^)۶ release created
+
+## [v1.1.0](https://example.com/compare/v1.0.0...v1.1.0) (2026-03-01)
+
+### Features
+
+- something new ([abc1234](https://example.com/commit/abc1234))
+
+<!-- yeet-release-manifest
+{"base_branch":"main"}
+-->
+
+_Auto-generated preview, edit CHANGELOG.md to customize release notes._
+
+_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
+`
 
 func writeTestConfig(t *testing.T, mutate func(*config.Config)) {
 	t.Helper()

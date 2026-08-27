@@ -1,27 +1,33 @@
 
 Dry Run
+No changes will be made.
 
-  Target            default
-  Version            → 0.0.1 (minor)
-  Tag               v0.0.1
-  Commits           2
+Release Plan
 
-  PR Title          chore: release 0.0.1
+  Target      default
+  Version      → 0.0.1
+  Bump        minor
+  Tag         v0.0.1
+  Commits     2
 
-  PR Body
+Pull Request
 
-## ٩(^ᴗ^)۶ release created
+  Action      create or update
+  Title       chore: release 0.0.1
+  Branch      yeet/release-main → main
 
-## v0.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+Body Preview
 
-### Features
+  ٩(^ᴗ^)۶ release created
 
-- initial feature ([0d43171](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/0d431713ca32965b72fc8585d109fde0492be0df))
+  v0.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
-<!-- yeet-release-manifest
-{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v0.0.1","changelog_file":"CHANGELOG.md"}]}
--->
+  Features
 
-_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+  • initial feature (0d43171)
 
-_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 1 target, 2 commits, 1 pull request.

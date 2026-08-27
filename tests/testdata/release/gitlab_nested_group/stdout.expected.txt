@@ -1,27 +1,33 @@
 
 Dry Run
+No changes will be made.
 
-  Target            default
-  Version           1.0.0 → 1.1.0 (minor)
-  Tag               v1.1.0
-  Commits           1
+Release Plan
 
-  PR Title          chore: release 1.1.0
+  Target      default
+  Version     1.0.0 → 1.1.0
+  Bump        minor
+  Tag         v1.1.0
+  Commits     1
 
-  PR Body
+Pull Request
 
-## ٩(^ᴗ^)۶ release created
+  Action      create or update
+  Title       chore: release 1.1.0
+  Branch      yeet/release-main → main
 
-## [v1.1.0](http://127.0.0.1:{{regex `\d+`}}/group/sub/repo/-/compare/v1.0.0...79b3c2e174a56d70cd8937686492372d87a0d066) ({{regex `\d{4}-\d{2}-\d{2}`}})
+Body Preview
 
-### Features
+  ٩(^ᴗ^)۶ release created
 
-- add a thing ([79b3c2e](http://127.0.0.1:{{regex `\d+`}}/group/sub/repo/-/commit/79b3c2e174a56d70cd8937686492372d87a0d066))
+  v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
-<!-- yeet-release-manifest
-{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}
--->
+  Features
 
-_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+  • add a thing (79b3c2e)
 
-_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 1 target, 1 commit, 1 pull request.

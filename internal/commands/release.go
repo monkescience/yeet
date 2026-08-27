@@ -12,7 +12,6 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/telemetry"
-	"github.com/monkescience/yeet/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -191,18 +190,21 @@ func runRelease(
 		return nil, fmt.Errorf("release failed: unexpected failure: %w", err)
 	}
 
-	handleReleaseResult(ctx, output, result, options.DryRun)
+	err = handleReleaseResult(ctx, output, result, options.DryRun)
+	if err != nil {
+		return result, fmt.Errorf("render release result: %w", err)
+	}
 
 	return result, nil
 }
 
-func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) {
+func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
 	if len(result.Plans) > 0 {
 		if dryRun {
-			printDryRun(output, result)
+			return printDryRun(output, result)
 		}
 
-		return
+		return nil
 	}
 
 	if len(result.Releases) > 0 {
@@ -210,10 +212,12 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 			slog.String("tag", result.Releases[0].Release.TagName),
 		)
 
-		return
+		return nil
 	}
 
 	slog.InfoContext(ctx, "no release needed")
+
+	return nil
 }
 
 func wrapReleaseFailure(failure *release.Failure) error {
@@ -297,62 +301,4 @@ func mergeBlockedMessage(reason release.MergeReason) string {
 		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
 			"or use --auto-merge-force when appropriate"
 	}
-}
-
-func printDryRun(w io.Writer, result *release.Result) {
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, ui.Header.Render("Dry Run"))
-	_, _ = fmt.Fprintln(w)
-
-	if len(result.Plans) == 0 {
-		_, _ = fmt.Fprintln(w, ui.Faint.Render("No changed targets."))
-
-		return
-	}
-
-	for i, plan := range result.Plans {
-		if i > 0 {
-			_, _ = fmt.Fprintln(w)
-		}
-
-		printDryRunTarget(w, plan)
-	}
-
-	if result.Text == nil {
-		return
-	}
-
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintf(w, "  %s  %s\n",
-		ui.Label.Render("PR Title"),
-		result.Text.PROptions.Title,
-	)
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintf(w, "  %s\n", ui.Faint.Render("PR Body"))
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, result.Text.PROptions.Body)
-}
-
-func printDryRunTarget(w io.Writer, plan release.TargetPlan) {
-	_, _ = fmt.Fprintf(w, "  %s  %s\n",
-		ui.Label.Render("Target"),
-		plan.ID,
-	)
-
-	versionLine := fmt.Sprintf("%s → %s", plan.CurrentVersion, ui.Value.Render(plan.NextVersion))
-	_, _ = fmt.Fprintf(w, "  %s  %s %s\n",
-		ui.Label.Render("Version"),
-		versionLine,
-		ui.Faint.Render("("+string(plan.BumpType)+")"),
-	)
-
-	_, _ = fmt.Fprintf(w, "  %s  %s\n",
-		ui.Label.Render("Tag"),
-		ui.Value.Render(plan.NextTag),
-	)
-
-	_, _ = fmt.Fprintf(w, "  %s  %d\n",
-		ui.Label.Render("Commits"),
-		plan.CommitCount,
-	)
 }

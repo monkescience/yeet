@@ -1,27 +1,33 @@
 
 Dry Run
+No changes will be made.
 
-  Target            default
-  Version           1.2.0 → 1.3.0 (minor)
-  Tag               v1.3.0
-  Commits           1
+Release Plan
 
-  PR Title          chore: release 1.3.0
+  Target      default
+  Version     1.2.0 → 1.3.0
+  Bump        minor
+  Tag         v1.3.0
+  Commits     1
 
-  PR Body
+Pull Request
 
-## ٩(^ᴗ^)۶ release created
+  Action      create or update
+  Title       chore: release 1.3.0
+  Branch      yeet/release-main → main
 
-## [v1.3.0](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion=GTv1.2.0&targetVersion=GC45bfd684c80be957f27e3d3d62233ad2f7f852a4) ({{regex `\d{4}-\d{2}-\d{2}`}})
+Body Preview
 
-### Features
+  ٩(^ᴗ^)۶ release created
 
-- add a thing ([45bfd68](http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/45bfd684c80be957f27e3d3d62233ad2f7f852a4))
+  v1.3.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
-<!-- yeet-release-manifest
-{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.3.0","changelog_file":"CHANGELOG.md"}]}
--->
+  Features
 
-_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._
+  • add a thing (45bfd68)
 
-_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 1 target, 1 commit, 1 pull request.
