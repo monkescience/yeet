@@ -31,44 +31,6 @@ func WriteRepo(t *testing.T, remoteURL string) string {
 	return dir
 }
 
-// WriteRepoWithBranch creates a temporary repository with one commit on branch.
-func WriteRepoWithBranch(t *testing.T, remoteURL string, branch string) string {
-	t.Helper()
-
-	dir := WriteRepo(t, remoteURL)
-
-	repository, err := git.PlainOpen(dir)
-	testastic.NoError(t, err)
-
-	worktree, err := repository.Worktree()
-	testastic.NoError(t, err)
-
-	err = repository.Storer.SetReference(plumbing.NewSymbolicReference(
-		plumbing.HEAD,
-		plumbing.NewBranchReferenceName(branch),
-	))
-	testastic.NoError(t, err)
-
-	const filePerm = 0o600
-
-	err = os.WriteFile(filepath.Join(dir, "README.md"), []byte("fixture repo\n"), filePerm)
-	testastic.NoError(t, err)
-
-	_, err = worktree.Add("README.md")
-	testastic.NoError(t, err)
-
-	_, err = worktree.Commit("chore: initial commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "yeet test",
-			Email: "yeet@example.test",
-			When:  time.Unix(0, 0),
-		},
-	})
-	testastic.NoError(t, err)
-
-	return dir
-}
-
 // RepoCommit describes one commit in a scripted fixture repository.
 type RepoCommit struct {
 	Message string
