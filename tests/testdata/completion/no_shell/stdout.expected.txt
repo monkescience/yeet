@@ -1,0 +1,25 @@
+Generate the autocompletion script for yeet for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
+Usage:
+  yeet completion [command]
+
+Examples:
+  yeet completion zsh
+  yeet completion bash > /usr/local/etc/bash_completion.d/yeet
+
+Available Commands:
+  bash        Generate the autocompletion script for bash
+  fish        Generate the autocompletion script for fish
+  powershell  Generate the autocompletion script for powershell
+  zsh         Generate the autocompletion script for zsh
+
+Flags:
+  -h, --help   help for completion
+
+Global Flags:
+      --no-color   disable colored output
+      --quiet      show warnings and errors only
+  -v, --verbose    enable debug logging
+
+Use "yeet completion [command] --help" for more information about a command.

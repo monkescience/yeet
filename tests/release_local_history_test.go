@@ -1,8 +1,12 @@
 package integration_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	git "github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
 	"github.com/monkescience/yeet/tests/internal/fixture"
@@ -183,6 +187,105 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 
 		// then: the provider target remains authoritative
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("shallow checkout fails with fetch-depth guidance", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a matching local checkout marked as shallow
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+		repository, err := git.PlainOpen(repoDir)
+		testastic.NoError(t, err)
+		err = repository.Storer.SetShallow([]plumbing.Hash{plumbing.NewHash(boundarySHA)})
+		testastic.NoError(t, err)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   boundarySHA,
+			BranchHeadSHA: headSHA,
+		})
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: invoking `yeet release --dry-run` from the shallow checkout
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the command fails with provider-specific full-history guidance
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/shallow_checkout_fails_with_fetch_depth_guidance/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("version files use committed content instead of dirty worktree changes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a committed version marker that differs from the dirty working-tree file
+		const committedVersion = "version = 1.0.0 # x-yeet-version\n"
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/acme/repo.git", "main",
+			[]fixture.RepoCommit{
+				{
+					Message: "chore: release v1.0.0",
+					Files:   map[string]string{"VERSION.txt": committedVersion},
+					Tag:     "v1.0.0",
+				},
+				{Message: "feat: add a thing"},
+			})
+		err := os.WriteFile(
+			filepath.Join(repoDir, "VERSION.txt"),
+			[]byte("version = 9.9.9 # x-yeet-version\n"),
+			0o600,
+		)
+		testastic.NoError(t, err)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"VERSION.txt": committedVersion},
+			ExpectedUpdatedFiles: map[string]string{
+				"VERSION.txt": "version = 1.1.0 # x-yeet-version\n",
+			},
+		})
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "acme",
+			Repo:         "repo",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		// when: creating the release pull request
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the provider receives the bump derived from committed HEAD
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 

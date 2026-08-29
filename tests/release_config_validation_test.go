@@ -377,6 +377,31 @@ func TestReleaseConfigValidation(t *testing.T) {
 			result.Stderr,
 		)
 	})
+
+	for _, scenario := range []string{
+		"groups_in_combined_mode",
+		"release_group_empty_name",
+		"release_group_empty_targets",
+		"release_group_unknown_target",
+		"release_group_duplicate_target",
+	} {
+		t.Run("rejects invalid release group "+scenario, func(t *testing.T) {
+			t.Parallel()
+
+			// given: an invalid release group configuration
+			configPath := absoluteTestFile(t, "testdata/release/"+scenario+"/input.yaml")
+
+			// when: invoking `yeet release --dry-run`
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+			)
+
+			// then: yeet rejects the invalid grouping policy on stderr
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.AssertFile(t, "testdata/release/"+scenario+"/stderr.expected.txt", result.Stderr)
+		})
+	}
 }
 
 func TestReleaseExplicitConfigDiscovery(t *testing.T) {

@@ -1,0 +1,1 @@
+release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.groups is only valid when release.pull_request_mode is "independent"

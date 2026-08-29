@@ -9,18 +9,38 @@ import (
 func TestCompletion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("prints zsh completion", func(t *testing.T) {
+	for _, shell := range []string{"bash", "fish", "powershell", "zsh"} {
+		t.Run("prints "+shell+" completion", func(t *testing.T) {
+			t.Parallel()
+
+			// given: the requested shell is supported
+
+			// when: requesting completion for that shell
+			result := binary.Run(t, "completion", shell)
+
+			// then: the command succeeds with the shell script on stdout and no stderr
+			testastic.Equal(t, 0, result.ExitCode)
+			testastic.Equal(t, "", result.Stderr)
+			testastic.AssertFile(
+				t,
+				"testdata/completion/"+shell+"/stdout.expected.txt",
+				result.Stdout,
+			)
+		})
+	}
+
+	t.Run("shows help when no shell is selected", func(t *testing.T) {
 		t.Parallel()
 
-		// given: zsh is a supported completion shell
+		// given: no completion shell argument
 
-		// when: requesting completion for zsh
-		result := binary.Run(t, "completion", "zsh")
+		// when: invoking the completion command
+		result := binary.Run(t, "completion")
 
-		// then: the command succeeds with the zsh script on stdout and no stderr
+		// then: the command succeeds with completion help on stdout and no stderr
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Equal(t, "", result.Stderr)
-		testastic.AssertFile(t, "testdata/completion/zsh/stdout.expected.txt", result.Stdout)
+		testastic.AssertFile(t, "testdata/completion/no_shell/stdout.expected.txt", result.Stdout)
 	})
 
 	t.Run("shows help for an unknown shell", func(t *testing.T) {

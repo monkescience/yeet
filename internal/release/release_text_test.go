@@ -276,30 +276,30 @@ func TestReleaseTextRender(t *testing.T) {
 		testastic.Equal(t, validateErr.Error(), renderErr.Error())
 		testastic.Equal(t, (*RenderedRelease)(nil), rendered)
 	})
+}
 
-	t.Run("omitting notes is reported without logging", func(t *testing.T) {
-		// given: release notes larger than the provider body limit and a warning logger
-		cfg := config.Default()
-		cfg.Release.PRBodyHeader = ""
-		cfg.Release.PRBodyFooter = ""
-		r := newTestReleaser(t, cfg, newProviderStub())
-		plans := []TargetPlan{{
-			ID: "default", Type: config.TargetTypePath, NextVersion: "1.2.4", NextTag: "v1.2.4",
-			ChangelogFile: "CHANGELOG.md",
-			PREntry: changelogpkg.ParseEntry(
-				"## v1.2.4 (2026-03-01)\n\n" + strings.Repeat("release note ", 500),
-			),
-		}}
-		warnings := captureWarnings(t)
+func TestReleaseTextRenderOmittingNotesDoesNotLog(t *testing.T) {
+	// given: release notes larger than the provider body limit and a warning logger
+	cfg := config.Default()
+	cfg.Release.PRBodyHeader = ""
+	cfg.Release.PRBodyFooter = ""
+	r := newTestReleaser(t, cfg, newProviderStub())
+	plans := []TargetPlan{{
+		ID: "default", Type: config.TargetTypePath, NextVersion: "1.2.4", NextTag: "v1.2.4",
+		ChangelogFile: "CHANGELOG.md",
+		PREntry: changelogpkg.ParseEntry(
+			"## v1.2.4 (2026-03-01)\n\n" + strings.Repeat("release note ", 500),
+		),
+	}}
+	warnings := captureWarnings(t)
 
-		// when: rendering at the provider limit
-		rendered, err := r.text.render(plans, r.core.run.releaseBranch, 4000)
+	// when: rendering at the provider limit
+	rendered, err := r.text.render(plans, r.core.run.releaseBranch, 4000)
 
-		// then: the result reports omission and the pure renderer emits no warning
-		testastic.NoError(t, err)
-		testastic.True(t, rendered.NotesOmitted)
-		testastic.Equal(t, "", warnings.String())
-	})
+	// then: the result reports omission and the pure renderer emits no warning
+	testastic.NoError(t, err)
+	testastic.True(t, rendered.NotesOmitted)
+	testastic.Equal(t, "", warnings.String())
 }
 
 func assertSingleManifestTag(t *testing.T, body, wantTag string) {

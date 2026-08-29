@@ -29,7 +29,7 @@ func TestReleaseCommand(t *testing.T) {
 		})
 
 		// when: running release with the invalid config
-		_, _, err := executeRootCommand(t, "release")
+		err := executeRootCommand(t, "release")
 
 		// then: the CLI categorizes the failure as configuration-related
 		testastic.Error(t, err)
@@ -66,7 +66,7 @@ func TestReleaseCommand(t *testing.T) {
 		t.Chdir(nestedPath)
 
 		// when: running release from the nested directory
-		_, _, err = executeRootCommand(t, "release")
+		err = executeRootCommand(t, "release")
 
 		// then: the ancestor config is loaded instead of reporting a missing file
 		testastic.Error(t, err)
@@ -98,7 +98,7 @@ func TestReleaseCommand(t *testing.T) {
 		t.Setenv("GH_TOKEN", "")
 
 		// when: running release with an explicit github provider override
-		_, _, err := executeRootCommand(t, "release", "--provider", "github")
+		err := executeRootCommand(t, "release", "--provider", "github")
 
 		// then: repository resolution succeeds and provider setup uses the override
 		testastic.Error(t, err)
@@ -127,7 +127,7 @@ func TestReleaseCommand(t *testing.T) {
 		t.Setenv("GH_TOKEN", "")
 
 		// when: running release with explicit github targeting flags
-		_, _, err := executeRootCommand(t, "release", "--provider", "github", "--owner", "platform", "--repo", "yeet")
+		err := executeRootCommand(t, "release", "--provider", "github", "--owner", "platform", "--repo", "yeet")
 
 		// then: the github override wins
 		testastic.Error(t, err)
@@ -148,7 +148,7 @@ func TestReleaseCommand(t *testing.T) {
 		writeTestConfig(t, func(cfg *config.Config) {})
 
 		// when: running a mutating release
-		_, _, err := executeRootCommand(t, "release")
+		err := executeRootCommand(t, "release")
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
@@ -169,7 +169,7 @@ func TestReleaseCommand(t *testing.T) {
 		writeTestConfig(t, func(cfg *config.Config) {})
 
 		// when: running a mutating release
-		_, _, err := executeRootCommand(t, "release")
+		err := executeRootCommand(t, "release")
 
 		// then: the non-branch ref is rejected before stable release fallback
 		testastic.Error(t, err)
@@ -189,7 +189,7 @@ func TestReleaseCommand(t *testing.T) {
 		writeTestConfig(t, func(cfg *config.Config) {})
 
 		// when: running release with gitlab provider but github-shaped --owner/--repo
-		_, _, err := executeRootCommand(
+		err := executeRootCommand(
 			t,
 			"release",
 			"--provider",

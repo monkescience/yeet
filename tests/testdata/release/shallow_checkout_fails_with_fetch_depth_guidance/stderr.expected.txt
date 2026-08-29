@@ -1,0 +1,1 @@
+release failed: the local checkout is unusable or stale. Check out and fetch the configured release branch: validate checkout: local checkout cannot serve release history: checkout is shallow. Fetch the full history (fetch-depth: 0 on GitHub Actions, GIT_DEPTH "0" on GitLab CI, fetchDepth: 0 on Azure Pipelines)

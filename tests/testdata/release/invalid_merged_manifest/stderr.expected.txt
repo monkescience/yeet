@@ -1,0 +1,1 @@
+release failed: unexpected failure: parse release manifest: jsontext: invalid character 'o' in literal null (expecting 'u') after offset 2

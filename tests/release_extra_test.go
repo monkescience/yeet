@@ -145,6 +145,50 @@ func TestReleaseProviderPagination(t *testing.T) {
 			result.Stdout,
 		)
 	})
+
+	t.Run("github selects the newest release tag from a later provider page", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the newest tag is on the second provider page
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v2.0.0", Tag: "v2.0.0"},
+				{Message: "feat: add a thing"},
+			})
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2.0.0",
+			ExtraTags:     []string{"v1.0.0"},
+			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v1.0.0": shas[0], "v2.0.0": shas[1]},
+			BranchHeadSHA: shas[2],
+			PaginateTags:  true,
+		})
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the plan advances from the newest tag returned on page two
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/github_selects_newest_tag_from_later_provider_page/stdout.expected.txt",
+			result.Stdout,
+		)
+	})
 }
 
 func TestReleaseExistingOpenPRUpdate(t *testing.T) {

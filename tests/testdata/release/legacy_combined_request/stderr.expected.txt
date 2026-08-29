@@ -1,0 +1,1 @@
+release failed: multiple pending release changes were found. Close or relabel stale pending release changes: multiple pending release PRs found: incompatible release PR #42 https://example.test/pulls/42: invalid release manifest: stale release unit "combined", merge it under the old configuration or close or relabel it

@@ -130,6 +130,64 @@ func TestReleaseIndependentBoundaries(t *testing.T) {
 			result.Stderr,
 		)
 	})
+
+	t.Run("legacy combined pull request blocks independent mutation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: independent mode with an open combined-mode release pull request
+		repoDir, shas := writeIndependentMonorepoHistory(t)
+		opts := independentGitHubOptions(shas)
+		opts.ExistingOpenReleasePRBody = readTestFile(
+			t,
+			"testdata/release/legacy_combined_request/existing_pull_request_body.input.md",
+		)
+		opts.FailOnMutation = true
+		server := fakeprovider.NewGitHub(t, opts)
+		configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
+
+		// when: running the independent release workflow
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the command fails closed before any provider mutation
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/legacy_combined_request/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("invalid merged manifest blocks new independent planning", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged pending release with a malformed manifest
+		repoDir, shas := writeIndependentMonorepoHistory(t)
+		opts := independentGitHubOptions(shas)
+		opts.MergedPendingRelease = true
+		opts.MergedPendingReleaseBody = "<!-- yeet-release-manifest\n{not-json}\n-->"
+		opts.FailOnMutation = true
+		server := fakeprovider.NewGitHub(t, opts)
+		configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
+
+		// when: running the independent release workflow
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: finalization validation fails before release analysis or provider mutation
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/invalid_merged_manifest/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
 }
 
 func writeIndependentMonorepoHistory(t *testing.T) (string, []string) {

@@ -28,18 +28,21 @@ type GitHubOptions struct {
 	TagSHAs                     map[string]string
 	Commits                     []GitHubCommit
 	MergedPendingRelease        bool
+	MergedPendingReleaseBody    string
 	Files                       map[string]string
 	MultipleOpenPRs             bool
 	MergeBlocked                bool
 	ExistingOpenReleasePRBody   string
 	ExistingRelease             bool
 	PaginateCommits             bool
+	PaginateTags                bool
 	FailOnMutation              bool
 	Collaborators               map[string]bool
 	ExistingLabels              []string
 	ExpectPRTitle               string
 	ExpectPRBodyFile            string
 	ExpectCommitSubject         string
+	ExpectedUpdatedFiles        map[string]string
 	ExpectedCreatedPullRequests []GitHubPullRequestExpectation
 }
 
@@ -297,9 +300,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOption
 }
 
 func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions) {
-	mux.HandleFunc("GET "+prefix+"/tags", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, githubTagsPayload(opts))
-	})
+	mux.HandleFunc("GET "+prefix+"/tags", githubTagsHandler(opts))
 
 	mux.HandleFunc("GET "+prefix+"/commits", func(w http.ResponseWriter, r *http.Request) {
 		if opts.PaginateCommits && len(opts.Commits) > 1 {
@@ -346,6 +347,33 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 
 		writeJSON(w, githubCommitDetail(ref, opts))
 	})
+}
+
+func githubTagsHandler(opts GitHubOptions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !opts.PaginateTags || len(opts.ExtraTags) == 0 {
+			writeJSON(w, githubTagsPayload(opts))
+
+			return
+		}
+
+		if r.URL.Query().Get("page") == "2" {
+			writeJSON(w, githubTagsPayload(GitHubOptions{
+				LatestTag:   opts.LatestTag,
+				BoundarySHA: opts.BoundarySHA,
+				TagSHAs:     opts.TagSHAs,
+			}))
+
+			return
+		}
+
+		w.Header().Set("Link", `<https://api.github.com/?page=2>; rel="next"`)
+		writeJSON(w, githubTagsPayload(GitHubOptions{
+			ExtraTags:   opts.ExtraTags,
+			BoundarySHA: opts.BoundarySHA,
+			TagSHAs:     opts.TagSHAs,
+		}))
+	}
 }
 
 // githubCompareHandler returns commits ahead of the boundary, oldest first.
@@ -623,7 +651,8 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 
 	mux.HandleFunc("GET "+prefix+"/git/trees/{sha}", githubTreeHandler(t, opts))
 
-	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, r *http.Request) {
+		assertGitHubUpdatedFiles(t, r, opts.ExpectedUpdatedFiles)
 		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
 	})
 
@@ -639,6 +668,37 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 			contentKeyTree: map[string]any{githubKeySHA: fakeTreeSHA},
 		})
 	})
+}
+
+func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected map[string]string) {
+	t.Helper()
+
+	if len(expected) == 0 {
+		return
+	}
+
+	var payload struct {
+		Tree []struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		} `json:"tree"`
+	}
+
+	err := json.UnmarshalRead(r.Body, &payload)
+	if err != nil {
+		t.Errorf("fakeprovider/github: decode updated files: %v", err)
+
+		return
+	}
+
+	actual := make(map[string]string, len(payload.Tree))
+	for _, entry := range payload.Tree {
+		actual[entry.Path] = entry.Content
+	}
+
+	for path, content := range expected {
+		testastic.Equal(t, content, actual[path])
+	}
 }
 
 func githubTreeHandler(t *testing.T, opts GitHubOptions) http.HandlerFunc {
@@ -980,7 +1040,13 @@ func githubMergedPendingPR(opts GitHubOptions) map[string]any {
 	pr["merged"] = true
 	pr["merged_at"] = fakeMergedAtTimestamp
 	pr["merge_commit_sha"] = opts.BranchHeadSHA
-	pr["body"] = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
+
+	body := opts.MergedPendingReleaseBody
+	if body == "" {
+		body = "## ٩(^ᴗ^)۶ release created\n\n" + githubReleaseManifest + "\n\n* feat: add a thing\n"
+	}
+
+	pr["body"] = body
 	pr["labels"] = []map[string]any{
 		{githubKeyName: fakePendingReleaseTag},
 	}
