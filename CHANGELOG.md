@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.3](https://github.com/monkescience/yeet/compare/v0.14.2...v0.14.3) (2026-08-29)
+
+### Features
+
+- **release:** support independent monorepo PRs ([e91a94e](https://github.com/monkescience/yeet/commit/e91a94ede511ef8254512c916fed5477e6c5a6ef))
+
 ## [v0.14.2](https://github.com/monkescience/yeet/compare/v0.14.1...v0.14.2) (2026-08-27)
 
 ### Features
