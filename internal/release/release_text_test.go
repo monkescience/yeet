@@ -27,7 +27,7 @@ func TestReleasePRBody(t *testing.T) {
 		)
 
 		// when: building PR body
-		body, truncated, err := r.text.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.lifecycle.text.releasePRBody(changelogBody, "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: changelog is wrapped by default header, manifest, and footer notes
 		testastic.NoError(t, err)
@@ -50,7 +50,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body, truncated, err := r.text.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.lifecycle.text.releasePRBody("## v1.2.4", "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: body contains header, changelog, manifest, and footer in order
 		testastic.NoError(t, err)
@@ -73,7 +73,7 @@ func TestReleasePRBody(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 
 		// when: building PR body
-		body, truncated, err := r.text.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->", 0)
+		body, truncated, err := r.lifecycle.text.releasePRBody("## v1.2.4\n", "<!-- yeet-release-tag: v1.2.4 -->", 0)
 
 		// then: body keeps only changelog and manifest, no wrapper text
 		testastic.NoError(t, err)
@@ -93,7 +93,7 @@ func TestReleasePRBody(t *testing.T) {
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
 
 		// when: building the body with a generous limit
-		body, truncated, err := r.text.releasePRBody(readTestFile(
+		body, truncated, err := r.lifecycle.text.releasePRBody(readTestFile(
 			t,
 			"testdata/release_p_r_body/body_within_limit_is_not_truncated/"+
 				"changelog.input.md",
@@ -130,7 +130,7 @@ func TestReleasePRBody(t *testing.T) {
 		}
 
 		// when: building the body with the Azure DevOps limit
-		body, omitted, err := r.text.releasePRBody(changelog.String(), marker, 4000)
+		body, omitted, err := r.lifecycle.text.releasePRBody(changelog.String(), marker, 4000)
 
 		// then: the body fits, no changelog lines survive, and the wrapper text plus notice remain
 		testastic.NoError(t, err)
@@ -167,7 +167,7 @@ func TestReleasePRBody(t *testing.T) {
 		limit := utf8.RuneCountInString(full) - 1
 
 		// when: building the body with a limit one character under the full body
-		body, omitted, err := r.text.releasePRBody(changelog, marker, limit)
+		body, omitted, err := r.lifecycle.text.releasePRBody(changelog, marker, limit)
 
 		// then: the changelog is dropped wholesale, the notice and marker remain
 		testastic.NoError(t, err)
@@ -195,7 +195,7 @@ func TestReleasePRBody(t *testing.T) {
 		limit := utf8.RuneCountInString(fullBody)
 
 		// when: building the body at its exact character limit
-		body, omitted, err := r.text.releasePRBody(changelog, marker, limit)
+		body, omitted, err := r.lifecycle.text.releasePRBody(changelog, marker, limit)
 
 		// then: the changelog is preserved because the character limit is not exceeded
 		testastic.NoError(t, err)
@@ -215,7 +215,7 @@ func TestReleasePRBody(t *testing.T) {
 		marker := testManifestBody(t, "v1.2.4", "CHANGELOG.md")
 
 		// when: building the body at the provider limit
-		body, omitted, err := r.text.releasePRBody("release notes", marker, 4000)
+		body, omitted, err := r.lifecycle.text.releasePRBody("release notes", marker, 4000)
 
 		// then: validation rejects the impossible fallback without returning an oversized body
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
@@ -245,8 +245,8 @@ func TestReleaseTextRender(t *testing.T) {
 		}}
 
 		// when: validating and rendering with the same provider limit
-		validateErr := r.text.validate(plans, 4000)
-		rendered, renderErr := r.text.render(plans, "existing-release-branch", 4000)
+		validateErr := r.lifecycle.text.validate(plans, 4000)
+		rendered, renderErr := r.lifecycle.text.render(plans, "existing-release-branch", 4000)
 
 		// then: both calls succeed and render returns the complete publication values
 		testastic.NoError(t, validateErr)
@@ -267,8 +267,8 @@ func TestReleaseTextRender(t *testing.T) {
 		plans := []TargetPlan{{ID: "default", NextVersion: "1.2.4", NextTag: "v1.2.4"}}
 
 		// when: validating and rendering the same release data
-		validateErr := r.text.validate(plans, 4000)
-		rendered, renderErr := r.text.render(plans, r.core.run.releaseBranch, 4000)
+		validateErr := r.lifecycle.text.validate(plans, 4000)
+		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000)
 
 		// then: both report the same failure and no partial value escapes
 		testastic.ErrorIs(t, validateErr, config.ErrInvalidConfig)
@@ -294,7 +294,7 @@ func TestReleaseTextRenderOmittingNotesDoesNotLog(t *testing.T) {
 	warnings := captureWarnings(t)
 
 	// when: rendering at the provider limit
-	rendered, err := r.text.render(plans, r.core.run.releaseBranch, 4000)
+	rendered, err := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000)
 
 	// then: the result reports omission and the pure renderer emits no warning
 	testastic.NoError(t, err)
@@ -342,7 +342,7 @@ func TestEffectivePRBodyLimit(t *testing.T) {
 			r := newTestReleaser(t, cfg, newProviderStub())
 
 			// when: resolving the effective limit against the provider hard limit
-			limit := r.text.effectivePRBodyLimit(test.providerLimit)
+			limit := r.lifecycle.text.effectivePRBodyLimit(test.providerLimit)
 
 			// then: the smaller bounding limit wins
 			testastic.Equal(t, test.want, limit)
@@ -374,7 +374,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.text.combinedPRChangelog(result.Plans)
+		body := r.lifecycle.text.combinedPRChangelog(result.Plans)
 
 		// then: the single-target changelog stays unchanged
 		testastic.Equal(t, prChangelog, body)
@@ -435,7 +435,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog
-		body := r.text.combinedPRChangelog(result.Plans)
+		body := r.lifecycle.text.combinedPRChangelog(result.Plans)
 
 		// then: the output matches the expected multi-target release wave markdown
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_multi_target.expected.md", body)
@@ -622,7 +622,7 @@ func TestCombinedPRChangelog(t *testing.T) {
 		}
 
 		// when: rendering the combined PR changelog for the mixed release wave
-		body := r.text.combinedPRChangelog(result.Plans)
+		body := r.lifecycle.text.combinedPRChangelog(result.Plans)
 
 		// then: the output matches the expected derived-target markdown with embedded child sections
 		testastic.AssertFile(t, "testdata/combined_pr_changelog_embedded_children.expected.md", body)

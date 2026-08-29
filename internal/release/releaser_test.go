@@ -258,17 +258,18 @@ func TestNewHistorySource(t *testing.T) {
 	})
 }
 
-func TestReleaserSharesPublisherWithWorkflow(t *testing.T) {
+func TestReleaserInjectsPublisherIntoLifecycle(t *testing.T) {
 	t.Parallel()
 
-	// given: a releaser that owns the publisher for one run
-	r := newTestReleaser(t, config.Default(), newProviderStub())
+	// given: a provider used to construct one release run
+	stub := newProviderStub()
+	r := newTestReleaser(t, config.Default(), stub)
 
-	// when: constructing its release PR workflow
-	workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
+	// when: inspecting the lifecycle's publication collaborator
+	publisher := r.lifecycle.publisher
 
-	// then: the workflow uses the releaser's publisher instance
-	testastic.True(t, workflow.publisher == r.publisher)
+	// then: it uses the same provider adapter injected into the run
+	testastic.True(t, publisher.publisher == stub)
 }
 
 func TestPrereleaseChannels(t *testing.T) {
@@ -1495,7 +1496,7 @@ func TestReleaseAdoptsUnlabelledPendingPR(t *testing.T) {
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 1, stub.updatePRCalls)
 	testastic.SliceEqual(t, []int{7}, stub.markPendingCalls)
-	testastic.SliceEqual(t, pendingPhaseOnly(), stub.releasePRWorkflowStub.setLabelPhases)
+	testastic.SliceEqual(t, pendingPhaseOnly(), stub.releasePRStub.setLabelPhases)
 	testastic.Equal(t, "yeet/release-main", result.PullRequest.Branch)
 	testastic.False(t, result.PullRequest.NeedsPendingLabel)
 }
@@ -1549,7 +1550,7 @@ func TestReleasePRCarriesConfiguredLabels(t *testing.T) {
 
 	// then: the configured labels reach creation and the pending phase
 	testastic.NoError(t, err)
-	testastic.SliceEqual(t, pendingPhaseOnly(), stub.releasePRWorkflowStub.setLabelPhases)
+	testastic.SliceEqual(t, pendingPhaseOnly(), stub.releasePRStub.setLabelPhases)
 	testastic.Equal(t, cfg.Release.Labels.Pending, stub.createPROptions[0].Labels.Pending)
 	testastic.Equal(t, cfg.Release.Labels.Tagged, stub.createPROptions[0].Labels.Tagged)
 	testastic.True(t, stub.createPROptions[0].Labels.Yeet)
@@ -1792,7 +1793,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub.files[providerFileKey(existing.Branch, "CHANGELOG.md")] = existingChangelog
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
+		workflow := r.lifecycle
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3", Entry: changelog.ParseEntry("## api-v1.2.3 (2026-03-01)")},
 			{ID: "web", NextTag: "web-v2.3.4", Entry: changelog.ParseEntry("## web-v2.3.4 (2026-03-01)")},
@@ -1829,7 +1830,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		stub := newProviderStub()
 		existing := &forge.PullRequest{Branch: "yeet/release-main"}
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
+		workflow := r.lifecycle
 		result := &Result{Plans: []TargetPlan{
 			{ID: "api", NextTag: "api-v1.2.3"},
 			{ID: "web", NextTag: "web-v2.3.4"},
@@ -1877,7 +1878,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 `)
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
+		workflow := r.lifecycle
 		result := &Result{Plans: []TargetPlan{{
 			ID:      "default",
 			NextTag: "v1.2.3",

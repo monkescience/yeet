@@ -1,4 +1,4 @@
-//nolint:testpackage // This test validates unexported release PR workflow behavior.
+//nolint:testpackage // This test validates unexported release lifecycle behavior.
 package release
 
 import (
@@ -128,7 +128,7 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 `)
 
 		r := newTestReleaser(t, cfg, stub)
-		workflow := newReleasePRWorkflow(r.core, r.text, r.source, r.forge, r.publisher)
+		workflow := r.lifecycle
 
 		webPlan := TargetPlan{
 			ID: "web",

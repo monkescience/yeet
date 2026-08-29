@@ -112,6 +112,17 @@ func newTestReleaser(
 	return r
 }
 
+func (r *releaser) finalizeMergedReleasePRs(ctx context.Context) ([]FinalizedRelease, error) {
+	units, err := configuredReleaseUnits(r.core)
+	if err != nil {
+		return nil, err
+	}
+
+	outcome, err := r.lifecycle.finalize(ctx, units)
+
+	return outcome.releases, err
+}
+
 func testManifestBody(t *testing.T, tag, changelogFile string) string {
 	t.Helper()
 
@@ -175,7 +186,7 @@ type providerStub struct {
 
 	*repoMetadataStub
 	*versionHistoryStub
-	*releasePRWorkflowStub
+	*releasePRStub
 	*releaseFileStub
 	*releasePublishingStub
 }
@@ -191,7 +202,7 @@ func (s *providerStub) SetReleasePRLabels(
 		return s.releasePublishingStub.SetReleasePRLabels(ctx, number, labels, phase)
 	}
 
-	return s.releasePRWorkflowStub.SetReleasePRLabels(ctx, number, labels, phase)
+	return s.releasePRStub.SetReleasePRLabels(ctx, number, labels, phase)
 }
 
 func newProviderStub() *providerStub {
@@ -203,7 +214,7 @@ func newProviderStub() *providerStub {
 		versionHistoryStub: &versionHistoryStub{
 			commitsErrByRef: make(map[string]error),
 		},
-		releasePRWorkflowStub: &releasePRWorkflowStub{
+		releasePRStub: &releasePRStub{
 			pullRequests: make(map[string]*forge.PullRequest),
 			mergePRSHA:   "merged-sha",
 			sequence:     sequence,
@@ -339,7 +350,7 @@ func (s *versionHistoryStub) entriesForRef(ref string) []history.CommitEntry {
 	return result
 }
 
-type releasePRWorkflowStub struct {
+type releasePRStub struct {
 	pullRequests map[string]*forge.PullRequest
 	openPending  []*forge.PullRequest
 
@@ -365,10 +376,12 @@ type releasePRWorkflowStub struct {
 	sequence *callSequence
 }
 
-func (s *releasePRWorkflowStub) CreateReleasePR(
+func (s *releasePRStub) CreateReleasePR(
 	_ context.Context,
 	opts forge.ReleasePROptions,
 ) (*forge.PullRequest, error) {
+	s.sequence.record("CreateReleasePR")
+
 	s.createPRCalls++
 	s.createPROptions = append(s.createPROptions, opts)
 
@@ -392,7 +405,7 @@ func (s *releasePRWorkflowStub) CreateReleasePR(
 	return pr, nil
 }
 
-func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts forge.ReleasePROptions) error {
+func (s *releasePRStub) UpdateReleasePR(_ context.Context, _ int, opts forge.ReleasePROptions) error {
 	s.sequence.record("UpdateReleasePR")
 
 	s.updatePRCalls++
@@ -401,7 +414,7 @@ func (s *releasePRWorkflowStub) UpdateReleasePR(_ context.Context, _ int, opts f
 	return nil
 }
 
-func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(
+func (s *releasePRStub) FindOpenPendingReleasePRs(
 	_ context.Context,
 	_ string,
 	_ string,
@@ -436,7 +449,7 @@ func (s *releasePRWorkflowStub) FindOpenPendingReleasePRs(
 	return pending, nil
 }
 
-func (s *releasePRWorkflowStub) FindOpenPendingReleasePRsForBase(
+func (s *releasePRStub) FindOpenPendingReleasePRsForBase(
 	context.Context,
 	string,
 	string,
@@ -444,11 +457,13 @@ func (s *releasePRWorkflowStub) FindOpenPendingReleasePRsForBase(
 	return s.openPending, nil
 }
 
-func (s *releasePRWorkflowStub) MergeReleasePR(
+func (s *releasePRStub) MergeReleasePR(
 	_ context.Context,
 	number int,
 	opts forge.MergeReleasePROptions,
 ) (string, error) {
+	s.sequence.record("MergeReleasePR")
+
 	s.mergePRCalls++
 	s.mergePRNumbers = append(s.mergePRNumbers, number)
 	s.mergePROptions = append(s.mergePROptions, opts)
@@ -465,7 +480,7 @@ func (s *releasePRWorkflowStub) MergeReleasePR(
 	return s.mergePRSHA, nil
 }
 
-func (s *releasePRWorkflowStub) SetReleasePRLabels(
+func (s *releasePRStub) SetReleasePRLabels(
 	_ context.Context,
 	number int,
 	labels forge.ReleasePRLabels,
@@ -478,7 +493,7 @@ func (s *releasePRWorkflowStub) SetReleasePRLabels(
 	return nil
 }
 
-func (s *releasePRWorkflowStub) MaxPRBodyLength() int {
+func (s *releasePRStub) MaxPRBodyLength() int {
 	return s.maxPRBodyLength
 }
 
