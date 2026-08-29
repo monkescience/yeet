@@ -1,6 +1,6 @@
 # Release PRs and MRs
 
-Settings under `release:` apply to the combined release PR/MR, not to individual targets.
+Settings under `release:` apply to every release PR/MR. Combined mode creates one release PR/MR for all eligible targets. Independent mode creates one for each eligible ungrouped target or atomic group.
 
 The release lifecycle has three states:
 
@@ -30,6 +30,24 @@ release:
   pr_body_footer: "_Automated._"
   pr_body_max_length: 4000
 ```
+
+### Monorepo release units
+
+Combined mode is the default and preserves one release wave. Opt into independently managed release units in the checked-in configuration:
+
+```yaml
+release:
+  pull_request_mode: independent
+  groups:
+    backend:
+      targets:
+        - api
+        - worker
+```
+
+Every ungrouped target receives its own release PR/MR. A group shares one atomic PR/MR, but only members with eligible changes are included. Selecting any grouped target with `--target` expands the selection to the whole group before eligibility is calculated.
+
+Independent units must not write the same changelog or version file. Put targets that intentionally share a writable file in one group, or configure separate files. Existing reviewers, labels, body wrappers, templates, channels, and auto-merge settings apply to every unit.
 
 ### Labels
 
@@ -68,7 +86,7 @@ release:
   commit_subject_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
 ```
 
-The branch template receives `.Branch` and `.Channel`. It must render a nonempty valid Git branch that differs from the base branch. The default is `yeet/release-{{ .Branch }}`.
+The branch template receives `.Branch`, `.Channel`, and the branch-safe `.Unit`. It must render a nonempty valid Git branch that differs from the base branch. The combined default is `yeet/release-{{ .Branch }}`. Independent mode adds a deterministic unit suffix to that default. Custom templates in independent mode must use `.Unit` when needed to produce a unique branch for every configured unit and channel.
 
 Single-target subject templates receive `.Branch`, `.Channel`, `.Target`, `.Version`, and `.Tag`. Group subject templates receive `.Branch`, `.Channel`, and `.TargetCount`. `.Version` omits the tag prefix, while `.Tag` includes it.
 

@@ -1075,6 +1075,8 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsUpdateReleasePRHandler(t)
 	case providerContractFindOpenPRs:
 		return azureDevOpsFindOpenPRsHandler(t)
+	case providerContractFindOpenPRsForBase:
+		return azureDevOpsFindOpenPRsForBaseHandler(t)
 	case providerContractFindOpenPRsUnlabeled:
 		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_unlabeled")
 	case providerContractFindOpenPRsAdoptable:
@@ -1381,6 +1383,22 @@ func azureDevOpsFindOpenPRsHandler(t *testing.T) http.HandlerFunc {
 			"refs/heads/"+providerContractPendingBranch,
 			r.URL.Query().Get("searchCriteria.sourceRefName"),
 		)
+		testastic.Equal(t, "refs/heads/"+providerContractBaseBranch, r.URL.Query().Get("searchCriteria.targetRefName"))
+		writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_requests.json"))
+	}
+}
+
+func azureDevOpsFindOpenPRsForBaseHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isAzureDevOpsPullRequestsListRequest(r) {
+			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+
+			return
+		}
+
+		testastic.Equal(t, "", r.URL.Query().Get("searchCriteria.sourceRefName"))
 		testastic.Equal(t, "refs/heads/"+providerContractBaseBranch, r.URL.Query().Get("searchCriteria.targetRefName"))
 		writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_requests.json"))
 	}

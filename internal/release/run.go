@@ -34,7 +34,7 @@ type Options struct {
 func Run(ctx context.Context, configPath string, options Options) (*Result, error) {
 	result, resolvedConfigPath, err := rawRun(ctx, configPath, options)
 	if err != nil {
-		return nil, classifyFailure(resolvedConfigPath, err)
+		return result, classifyFailure(resolvedConfigPath, err)
 	}
 
 	return result, nil
@@ -77,7 +77,11 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 
 	result, err := r.releaseTargets(ctx, options.DryRun, selection)
 	if err != nil {
-		return nil, resolvedConfigPath, err
+		if result != nil {
+			result.Provider = resolvedProvider
+		}
+
+		return result, resolvedConfigPath, err
 	}
 
 	result.Provider = resolvedProvider

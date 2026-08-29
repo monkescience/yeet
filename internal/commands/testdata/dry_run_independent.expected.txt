@@ -1,0 +1,61 @@
+
+Dry Run
+No changes will be made.
+
+Release Plan
+
+  Target      api
+  Version     1.0.0 → 1.1.0
+  Bump        minor
+  Tag         api-v1.1.0
+  Commits     1
+
+  Target      web
+  Version     2.0.0 → 2.0.1
+  Bump        patch
+  Tag         web-v2.0.1
+  Commits     2
+
+Pull Request 1
+
+  Unit        target:api
+  Action      create or update
+  Title       chore: release api
+  Branch      release-api → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  v1.1.0 (2026-03-01)
+
+  Features
+
+  • something new (abc1234)
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Pull Request 2
+
+  Unit        target:web
+  Action      create or update
+  Title       chore: release web
+  Branch      release-web → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  v1.1.0 (2026-03-01)
+
+  Features
+
+  • something new (abc1234)
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 2 targets, 3 commits, 2 release units, 2 pull requests.

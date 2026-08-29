@@ -49,6 +49,13 @@ const (
 	AutoMergeMethodMerge  AutoMergeMethod = "merge"
 )
 
+type PullRequestMode string
+
+const (
+	PullRequestModeCombined    PullRequestMode = "combined"
+	PullRequestModeIndependent PullRequestMode = "independent"
+)
+
 type Config struct {
 	Versioning                 VersioningStrategy `yaml:"versioning"`
 	Branch                     string             `yaml:"branch"`
@@ -197,6 +204,8 @@ type AzureDevOpsRepositoryConfig struct {
 }
 
 type ReleaseConfig struct {
+	PullRequestMode    PullRequestMode                 `yaml:"pull_request_mode"`
+	Groups             map[string]ReleaseGroupConfig   `yaml:"groups,omitempty"`
 	Labels             ReleaseLabelsConfig             `yaml:"labels"`
 	BranchTemplate     string                          `yaml:"branch_template"`
 	NameTemplate       string                          `yaml:"name_template"`
@@ -213,6 +222,10 @@ type ReleaseConfig struct {
 	PRBodyMaxLength    int                             `yaml:"pr_body_max_length"`
 	Reviewers          []string                        `yaml:"reviewers,omitempty"`
 	Channels           map[string]ReleaseChannelConfig `yaml:"channels,omitempty"`
+}
+
+type ReleaseGroupConfig struct {
+	Targets []string `yaml:"targets"`
 }
 
 type ReleaseMergePollingConfig struct {

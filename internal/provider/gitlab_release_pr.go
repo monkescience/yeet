@@ -207,10 +207,34 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts forge.Rel
 	return nil
 }
 
-//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
 func (g *GitLab) FindOpenPendingReleasePRs(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	if len(expectedBranches) > 1 {
+		return collectExpectedBranchPRs(expectedBranches, func(branch string) ([]*forge.PullRequest, error) {
+			return g.FindOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, branch)
+		})
+	}
+
+	sourceBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
+
+	return g.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, sourceBranch, false)
+}
+
+func (g *GitLab) FindOpenPendingReleasePRsForBase(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*forge.PullRequest, error) {
+	return g.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, "", true)
+}
+
+//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
+func (g *GitLab) findOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel, sourceBranch string,
+	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
 	err := validateGitLabLifecycleLabel(pendingLabel)
 	if err != nil {
@@ -218,17 +242,22 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 	}
 
 	state := gitlabMergeRequestOpenedState
-	sourceBranch := releaseBranchName(g.releaseBranch, baseBranch)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
 		TargetBranch: new(baseBranch),
-		SourceBranch: new(sourceBranch),
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
 		PerPage:      gitLabPageSize,
+	}
+
+	if anyBranch {
+		labels := gitlab.LabelOptions{pendingLabel}
+		options.Labels = &labels
+	} else {
+		options.SourceBranch = new(sourceBranch)
 	}
 
 	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
@@ -250,25 +279,37 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 			return mrs, gitLabNextPage(resp), nil
 		},
 		func(mr *gitlab.BasicMergeRequest) (bool, error) {
-			if !isTrustedGitLabReleasePR(
-				mr.SourceBranch,
-				baseBranch,
-				g.releaseBranch,
-				mr.SourceProjectID,
-				mr.TargetProjectID,
-			) {
+			trusted := isGitLabSameProject(mr.SourceProjectID, mr.TargetProjectID)
+
+			if !anyBranch {
+				trusted = isTrustedGitLabReleasePR(
+					mr.SourceBranch,
+					baseBranch,
+					sourceBranch,
+					mr.SourceProjectID,
+					mr.TargetProjectID,
+				)
+			}
+
+			if !trusted {
 				return false, nil
 			}
 
-			needsLabel, labelErr := needsPendingLabel(
-				mr.Labels,
-				pendingLabel,
-				exactLabelMatch,
-				gitLabMergeRequestReference(int(mr.IID)),
-				mr.SourceBranch,
-			)
-			if labelErr != nil {
-				return false, labelErr
+			needsLabel := false
+
+			if !anyBranch {
+				var labelErr error
+
+				needsLabel, labelErr = needsPendingLabel(
+					mr.Labels,
+					pendingLabel,
+					exactLabelMatch,
+					gitLabMergeRequestReference(int(mr.IID)),
+					mr.SourceBranch,
+				)
+				if labelErr != nil {
+					return false, labelErr
+				}
 			}
 
 			pendingMRs = append(pendingMRs, &forge.PullRequest{
@@ -292,10 +333,26 @@ func (g *GitLab) FindOpenPendingReleasePRs(
 	return pendingMRs, nil
 }
 
+func (g *GitLab) FindMergedReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	branches := expectedBranches
+	if len(branches) == 0 {
+		branches = []string{expectedReleaseBranch(g.releaseBranch, baseBranch, nil)}
+	}
+
+	return collectExpectedBranchMergedPRs(branches, func(branch string) (*forge.PullRequest, error) {
+		return g.FindMergedReleasePR(ctx, baseBranch, pendingLabel, branch)
+	})
+}
+
 //nolint:funlen // Pagination closure layout inflates line count without adding complexity.
 func (g *GitLab) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	err := validateGitLabLifecycleLabel(pendingLabel)
 	if err != nil {
@@ -303,7 +360,7 @@ func (g *GitLab) FindMergedReleasePR(
 	}
 
 	state := gitlabMergeRequestMergedState
-	sourceBranch := releaseBranchName(g.releaseBranch, baseBranch)
+	sourceBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
 	labels := gitlab.LabelOptions{pendingLabel}
@@ -340,7 +397,7 @@ func (g *GitLab) FindMergedReleasePR(
 			if !isTrustedGitLabReleasePR(
 				mr.SourceBranch,
 				baseBranch,
-				g.releaseBranch,
+				sourceBranch,
 				mr.SourceProjectID,
 				mr.TargetProjectID,
 			) {
@@ -499,7 +556,9 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.Merg
 	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
 
 	driver := mergeDriver[*gitlab.AcceptMergeRequestOptions]{
-		forge: &gitLabMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
+		forge:         &gitLabMerge{provider: g, number: number},
+		polling:       g.polling,
+		releaseBranch: mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch),
 	}
 
 	return driver.run(ctx, opts)

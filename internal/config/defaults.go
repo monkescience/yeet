@@ -66,6 +66,7 @@ func Default() *Config {
 			},
 		},
 		Release: ReleaseConfig{
+			PullRequestMode: PullRequestModeCombined,
 			Labels: ReleaseLabelsConfig{
 				Pending: "autorelease: pending",
 				Tagged:  "autorelease: tagged",

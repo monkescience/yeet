@@ -79,9 +79,113 @@ func (c *Config) validateReleaseAndTargets() error {
 		return err
 	}
 
-	_, err = c.resolveTargets()
+	resolvedTargets, err := c.resolveTargets()
 	if err != nil {
 		return err
+	}
+
+	err = validateReleaseGroups(c.Release, resolvedTargets)
+	if err != nil {
+		return err
+	}
+
+	if c.Release.PullRequestMode == PullRequestModeCombined {
+		err = validateTargetVersionFileOwnership(c.Targets)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateReleaseGroups(release ReleaseConfig, targets map[string]ResolvedTarget) error {
+	err := validateReleaseGroupMode(release)
+	if err != nil {
+		return err
+	}
+
+	membership := make(map[string]string)
+
+	for _, rawName := range slices.Sorted(maps.Keys(release.Groups)) {
+		err = validateReleaseGroup(rawName, release.Groups[rawName], targets, membership)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateReleaseGroupMode(release ReleaseConfig) error {
+	switch release.PullRequestMode {
+	case PullRequestModeCombined:
+		if len(release.Groups) > 0 {
+			return fmt.Errorf(
+				"%w: release.groups is only valid when release.pull_request_mode is %q",
+				ErrInvalidConfig,
+				PullRequestModeIndependent,
+			)
+		}
+	case PullRequestModeIndependent:
+	default:
+		return fmt.Errorf(
+			"%w: release.pull_request_mode must be %q or %q, got %q",
+			ErrInvalidConfig,
+			PullRequestModeCombined,
+			PullRequestModeIndependent,
+			release.PullRequestMode,
+		)
+	}
+
+	return nil
+}
+
+func validateReleaseGroup(
+	rawName string,
+	group ReleaseGroupConfig,
+	targets map[string]ResolvedTarget,
+	membership map[string]string,
+) error {
+	name := strings.TrimSpace(rawName)
+	if name == "" {
+		return fmt.Errorf("%w: release.groups keys must not be empty", ErrInvalidConfig)
+	}
+
+	if len(group.Targets) == 0 {
+		return fmt.Errorf("%w: release.groups.%s.targets must not be empty", ErrInvalidConfig, name)
+	}
+
+	for _, rawTargetID := range group.Targets {
+		targetID := strings.TrimSpace(rawTargetID)
+		if targetID == "" {
+			return fmt.Errorf(
+				"%w: release.groups.%s.targets must not contain empty target IDs",
+				ErrInvalidConfig,
+				name,
+			)
+		}
+
+		if _, exists := targets[targetID]; !exists {
+			return fmt.Errorf(
+				"%w: release.groups.%s.targets contains unknown target %q",
+				ErrInvalidConfig,
+				name,
+				targetID,
+			)
+		}
+
+		if previous, exists := membership[targetID]; exists {
+			return fmt.Errorf(
+				"%w: target %q belongs to both release.groups.%s and release.groups.%s",
+				ErrInvalidConfig,
+				targetID,
+				previous,
+				name,
+			)
+		}
+
+		membership[targetID] = name
 	}
 
 	return nil

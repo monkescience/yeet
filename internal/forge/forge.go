@@ -70,6 +70,7 @@ const (
 
 type MergeReleasePROptions struct {
 	BypassMergeChecks bool
+	ReleaseBranch     string
 	// Method is best effort because the three forges expose unrelated
 	// capability models. Adapters validate only what their forge exposes.
 	Method MergeMethod
@@ -97,8 +98,25 @@ type Provider interface {
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts ReleasePROptions) error
-	FindOpenPendingReleasePRs(ctx context.Context, baseBranch, pendingLabel string) ([]*PullRequest, error)
-	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*PullRequest, error)
+	FindOpenPendingReleasePRs(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) ([]*PullRequest, error)
+	FindOpenPendingReleasePRsForBase(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+	) ([]*PullRequest, error)
+	FindMergedReleasePR(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) (*PullRequest, error)
+	FindMergedReleasePRs(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) ([]*PullRequest, error)
 	// MergeReleasePR returns the commit produced on the base branch. It is
 	// idempotent for an already merged request. It returns ErrUntrustedReleasePR,
 	// ErrMergeBlocked as a *MergeBlockedError, ErrMergeMethodUnsupported, or

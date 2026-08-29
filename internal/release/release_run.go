@@ -51,7 +51,7 @@ func resolveRun(cfg *config.Config, currentBranch string, options Options) (rele
 		return releaseRun{}, err
 	}
 
-	run.releaseBranch, err = renderReleaseBranch(tmpl, run.baseBranch, run.channelName)
+	run.releaseBranch, err = renderReleaseBranch(tmpl, run.baseBranch, run.channelName, "")
 	if err != nil {
 		return releaseRun{}, err
 	}

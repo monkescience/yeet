@@ -35,6 +35,11 @@ type releasePRProvider interface {
 	FindOpenPendingReleasePRs(
 		ctx context.Context,
 		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) ([]*forge.PullRequest, error)
+	FindOpenPendingReleasePRsForBase(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
 	) ([]*forge.PullRequest, error)
 	CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error
@@ -62,7 +67,16 @@ type releaseFileProvider interface {
 }
 
 type releasePublishingProvider interface {
-	FindMergedReleasePR(ctx context.Context, baseBranch, pendingLabel string) (*forge.PullRequest, error)
+	FindMergedReleasePR(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) (*forge.PullRequest, error)
+	FindMergedReleasePRs(
+		ctx context.Context,
+		baseBranch, pendingLabel string,
+		expectedBranches ...string,
+	) ([]*forge.PullRequest, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error)
 	CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error)
 	releasePRLabelSetter

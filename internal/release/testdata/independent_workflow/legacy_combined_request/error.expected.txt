@@ -1,0 +1,1 @@
+multiple pending release PRs found: incompatible release PR #7 https://example.com/pr/7: invalid release manifest: missing manifest marker in pull request #7, merge it under the old configuration or close or relabel it

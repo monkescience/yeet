@@ -1,0 +1,1 @@
+conflicting file update: release unit "group:apps" has incompatible version writes to "VERSION.txt", configure separately addressable version files

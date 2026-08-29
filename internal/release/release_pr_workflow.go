@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/changelog"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -45,12 +46,18 @@ func newReleasePRWorkflow(
 func (w *releasePRWorkflow) createOrUpdate(
 	ctx context.Context,
 	plans []TargetPlan,
+	units ...releaseUnit,
 ) (*forge.PullRequest, *RenderedRelease, error) {
-	r := w.core
+	unit := releaseUnit{ID: combinedReleaseUnitID, ReleaseBranch: w.core.run.releaseBranch, Plans: plans}
 
-	pendingPRs, err := w.prs.FindOpenPendingReleasePRs(ctx, r.run.baseBranch, r.cfg.Release.Labels.Pending)
+	if len(units) > 0 {
+		unit = units[0]
+		plans = unit.Plans
+	}
+
+	pendingPRs, err := w.findPendingPRs(ctx, unit)
 	if err != nil {
-		return nil, nil, fmt.Errorf("find pending release PRs: %w", err)
+		return nil, nil, err
 	}
 
 	if len(pendingPRs) > 1 {
@@ -58,38 +65,12 @@ func (w *releasePRWorkflow) createOrUpdate(
 	}
 
 	if len(pendingPRs) == 1 {
-		existing := pendingPRs[0]
-
-		err = w.adoptUnlabeledReleasePR(ctx, existing)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		err = w.preserveExistingChangelogEdits(ctx, existing, plans)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		rendered, renderErr := w.render(ctx, plans, existing.Branch)
-		if renderErr != nil {
-			return nil, nil, renderErr
-		}
-
-		pullRequest, updateErr := w.updateExisting(
-			ctx,
-			existing,
-			existing.Branch,
-			rendered.PROptions,
-			rendered.CommitSubject,
-			plans,
-		)
-
-		return pullRequest, rendered, updateErr
+		return w.refreshExisting(ctx, pendingPRs[0], unit)
 	}
 
-	releaseBranch := r.run.releaseBranch
+	releaseBranch := unit.ReleaseBranch
 
-	rendered, err := w.render(ctx, plans, releaseBranch)
+	rendered, err := w.render(ctx, plans, releaseBranch, unit.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,12 +86,89 @@ func (w *releasePRWorkflow) createOrUpdate(
 	return pullRequest, rendered, err
 }
 
+func (w *releasePRWorkflow) findPendingPRs(
+	ctx context.Context,
+	unit releaseUnit,
+) ([]*forge.PullRequest, error) {
+	r := w.core
+
+	if r.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
+		pullRequests, err := w.prs.FindOpenPendingReleasePRs(
+			ctx,
+			r.run.baseBranch,
+			r.cfg.Release.Labels.Pending,
+			unit.ReleaseBranch,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("find pending release PRs: %w", err)
+		}
+
+		return pullRequests, nil
+	}
+
+	pullRequests, err := w.prs.FindOpenPendingReleasePRs(
+		ctx,
+		r.run.baseBranch,
+		r.cfg.Release.Labels.Pending,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find pending release PRs: %w", err)
+	}
+
+	return pullRequests, nil
+}
+
+func (w *releasePRWorkflow) refreshExisting(
+	ctx context.Context,
+	existing *forge.PullRequest,
+	unit releaseUnit,
+) (*forge.PullRequest, *RenderedRelease, error) {
+	if w.core.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
+		manifest, err := releaseManifestFromPullRequest(existing)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		_, err = w.core.validateReleaseManifest(existing, manifest, unit)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	err := w.adoptUnlabeledReleasePR(ctx, existing)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = w.preserveExistingChangelogEdits(ctx, existing, unit.Plans)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rendered, err := w.render(ctx, unit.Plans, existing.Branch, unit.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pullRequest, err := w.updateExisting(
+		ctx,
+		existing,
+		existing.Branch,
+		rendered.PROptions,
+		rendered.CommitSubject,
+		unit.Plans,
+	)
+
+	return pullRequest, rendered, err
+}
+
 func (w *releasePRWorkflow) render(
 	ctx context.Context,
 	plans []TargetPlan,
 	releaseBranch string,
+	unitIDs ...string,
 ) (*RenderedRelease, error) {
-	rendered, err := w.text.render(plans, releaseBranch, w.prs.MaxPRBodyLength())
+	rendered, err := w.text.render(plans, releaseBranch, w.prs.MaxPRBodyLength(), unitIDs...)
 	if err != nil {
 		return nil, err
 	}
@@ -294,6 +352,7 @@ func (w *releasePRWorkflow) autoMerge(
 	mergeOptions := forge.MergeReleasePROptions{
 		BypassMergeChecks: r.run.autoMerge.force,
 		Method:            forge.MergeMethod(r.run.autoMerge.method),
+		ReleaseBranch:     pullRequest.Branch,
 	}
 
 	err := w.publisher.preflightReleasePRTagging(ctx)
@@ -314,12 +373,12 @@ func (w *releasePRWorkflow) autoMerge(
 
 	releases, err := w.publisher.ensureReleasesForPlans(ctx, plans, releaseNames, strings.TrimSpace(mergeSHA))
 	if err != nil {
-		return nil, err
+		return releases, err
 	}
 
 	err = w.publisher.markReleasePRTagged(ctx, pullRequest)
 	if err != nil {
-		return nil, err
+		return releases, err
 	}
 
 	return releases, nil

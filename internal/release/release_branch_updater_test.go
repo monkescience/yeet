@@ -524,3 +524,54 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateReleaseBranchComposesSharedJSONVersionFile(t *testing.T) {
+	t.Parallel()
+
+	// given: two targets in one release unit owning separate pointers in one JSON file
+	cfg := config.Default()
+	cfg.Targets = map[string]config.Target{
+		"api": {
+			Type:      config.TargetTypePath,
+			Path:      "api",
+			TagPrefix: "api-v",
+			Changelog: config.ChangelogConfig{File: "api/CHANGELOG.md"},
+			VersionFiles: []config.VersionFile{{
+				Path: "versions.json", Format: config.VersionFileFormatJSON, JSONPointer: "/api",
+			}},
+		},
+		"web": {
+			Type:      config.TargetTypePath,
+			Path:      "web",
+			TagPrefix: "web-v",
+			Changelog: config.ChangelogConfig{File: "web/CHANGELOG.md"},
+			VersionFiles: []config.VersionFile{{
+				Path: "versions.json", Format: config.VersionFileFormatJSON, JSONPointer: "/web",
+			}},
+		},
+	}
+
+	content := fakeprovider.NewRepoContent(cfg.Branch)
+	content.Seed(
+		cfg.Branch,
+		"versions.json",
+		readTestFile(t, "testdata/shared_json_version_file/versions.input.json"),
+	)
+	forgeProvider := fakeprovider.NewGitHubContentProvider(t, content)
+	updater := newUpdateFilesUpdater(t, cfg, forgeProvider)
+	plans := []TargetPlan{
+		{ID: "api", NextVersion: "1.1.0", Entry: changelog.ParseEntry("## api-v1.1.0 (2026-03-01)\n")},
+		{ID: "web", NextVersion: "2.0.1", Entry: changelog.ParseEntry("## web-v2.0.1 (2026-03-01)\n")},
+	}
+
+	// when: writing the atomic release unit branch
+	err := updater.updateFiles(t.Context(), "release-group", plans, updateFilesCommitSubject)
+
+	// then: both pointer updates are composed into the same pending file content
+	testastic.NoError(t, err)
+
+	updated, exists := content.File("release-group", "versions.json")
+	testastic.True(t, exists)
+
+	testastic.AssertJSON(t, "testdata/shared_json_version_file/versions.expected.json", updated)
+}

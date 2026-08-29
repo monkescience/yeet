@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/changelog"
+	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -36,28 +37,44 @@ func newReleasePublisher(
 	}
 }
 
-func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]FinalizedRelease, error) {
-	mergedPR, err := p.publisher.FindMergedReleasePR(ctx, p.core.run.baseBranch, p.core.cfg.Release.Labels.Pending)
-	if err != nil {
-		return nil, fmt.Errorf("find merged release PR: %w", err)
+func (p *releasePublisher) finalizeMergedReleasePR(
+	ctx context.Context,
+	units ...releaseUnit,
+) ([]FinalizedRelease, error) {
+	unit := releaseUnit{
+		ID:            combinedReleaseUnitID,
+		ReleaseBranch: p.core.run.releaseBranch,
+	}
+	if len(units) > 0 {
+		unit = units[0]
 	}
 
+	mergedPR, err := p.findMergedReleasePR(ctx, unit)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.finalizeMergedPullRequest(ctx, mergedPR, unit)
+}
+
+func (p *releasePublisher) finalizeMergedPullRequest(
+	ctx context.Context,
+	mergedPR *forge.PullRequest,
+	unit releaseUnit,
+) ([]FinalizedRelease, error) {
 	manifest, err := releaseManifestFromPullRequest(mergedPR)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, err = p.core.validateReleaseManifest(mergedPR, manifest)
+	manifest, err = p.core.validateReleaseManifest(mergedPR, manifest, unit)
 	if err != nil {
 		return nil, err
 	}
 
-	releaseNames := make([]string, len(manifest.Targets))
-	for index, targetManifest := range manifest.Targets {
-		releaseNames[index], err = p.text.nameForManifest(targetManifest)
-		if err != nil {
-			return nil, err
-		}
+	releaseNames, err := p.releaseNamesForManifest(manifest)
+	if err != nil {
+		return nil, err
 	}
 
 	releaseRef, err := releaseRefForPullRequest(mergedPR)
@@ -70,9 +87,76 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 		return nil, err
 	}
 
-	releases := make([]FinalizedRelease, 0, len(manifest.Targets))
+	releases, err := p.publishManifestTargets(ctx, manifest, releaseNames, releaseRef)
+	if err != nil {
+		return releases, err
+	}
+
+	err = p.markReleasePRTagged(ctx, mergedPR)
+	if err != nil {
+		return releases, err
+	}
+
+	return releases, nil
+}
+
+func (p *releasePublisher) findMergedReleasePR(
+	ctx context.Context,
+	unit releaseUnit,
+) (*forge.PullRequest, error) {
+	r := p.core
+
+	if r.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
+		pullRequest, err := p.publisher.FindMergedReleasePR(
+			ctx,
+			r.run.baseBranch,
+			r.cfg.Release.Labels.Pending,
+			unit.ReleaseBranch,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("find independent merged release PR: %w", err)
+		}
+
+		return pullRequest, nil
+	}
+
+	pullRequest, err := p.publisher.FindMergedReleasePR(
+		ctx,
+		r.run.baseBranch,
+		r.cfg.Release.Labels.Pending,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find combined merged release PR: %w", err)
+	}
+
+	return pullRequest, nil
+}
+
+func (p *releasePublisher) releaseNamesForManifest(manifest releaseManifest) ([]string, error) {
+	releaseNames := make([]string, len(manifest.Targets))
+
 	for index, targetManifest := range manifest.Targets {
-		releaseInfo, releaseErr := p.releaseForTag(
+		name, err := p.text.nameForManifest(targetManifest)
+		if err != nil {
+			return nil, err
+		}
+
+		releaseNames[index] = name
+	}
+
+	return releaseNames, nil
+}
+
+func (p *releasePublisher) publishManifestTargets(
+	ctx context.Context,
+	manifest releaseManifest,
+	releaseNames []string,
+	releaseRef string,
+) ([]FinalizedRelease, error) {
+	releases := make([]FinalizedRelease, 0, len(manifest.Targets))
+
+	for index, targetManifest := range manifest.Targets {
+		releaseInfo, err := p.releaseForTag(
 			ctx,
 			targetManifest.Tag,
 			releaseNames[index],
@@ -80,8 +164,8 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 			releaseRef,
 			manifest.Prerelease,
 		)
-		if releaseErr != nil {
-			return nil, releaseErr
+		if err != nil {
+			return releases, err
 		}
 
 		releases = append(releases, FinalizedRelease{
@@ -89,11 +173,6 @@ func (p *releasePublisher) finalizeMergedReleasePR(ctx context.Context) ([]Final
 			CommitSHA: releaseRef,
 			Release:   releaseInfo,
 		})
-	}
-
-	err = p.markReleasePRTagged(ctx, mergedPR)
-	if err != nil {
-		return nil, err
 	}
 
 	return releases, nil
@@ -130,7 +209,7 @@ func (p *releasePublisher) ensureReleasesForPlans(
 			p.core.run.isPrerelease(),
 		)
 		if err != nil {
-			return nil, err
+			return releases, err
 		}
 
 		releases = append(releases, FinalizedRelease{

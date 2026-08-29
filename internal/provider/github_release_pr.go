@@ -115,18 +115,44 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts forge.Rel
 	return nil
 }
 
-//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
 func (g *GitHub) FindOpenPendingReleasePRs(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	if len(expectedBranches) > 1 {
+		return collectExpectedBranchPRs(expectedBranches, func(branch string) ([]*forge.PullRequest, error) {
+			return g.FindOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, branch)
+		})
+	}
+
+	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
+
+	return g.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, expectedBranch, false)
+}
+
+func (g *GitHub) FindOpenPendingReleasePRsForBase(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*forge.PullRequest, error) {
+	return g.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, "", true)
+}
+
+//nolint:funlen // Pagination closures keep trust and lifecycle checks beside candidate mapping.
+func (g *GitHub) findOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel, expectedBranch string,
+	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
 	options := &github.PullRequestListOptions{
 		State:     "open",
-		Head:      g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
 		Base:      baseBranch,
 		Sort:      "updated",
 		Direction: sortDirectionDesc,
 		PerPage:   gitHubPageSize,
+	}
+	if !anyBranch {
+		options.Head = g.repo.Owner + ":" + expectedBranch
 	}
 
 	slog.DebugContext(ctx, "github: listing open pending release PRs",
@@ -148,14 +174,23 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 			return prs, gitHubNextPage(resp), nil
 		},
 		func(pr *github.PullRequest) (bool, error) {
-			if !g.isTrustedReleasePR(pr, baseBranch) {
+			if anyBranch && !g.isTrustedOpenPRRepository(pr) {
+				return false, nil
+			}
+
+			if !anyBranch && !g.isTrustedReleasePR(pr, baseBranch, expectedBranch) {
 				return false, nil
 			}
 
 			branch := pr.GetHead().GetRef()
 
+			labels := gitHubLabelNames(pr.Labels)
+			if anyBranch && classifyReleasePRLabels(labels, pendingLabel, foldedLabelMatch) != releasePRLabelsPending {
+				return false, nil
+			}
+
 			needsLabel, err := needsPendingLabel(
-				gitHubLabelNames(pr.Labels),
+				labels,
 				pendingLabel,
 				foldedLabelMatch,
 				gitHubPullRequestReference(pr.GetNumber()),
@@ -186,6 +221,29 @@ func (g *GitHub) FindOpenPendingReleasePRs(
 	return pendingPRs, nil
 }
 
+func (g *GitHub) isTrustedOpenPRRepository(pullRequest *github.PullRequest) bool {
+	if pullRequest == nil || pullRequest.GetHead() == nil {
+		return false
+	}
+
+	return isGitHubSameRepository(g.repo, pullRequest.GetHead())
+}
+
+func (g *GitHub) FindMergedReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	branches := expectedBranches
+	if len(branches) == 0 {
+		branches = []string{expectedReleaseBranch(g.releaseBranch, baseBranch, nil)}
+	}
+
+	return collectExpectedBranchMergedPRs(branches, func(branch string) (*forge.PullRequest, error) {
+		return g.FindMergedReleasePR(ctx, baseBranch, pendingLabel, branch)
+	})
+}
+
 type gitHubMergedCandidate struct {
 	listed *github.PullRequest
 	full   *github.PullRequest
@@ -194,13 +252,15 @@ type gitHubMergedCandidate struct {
 func (g *GitHub) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
+	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
 	slog.DebugContext(ctx, "github: listing merged release PRs",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
 
-	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, pendingLabel)
+	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, pendingLabel, expectedBranch)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +280,7 @@ func (g *GitHub) FindMergedReleasePR(
 		}
 	}
 
-	if !full.GetMerged() || !g.isTrustedReleasePR(full, baseBranch) {
+	if !full.GetMerged() || !g.isTrustedReleasePR(full, baseBranch, expectedBranch) {
 		return nil, forge.ErrNoPR
 	}
 
@@ -244,11 +304,11 @@ func (g *GitHub) FindMergedReleasePR(
 
 func (g *GitHub) listGitHubMergedCandidates(
 	ctx context.Context,
-	baseBranch, pendingLabel string,
+	baseBranch, pendingLabel, expectedBranch string,
 ) ([]gitHubMergedCandidate, error) {
 	options := &github.PullRequestListOptions{
 		State:   "closed",
-		Head:    g.repo.Owner + ":" + releaseBranchName(g.releaseBranch, baseBranch),
+		Head:    g.repo.Owner + ":" + expectedBranch,
 		Base:    baseBranch,
 		PerPage: gitHubPageSize,
 	}
@@ -267,7 +327,7 @@ func (g *GitHub) listGitHubMergedCandidates(
 			return prs, gitHubNextPage(resp), nil
 		},
 		func(pr *github.PullRequest) (bool, error) {
-			if !g.isTrustedReleasePR(pr, baseBranch) || !gitHubHasLabel(pr.Labels, pendingLabel) {
+			if !g.isTrustedReleasePR(pr, baseBranch, expectedBranch) || !gitHubHasLabel(pr.Labels, pendingLabel) {
 				return false, nil
 			}
 
@@ -384,7 +444,9 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.Merg
 	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
 
 	driver := mergeDriver[forge.MergeMethod]{
-		forge: &gitHubMerge{provider: g, number: number}, polling: g.polling, releaseBranch: g.releaseBranch,
+		forge:         &gitHubMerge{provider: g, number: number},
+		polling:       g.polling,
+		releaseBranch: mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch),
 	}
 
 	return driver.run(ctx, opts)
@@ -475,14 +537,19 @@ func gitHubMergeState(repo repoInfo, number int, pullRequest *github.PullRequest
 	}
 }
 
-func (g *GitHub) isTrustedReleasePR(pullRequest *github.PullRequest, baseBranch string) bool {
+func (g *GitHub) isTrustedReleasePR(
+	pullRequest *github.PullRequest,
+	baseBranch string,
+	expectedBranches ...string,
+) bool {
 	if pullRequest == nil || pullRequest.GetHead() == nil {
 		return false
 	}
 
 	head := pullRequest.GetHead()
+	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
 
-	return isExpectedReleaseBranch(head.GetRef(), baseBranch, g.releaseBranch) &&
+	return strings.TrimSpace(head.GetRef()) == strings.TrimSpace(expectedBranch) &&
 		isGitHubSameRepository(g.repo, head)
 }
 

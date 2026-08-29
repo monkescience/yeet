@@ -210,6 +210,7 @@ const (
 	providerContractUnknownReviewer          providerContractScenario = "unknown reviewer"
 	providerContractUpdateReleasePR          providerContractScenario = "update release pr"
 	providerContractFindOpenPRs              providerContractScenario = "find open prs"
+	providerContractFindOpenPRsForBase       providerContractScenario = "find open prs for base"
 	providerContractFindOpenPRsUnlabeled     providerContractScenario = "find open prs unlabeled"
 	providerContractFindOpenPRsAdoptable     providerContractScenario = "find open prs adoptable"
 	providerContractFindMergedPR             providerContractScenario = "find merged pr"
@@ -485,6 +486,49 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractPendingBranch, prs[0].Branch)
 			})
 
+			t.Run("finds labelled pending release pull requests across source branches", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a trusted labelled pending request on the configured base branch
+				server := harness.newServer(t, harness.handler(t, providerContractFindOpenPRsForBase))
+
+				p := harness.newProvider(t, server)
+
+				// when: scanning the base branch without an expected source branch
+				prs, err := p.FindOpenPendingReleasePRsForBase(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the labelled same-repository request is returned for compatibility validation
+				testastic.NoError(t, err)
+				testastic.Equal(t, 1, len(prs))
+				testastic.Equal(t, providerContractPendingBranch, prs[0].Branch)
+			})
+
+			t.Run("finds open pending release pull requests for multiple expected branches", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a trusted pending request for each branch query
+				server := harness.newServer(t, harness.handler(t, providerContractFindOpenPRs))
+
+				p := harness.newProvider(t, server)
+
+				// when: discovery receives multiple expected unit branches
+				prs, err := p.FindOpenPendingReleasePRs(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+					providerContractPendingBranch,
+					providerContractPendingBranch,
+				)
+
+				// then: every branch query contributes its trusted request
+				testastic.NoError(t, err)
+				testastic.Equal(t, 2, len(prs))
+			})
+
 			t.Run("rejects a trusted release pull request labelled with a different lifecycle label", func(t *testing.T) {
 				t.Parallel()
 
@@ -549,6 +593,28 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractPendingBranch, pr.Branch)
 				testastic.Equal(t, providerContractMergeSHA, pr.MergeCommitSHA)
 				testastic.Equal(t, providerContractReleaseBody, pr.Body)
+			})
+
+			t.Run("finds merged release pull requests for multiple expected branches", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a merged request for each branch query
+				server := harness.newServer(t, harness.handler(t, providerContractFindMergedPR))
+
+				p := harness.newProvider(t, server)
+
+				// when: merged discovery receives multiple expected unit branches
+				prs, err := p.FindMergedReleasePRs(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+					providerContractPendingBranch,
+					providerContractPendingBranch,
+				)
+
+				// then: every branch query contributes its merged request
+				testastic.NoError(t, err)
+				testastic.Equal(t, 2, len(prs))
 			})
 
 			t.Run("carries the managed label set of the phase it was put in", func(t *testing.T) {

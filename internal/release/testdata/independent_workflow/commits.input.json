@@ -1,0 +1,16 @@
+[
+  {
+    "Hash": "api1234567890",
+    "Message": "feat: add api",
+    "Paths": [
+      "api/service.go"
+    ]
+  },
+  {
+    "Hash": "web1234567890",
+    "Message": "fix: patch web",
+    "Paths": [
+      "web/app.go"
+    ]
+  }
+]

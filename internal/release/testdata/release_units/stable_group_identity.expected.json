@@ -1,0 +1,23 @@
+{
+  "all_members": [
+    {
+      "branch_value": "group-backend-49332e0213",
+      "id": "group:backend",
+      "plans": [
+        "api",
+        "web"
+      ],
+      "release_branch": "yeet/release-main-group-backend-49332e0213"
+    }
+  ],
+  "one_eligible_member": [
+    {
+      "branch_value": "group-backend-49332e0213",
+      "id": "group:backend",
+      "plans": [
+        "api"
+      ],
+      "release_branch": "yeet/release-main-group-backend-49332e0213"
+    }
+  ]
+}

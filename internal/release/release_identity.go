@@ -17,10 +17,17 @@ const (
 )
 
 type releaseManifest struct {
-	BaseBranch string                 `json:"base_branch"`
-	Channel    string                 `json:"channel,omitempty"`
-	Prerelease bool                   `json:"prerelease,omitzero"`
-	Targets    []releaseManifestEntry `json:"targets"`
+	Unit              string                  `json:"unit,omitempty"`
+	BaseBranch        string                  `json:"base_branch"`
+	Channel           string                  `json:"channel,omitempty"`
+	Prerelease        bool                    `json:"prerelease,omitzero"`
+	ConfiguredTargets []releaseManifestTarget `json:"configured_targets,omitempty"`
+	Targets           []releaseManifestEntry  `json:"targets"`
+}
+
+type releaseManifestTarget struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
 }
 
 type releaseManifestEntry struct {
@@ -43,10 +50,13 @@ func releaseRefForPullRequest(pullRequest *forge.PullRequest) (string, error) {
 	return mergeCommitSHA, nil
 }
 
-func releaseManifestForPlans(baseBranch string, plans []TargetPlan) releaseManifest {
+func releaseManifestForPlans(baseBranch string, plans []TargetPlan, unitIDs ...string) releaseManifest {
 	manifest := releaseManifest{
 		BaseBranch: baseBranch,
 		Targets:    make([]releaseManifestEntry, 0, len(plans)),
+	}
+	if len(unitIDs) > 0 && unitIDs[0] != combinedReleaseUnitID {
+		manifest.Unit = strings.TrimSpace(unitIDs[0])
 	}
 
 	for _, plan := range plans {
@@ -127,53 +137,28 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 func (c *releaseCore) validateReleaseManifest(
 	pullRequest *forge.PullRequest,
 	manifest releaseManifest,
+	units ...releaseUnit,
 ) (releaseManifest, error) {
-	if pullRequest == nil {
-		return releaseManifest{}, fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
-	}
-
 	expectedBranch := c.run.releaseBranch
-	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
-		return releaseManifest{}, fmt.Errorf(
-			"%w: pull request branch %q does not match %q",
-			errInvalidReleaseManifest,
-			pullRequest.Branch,
-			expectedBranch,
-		)
+	expectedUnitID := combinedReleaseUnitID
+
+	if len(units) > 0 {
+		expectedBranch = units[0].ReleaseBranch
+		expectedUnitID = units[0].ID
 	}
 
-	if strings.TrimSpace(manifest.BaseBranch) != c.run.baseBranch {
-		return releaseManifest{}, fmt.Errorf(
-			"%w: base branch %q does not match %q",
-			errInvalidReleaseManifest,
-			manifest.BaseBranch,
-			c.run.baseBranch,
-		)
-	}
-
-	if strings.TrimSpace(manifest.Channel) != c.run.channelName {
-		return releaseManifest{}, fmt.Errorf(
-			"%w: channel %q does not match %q",
-			errInvalidReleaseManifest,
-			manifest.Channel,
-			c.run.channelName,
-		)
-	}
-
-	if manifest.Prerelease != c.run.isPrerelease() {
-		return releaseManifest{}, fmt.Errorf(
-			"%w: prerelease value does not match active release mode",
-			errInvalidReleaseManifest,
-		)
+	err := c.validateReleaseManifestContext(pullRequest, manifest, expectedBranch, expectedUnitID)
+	if err != nil {
+		return releaseManifest{}, err
 	}
 
 	validatedTargets := make([]releaseManifestEntry, len(manifest.Targets))
 	seenTargets := make(map[string]struct{}, len(manifest.Targets))
 
 	for index, entry := range manifest.Targets {
-		changelogFile, err := c.validateReleaseManifestEntry(entry, seenTargets)
-		if err != nil {
-			return releaseManifest{}, err
+		changelogFile, entryErr := c.validateReleaseManifestEntry(entry, seenTargets)
+		if entryErr != nil {
+			return releaseManifest{}, entryErr
 		}
 
 		entry.ChangelogFile = changelogFile
@@ -182,7 +167,131 @@ func (c *releaseCore) validateReleaseManifest(
 
 	manifest.Targets = validatedTargets
 
+	if len(units) == 0 {
+		return manifest, nil
+	}
+
+	expectedUnit := units[0]
+	expectedUnit.Plans = c.configuredUnitPlans(expectedUnit.ID)
+
+	err = validateManifestUnitTargets(manifest.ConfiguredTargets, manifest.Targets, expectedUnit)
+	if err != nil {
+		return releaseManifest{}, err
+	}
+
 	return manifest, nil
+}
+
+func (c *releaseCore) validateReleaseManifestContext(
+	pullRequest *forge.PullRequest,
+	manifest releaseManifest,
+	expectedBranch, expectedUnitID string,
+) error {
+	if pullRequest == nil {
+		return fmt.Errorf("%w: missing pull request", errInvalidReleaseManifest)
+	}
+
+	if strings.TrimSpace(pullRequest.Branch) != expectedBranch {
+		return fmt.Errorf(
+			"%w: pull request branch %q does not match %q",
+			errInvalidReleaseManifest,
+			pullRequest.Branch,
+			expectedBranch,
+		)
+	}
+
+	manifestUnitID := strings.TrimSpace(manifest.Unit)
+	if manifestUnitID == "" {
+		manifestUnitID = combinedReleaseUnitID
+	}
+
+	if manifestUnitID != expectedUnitID {
+		return fmt.Errorf(
+			"%w: unit %q does not match %q",
+			errInvalidReleaseManifest,
+			manifestUnitID,
+			expectedUnitID,
+		)
+	}
+
+	if strings.TrimSpace(manifest.BaseBranch) != c.run.baseBranch {
+		return fmt.Errorf(
+			"%w: base branch %q does not match %q",
+			errInvalidReleaseManifest,
+			manifest.BaseBranch,
+			c.run.baseBranch,
+		)
+	}
+
+	if strings.TrimSpace(manifest.Channel) != c.run.channelName {
+		return fmt.Errorf(
+			"%w: channel %q does not match %q",
+			errInvalidReleaseManifest,
+			manifest.Channel,
+			c.run.channelName,
+		)
+	}
+
+	if manifest.Prerelease != c.run.isPrerelease() {
+		return fmt.Errorf(
+			"%w: prerelease value does not match active release mode",
+			errInvalidReleaseManifest,
+		)
+	}
+
+	return nil
+}
+
+func validateManifestUnitTargets(
+	configuredTargets []releaseManifestTarget,
+	entries []releaseManifestEntry,
+	unit releaseUnit,
+) error {
+	if unit.ID == combinedReleaseUnitID {
+		return nil
+	}
+
+	allowed := make(map[string]string, len(unit.Plans))
+	for _, plan := range unit.Plans {
+		allowed[plan.ID] = string(plan.Type)
+	}
+
+	configured := make(map[string]string, len(configuredTargets))
+	for _, target := range configuredTargets {
+		configured[strings.TrimSpace(target.ID)] = strings.TrimSpace(target.Type)
+	}
+
+	if len(configured) != len(allowed) {
+		return fmt.Errorf(
+			"%w: configured targets do not match unit %q",
+			errInvalidReleaseManifest,
+			unit.ID,
+		)
+	}
+
+	for targetID, targetType := range allowed {
+		if configured[targetID] != targetType {
+			return fmt.Errorf(
+				"%w: configured target %q does not match unit %q",
+				errInvalidReleaseManifest,
+				targetID,
+				unit.ID,
+			)
+		}
+	}
+
+	for _, entry := range entries {
+		if _, exists := allowed[strings.TrimSpace(entry.ID)]; !exists {
+			return fmt.Errorf(
+				"%w: target %q does not belong to unit %q",
+				errInvalidReleaseManifest,
+				entry.ID,
+				unit.ID,
+			)
+		}
+	}
+
+	return nil
 }
 
 func (c *releaseCore) validateReleaseManifestEntry(

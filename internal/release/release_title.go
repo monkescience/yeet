@@ -14,6 +14,7 @@ import (
 const (
 	releaseTemplateFieldBranch  = "Branch"
 	releaseTemplateFieldChannel = "Channel"
+	releaseTemplateFieldUnit    = "Unit"
 )
 
 var errReleaseTitleFieldUnavailable = errors.New("field is unavailable")

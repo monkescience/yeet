@@ -1,0 +1,20 @@
+release:
+  pull_request_mode: independent
+  groups:
+    backend:
+      targets:
+        - api
+        - worker
+targets:
+  api:
+    type: path
+    path: api
+    tag_prefix: api-v
+  worker:
+    type: path
+    path: worker
+    tag_prefix: worker-v
+  web:
+    type: path
+    path: web
+    tag_prefix: web-v

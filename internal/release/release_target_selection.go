@@ -23,6 +23,8 @@ func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelect
 		}, nil
 	}
 
+	selectedTargetIDs = expandReleaseGroupSelection(core.cfg, selectedTargetIDs)
+
 	selectedTargets := make(map[string]config.ResolvedTarget, len(selectedTargetIDs))
 	pathTargetsToAnalyze := make(map[string]config.ResolvedTarget)
 	pathTargetIDsToEmit := make(map[string]struct{})
@@ -59,6 +61,47 @@ func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelect
 		pathTargetsToAnalyze: pathTargetsToAnalyze,
 		pathTargetIDsToEmit:  pathTargetIDsToEmit,
 	}, nil
+}
+
+func expandReleaseGroupSelection(cfg *config.Config, selectedTargetIDs []string) []string {
+	if cfg.Release.PullRequestMode != config.PullRequestModeIndependent || len(cfg.Release.Groups) == 0 {
+		return selectedTargetIDs
+	}
+
+	groupByTarget := make(map[string][]string)
+	for _, group := range cfg.Release.Groups {
+		members := make([]string, 0, len(group.Targets))
+		for _, targetID := range group.Targets {
+			members = append(members, strings.TrimSpace(targetID))
+		}
+
+		for _, targetID := range members {
+			groupByTarget[targetID] = members
+		}
+	}
+
+	expanded := make([]string, 0, len(selectedTargetIDs))
+	seen := make(map[string]struct{})
+
+	for _, targetID := range selectedTargetIDs {
+		normalized := strings.TrimSpace(targetID)
+
+		members := groupByTarget[normalized]
+		if len(members) == 0 {
+			members = []string{normalized}
+		}
+
+		for _, member := range members {
+			if _, exists := seen[member]; exists {
+				continue
+			}
+
+			seen[member] = struct{}{}
+			expanded = append(expanded, member)
+		}
+	}
+
+	return expanded
 }
 
 func derivedTargetEligible(target config.ResolvedTarget, selectedTargetIDs map[string]struct{}) bool {

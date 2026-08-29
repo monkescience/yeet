@@ -56,11 +56,6 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 		return nil, err
 	}
 
-	err = validateTargetVersionFileOwnership(c.Targets)
-	if err != nil {
-		return nil, err
-	}
-
 	return resolved, nil
 }
 

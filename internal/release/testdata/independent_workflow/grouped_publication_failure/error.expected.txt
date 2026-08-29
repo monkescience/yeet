@@ -1,0 +1,1 @@
+release unit "group:apps" auto-merge: create release: test unit publication failure

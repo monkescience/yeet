@@ -1,0 +1,18 @@
+[
+  {
+    "branch_value": "target-api-21f150df25",
+    "id": "target:api",
+    "plans": [
+      "api"
+    ],
+    "release_branch": "yeet/release-main-target-api-21f150df25"
+  },
+  {
+    "branch_value": "target-root-5d614e42b0",
+    "id": "target:root",
+    "plans": [
+      "root"
+    ],
+    "release_branch": "yeet/release-main-target-root-5d614e42b0"
+  }
+]

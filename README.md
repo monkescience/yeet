@@ -61,7 +61,7 @@ Shell completions are available through `yeet completion bash|zsh|fish|powershel
 ## Why yeet
 
 - One release workflow across GitHub, GitLab, and Azure DevOps
-- Monorepo targets with one combined release PR/MR
+- Monorepo targets with combined or independent release PRs/MRs
 - Semver, calver, changelog, reviewer, and prerelease configuration
 - GitHub Enterprise, self-managed GitLab, and Azure DevOps Server support
 - One YAML file backed by a JSON schema

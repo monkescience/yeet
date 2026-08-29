@@ -1,0 +1,10 @@
+[
+  {
+    "id": "combined",
+    "plans": [
+      "api",
+      "web"
+    ],
+    "release_branch": "yeet/release-main"
+  }
+]

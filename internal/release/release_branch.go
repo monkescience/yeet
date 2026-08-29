@@ -11,52 +11,88 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
-const releaseBranchTemplateName = "release.branch_template"
+const (
+	releaseBranchTemplateName          = "release.branch_template"
+	defaultReleaseBranchTemplateSource = "yeet/release-{{ .Branch }}"
+)
 
 type releaseBranchTemplateData struct {
 	Branch  string
 	Channel string
+	Unit    string
 }
 
 func validateReleaseBranchTemplates(cfg *config.Config) error {
-	tmpl, err := newReleaseBranchTemplate(cfg.Release.BranchTemplate)
+	tmpl, err := newReleaseBranchTemplate(effectiveReleaseBranchTemplateSource(cfg))
 	if err != nil {
 		return err
 	}
 
-	seen := make(map[string]string, len(cfg.Release.Channels)+1)
+	unitValues := configuredReleaseUnitBranchValues(cfg)
+	seen := make(map[string]string, (len(cfg.Release.Channels)+1)*len(unitValues))
 
 	if strings.TrimSpace(cfg.Branch) != "" {
-		branch, renderErr := renderReleaseBranch(tmpl, cfg.Branch, "")
-		if renderErr != nil {
-			return renderErr
-		}
+		for _, unit := range unitValues {
+			branch, renderErr := renderReleaseBranch(tmpl, cfg.Branch, "", unit)
+			if renderErr != nil {
+				return renderErr
+			}
 
-		seen[branch] = "branch"
+			if existing, exists := seen[branch]; exists {
+				return duplicateReleaseBranchError("branch", unit, existing)
+			}
+
+			seen[branch] = releaseBranchOwner("branch", unit)
+		}
 	}
 
 	for _, name := range slices.Sorted(maps.Keys(cfg.Release.Channels)) {
 		channel := cfg.Release.Channels[name]
 
-		branch, renderErr := renderReleaseBranch(tmpl, channel.Branch, name)
-		if renderErr != nil {
-			return renderErr
-		}
+		for _, unit := range unitValues {
+			branch, renderErr := renderReleaseBranch(tmpl, channel.Branch, name, unit)
+			if renderErr != nil {
+				return renderErr
+			}
 
-		if existing, exists := seen[branch]; exists {
-			return fmt.Errorf(
-				"%w: rendered %s for release channel %q duplicates %s",
-				config.ErrInvalidConfig,
-				releaseBranchTemplateName,
-				name,
-				existing,
-			)
-		}
+			owner := fmt.Sprintf("release channel %q", name)
+			if existing, exists := seen[branch]; exists {
+				return duplicateReleaseBranchError(owner, unit, existing)
+			}
 
-		seen[branch] = fmt.Sprintf("release channel %q", name)
+			seen[branch] = releaseBranchOwner(owner, unit)
+		}
 	}
 
 	return nil
+}
+
+func effectiveReleaseBranchTemplateSource(cfg *config.Config) string {
+	if cfg.Release.PullRequestMode == config.PullRequestModeIndependent &&
+		cfg.Release.BranchTemplate == defaultReleaseBranchTemplateSource {
+		return defaultReleaseBranchTemplateSource + "-{{ .Unit }}"
+	}
+
+	return cfg.Release.BranchTemplate
+}
+
+func duplicateReleaseBranchError(owner, unit, existing string) error {
+	return fmt.Errorf(
+		"%w: rendered %s for %s unit %q duplicates %s, use .Unit to disambiguate release units",
+		config.ErrInvalidConfig,
+		releaseBranchTemplateName,
+		owner,
+		unit,
+		existing,
+	)
+}
+
+func releaseBranchOwner(owner, unit string) string {
+	if unit == "" {
+		return owner
+	}
+
+	return fmt.Sprintf("%s unit %q", owner, unit)
 }
 
 func newReleaseBranchTemplate(source string) (*template.Template, error) {
@@ -64,15 +100,20 @@ func newReleaseBranchTemplate(source string) (*template.Template, error) {
 		return nil, fmt.Errorf("%w: %s must not be blank", config.ErrInvalidConfig, releaseBranchTemplateName)
 	}
 
-	fields := map[string]struct{}{releaseTemplateFieldBranch: {}, releaseTemplateFieldChannel: {}}
+	fields := map[string]struct{}{
+		releaseTemplateFieldBranch:  {},
+		releaseTemplateFieldChannel: {},
+		releaseTemplateFieldUnit:    {},
+	}
 
 	return parseReleaseTextTemplate(releaseBranchTemplateName, source, fields)
 }
 
-func renderReleaseBranch(tmpl *template.Template, baseBranch, channel string) (string, error) {
+func renderReleaseBranch(tmpl *template.Template, baseBranch, channel, unit string) (string, error) {
 	branch, err := executeReleaseTextTemplate(tmpl, releaseBranchTemplateData{
 		Branch:  strings.TrimSpace(baseBranch),
 		Channel: strings.TrimSpace(channel),
+		Unit:    strings.TrimSpace(unit),
 	})
 	if err != nil {
 		return "", fmt.Errorf("%w: render %s: %v", config.ErrInvalidConfig, releaseBranchTemplateName, err)

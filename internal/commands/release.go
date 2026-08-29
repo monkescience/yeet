@@ -184,10 +184,10 @@ func runRelease(
 	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
 		if failure, ok := errors.AsType[*release.Failure](err); ok {
-			return nil, wrapReleaseFailure(failure)
+			return result, wrapReleaseFailure(failure)
 		}
 
-		return nil, fmt.Errorf("release failed: unexpected failure: %w", err)
+		return result, fmt.Errorf("release failed: unexpected failure: %w", err)
 	}
 
 	err = handleReleaseResult(ctx, output, result, options.DryRun)

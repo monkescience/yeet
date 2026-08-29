@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,8 @@ type eventFields struct {
 	FailureCategory           string `json:"Yeet.failure.category,omitempty"`
 	ReleaseProvider           string `json:"Yeet.release.provider,omitempty"`
 	ReleaseLayout             string `json:"Yeet.release.layout,omitempty"`
+	ReleasePullRequestMode    string `json:"Yeet.release.pullRequestMode,omitempty"`
+	ReleaseUnitCount          string `json:"Yeet.release.unitCount,omitempty"`
 	ReleaseVersioning         string `json:"Yeet.release.versioning,omitempty"`
 	ReleaseDryRun             string `json:"Yeet.release.dryRun,omitempty"`
 	ReleaseChannelsConfigured string `json:"Yeet.release.channelsConfigured,omitempty"`
@@ -53,6 +56,8 @@ type eventFields struct {
 type releaseFields struct {
 	provider           string
 	layout             string
+	pullRequestMode    string
+	unitCount          string
 	versioning         string
 	dryRun             string
 	channelsConfigured string
@@ -83,6 +88,8 @@ func newEvent(
 	if profile != nil {
 		fields.ReleaseProvider = profile.provider
 		fields.ReleaseLayout = profile.layout
+		fields.ReleasePullRequestMode = profile.pullRequestMode
+		fields.ReleaseUnitCount = profile.unitCount
 		fields.ReleaseVersioning = profile.versioning
 		fields.ReleaseDryRun = profile.dryRun
 		fields.ReleaseChannelsConfigured = profile.channelsConfigured
@@ -169,11 +176,30 @@ func releaseProfile(cfg *config.Config, opts release.Options, result *release.Re
 	return &releaseFields{
 		provider:           allowedProvider(provider),
 		layout:             releaseLayout(cfg),
+		pullRequestMode:    allowedPullRequestMode(cfg.Release.PullRequestMode),
+		unitCount:          releaseUnitCount(result),
 		versioning:         releaseVersioning(cfg),
 		dryRun:             boolString(opts.DryRun),
 		channelsConfigured: boolString(len(cfg.Release.Channels) > 0),
 		autoMerge:          releaseAutoMerge(cfg, opts),
 	}
+}
+
+func allowedPullRequestMode(mode config.PullRequestMode) string {
+	switch mode {
+	case config.PullRequestModeCombined, config.PullRequestModeIndependent:
+		return string(mode)
+	default:
+		return ""
+	}
+}
+
+func releaseUnitCount(result *release.Result) string {
+	if result == nil {
+		return ""
+	}
+
+	return strconv.Itoa(len(result.Units))
 }
 
 func allowedProvider(provider config.ProviderType) string {

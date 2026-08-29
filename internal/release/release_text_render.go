@@ -2,6 +2,7 @@ package release
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -58,8 +59,13 @@ func (t *releaseText) render(
 	plans []TargetPlan,
 	releaseBranch string,
 	providerBodyLimit int,
+	unitIDs ...string,
 ) (*RenderedRelease, error) {
-	manifest := releaseManifestForPlans(t.run.baseBranch, plans)
+	manifest := releaseManifestForPlans(t.run.baseBranch, plans, unitIDs...)
+	if len(unitIDs) > 0 && unitIDs[0] != combinedReleaseUnitID {
+		manifest.ConfiguredTargets = t.configuredManifestTargets(unitIDs[0])
+	}
+
 	manifest.Channel = t.run.channelName
 	manifest.Prerelease = t.run.isPrerelease()
 
@@ -107,6 +113,32 @@ func (t *releaseText) render(
 		NotesOmitted:  omitted,
 		bodyLimit:     limit,
 	}, nil
+}
+
+func (t *releaseText) configuredManifestTargets(unitID string) []releaseManifestTarget {
+	targetIDs := make([]string, 0)
+	if targetID, found := strings.CutPrefix(unitID, "target:"); found {
+		targetIDs = append(targetIDs, targetID)
+	} else if groupName, found := strings.CutPrefix(unitID, "group:"); found {
+		group, exists := releaseGroupConfig(t.cfg, groupName)
+		if exists {
+			targetIDs = append(targetIDs, group.Targets...)
+		}
+	}
+
+	slices.Sort(targetIDs)
+
+	targets := make([]releaseManifestTarget, 0, len(targetIDs))
+	for _, targetID := range targetIDs {
+		target, exists := t.targets[strings.TrimSpace(targetID)]
+		if !exists {
+			continue
+		}
+
+		targets = append(targets, releaseManifestTarget{ID: target.ID, Type: string(target.Type)})
+	}
+
+	return targets
 }
 
 func (t *releaseText) nameForManifest(entry releaseManifestEntry) (string, error) {

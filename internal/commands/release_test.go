@@ -570,6 +570,46 @@ func TestPrintDryRun(t *testing.T) {
 		output := ansi.Strip(buf.String())
 		testastic.AssertFile(t, "testdata/dry_run_empty.expected.txt", output)
 	})
+
+	t.Run("prints every independent release unit", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a dry run with two independently releasable units
+		result := &release.Result{
+			PullRequestMode: config.PullRequestModeIndependent,
+			Plans: []release.TargetPlan{
+				{
+					ID: "api", CurrentVersion: "1.0.0", NextVersion: "1.1.0",
+					NextTag: "api-v1.1.0", BumpType: commit.BumpMinor, CommitCount: 1,
+				},
+				{
+					ID: "web", CurrentVersion: "2.0.0", NextVersion: "2.0.1",
+					NextTag: "web-v2.0.1", BumpType: commit.BumpPatch, CommitCount: 2,
+				},
+			},
+			Units: []release.UnitResult{
+				{Unit: "target:api", Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+					Title: "chore: release api", Body: dryRunTestBody,
+					BaseBranch: "main", ReleaseBranch: "release-api",
+				}}},
+				{Unit: "target:web", Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+					Title: "chore: release web", Body: dryRunTestBody,
+					BaseBranch: "main", ReleaseBranch: "release-web",
+				}}},
+			},
+		}
+
+		var buf bytes.Buffer
+
+		// when: printing the dry run
+		err := printDryRun(&buf, result)
+
+		// then: both unit previews and the expanded summary are visible
+		testastic.NoError(t, err)
+
+		output := ansi.Strip(buf.String())
+		testastic.AssertFile(t, "testdata/dry_run_independent.expected.txt", output)
+	})
 }
 
 const dryRunTestBody = `## ٩(^ᴗ^)۶ release created

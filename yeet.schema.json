@@ -302,14 +302,36 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+		"pull_request_mode": {
+		  "type": "string",
+		  "description": "Whether eligible targets share one release PR/MR or are split into independent release units.",
+		  "enum": [
+			"combined",
+			"independent"
+		  ],
+		  "default": "combined"
+		},
+		"groups": {
+		  "type": "object",
+		  "description": "Atomic PR/MR groups used in independent mode.",
+		  "propertyNames": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		  },
+		  "additionalProperties": {
+			"$ref": "#/$defs/release_group"
+		  },
+		  "default": {}
+		},
         "labels": {
           "$ref": "#/$defs/release_labels"
         },
         "branch_template": {
           "type": "string",
-          "description": "Go text/template for the release branch name. Available data: .Branch and .Channel.",
+		  "description": "Go text/template for the release branch name. Available data: .Branch, .Channel, and the branch-safe .Unit.",
           "minLength": 1,
-          "default": "yeet/release-{{ .Branch }}"
+		  "default": "yeet/release-{{ .Branch }}"
         },
         "name_template": {
           "type": "string",
@@ -401,6 +423,25 @@
         }
       }
     },
+	"release_group": {
+	  "type": "object",
+	  "additionalProperties": false,
+	  "properties": {
+		"targets": {
+		  "type": "array",
+		  "minItems": 1,
+		  "uniqueItems": true,
+		  "items": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		  }
+		}
+	  },
+	  "required": [
+		"targets"
+	  ]
+	},
     "release_merge_polling": {
       "type": "object",
       "description": "Polling bounds used after a provider accepts an automatic merge.",

@@ -157,6 +157,30 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts forg
 func (a *AzureDevOps) FindOpenPendingReleasePRs(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	if len(expectedBranches) > 1 {
+		return collectExpectedBranchPRs(expectedBranches, func(branch string) ([]*forge.PullRequest, error) {
+			return a.FindOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, branch)
+		})
+	}
+
+	expectedBranch := expectedReleaseBranch(a.releaseBranch, baseBranch, expectedBranches)
+
+	return a.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, expectedBranch, false)
+}
+
+func (a *AzureDevOps) FindOpenPendingReleasePRsForBase(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+) ([]*forge.PullRequest, error) {
+	return a.findOpenPendingReleasePRs(ctx, baseBranch, pendingLabel, "", true)
+}
+
+func (a *AzureDevOps) findOpenPendingReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel, expectedBranch string,
+	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
 	slog.DebugContext(ctx, "azure devops: listing open pending release PRs",
 		slog.String("target_branch", baseBranch),
@@ -167,26 +191,44 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 		ctx,
 		git.PullRequestStatusValues.Active,
 		baseBranch,
-		releaseBranchName(a.releaseBranch, baseBranch),
+		expectedBranch,
 	)
 	if err != nil {
 		return nil, err
 	}
 
+	return a.azureDevOpsPendingReleasePRs(ctx, prs, baseBranch, pendingLabel, expectedBranch, anyBranch)
+}
+
+func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
+	ctx context.Context,
+	prs []git.GitPullRequest,
+	baseBranch, pendingLabel, expectedBranch string,
+	anyBranch bool,
+) ([]*forge.PullRequest, error) {
 	pending := make([]*forge.PullRequest, 0)
 
 	for _, pr := range prs {
 		branch := azureDevOpsRefToBranch(derefString(pr.SourceRefName))
-		if !a.isTrustedReleasePR(&pr, baseBranch) {
+
+		trusted := a.isTrustedOpenPRForBase(&pr, baseBranch)
+		if !anyBranch {
+			trusted = a.isTrustedReleasePR(&pr, baseBranch, expectedBranch)
+		}
+
+		if !trusted {
 			continue
 		}
 
 		number := derefInt(pr.PullRequestId)
 
-		var needsLabel bool
+		labels := azureDevOpsLabelNames(pr.Labels)
+		if anyBranch && classifyReleasePRLabels(labels, pendingLabel, foldedLabelMatch) != releasePRLabelsPending {
+			continue
+		}
 
-		needsLabel, err = needsPendingLabel(
-			azureDevOpsLabelNames(pr.Labels),
+		needsLabel, err := needsPendingLabel(
+			labels,
 			pendingLabel,
 			foldedLabelMatch,
 			azureDevOpsPullRequestReference(number),
@@ -211,10 +253,27 @@ func (a *AzureDevOps) FindOpenPendingReleasePRs(
 	return pending, nil
 }
 
+func (a *AzureDevOps) FindMergedReleasePRs(
+	ctx context.Context,
+	baseBranch, pendingLabel string,
+	expectedBranches ...string,
+) ([]*forge.PullRequest, error) {
+	branches := expectedBranches
+	if len(branches) == 0 {
+		branches = []string{expectedReleaseBranch(a.releaseBranch, baseBranch, nil)}
+	}
+
+	return collectExpectedBranchMergedPRs(branches, func(branch string) (*forge.PullRequest, error) {
+		return a.FindMergedReleasePR(ctx, baseBranch, pendingLabel, branch)
+	})
+}
+
 func (a *AzureDevOps) FindMergedReleasePR(
 	ctx context.Context,
 	baseBranch, pendingLabel string,
+	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
+	expectedBranch := expectedReleaseBranch(a.releaseBranch, baseBranch, expectedBranches)
 	slog.DebugContext(ctx, "azure devops: searching merged release PRs",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
@@ -224,20 +283,20 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		ctx,
 		git.PullRequestStatusValues.Completed,
 		baseBranch,
-		releaseBranchName(a.releaseBranch, baseBranch),
+		expectedBranch,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	candidates := a.azureDevOpsMergedCandidates(prs, baseBranch, pendingLabel)
+	candidates := a.azureDevOpsMergedCandidates(prs, baseBranch, pendingLabel, expectedBranch)
 
 	full, err := a.latestAzureDevOpsMergedPR(ctx, candidates)
 	if err != nil {
 		return nil, err
 	}
 
-	if !a.isTrustedReleasePR(full, baseBranch) {
+	if !a.isTrustedReleasePR(full, baseBranch, expectedBranch) {
 		return nil, forge.ErrNoPR
 	}
 
@@ -262,12 +321,12 @@ func (a *AzureDevOps) FindMergedReleasePR(
 
 func (a *AzureDevOps) azureDevOpsMergedCandidates(
 	prs []git.GitPullRequest,
-	baseBranch, pendingLabel string,
+	baseBranch, pendingLabel, expectedBranch string,
 ) []git.GitPullRequest {
 	candidates := make([]git.GitPullRequest, 0)
 
 	for _, pr := range prs {
-		if !a.isTrustedReleasePR(&pr, baseBranch) || !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
+		if !a.isTrustedReleasePR(&pr, baseBranch, expectedBranch) || !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
 			continue
 		}
 
@@ -336,15 +395,18 @@ func (a *AzureDevOps) listPullRequests(
 	all := make([]git.GitPullRequest, 0)
 	top := azureDevOpsPRPageSize
 	targetRef := "refs/heads/" + baseBranch
-	sourceRef := "refs/heads/" + sourceBranch
 
 	err = paginateAzureDevOpsBySkip(ctx, "listing pull requests", top,
 		func(skip int) ([]git.GitPullRequest, error) {
 			pageStatus := status
 			criteria := &git.GitPullRequestSearchCriteria{
 				Status:        &pageStatus,
-				SourceRefName: &sourceRef,
 				TargetRefName: &targetRef,
+			}
+
+			if strings.TrimSpace(sourceBranch) != "" {
+				sourceRef := "refs/heads/" + sourceBranch
+				criteria.SourceRefName = &sourceRef
 			}
 
 			page, err := gitClient.GetPullRequests(ctx, git.GetPullRequestsArgs{
@@ -393,7 +455,9 @@ func (a *AzureDevOps) MergeReleasePR(
 	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
 
 	driver := mergeDriver[git.GitPullRequestMergeStrategy]{
-		forge: &azureDevOpsMerge{provider: a, number: number}, polling: a.polling, releaseBranch: a.releaseBranch,
+		forge:         &azureDevOpsMerge{provider: a, number: number},
+		polling:       a.polling,
+		releaseBranch: mergeExpectedReleaseBranch(a.releaseBranch, opts.ReleaseBranch),
 	}
 
 	return driver.run(ctx, opts)
@@ -534,14 +598,33 @@ func azureDevOpsLastMergeSourceCommit(pullRequest *git.GitPullRequest) string {
 	return derefString(pullRequest.LastMergeSourceCommit.CommitId)
 }
 
-func (a *AzureDevOps) isTrustedReleasePR(pullRequest *git.GitPullRequest, baseBranch string) bool {
+func (a *AzureDevOps) isTrustedReleasePR(
+	pullRequest *git.GitPullRequest,
+	baseBranch string,
+	expectedBranches ...string,
+) bool {
 	if pullRequest == nil || pullRequest.ForkSource != nil {
 		return false
 	}
 
 	sourceBranch := azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName))
+	expectedBranch := expectedReleaseBranch(a.releaseBranch, baseBranch, expectedBranches)
 
-	return isExpectedReleaseBranch(sourceBranch, baseBranch, a.releaseBranch) &&
+	return strings.TrimSpace(sourceBranch) == strings.TrimSpace(expectedBranch) &&
+		a.isConfiguredRepository(pullRequest.Repository)
+}
+
+func (a *AzureDevOps) isTrustedOpenPRForBase(
+	pullRequest *git.GitPullRequest,
+	baseBranch string,
+) bool {
+	if pullRequest == nil || pullRequest.ForkSource != nil {
+		return false
+	}
+
+	targetBranch := azureDevOpsRefToBranch(derefString(pullRequest.TargetRefName))
+
+	return strings.TrimSpace(targetBranch) == strings.TrimSpace(baseBranch) &&
 		a.isConfiguredRepository(pullRequest.Repository)
 }
 

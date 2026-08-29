@@ -57,7 +57,7 @@ func (u *releaseBranchUpdater) updateFiles(
 		files[target.Changelog.File] = changelogContent
 		changelogFiles[target.Changelog.File] = struct{}{}
 
-		err = u.updateVersionFiles(ctx, files, target, plan.ID, plan.NextVersion)
+		err = u.updateVersionFiles(ctx, files, changelogFiles, target, plan.ID, plan.NextVersion)
 		if err != nil {
 			return err
 		}
@@ -74,6 +74,7 @@ func (u *releaseBranchUpdater) updateFiles(
 func (u *releaseBranchUpdater) updateVersionFiles(
 	ctx context.Context,
 	files map[string]forge.FileUpdate,
+	changelogFiles map[string]struct{},
 	target config.ResolvedTarget,
 	targetID string,
 	nextVersion string,
@@ -84,9 +85,13 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 	}
 
 	for _, versionFile := range target.VersionFiles {
-		content, fileErr := u.source.GetFile(ctx, versionFile.Path)
+		if _, isChangelog := changelogFiles[versionFile.Path]; isChangelog {
+			return fmt.Errorf("%w: %s", errConflictingFileUpdate, versionFile.Path)
+		}
+
+		content, exists, fileErr := u.versionFileContent(ctx, files, versionFile.Path)
 		if fileErr != nil {
-			return fmt.Errorf("get version file %s: %w", versionFile.Path, fileErr)
+			return fileErr
 		}
 
 		updatedContent, changed, markerErr := applyVersionFile(content, nextVersion, scheme, versionFile)
@@ -106,16 +111,30 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 			slog.String("next_version", nextVersion),
 		)
 
-		setErr := setBranchFileContent(files, versionFile.Path, forge.FileUpdate{
+		files[versionFile.Path] = forge.FileUpdate{
 			Content: updatedContent,
-			Exists:  true,
-		})
-		if setErr != nil {
-			return setErr
+			Exists:  exists,
 		}
 	}
 
 	return nil
+}
+
+func (u *releaseBranchUpdater) versionFileContent(
+	ctx context.Context,
+	files map[string]forge.FileUpdate,
+	path string,
+) (string, bool, error) {
+	if pending, exists := files[path]; exists {
+		return pending.Content, pending.Exists, nil
+	}
+
+	content, err := u.source.GetFile(ctx, path)
+	if err != nil {
+		return "", false, fmt.Errorf("get version file %s: %w", path, err)
+	}
+
+	return content, true, nil
 }
 
 func applyVersionFile(
@@ -168,16 +187,6 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	}
 
 	return forge.FileUpdate{Content: changelog.PrependEntry(existing, changelogEntry), Exists: true}, nil
-}
-
-func setBranchFileContent(files map[string]forge.FileUpdate, path string, update forge.FileUpdate) error {
-	if existingUpdate, exists := files[path]; exists && existingUpdate != update {
-		return fmt.Errorf("%w: %s", errConflictingFileUpdate, path)
-	}
-
-	files[path] = update
-
-	return nil
 }
 
 func markerScheme(target config.ResolvedTarget) (versionfile.Scheme, error) {

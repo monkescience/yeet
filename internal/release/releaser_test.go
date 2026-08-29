@@ -895,7 +895,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 		testastic.Equal(t, 1, len(stub.markTaggedCalls))
-		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
+		testastic.SliceEqual(t, []string{"v0.1.0"}, stub.singleRefProbes())
 	})
 
 	t.Run("creates PR when commits exist after finalized tag", func(t *testing.T) {
@@ -931,7 +931,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		testastic.Equal(t, 1, stub.createReleaseCalls)
 		testastic.Equal(t, 1, stub.createPRCalls)
 		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
-		testastic.SliceEqual(t, []string{"v0.0.9", "v0.1.0"}, stub.singleRefProbes())
+		testastic.SliceEqual(t, []string{"v0.1.0"}, stub.singleRefProbes())
 	})
 
 	t.Run("plans past a published tag the forge tag list has not caught up to", func(t *testing.T) {
@@ -1153,15 +1153,15 @@ func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 		// when: running the release with mutations enabled
 		result, err := r.Release(context.Background(), false)
 
-		// then: validation fails before merged release lookup, publication, or pull request creation
+		// then: prerequisite finalization discovery runs before planning validation, without mutations
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, (*Result)(nil), result)
-		testastic.Equal(t, 0, stub.findMergedPRCalls)
+		testastic.Equal(t, 1, stub.findMergedPRCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 	})
 
-	t.Run("merged release is not finalized before an invalid title fails", func(t *testing.T) {
+	t.Run("merged release finalizes before a later planning validation fails", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an unfinalized merged release and a template that is empty for the stable channel
@@ -1190,12 +1190,12 @@ func TestReleaseValidatesRenderedTextBeforeMutation(t *testing.T) {
 		// when: running the release with invalid actual template output
 		result, err := r.Release(context.Background(), false)
 
-		// then: validation fails before the merged release is published or relabeled
+		// then: prerequisite finalization completes before the invalid new plan is rejected
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(t, (*Result)(nil), result)
-		testastic.Equal(t, 0, stub.findMergedPRCalls)
-		testastic.Equal(t, 0, stub.createReleaseCalls)
-		testastic.Equal(t, 0, len(stub.markTaggedCalls))
+		testastic.Equal(t, 1, stub.findMergedPRCalls)
+		testastic.Equal(t, 1, stub.createReleaseCalls)
+		testastic.Equal(t, 1, len(stub.markTaggedCalls))
 		testastic.Equal(t, 0, stub.createPRCalls)
 	})
 }

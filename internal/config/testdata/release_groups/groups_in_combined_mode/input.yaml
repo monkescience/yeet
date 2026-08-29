@@ -1,0 +1,10 @@
+release:
+  groups:
+    backend:
+      targets:
+        - api
+targets:
+  api:
+    type: path
+    path: api
+    tag_prefix: api-v
