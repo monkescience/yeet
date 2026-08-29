@@ -1,0 +1,61 @@
+
+Dry Run
+No changes will be made.
+
+Release Plan
+
+  Target      api
+  Version     1.0.0 → 1.1.0
+  Bump        minor
+  Tag         api-v1.1.0
+  Commits     1
+
+  Target      web
+  Version     2.0.0 → 2.0.1
+  Bump        patch
+  Tag         web-v2.0.1
+  Commits     1
+
+Pull Request 1
+
+  Unit        target:api
+  Action      create or update
+  Title       chore: release 1.1.0
+  Branch      yeet/release-main-target-api-21f150df25 → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  api-v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+  Features
+
+  • api: add endpoint (40a703a)
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Pull Request 2
+
+  Unit        target:web
+  Action      create or update
+  Title       chore: release 2.0.1
+  Branch      yeet/release-main-target-web-1355f0b5d0 → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  web-v2.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+  Bug Fixes
+
+  • web: repair navigation (97f650d)
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 2 targets, 2 commits, 2 release units, 2 pull requests.
