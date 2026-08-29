@@ -1,0 +1,56 @@
+
+Dry Run
+No changes will be made.
+
+Release Plan
+
+  Target      api
+  Version     1.0.0 → 1.1.0
+  Bump        minor
+  Tag         api-v1.1.0
+  Commits     1
+
+  Target      worker
+  Version     2.0.0 → 2.0.1
+  Bump        patch
+  Tag         worker-v2.0.1
+  Commits     1
+
+Pull Request
+
+  Unit        group:backend
+  Action      create or update
+  Title       chore: release wave
+  Branch      yeet/release-main-group-backend-49332e0213 → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  Release wave
+
+  Base branch: main Targets: api, worker
+
+  api
+
+  Tag: api-v1.0.0 -> api-v1.1.0 Bump: minor Date: {{regex `\d{4}-\d{2}-\d{2}`}} Compare: api-
+  v1.0.0...1ba7f53030727423965de74b0b0125f4ee9d5d94
+
+  Features
+
+  • api: add endpoint (1ba7f53)
+
+  worker
+
+  Tag: worker-v2.0.0 -> worker-v2.0.1 Bump: patch Date: {{regex `\d{4}-\d{2}-\d{2}`}} Compare:
+  worker-v2.0.0...b8433a86e2d5db9ffcdc9b1e2c7e31a6b085d797
+
+  Bug Fixes
+
+  • worker: repair queue (b8433a8)
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet - yeet it.
+
+Plan: 2 targets, 2 commits, 1 release unit, 1 pull request.

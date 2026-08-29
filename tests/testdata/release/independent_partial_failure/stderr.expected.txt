@@ -1,0 +1,5 @@
+INFO release analysis complete targets=2
+INFO reconciling release unit unit=target:api phase=reconcile
+INFO reconciling release unit unit=target:web phase=reconcile
+INFO created release PR url=https://example.test/pulls/42
+release failed: unexpected failure: release unit "target:api" reconciliation: create release PR: create pull request: POST http://127.0.0.1:{{regex `\d+`}}/api/v3/repos/testorg/testrepo/pulls: 422  []

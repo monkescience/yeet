@@ -92,6 +92,20 @@ func TestReleaseIndependentMonorepo(t *testing.T) {
 			BoundarySHA:   shas[0],
 			TagSHAs:       map[string]string{"api-v1.0.0": shas[0], "web-v2.0.0": shas[1]},
 			BranchHeadSHA: shas[3],
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{
+				{
+					Title:    "chore: release 1.1.0",
+					Head:     "yeet/release-main-target-api-21f150df25",
+					Base:     "main",
+					BodyFile: "testdata/release/independent_create/api_body.expected.md",
+				},
+				{
+					Title:    "chore: release 2.0.1",
+					Head:     "yeet/release-main-target-web-1355f0b5d0",
+					Base:     "main",
+					BodyFile: "testdata/release/independent_create/web_body.expected.md",
+				},
+			},
 			Files: map[string]string{
 				"api/CHANGELOG.md": "api release\n",
 				"web/CHANGELOG.md": "web release\n",
@@ -100,7 +114,7 @@ func TestReleaseIndependentMonorepo(t *testing.T) {
 
 		configPath := absoluteTestFile(
 			t,
-			"testdata/release/independent_monorepo/input.yaml",
+			"testdata/release/independent_create/input.yaml",
 		)
 
 		// when: running the independent release from the compiled CLI
@@ -110,7 +124,12 @@ func TestReleaseIndependentMonorepo(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: both release units reconcile successfully
+		// then: both release units create their exact pull request and stdout remains empty
 		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/independent_create/stdout.expected.txt",
+			result.Stdout,
+		)
 	})
 }

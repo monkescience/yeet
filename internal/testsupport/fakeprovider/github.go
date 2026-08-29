@@ -18,28 +18,44 @@ import (
 )
 
 type GitHubOptions struct {
-	Owner                     string
-	Repo                      string
-	BranchHeadSHA             string
-	ReleaseBranchMissing      bool
-	LatestTag                 string
-	ExtraTags                 []string
-	BoundarySHA               string
-	TagSHAs                   map[string]string
-	Commits                   []GitHubCommit
-	MergedPendingRelease      bool
-	Files                     map[string]string
-	MultipleOpenPRs           bool
-	MergeBlocked              bool
-	ExistingOpenReleasePRBody string
-	ExistingRelease           bool
-	PaginateCommits           bool
-	FailOnMutation            bool
-	Collaborators             map[string]bool
-	ExistingLabels            []string
-	ExpectPRTitle             string
-	ExpectPRBodyFile          string
-	ExpectCommitSubject       string
+	Owner                       string
+	Repo                        string
+	BranchHeadSHA               string
+	ReleaseBranchMissing        bool
+	LatestTag                   string
+	ExtraTags                   []string
+	BoundarySHA                 string
+	TagSHAs                     map[string]string
+	Commits                     []GitHubCommit
+	MergedPendingRelease        bool
+	Files                       map[string]string
+	MultipleOpenPRs             bool
+	MergeBlocked                bool
+	ExistingOpenReleasePRBody   string
+	ExistingRelease             bool
+	PaginateCommits             bool
+	FailOnMutation              bool
+	Collaborators               map[string]bool
+	ExistingLabels              []string
+	ExpectPRTitle               string
+	ExpectPRBodyFile            string
+	ExpectCommitSubject         string
+	ExpectedCreatedPullRequests []GitHubPullRequestExpectation
+}
+
+// GitHubPullRequestExpectation describes one pull request creation expected by the fake server.
+type GitHubPullRequestExpectation struct {
+	Title      string
+	Head       string
+	Base       string
+	BodyFile   string
+	StatusCode int
+}
+
+type githubPullRequestExpectations struct {
+	t         *testing.T
+	mu        sync.Mutex
+	remaining map[string]GitHubPullRequestExpectation
 }
 
 type labelRegistry struct {
@@ -54,6 +70,34 @@ func newLabelRegistry(names []string) *labelRegistry {
 	}
 
 	return &labelRegistry{labels: labels}
+}
+
+func newGitHubPullRequestExpectations(
+	t *testing.T,
+	expected []GitHubPullRequestExpectation,
+) *githubPullRequestExpectations {
+	t.Helper()
+
+	if len(expected) == 0 {
+		return nil
+	}
+
+	expectations := &githubPullRequestExpectations{
+		t:         t,
+		remaining: make(map[string]GitHubPullRequestExpectation, len(expected)),
+	}
+
+	for _, expectation := range expected {
+		if _, exists := expectations.remaining[expectation.Head]; exists {
+			t.Errorf("fakeprovider/github: duplicate pull request expectation for head %q", expectation.Head)
+		}
+
+		expectations.remaining[expectation.Head] = expectation
+	}
+
+	t.Cleanup(expectations.assertComplete)
+
+	return expectations
 }
 
 func (r *labelRegistry) exists(name string) bool {
@@ -76,6 +120,64 @@ func (r *labelRegistry) create(name string) bool {
 	r.labels[name] = struct{}{}
 
 	return true
+}
+
+func (e *githubPullRequestExpectations) assertComplete() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if len(e.remaining) == 0 {
+		return
+	}
+
+	heads := make([]string, 0, len(e.remaining))
+	for head := range e.remaining {
+		heads = append(heads, head)
+	}
+
+	slices.Sort(heads)
+	e.t.Errorf("fakeprovider/github: expected pull requests were not created for heads %v", heads)
+}
+
+func (e *githubPullRequestExpectations) matchCreate(
+	r *http.Request,
+) (GitHubPullRequestExpectation, bool) {
+	var payload struct {
+		Title string `json:"title"`
+		Head  string `json:"head"`
+		Base  string `json:"base"`
+		Body  string `json:"body"`
+	}
+
+	err := json.UnmarshalRead(r.Body, &payload)
+	if err != nil {
+		e.t.Errorf("fakeprovider/github: decode %s %s: %v", r.Method, r.URL.Path, err)
+
+		return GitHubPullRequestExpectation{}, false
+	}
+
+	e.mu.Lock()
+
+	expectation, exists := e.remaining[payload.Head]
+	if exists {
+		delete(e.remaining, payload.Head)
+	}
+	e.mu.Unlock()
+
+	if !exists {
+		e.t.Errorf("fakeprovider/github: unexpected pull request for head %q", payload.Head)
+
+		return GitHubPullRequestExpectation{}, false
+	}
+
+	testastic.Equal(e.t, expectation.Title, payload.Title)
+	testastic.Equal(e.t, expectation.Base, payload.Base)
+
+	if expectation.BodyFile != "" {
+		testastic.AssertFile(e.t, expectation.BodyFile, payload.Body)
+	}
+
+	return expectation, true
 }
 
 // GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
@@ -110,12 +212,13 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	mux := http.NewServeMux()
 	merged := &atomic.Bool{}
 	reviewersRequested := &atomic.Bool{}
+	pullRequestExpectations := newGitHubPullRequestExpectations(t, opts.ExpectedCreatedPullRequests)
 
 	registerGitHubReleases(mux, prefix, opts)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubSearch(mux, opts, merged)
 	registerGitHubPullsRead(mux, prefix, opts, merged)
-	registerGitHubWritePath(t, mux, prefix, opts, merged, reviewersRequested)
+	registerGitHubWritePath(t, mux, prefix, opts, merged, reviewersRequested, pullRequestExpectations)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -464,12 +567,13 @@ func registerGitHubWritePath(
 	prefix string,
 	opts GitHubOptions,
 	merged, reviewersRequested *atomic.Bool,
+	pullRequestExpectations *githubPullRequestExpectations,
 ) {
 	t.Helper()
 
 	registerGitHubGitData(t, mux, prefix, opts)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(t, mux, prefix, opts, merged, reviewersRequested)
+	registerGitHubPullsWrite(t, mux, prefix, opts, merged, reviewersRequested, pullRequestExpectations)
 	registerGitHubLabels(t, mux, prefix, opts, reviewersRequested)
 	registerGitHubCollaborators(mux, prefix, opts)
 
@@ -622,18 +726,14 @@ func registerGitHubPullsWrite(
 	prefix string,
 	opts GitHubOptions,
 	merged, reviewersRequested *atomic.Bool,
+	pullRequestExpectations *githubPullRequestExpectations,
 ) {
 	t.Helper()
 
-	mux.HandleFunc("POST "+prefix+"/pulls", func(w http.ResponseWriter, r *http.Request) {
-		if !expectGitHubPullRequest(t, r, opts) {
-			http.Error(w, "unexpected pull request", http.StatusUnprocessableEntity)
-
-			return
-		}
-
-		writeJSON(w, githubFakePR(opts))
-	})
+	mux.HandleFunc(
+		"POST "+prefix+"/pulls",
+		githubCreatePullRequestHandler(t, opts, pullRequestExpectations),
+	)
 
 	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, r *http.Request) {
 		if !expectGitHubPullRequest(t, r, opts) {
@@ -673,6 +773,37 @@ func registerGitHubPullsWrite(
 		"POST "+prefix+"/pulls/{number}/requested_reviewers",
 		githubRequestReviewersHandler(opts, reviewersRequested),
 	)
+}
+
+func githubCreatePullRequestHandler(
+	t *testing.T,
+	opts GitHubOptions,
+	pullRequestExpectations *githubPullRequestExpectations,
+) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if pullRequestExpectations != nil {
+			expectation, matched := pullRequestExpectations.matchCreate(r)
+			if !matched {
+				http.Error(w, "unexpected pull request", http.StatusUnprocessableEntity)
+
+				return
+			}
+
+			if expectation.StatusCode != 0 {
+				http.Error(w, "injected pull request failure", expectation.StatusCode)
+
+				return
+			}
+		} else if !expectGitHubPullRequest(t, r, opts) {
+			http.Error(w, "unexpected pull request", http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		writeJSON(w, githubFakePR(opts))
+	}
 }
 
 func githubRequestReviewersHandler(opts GitHubOptions, reviewersRequested *atomic.Bool) http.HandlerFunc {
