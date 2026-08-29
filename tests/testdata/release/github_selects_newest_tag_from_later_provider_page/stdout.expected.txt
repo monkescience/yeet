@@ -20,7 +20,7 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v2.1.0 (2026-08-29)
+  v2.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
