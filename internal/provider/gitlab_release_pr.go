@@ -558,6 +558,7 @@ func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.Merg
 	driver := mergeDriver[*gitlab.AcceptMergeRequestOptions]{
 		forge:         &gitLabMerge{provider: g, number: number},
 		polling:       g.polling,
+		baseBranch:    opts.BaseBranch,
 		releaseBranch: mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch),
 	}
 

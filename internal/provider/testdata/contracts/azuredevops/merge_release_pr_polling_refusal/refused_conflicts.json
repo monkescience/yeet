@@ -2,5 +2,8 @@
   "pullRequestId": 42,
   "status": "active",
   "mergeStatus": "conflicts",
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main",
+  "repository": {"name": "contoso-repo"},
   "mergeFailureMessage": "the source branch conflicts with the target branch"
 }

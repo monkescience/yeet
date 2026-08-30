@@ -800,6 +800,7 @@ func (l *releaseUnitLifecycle) autoMerge(
 
 	mergeOptions := forge.MergeReleasePROptions{
 		BypassMergeChecks: r.run.autoMerge.force,
+		BaseBranch:        r.run.baseBranch,
 		Method:            forge.MergeMethod(r.run.autoMerge.method),
 		ReleaseBranch:     pullRequest.Branch,
 	}

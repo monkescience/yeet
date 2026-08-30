@@ -70,6 +70,7 @@ const (
 
 type MergeReleasePROptions struct {
 	BypassMergeChecks bool
+	BaseBranch        string
 	ReleaseBranch     string
 	// Method is best effort because the three forges expose unrelated
 	// capability models. Adapters validate only what their forge exposes.

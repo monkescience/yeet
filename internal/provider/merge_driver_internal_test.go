@@ -49,8 +49,9 @@ func mergeableState() mergeState {
 
 func newTestMergeDriver(adapter forgeMerge[forge.MergeMethod]) mergeDriver[forge.MergeMethod] {
 	return mergeDriver[forge.MergeMethod]{
-		forge:   adapter,
-		polling: newMergePolling(WithMergePolling(time.Millisecond, time.Millisecond, time.Second)),
+		forge:      adapter,
+		polling:    newMergePolling(WithMergePolling(time.Millisecond, time.Millisecond, time.Second)),
+		baseBranch: "main",
 	}
 }
 
@@ -154,6 +155,77 @@ func TestMergeDriverRefusesAnUntrustedRequestBeforeMutating(t *testing.T) {
 	testastic.Equal(t, "", mergeSHA)
 	testastic.Equal(t, 0, adapter.methodCalls)
 	testastic.Equal(t, 0, adapter.executeCalls)
+}
+
+func TestMergeDriverRefusesARetargetedRequestBeforeMutating(t *testing.T) {
+	t.Parallel()
+
+	// given: a configured release source whose pull request was retargeted to another base
+	current := mergeableState()
+	current.BaseBranch = "maintenance"
+
+	adapter := &fakeForgeMerge{
+		states:       []mergeState{current},
+		executeSHA:   "77726f6e6774617267657400000000000000000000",
+		executeEnded: true,
+	}
+	driver := newTestMergeDriver(adapter)
+	driver.releaseBranch = "yeet/release-main"
+
+	// when: the merge driver runs
+	mergeSHA, err := driver.run(context.Background(), forge.MergeReleasePROptions{})
+
+	// then: the changed base is untrusted and no merge is attempted
+	testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, 0, adapter.methodCalls)
+	testastic.Equal(t, 0, adapter.executeCalls)
+}
+
+func TestMergeDriverRefusesARetargetedAlreadyMergedRequest(t *testing.T) {
+	t.Parallel()
+
+	// given: a configured release request that was retargeted and merged elsewhere
+	current := mergeableState()
+	current.BaseBranch = "maintenance"
+	current.IsOpen = false
+	current.IsMerged = true
+	current.MergeCommitSHA = "77726f6e6774617267657400000000000000000000"
+
+	adapter := &fakeForgeMerge{states: []mergeState{current}}
+	driver := newTestMergeDriver(adapter)
+	driver.releaseBranch = "yeet/release-main"
+
+	// when: the merge driver reads the completed request
+	mergeSHA, err := driver.run(context.Background(), forge.MergeReleasePROptions{})
+
+	// then: the wrong-target merge commit is rejected
+	testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, 0, adapter.executeCalls)
+}
+
+func TestMergeDriverRefusesARetargetedRequestWhilePolling(t *testing.T) {
+	t.Parallel()
+
+	// given: a trusted release request is retargeted after the forge accepts its merge
+	retargeted := mergeableState()
+	retargeted.BaseBranch = "maintenance"
+	retargeted.IsOpen = false
+	retargeted.IsMerged = true
+	retargeted.MergeCommitSHA = "77726f6e6774617267657400000000000000000000"
+
+	adapter := &fakeForgeMerge{states: []mergeState{mergeableState(), retargeted}}
+	driver := newTestMergeDriver(adapter)
+	driver.releaseBranch = "yeet/release-main"
+
+	// when: the merge driver polls for the final commit
+	mergeSHA, err := driver.run(context.Background(), forge.MergeReleasePROptions{})
+
+	// then: the changed base prevents the wrong-target commit from being published
+	testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
+	testastic.Equal(t, "", mergeSHA)
+	testastic.Equal(t, 1, adapter.executeCalls)
 }
 
 func TestMergeDriverAnswersAnAlreadyMergedRequestWithoutMerging(t *testing.T) {

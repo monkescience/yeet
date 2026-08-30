@@ -550,9 +550,13 @@ func handleGitLabAsyncMergeReleasePRContract(
 	case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42":
 		if mergeAccepted.Load() {
 			writeJSON(t, w, map[string]any{
-				"iid":              42,
-				"state":            "merged",
-				"merge_commit_sha": providerContractMergeSHA,
+				"iid":               42,
+				"state":             "merged",
+				"merge_commit_sha":  providerContractMergeSHA,
+				"source_branch":     providerContractPendingBranch,
+				"target_branch":     providerContractBaseBranch,
+				"source_project_id": 10,
+				"target_project_id": 10,
 			})
 
 			return
@@ -1002,7 +1006,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			Method: forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: squash is requested
@@ -1031,7 +1036,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			Method: forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: the project's own merge method is left untouched
@@ -1059,7 +1065,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with the project's fast-forward method
 		mergeSHA, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			Method: forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: the source tip is returned as the final commit on the target branch
@@ -1101,7 +1108,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with the project's asynchronous fast-forward flow
 		mergeSHA, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			Method: forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: the source tip is returned once GitLab reports the MR merged
@@ -1134,7 +1142,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with the project's asynchronous fast-forward flow
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			Method: forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: the unfinalized merge is reported instead of an empty commit
@@ -1161,6 +1170,7 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 		// when: merging with squash method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodSquash,
 		})
 
@@ -1397,7 +1407,9 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 			p := newGitLabContractProvider(t, server)
 
 			// when: MergeReleasePR is invoked without force while readiness is recomputed
-			_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+			_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
+				BaseBranch: providerContractBaseBranch,
+			})
 
 			// then: the transient status does not prevent the merge request
 			testastic.NoError(t, err)
@@ -1422,7 +1434,9 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		p := newGitLabContractProvider(t, server)
 
 		// when: MergeReleasePR is invoked without the force option
-		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
+			BaseBranch: providerContractBaseBranch,
+		})
 
 		// then: forge.ErrMergeBlocked is returned with the detailed merge status in the message
 		testastic.Error(t, err)
@@ -1453,6 +1467,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
 		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
 			BypassMergeChecks: true,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodSquash,
 		})
 
@@ -1527,7 +1542,9 @@ func gitLabRefusedAcceptServer(t *testing.T, refuse http.HandlerFunc) *atomic.In
 	)
 
 	// when: MergeReleasePR is invoked on the refused merge request
-	mergeSHA, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{})
+	mergeSHA, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
+		BaseBranch: providerContractBaseBranch,
+	})
 
 	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	testastic.Equal(t, "", mergeSHA)

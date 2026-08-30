@@ -664,7 +664,8 @@ func TestProviderContract(t *testing.T) {
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
 				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-					Method: forge.MergeMethodAuto,
+					BaseBranch: providerContractBaseBranch,
+					Method:     forge.MergeMethodAuto,
 				})
 
 				// then: the merge completes and returns the merge commit
@@ -686,7 +687,8 @@ func TestProviderContract(t *testing.T) {
 
 				// when: MergeReleasePR is invoked with the auto merge method on PR 42
 				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-					Method: forge.MergeMethodAuto,
+					BaseBranch: providerContractBaseBranch,
+					Method:     forge.MergeMethodAuto,
 				})
 
 				// then: no provisional commit is returned before the merge is applied
@@ -820,7 +822,9 @@ func TestProviderContract(t *testing.T) {
 				p := harness.newProvider(t, server)
 
 				// when: MergeReleasePR is invoked without the force option on PR 42
-				_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
+				_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+					BaseBranch: providerContractBaseBranch,
+				})
 
 				// then: forge.ErrMergeBlocked is returned
 				testastic.Error(t, err)
@@ -837,7 +841,8 @@ func TestProviderContract(t *testing.T) {
 
 				// when: MergeReleasePR is invoked with the unsupported "octopus" merge method
 				_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-					Method: forge.MergeMethod("octopus"),
+					BaseBranch: providerContractBaseBranch,
+					Method:     forge.MergeMethod("octopus"),
 				})
 
 				// then: forge.ErrMergeMethodUnsupported is returned
@@ -1073,6 +1078,7 @@ func TestProviderContract(t *testing.T) {
 				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
 				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 					BypassMergeChecks: true,
+					BaseBranch:        providerContractBaseBranch,
 				})
 
 				// then: the trust check refuses the merge and no commit is reported
@@ -1093,6 +1099,7 @@ func TestProviderContract(t *testing.T) {
 				// when: MergeReleasePR is invoked with merge checks bypassed on PR 42
 				mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 					BypassMergeChecks: true,
+					BaseBranch:        providerContractBaseBranch,
 				})
 
 				// then: bypassing policy never bypasses conflicts and no commit is reported

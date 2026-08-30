@@ -2,5 +2,8 @@
   "pullRequestId": 42,
   "status": "active",
   "mergeStatus": "failure",
+  "sourceRefName": "refs/heads/yeet/release-main",
+  "targetRefName": "refs/heads/main",
+  "repository": {"name": "contoso-repo"},
   "mergeFailureMessage": "the provider could not create the merge commit"
 }

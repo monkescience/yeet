@@ -446,6 +446,7 @@ func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.Merg
 	driver := mergeDriver[forge.MergeMethod]{
 		forge:         &gitHubMerge{provider: g, number: number},
 		polling:       g.polling,
+		baseBranch:    opts.BaseBranch,
 		releaseBranch: mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch),
 	}
 

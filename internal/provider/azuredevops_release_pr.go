@@ -457,6 +457,7 @@ func (a *AzureDevOps) MergeReleasePR(
 	driver := mergeDriver[git.GitPullRequestMergeStrategy]{
 		forge:         &azureDevOpsMerge{provider: a, number: number},
 		polling:       a.polling,
+		baseBranch:    opts.BaseBranch,
 		releaseBranch: mergeExpectedReleaseBranch(a.releaseBranch, opts.ReleaseBranch),
 	}
 

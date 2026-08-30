@@ -287,6 +287,9 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 					"pullRequestId": 42,
 					"status":        "completed",
 					"mergeStatus":   "succeeded",
+					"sourceRefName": "refs/heads/" + providerContractPendingBranch,
+					"targetRefName": "refs/heads/" + providerContractBaseBranch,
+					"repository":    map[string]any{"name": azureDevOpsContractRepo},
 					"lastMergeCommit": map[string]any{
 						"commitId": "66696e616c736861000000000000000000000000",
 					},
@@ -337,7 +340,8 @@ func TestAzureDevOpsMergeReleasePRWaitsForFinalMergeCommit(t *testing.T) {
 
 	// when: the release pull request is submitted for completion
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-		Method: forge.MergeMethodSquash,
+		BaseBranch: providerContractBaseBranch,
+		Method:     forge.MergeMethodSquash,
 	})
 
 	// then: the provisional commit is skipped and the applied merge commit is returned
@@ -384,7 +388,8 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 
 	// when: MergeReleasePR is invoked on the refused pull request
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-		Method: forge.MergeMethodSquash,
+		BaseBranch: providerContractBaseBranch,
+		Method:     forge.MergeMethodSquash,
 	})
 
 	// then: the refusal is reported as a blocked merge without waiting for the forge
@@ -472,7 +477,8 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 
 			// when: MergeReleasePR polls a completion that Azure later refuses
 			mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-				Method: forge.MergeMethodSquash,
+				BaseBranch: providerContractBaseBranch,
+				Method:     forge.MergeMethodSquash,
 			})
 
 			// then: the terminal refusal is preserved instead of becoming a polling timeout
@@ -511,6 +517,9 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 			"pullRequestId": 42,
 			"status":        "completed",
 			"mergeStatus":   "queued",
+			"sourceRefName": "refs/heads/" + providerContractPendingBranch,
+			"targetRefName": "refs/heads/" + providerContractBaseBranch,
+			"repository":    map[string]any{"name": azureDevOpsContractRepo},
 			"lastMergeCommit": map[string]any{
 				"commitId": "7072657669657773686100000000000000000000",
 			},
@@ -527,7 +536,9 @@ func TestAzureDevOpsMergeReleasePRRejectsQueuedCommitFromCompletedPullRequest(t 
 	)
 
 	// when: completion is retried for the already completed pull request
-	_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
+	_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+		BaseBranch: providerContractBaseBranch,
+	})
 
 	// then: the queued preview commit is never exposed as the final merge commit
 	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
@@ -586,7 +597,8 @@ func TestAzureDevOpsMergeReleasePRRejectsPullRequestFromAnotherRepository(t *tes
 
 	// when: the foreign pull request is submitted for completion
 	mergeSHA, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-		Method: forge.MergeMethodSquash,
+		BaseBranch: providerContractBaseBranch,
+		Method:     forge.MergeMethodSquash,
 	})
 
 	// then: it is refused as untrusted before any completion is attempted
@@ -1517,6 +1529,9 @@ func azureDevOpsAsyncMergeReleasePRHandler(t *testing.T) http.HandlerFunc {
 					"pullRequestId":   42,
 					"status":          "completed",
 					"mergeStatus":     "succeeded",
+					"sourceRefName":   "refs/heads/" + providerContractPendingBranch,
+					"targetRefName":   "refs/heads/" + providerContractBaseBranch,
+					"repository":      map[string]any{"name": azureDevOpsContractRepo},
 					"lastMergeCommit": map[string]any{"commitId": providerContractMergeSHA},
 				})
 

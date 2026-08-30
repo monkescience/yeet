@@ -654,6 +654,11 @@ func handleGitHubAsyncMergeReleasePRContract(
 				"state":            "closed",
 				"merged":           true,
 				"merge_commit_sha": providerContractMergeSHA,
+				"head": map[string]any{
+					"ref":  providerContractPendingBranch,
+					"repo": map[string]any{"full_name": "o/r"},
+				},
+				"base": map[string]any{"ref": providerContractBaseBranch},
 			})
 
 			return
@@ -1156,6 +1161,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodAuto,
 		})
 
@@ -1174,6 +1180,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		// when: merging with squash method (which is disabled)
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodSquash,
 		})
 
@@ -1193,6 +1200,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodAuto,
 		})
 
@@ -1211,6 +1219,7 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
 			BypassMergeChecks: false,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodAuto,
 		})
 
@@ -1321,7 +1330,9 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		p := newGitHubContractProvider(t, server)
 
 		// when: MergeReleasePR is invoked without the force option
-		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{})
+		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
+			BaseBranch: providerContractBaseBranch,
+		})
 
 		// then: forge.ErrMergeBlocked is returned with the blocked mergeable state in the message
 		testastic.Error(t, err)
@@ -1352,6 +1363,7 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
 		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
 			BypassMergeChecks: true,
+			BaseBranch:        providerContractBaseBranch,
 			Method:            forge.MergeMethodAuto,
 		})
 

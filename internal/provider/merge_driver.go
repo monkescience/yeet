@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/monkescience/yeet/internal/forge"
 )
@@ -53,6 +54,7 @@ type forgeMerge[M any] interface {
 type mergeDriver[M any] struct {
 	forge         forgeMerge[M]
 	polling       mergePolling
+	baseBranch    string
 	releaseBranch string
 }
 
@@ -62,17 +64,16 @@ func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROption
 		return "", err
 	}
 
+	if !d.isTrusted(current) {
+		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
+	}
+
 	if current.IsMerged {
 		if current.MergeCommitSHA != "" {
 			return current.MergeCommitSHA, nil
 		}
 
 		return d.awaitMergeCommit(ctx, current.Reference)
-	}
-
-	if !current.SameRepository ||
-		!isExpectedReleaseBranch(current.SourceBranch, current.BaseBranch, d.releaseBranch) {
-		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 	}
 
 	err = checkMergeReadiness(current, opts.BypassMergeChecks)
@@ -97,11 +98,23 @@ func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROption
 	return d.awaitMergeCommit(ctx, current.Reference)
 }
 
+func (d mergeDriver[M]) isTrusted(current mergeState) bool {
+	expectedBase := strings.TrimSpace(d.baseBranch)
+
+	return current.SameRepository &&
+		strings.TrimSpace(current.BaseBranch) == expectedBase &&
+		isExpectedReleaseBranch(current.SourceBranch, expectedBase, d.releaseBranch)
+}
+
 func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) (string, error) {
 	return d.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
 		current, err := d.forge.state(pollCtx)
 		if err != nil {
 			return "", err
+		}
+
+		if !d.isTrusted(current) {
+			return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 		}
 
 		// Readiness is deliberately absent here: a forge that accepted a merge
