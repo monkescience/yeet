@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.4](https://github.com/monkescience/yeet/compare/v0.14.3...v0.14.4) (2026-08-30)
+
+### Bug Fixes
+
+- **provider:** bind release merge to base branch ([8996241](https://github.com/monkescience/yeet/commit/8996241385ad1e9c1bf384a69c691207eb8fb48c))
+
 ## [v0.14.3](https://github.com/monkescience/yeet/compare/v0.14.2...v0.14.3) (2026-08-29)
 
 ### Features
