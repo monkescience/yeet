@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.5](https://github.com/monkescience/yeet/compare/v0.14.4...v0.14.5) (2026-08-31)
+
+### Bug Fixes
+
+- **provider:** handle truncated GitHub trees ([5d44d01](https://github.com/monkescience/yeet/commit/5d44d010e3ca450941b2e6c58fb5fbd73b4b6f06))
+
 ## [v0.14.4](https://github.com/monkescience/yeet/compare/v0.14.3...v0.14.4) (2026-08-30)
 
 ### Bug Fixes
