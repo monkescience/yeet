@@ -114,9 +114,9 @@ func gitHubContentTree(
 	}
 
 	writeJSON(w, map[string]any{
-		githubKeySHA:   sha,
-		contentKeyTree: entries,
-		"truncated":    false,
+		githubKeySHA:       sha,
+		contentKeyTree:     entries,
+		githubKeyTruncated: false,
 	})
 }
 

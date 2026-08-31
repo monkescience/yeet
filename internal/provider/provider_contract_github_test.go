@@ -1420,6 +1420,61 @@ func TestGitHubUpdateFiles(t *testing.T) {
 	testastic.NoError(t, err)
 }
 
+func TestGitHubUpdateFilesFallsBackFromTruncatedTree(t *testing.T) {
+	t.Parallel()
+
+	// given: GitHub truncates the recursive base tree before the existing file
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractBaseBranch:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_ref.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/commits/"+gitHubBaseCommitSHA:
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/base_commit.json")
+		case r.Method == http.MethodGet &&
+			r.URL.Path == "/repos/o/r/git/trees/6261736574726565736861000000000000000000" &&
+			r.URL.Query().Get("recursive") == "1":
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/truncated_base_tree.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/trees/6261736574726565736861000000000000000000":
+			testastic.Equal(t, "", r.URL.Query().Get("recursive"))
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/non_recursive_base_tree.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/trees/636f6e6669677472656500000000000000000000":
+			testastic.Equal(t, "", r.URL.Query().Get("recursive"))
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/nested_version_tree.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/trees":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/truncated_tree_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/tree.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/commits":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/commit_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/commit.json")
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/git/ref/heads/"+providerContractReleaseBranch:
+			w.WriteHeader(http.StatusNotFound)
+			writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/git/refs":
+			assertJSONRequest(t, r, "contracts/github/update_files_git_data/ref_request.json")
+			writeJSONFixture(t, w, "contracts/github/update_files_git_data/create_ref.json")
+		default:
+			fatalUnexpectedProviderRequest(t, "GitHub", r)
+		}
+	}))
+
+	p := newGitHubContractProvider(t, server)
+
+	// when: an existing file omitted from the recursive response is updated
+	err := p.UpdateFiles(
+		context.Background(),
+		providerContractReleaseBranch,
+		providerContractBaseBranch,
+		map[string]forge.FileUpdate{
+			"config/VERSION.txt": {Content: "version=1.2.3", Exists: true},
+			"CHANGELOG.md":       {Content: "# Changelog"},
+		},
+		"chore: release 1.2.3",
+	)
+
+	// then: the provider resolves the mode from a complete tree and updates the branch
+	testastic.NoError(t, err)
+}
+
 func TestGitHubUpdateFilesRejectsMissingExistingFile(t *testing.T) {
 	t.Parallel()
 

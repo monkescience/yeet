@@ -21,6 +21,48 @@ func versionFileHistory(t *testing.T, files map[string]string) (string, []string
 func TestReleaseVersionFileBlocks(t *testing.T) {
 	t.Parallel()
 
+	t.Run("github updates an existing file after a truncated tree response", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a VERSION.txt and a GitHub API that truncates the recursive base tree
+		files := map[string]string{"VERSION.txt": readTestFile(
+			t,
+			"testdata/release/"+
+				"github_replaces_semver_inside_an_x_yeet_start/end_block/VERSION.txt",
+		)}
+		repoDir, shas := versionFileHistory(t, files)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:                 "testorg",
+			Repo:                  "testrepo",
+			LatestTag:             "v1.0.0",
+			BoundarySHA:           shas[0],
+			BranchHeadSHA:         shas[1],
+			Files:                 files,
+			TruncateRecursiveTree: true,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the release update succeeds without writing to stdout
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stdout)
+	})
+
 	t.Run("github replaces semver inside an x-yeet-start/end block", func(t *testing.T) {
 		t.Parallel()
 

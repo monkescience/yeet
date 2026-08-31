@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/google/go-github/v90/github"
 	"github.com/monkescience/yeet/internal/forge"
@@ -163,9 +164,15 @@ func (g *GitHub) existingFileModes(
 		return map[string]string{}, nil
 	}
 
+	slices.Sort(existingPaths)
+
 	baseTree, _, err := g.client.Git.GetTree(ctx, g.repo.Owner, g.repo.Name, baseTreeSHA, true)
 	if err != nil {
 		return nil, fmt.Errorf("get base tree %s: %w", baseTreeSHA, err)
+	}
+
+	if baseTree.GetTruncated() {
+		return g.existingFileModesByPath(ctx, baseTreeSHA, existingPaths)
 	}
 
 	modes := make(map[string]string, len(existingPaths))
@@ -177,11 +184,55 @@ func (g *GitHub) existingFileModes(
 		}
 	}
 
-	slices.Sort(existingPaths)
-
 	for _, path := range existingPaths {
 		if modes[path] == "" {
 			return nil, fmt.Errorf("find mode for existing file %s: %w", path, forge.ErrFileNotFound)
+		}
+	}
+
+	return modes, nil
+}
+
+func (g *GitHub) existingFileModesByPath(
+	ctx context.Context,
+	baseTreeSHA string,
+	existingPaths []string,
+) (map[string]string, error) {
+	trees := make(map[string]*github.Tree)
+	modes := make(map[string]string, len(existingPaths))
+
+	for _, path := range existingPaths {
+		treeSHA := baseTreeSHA
+		components := strings.Split(path, "/")
+
+		for index, component := range components {
+			tree, ok := trees[treeSHA]
+			if !ok {
+				var err error
+
+				tree, _, err = g.client.Git.GetTree(ctx, g.repo.Owner, g.repo.Name, treeSHA, false)
+				if err != nil {
+					return nil, fmt.Errorf("get tree %s for existing file %s: %w", treeSHA, path, err)
+				}
+
+				trees[treeSHA] = tree
+			}
+
+			entryIndex := slices.IndexFunc(tree.GetEntries(), func(entry *github.TreeEntry) bool {
+				return entry.GetPath() == component
+			})
+			if entryIndex == -1 {
+				return nil, fmt.Errorf("find mode for existing file %s: %w", path, forge.ErrFileNotFound)
+			}
+
+			entry := tree.GetEntries()[entryIndex]
+			if index == len(components)-1 {
+				modes[path] = entry.GetMode()
+
+				break
+			}
+
+			treeSHA = entry.GetSHA()
 		}
 	}
 

@@ -36,6 +36,7 @@ type GitHubOptions struct {
 	ExistingRelease             bool
 	PaginateCommits             bool
 	PaginateTags                bool
+	TruncateRecursiveTree       bool
 	FailOnMutation              bool
 	Collaborators               map[string]bool
 	ExistingLabels              []string
@@ -192,18 +193,19 @@ type GitHubCommit struct {
 }
 
 const (
-	githubKeySHA     = "sha"
-	githubKeyMessage = "message"
-	githubKeyCommit  = "commit"
-	githubKeyRef     = "ref"
-	githubKeyObject  = "object"
-	githubKeyName    = "name"
-	githubKeyType    = "type"
-	githubKeyTagName = "tag_name"
-	githubKeyHTMLURL = "html_url"
-	githubKeyNumber  = "number"
-	githubFakePRID   = 42
-	githubChangelog  = "CHANGELOG.md"
+	githubKeySHA       = "sha"
+	githubKeyMessage   = "message"
+	githubKeyCommit    = "commit"
+	githubKeyRef       = "ref"
+	githubKeyObject    = "object"
+	githubKeyName      = "name"
+	githubKeyType      = "type"
+	githubKeyTagName   = "tag_name"
+	githubKeyHTMLURL   = "html_url"
+	githubKeyNumber    = "number"
+	githubKeyTruncated = "truncated"
+	githubFakePRID     = 42
+	githubChangelog    = "CHANGELOG.md"
 )
 
 // NewGitHub starts the GitHub REST fake and registers its cleanup with t.
@@ -705,7 +707,22 @@ func githubTreeHandler(t *testing.T, opts GitHubOptions) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		testastic.Equal(t, "1", r.URL.Query().Get("recursive"))
+		recursive := r.URL.Query().Get("recursive")
+		if opts.TruncateRecursiveTree && recursive == "1" {
+			writeJSON(w, map[string]any{
+				githubKeySHA:       r.PathValue(githubKeySHA),
+				contentKeyTree:     []any{},
+				githubKeyTruncated: true,
+			})
+
+			return
+		}
+
+		if opts.TruncateRecursiveTree {
+			testastic.Equal(t, "", recursive)
+		} else {
+			testastic.Equal(t, "1", recursive)
+		}
 
 		paths := []string{githubChangelog}
 		for path := range opts.Files {
@@ -727,9 +744,9 @@ func githubTreeHandler(t *testing.T, opts GitHubOptions) http.HandlerFunc {
 		}
 
 		writeJSON(w, map[string]any{
-			githubKeySHA:   r.PathValue(githubKeySHA),
-			contentKeyTree: entries,
-			"truncated":    false,
+			githubKeySHA:       r.PathValue(githubKeySHA),
+			contentKeyTree:     entries,
+			githubKeyTruncated: false,
 		})
 	}
 }
