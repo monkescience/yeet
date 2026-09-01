@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.6](https://github.com/monkescience/yeet/compare/v0.14.5...v0.14.6) (2026-09-01)
+
+### Bug Fixes
+
+- **deps:** update x/crypto to v0.55.0 ([5c14034](https://github.com/monkescience/yeet/commit/5c140345d2ed81f6b55ea532145264fb1b4c5072))
+- **commands:** show dry-run link destinations ([2368b17](https://github.com/monkescience/yeet/commit/2368b17e95a264e1888ee830861710d8b247de15))
+
 ## [v0.14.5](https://github.com/monkescience/yeet/compare/v0.14.4...v0.14.5) (2026-08-31)
 
 ### Bug Fixes
