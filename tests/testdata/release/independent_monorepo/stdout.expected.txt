@@ -27,15 +27,17 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  api-v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  api-v1.1.0 (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/api-
+  v1.0.0...40a703a4cdfa2809d37bbf94a75d80756aaf1e83) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • api: add endpoint (40a703a)
+  • api: add endpoint (40a703a (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/40a703a4cdfa2809d37bbf94a75d80756aaf1e83))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Pull Request 2
 
@@ -48,14 +50,16 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  web-v2.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  web-v2.0.1 (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/web-
+  v2.0.0...97f650da88aefb29bfc791890ac5169d9d1d8ea4) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Bug Fixes
 
-  • web: repair navigation (97f650d)
+  • web: repair navigation (97f650d (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/97f650da88aefb29bfc791890ac5169d9d1d8ea4))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 2 targets, 2 commits, 2 release units, 2 pull requests.

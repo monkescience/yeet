@@ -35,22 +35,28 @@ Body Preview
 
   Tag: api-v1.0.0 -> api-v1.1.0 Bump: minor Date: {{regex `\d{4}-\d{2}-\d{2}`}} Compare: api-
   v1.0.0...1ba7f53030727423965de74b0b0125f4ee9d5d94
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/api-
+  v1.0.0...1ba7f53030727423965de74b0b0125f4ee9d5d94)
 
   Features
 
-  • api: add endpoint (1ba7f53)
+  • api: add endpoint (1ba7f53 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/1ba7f53030727423965de74b0b0125f4ee9d5d94))
 
   worker
 
   Tag: worker-v2.0.0 -> worker-v2.0.1 Bump: patch Date: {{regex `\d{4}-\d{2}-\d{2}`}} Compare:
   worker-v2.0.0...b8433a86e2d5db9ffcdc9b1e2c7e31a6b085d797
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/worker-
+  v2.0.0...b8433a86e2d5db9ffcdc9b1e2c7e31a6b085d797)
 
   Bug Fixes
 
-  • worker: repair queue (b8433a8)
+  • worker: repair queue (b8433a8 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/b8433a86e2d5db9ffcdc9b1e2c7e31a6b085d797))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 2 targets, 2 commits, 1 release unit, 1 pull request.

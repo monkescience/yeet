@@ -20,18 +20,25 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v2.0.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v2.0.0
+  (http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/branchCompare?baseVersion
+  =GTv1.0.0&targetVersion=GCce66a46ed63049f7b845345eeef4476f6f2e225e) ({{regex `\d{4}-`}}
+  {{regex `\d{2}-\d{2}`}})
 
   ⚠ BREAKING CHANGES
 
-  • removed v1 (ce66a46)
+  • removed v1 (ce66a46 (http://127.0.0.
+  1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/ce66a46ed63049f7b845345eeef4476f6f
+  2e225e))
 
   Features
 
-  • redesign api (ce66a46)
+  • redesign api (ce66a46 (http://127.0.0.
+  1:{{regex `\d+`}}/contoso/platform/_git/yeet/commit/ce66a46ed63049f7b845345eeef4476f6f
+  2e225e))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

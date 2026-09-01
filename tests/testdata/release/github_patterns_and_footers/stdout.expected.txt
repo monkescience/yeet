@@ -20,14 +20,19 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.1.0
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...66487447e68cfa4b84
+  8d76cbb4eb4c724b38c7ba) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • ship ABC-123 update (6648744) (PROJ-99)
+  • ship ABC-123 (https://issues.example.test/ABC-123) update (6648744
+  (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/66487447e68cfa4b848d76cbb4eb4c724b38c7ba))
+  (PROJ-99 (https://tracker.example.test/PROJ-99))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

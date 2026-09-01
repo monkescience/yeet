@@ -186,6 +186,7 @@ func renderDryRunBody(markdown string) (string, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStyles(dryRunBodyStyle()),
 		glamour.WithWordWrap(dryRunPreviewWidth),
+		glamour.WithInlineTableLinks(true),
 	)
 	if err != nil {
 		return "", fmt.Errorf("create Markdown renderer: %w", err)
@@ -196,7 +197,7 @@ func renderDryRunBody(markdown string) (string, error) {
 		return "", fmt.Errorf("render Markdown: %w", err)
 	}
 
-	body = strings.ReplaceAll(body, terminalansi.ResetHyperlink()+" ", terminalansi.ResetHyperlink())
+	body = terminalansi.Strip(body)
 
 	return body, nil
 }
@@ -223,7 +224,7 @@ func dryRunBodyStyle() glamouransi.StyleConfig {
 	style.H6.Prefix = ""
 	style.Emph = glamouransi.StylePrimitive{}
 	style.Strong = glamouransi.StylePrimitive{}
-	style.Link = glamouransi.StylePrimitive{Format: `{{""}}`}
+	style.Link = glamouransi.StylePrimitive{Format: `({{.text}})`}
 	style.LinkText = glamouransi.StylePrimitive{}
 
 	return style

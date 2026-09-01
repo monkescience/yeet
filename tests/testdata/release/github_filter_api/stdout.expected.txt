@@ -24,10 +24,11 @@ Body Preview
 
   Features
 
-  • add api endpoint (8e931a1)
+  • add api endpoint (8e931a1 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/8e931a18799355720bfb280a8dbcacc9a2c46194))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

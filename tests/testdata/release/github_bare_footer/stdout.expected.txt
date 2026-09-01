@@ -20,14 +20,18 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.1.0
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...c22579b09f27d8be2f
+  9bec169407d1a6425b1989) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • ship update (c22579b) (alice)
+  • ship update (c22579b (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/c22579b09f27d8be2f9bec169407d1a6425b1989))
+  (alice)
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

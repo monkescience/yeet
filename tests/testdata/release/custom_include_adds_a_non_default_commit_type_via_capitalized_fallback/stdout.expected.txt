@@ -20,14 +20,17 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.0.1
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...8b52e9467ffdbbbc9f
+  dbc41031348a2a7f5bdb93) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Performance Improvements
 
-  • improve startup (8b52e94)
+  • improve startup (8b52e94 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/8b52e9467ffdbbbc9fdbc41031348a2a7f5bdb93))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

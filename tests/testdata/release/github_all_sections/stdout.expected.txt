@@ -20,26 +20,32 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.1.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.1.0
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...c6c0c2baa5dd249340
+  215ca6ad79ae33a5c78341) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • ship a thing (c6c0c2b)
+  • ship a thing (c6c0c2b (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/c6c0c2baa5dd249340215ca6ad79ae33a5c78341))
 
   Bug Fixes
 
-  • fix a thing (4cce486)
+  • fix a thing (4cce486 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/4cce486b859c5c9666378c65cc8ac1c740a55d11))
 
   Performance Improvements
 
-  • speed up a thing (424f94c)
+  • speed up a thing (424f94c (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/424f94c79671515cdd10df2c0d244ddd2ee79947))
 
   Reverts
 
-  • roll back the prior feat (13e75ae)
+  • roll back the prior feat (13e75ae (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/13e75ae7cdbedaf3c646528dddf05ca656f70521))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 4 commits, 1 pull request.

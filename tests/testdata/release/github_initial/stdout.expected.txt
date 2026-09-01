@@ -24,10 +24,11 @@ Body Preview
 
   Features
 
-  • initial feature (0d43171)
+  • initial feature (0d43171 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/0d431713ca32965b72fc8585d109fde0492be0df))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 2 commits, 1 pull request.

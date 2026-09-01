@@ -27,15 +27,15 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.1.0 (2026-03-01)
+  v1.1.0 (https://example.com/compare/v1.0.0...v1.1.0) (2026-03-01)
 
   Features
 
-  • something new (abc1234)
+  • something new (abc1234 (https://example.com/commit/abc1234))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Pull Request 2
 
@@ -48,14 +48,14 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.1.0 (2026-03-01)
+  v1.1.0 (https://example.com/compare/v1.0.0...v1.1.0) (2026-03-01)
 
   Features
 
-  • something new (abc1234)
+  • something new (abc1234 (https://example.com/commit/abc1234))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 2 targets, 3 commits, 2 release units, 2 pull requests.

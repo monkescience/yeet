@@ -20,14 +20,17 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v2.0.0-beta.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v2.0.0-beta.1
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...5aca1cf49ddd15eb06
+  d606f99bc5e2eab14e1062) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • rework api (5aca1cf)
+  • rework api (5aca1cf (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/5aca1cf49ddd15eb06d606f99bc5e2eab14e1062))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

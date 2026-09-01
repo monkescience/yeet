@@ -518,6 +518,39 @@ func TestReleaseLogMessages(t *testing.T) {
 	})
 }
 
+func TestRenderDryRunBody(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shows link destinations without terminal hyperlinks", func(t *testing.T) {
+		t.Parallel()
+
+		// given: Markdown containing an attacker-controlled link
+		markdown := "[review failed checks](https://attacker.example/login)"
+
+		// when: rendering the dry-run body
+		body, err := renderDryRunBody(markdown)
+
+		// then: the raw output shows the destination without a terminal hyperlink
+		testastic.NoError(t, err)
+		testastic.AssertFile(t, "testdata/dry_run_body_link.expected.txt", trimDryRunBody(body)+"\n")
+	})
+
+	t.Run("shows complete link destinations in tables", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a table containing an attacker-controlled link with a long destination
+		markdown := "| Status |\n| --- |\n| [review failed checks](" +
+			"https://attacker.example/review/failed/checks/login?return=release-dry-run-preview) |"
+
+		// when: rendering the dry-run body
+		body, err := renderDryRunBody(markdown)
+
+		// then: the raw output matches the inline, untruncated golden file
+		testastic.NoError(t, err)
+		testastic.AssertFile(t, "testdata/dry_run_body_table_link.expected.txt", trimDryRunBody(body)+"\n")
+	})
+}
+
 func TestPrintDryRun(t *testing.T) {
 	t.Parallel()
 

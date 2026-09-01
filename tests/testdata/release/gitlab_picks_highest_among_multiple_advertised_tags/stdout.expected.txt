@@ -20,14 +20,16 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.6.0 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.6.0 (http://127.0.0.1:{{regex `\d+`}}/group/service/-
+  /compare/v1.5.0...cbda7f8f1247687d50d498ca334cb97cb7d0369c) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Features
 
-  • add a thing (cbda7f8)
+  • add a thing (cbda7f8 (http://127.0.0.1:{{regex `\d+`}}/group/service/-
+  /commit/cbda7f8f1247687d50d498ca334cb97cb7d0369c))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.

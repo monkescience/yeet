@@ -20,14 +20,17 @@ Body Preview
 
   ٩(^ᴗ^)۶ release created
 
-  v1.0.1 ({{regex `\d{4}-\d{2}-\d{2}`}})
+  v1.0.1
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v1.0.0...4d089670764f445d7a
+  2b38c8404c572c46fcae81) ({{regex `\d{4}-\d{2}-\d{2}`}})
 
   Miscellaneous Chores
 
-  • minor housekeeping (4d08967)
+  • minor housekeeping (4d08967 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/4d089670764f445d7a2b38c8404c572c46fcae81))
 
   Auto-generated preview, edit CHANGELOG.md to customize release notes.
 
-  Made with yeet - yeet it.
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
 
 Plan: 1 target, 1 commit, 1 pull request.
