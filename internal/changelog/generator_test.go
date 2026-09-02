@@ -950,6 +950,28 @@ func TestPrepend(t *testing.T) {
 			result,
 		)
 	})
+
+	t.Run("preserves non-release headings in the preamble", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog preamble containing a document-level heading
+		existing := "# Changelog\n\n" +
+			"## About\n\nRelease notes for this project.\n\n" +
+			"## Q1-2026\n\nPlanned work.\n\n" +
+			"## api-v1.0.0-beta.1\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.Prepend(existing, newEntry)
+
+		// then: the complete preamble remains above the new release
+		testastic.Equal(
+			t,
+			"# Changelog\n\n## About\n\nRelease notes for this project.\n\n## Q1-2026\n\nPlanned work.\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## api-v1.0.0-beta.1\n\nPrevious release.\n",
+			result,
+		)
+	})
 }
 
 func TestGenerateSanitizesCommitText(t *testing.T) {

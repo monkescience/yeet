@@ -147,8 +147,13 @@ func Prepend(existing, newEntry string) string {
 	}
 
 	releaseStart := -1
-	if headings := newMarkdownIndex(existing).headingsAtLevel(releaseHeadingLevel); len(headings) > 0 {
-		releaseStart = lineStartOffset(existing, headings[0].line)
+
+	for _, heading := range newMarkdownIndex(existing).headingsAtLevel(releaseHeadingLevel) {
+		if isReleaseHeading(heading.text) {
+			releaseStart = lineStartOffset(existing, heading.line)
+
+			break
+		}
 	}
 
 	if strings.HasPrefix(existing, "# ") {
@@ -163,6 +168,53 @@ func Prepend(existing, newEntry string) string {
 	}
 
 	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")
+}
+
+func isReleaseHeading(heading string) bool {
+	const (
+		minimumVersionParts = 2
+		semverParts         = 3
+	)
+
+	entry := Entry{}
+	parseHeadingFields(strings.TrimSpace(trimClosingHeadingHashes(heading)), &entry)
+
+	for start := range len(entry.Version) {
+		if entry.Version[start] < '0' || entry.Version[start] > '9' {
+			continue
+		}
+
+		parts := 0
+		position := start
+
+		for position < len(entry.Version) {
+			partStart := position
+			for position < len(entry.Version) && entry.Version[position] >= '0' && entry.Version[position] <= '9' {
+				position++
+			}
+
+			if position == partStart {
+				break
+			}
+
+			parts++
+			if position == len(entry.Version) {
+				return parts >= minimumVersionParts
+			}
+
+			if parts >= semverParts && (entry.Version[position] == '-' || entry.Version[position] == '+') {
+				return position+1 < len(entry.Version)
+			}
+
+			if entry.Version[position] != '.' {
+				break
+			}
+
+			position++
+		}
+	}
+
+	return false
 }
 
 func lineStartOffset(text string, line int) int {
