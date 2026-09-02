@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -112,12 +113,11 @@ func (a *AzureDevOps) PathPrefix() string {
 // Azure DevOps uses query parameters with prefixed version refs: GC for commit
 // SHAs, GT for tag names.
 func (a *AzureDevOps) CompareURL(fromRef, toRef string) string {
-	return fmt.Sprintf(
-		"%s/branchCompare?baseVersion=%s&targetVersion=%s",
-		a.RepoURL(),
-		azureDevOpsCompareRef(fromRef),
-		azureDevOpsCompareRef(toRef),
-	)
+	query := url.Values{}
+	query.Set("baseVersion", azureDevOpsCompareRef(fromRef))
+	query.Set("targetVersion", azureDevOpsCompareRef(toRef))
+
+	return a.RepoURL() + "/branchCompare?" + query.Encode()
 }
 
 func azureDevOpsCompareRef(ref string) string {

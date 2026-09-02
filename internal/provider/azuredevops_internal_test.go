@@ -211,6 +211,12 @@ func TestAzureDevOpsCompareURL(t *testing.T) {
 			toRef:   sha2,
 			want:    base + "?baseVersion=GC" + sha1 + "&targetVersion=GC" + sha2,
 		},
+		"escapes query delimiters in tags": {
+			fromRef: "release+candidate&2026#1",
+			toRef:   "stable+candidate&2026#2",
+			want: base + "?baseVersion=GTrelease%2Bcandidate%262026%231" +
+				"&targetVersion=GTstable%2Bcandidate%262026%232",
+		},
 	}
 
 	for name, tc := range tests {
@@ -223,6 +229,31 @@ func TestAzureDevOpsCompareURL(t *testing.T) {
 			testastic.Equal(t, tc.want, azureDevOpsProvider.CompareURL(tc.fromRef, tc.toRef))
 		})
 	}
+}
+
+func TestAzureDevOpsTagWebURL(t *testing.T) {
+	t.Parallel()
+
+	// given: a tag containing URL query delimiters
+	azureDevOpsProvider := NewAzureDevOps(
+		nil,
+		"https://dev.azure.com",
+		"pat-token",
+		"contoso",
+		"contoso",
+		"platform",
+		"yeet",
+	)
+
+	// when: building the Azure DevOps tag URL
+	tagURL := azureDevOpsProvider.tagWebURL("release+candidate&2026#1")
+
+	// then: the tag remains one encoded query value
+	testastic.Equal(
+		t,
+		"https://dev.azure.com/contoso/platform/_git/yeet?version=GTrelease%2Bcandidate%262026%231",
+		tagURL,
+	)
 }
 
 func TestAzureDevOpsReadFileBody(t *testing.T) {

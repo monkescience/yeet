@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
@@ -160,7 +161,10 @@ func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(
 // The query string trips charmlog's logfmt quoting, which Azure pipeline logs
 // then mis-linkify by appending the closing quote as %22. Manual copy works.
 func (a *AzureDevOps) tagWebURL(tag string) string {
-	return fmt.Sprintf("%s?version=GT%s", a.RepoURL(), tag)
+	query := url.Values{}
+	query.Set("version", "GT"+tag)
+
+	return a.RepoURL() + "?" + query.Encode()
 }
 
 func isAzureDevOpsCommitSHA(ref string) bool {
