@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.8](https://github.com/monkescience/yeet/compare/v0.14.7...v0.14.8) (2026-09-02)
+
+### Bug Fixes
+
+- **provider:** encode Azure DevOps refs in URLs ([9a17206](https://github.com/monkescience/yeet/commit/9a172064c943fe841d3d657ab8f4231a9ab8f0c5))
+- **provider:** apply network policy to Azure DevOps ([d6dbdfe](https://github.com/monkescience/yeet/commit/d6dbdfe852bf7661cd73c122324574b03d41b2dd))
+
 ## [v0.14.7](https://github.com/monkescience/yeet/compare/v0.14.6...v0.14.7) (2026-09-02)
 
 ### Bug Fixes
