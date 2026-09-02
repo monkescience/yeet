@@ -3,9 +3,8 @@ package changelog
 import (
 	"strings"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	goldmarktext "github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 const (
@@ -28,7 +27,7 @@ type markdownIndex struct {
 func newMarkdownIndex(source string) markdownIndex {
 	normalized := strings.ReplaceAll(source, "\r\n", "\n")
 	lines := strings.Split(normalized, "\n")
-	root := goldmark.DefaultParser().Parse(goldmarktext.NewReader([]byte(normalized)))
+	root := parser.New().Parse([]byte(normalized))
 
 	headings := make([]markdownHeading, 0)
 	line := 0
