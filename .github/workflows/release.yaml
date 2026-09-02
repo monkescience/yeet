@@ -44,6 +44,7 @@ jobs:
           -X github.com/monkescience/yeet/internal/telemetry.appID=${TELEMETRYDECK_APP_ID}"
           ./cmd/yeet --verbose release
         env:
+          CLICOLOR_FORCE: "1"
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           TELEMETRYDECK_NAMESPACE: ${{ vars.TELEMETRYDECK_NAMESPACE }}
           TELEMETRYDECK_APP_ID: ${{ vars.TELEMETRYDECK_APP_ID }}
