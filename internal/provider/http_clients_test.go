@@ -1,11 +1,14 @@
 package provider //nolint:testpackage // validates unexported HTTP transport policy directly
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,8 +85,7 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 		testastic.MapHasKey(t, constructedWith, forge)
 	}
 
-	// then: every adapter receives the bounded shared client settings. Azure's
-	// SDK creates its own transport and consumes only the timeout.
+	// then: every adapter receives the bounded shared client settings
 	testastic.Len(t, constructedWith, len(descriptors))
 
 	defaults := config.Default().Network
@@ -98,6 +100,102 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 		testastic.NotNil(t, client.HTTPClient.Transport)
 		testastic.MapHasKey(t, forgeSpecs, forge)
 	}
+}
+
+func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
+	// given: an Azure DevOps bootstrap endpoint that fails once and debug logging
+	var attempts atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("OPTIONS /platform/_apis", func(w http.ResponseWriter, _ *http.Request) {
+		if attempts.Add(1) == 1 {
+			http.Error(w, "temporary failure", http.StatusInternalServerError)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-VSS-E2EID", "azure-request-123")
+		_, err := w.Write([]byte(`{
+			"count": 2,
+			"value": [{
+				"id": "e81700f7-3be2-46de-8624-2eb35882fcaa",
+				"area": "Location",
+				"resourceName": "ResourceAreas",
+				"routeTemplate": "_apis/{resource}/{areaId}",
+				"resourceVersion": 1,
+				"minVersion": "3.2",
+				"maxVersion": "7.2",
+				"releasedVersion": "0.0"
+			}, {
+				"id": "2d874a60-a811-4f62-9c9f-963a6ea0a55b",
+				"area": "git",
+				"resourceName": "refs",
+				"routeTemplate": "{project}/_apis/{area}/repositories/{repositoryId}/{resource}/{*filter}",
+				"resourceVersion": 2,
+				"minVersion": "1.0",
+				"maxVersion": "7.2",
+				"releasedVersion": "7.1"
+			}]
+		}`))
+		testastic.NoError(t, err)
+	})
+	mux.HandleFunc("GET /platform/_apis/ResourceAreas", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"count":0,"value":[]}`))
+		testastic.NoError(t, err)
+	})
+	mux.HandleFunc(
+		"GET /platform/release-tools/_apis/git/repositories/yeet/refs",
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-VSS-E2EID", "azure-git-request-456")
+			_, err := w.Write([]byte(`{"count":0,"value":[]}`))
+			testastic.NoError(t, err)
+		},
+	)
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	t.Setenv(azureDevOpsSystemAccessTokenEnv, "")
+	t.Setenv("AZURE_DEVOPS_EXT_PAT", "fake-token")
+	t.Setenv(azureURLEnv, server.URL)
+
+	var logOutput bytes.Buffer
+
+	previousLogger := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	created, err := createProvider(
+		&resolvedAzureDevOpsRepository{
+			Host:         DefaultAzureDevOpsHost,
+			Organization: "platform",
+			Project:      "release-tools",
+			Repo:         "yeet",
+		},
+		func(forge string) *retryablehttp.Client {
+			client := newTracedRetryableClient(forge)
+			client.RetryWaitMin = time.Millisecond
+			client.RetryWaitMax = 5 * time.Millisecond
+
+			return client
+		},
+	)
+	testastic.NoError(t, err)
+
+	// when: the Azure SDK performs discovery and lists Git refs
+	_, err = created.ListTagRefs(t.Context())
+
+	// then: the shared retry policy and sanitized tracing cover the SDK requests
+	testastic.NoError(t, err)
+	testastic.Equal(t, int32(2), attempts.Load())
+	testastic.True(t, strings.Contains(logOutput.String(), `"provider":"azuredevops"`))
+	testastic.True(t, strings.Contains(logOutput.String(), `"request_id":"azure-git-request-456"`))
+	testastic.False(t, strings.Contains(logOutput.String(), "fake-token"))
 }
 
 func TestTracedRetryableClientUsesConfiguredNetworkSettings(t *testing.T) {

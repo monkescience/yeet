@@ -19,6 +19,7 @@ var _ forge.Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
 	conn          *azuredevops.Connection
+	httpClient    *http.Client
 	baseURL       string
 	organization  string
 	collection    string
@@ -35,9 +36,8 @@ type AzureDevOps struct {
 // NewAzureDevOps constructs the provider client.
 // baseURL must be the host-level base (e.g. https://dev.azure.com or a
 // self-hosted host). The collection segment is appended internally. collection
-// defaults to organization on cloud deployments. Only the httpClient's Timeout
-// is honored: the SDK constructs its own http.Client, so neither the retry
-// policy nor the HTTP tracing on the supplied transport reaches its requests.
+// defaults to organization on cloud deployments. The supplied httpClient is
+// used for resource discovery and Git API requests.
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
@@ -79,6 +79,7 @@ func newAzureDevOps(
 
 	return &AzureDevOps{
 		conn:         conn,
+		httpClient:   httpClient,
 		baseURL:      baseURL,
 		organization: organization,
 		collection:   collection,
@@ -131,7 +132,7 @@ func azureDevOpsCompareRef(ref string) string {
 // it cannot happen in NewAzureDevOps (no context available there).
 func (a *AzureDevOps) client(ctx context.Context) (git.Client, error) {
 	a.clientOnce.Do(func() {
-		gitClient, err := git.NewClient(ctx, a.conn)
+		gitClient, err := newAzureDevOpsGitClient(ctx, a.conn, a.httpClient)
 		if err != nil {
 			a.clientErr = fmt.Errorf("initialize azure devops git client: %w", err)
 
@@ -146,6 +147,63 @@ func (a *AzureDevOps) client(ctx context.Context) (git.Client, error) {
 	}
 
 	return a.gitClient, nil
+}
+
+func newAzureDevOpsGitClient(
+	ctx context.Context,
+	connection *azuredevops.Connection,
+	httpClient *http.Client,
+) (git.Client, error) {
+	if httpClient == nil {
+		client, err := git.NewClient(ctx, connection)
+		if err != nil {
+			return nil, fmt.Errorf("create git client with default transport: %w", err)
+		}
+
+		return client, nil
+	}
+
+	discoveryClient := azuredevops.NewClientWithOptions(
+		connection,
+		connection.BaseUrl,
+		azuredevops.WithHTTPClient(httpClient),
+	)
+
+	resourceAreas, err := discoveryClient.GetResourceAreas(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("discover resource areas: %w", err)
+	}
+
+	gitBaseURL := connection.BaseUrl
+	if resourceAreas != nil && len(*resourceAreas) > 0 {
+		gitBaseURL = ""
+
+		for _, resourceArea := range *resourceAreas {
+			if resourceArea.Id == nil || *resourceArea.Id != git.ResourceAreaId ||
+				resourceArea.LocationUrl == nil {
+				continue
+			}
+
+			gitBaseURL = strings.TrimRight(*resourceArea.LocationUrl, "/")
+
+			break
+		}
+
+		if gitBaseURL == "" {
+			return nil, &azuredevops.ResourceAreaIdNotRegisteredError{
+				ResourceAreaId: git.ResourceAreaId,
+				Url:            connection.BaseUrl,
+			}
+		}
+	}
+
+	client := azuredevops.NewClientWithOptions(
+		connection,
+		gitBaseURL,
+		azuredevops.WithHTTPClient(httpClient),
+	)
+
+	return &git.ClientImpl{Client: *client}, nil
 }
 
 // The SDK wraps non-2xx responses in azuredevops.WrappedError with a
