@@ -3,9 +3,9 @@ package changelog
 import (
 	"strings"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	goldmarktext "github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2"
+	"github.com/yuin/goldmark/v2/ast"
+	goldmarktext "github.com/yuin/goldmark/v2/text"
 )
 
 const (
