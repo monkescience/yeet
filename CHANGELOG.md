@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.14.7](https://github.com/monkescience/yeet/compare/v0.14.6...v0.14.7) (2026-09-02)
+
+### Bug Fixes
+
+- **deps:** update module github.com/yuin/goldmark to v2 ([213c567](https://github.com/monkescience/yeet/commit/213c5671079dd2a3346c8291f014b661d97d1624))
+- **changelog:** ignore preamble headings ([0c689f2](https://github.com/monkescience/yeet/commit/0c689f2188846c11d1cdbc0b1b3fdedfb6e306bb))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.60.0 (#251) ([3148e11](https://github.com/monkescience/yeet/commit/3148e1112674e2f81fa0f58ba7c6090d092e9048))
+- **deps:** update module github.com/monkescience/testastic to v0.4.4 (#248) ([4238777](https://github.com/monkescience/yeet/commit/42387771d9a6fea00be3b715ac3d84810eac1b89))
+
 ## [v0.14.6](https://github.com/monkescience/yeet/compare/v0.14.5...v0.14.6) (2026-09-01)
 
 ### Bug Fixes
