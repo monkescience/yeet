@@ -12,8 +12,7 @@ import (
 
 // labelChange is the managed-set diff for one phase. The anchor is attached
 // before anything else and fail-fast, so an interrupted run still leaves a pull
-// request the next run can find. The remaining additions are best effort. See
-// ADR 0007.
+// request the next run can find. The remaining additions are best effort.
 type labelChange struct {
 	anchor string
 	add    []string
@@ -23,7 +22,7 @@ type labelChange struct {
 // managedLabelChange diffs within the managed set only, which is Pending,
 // Tagged, Yeet and Extra. Every other label on the pull request is left where it
 // is, so a phase is idempotent for the managed set and says nothing about the
-// rest. See ADR 0006.
+// rest.
 func managedLabelChange(labels forge.ReleasePRLabels, phase forge.ReleasePRPhase) labelChange {
 	if phase == forge.ReleasePRPhaseTagged {
 		return labelChange{
