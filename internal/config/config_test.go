@@ -1385,10 +1385,10 @@ func TestValidate(t *testing.T) {
 		testastic.Equal(t, "invalid config: targets.root.exclude_paths contains must be repo-relative", err.Error())
 	})
 
-	t.Run("shared inherited version file across targets succeeds", func(t *testing.T) {
+	t.Run("shared inherited version file across combined targets succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		// given: multiple targets that inherit the same top-level version file path
+		// given: combined-mode targets that inherit the same top-level version file path
 		cfg := config.Default()
 		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
 		cfg.Targets = map[string]config.Target{
@@ -1409,7 +1409,7 @@ func TestValidate(t *testing.T) {
 		// when: validating the config
 		err := cfg.Validate()
 
-		// then: validation allows targets to share the inherited version file
+		// then: validation allows the combined release wave to share the inherited version file
 		testastic.NoError(t, err)
 	})
 

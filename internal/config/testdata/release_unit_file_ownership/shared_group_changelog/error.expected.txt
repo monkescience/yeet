@@ -1,0 +1,1 @@
+invalid config: release units "group:backend" and "group:frontend" both write "CHANGELOG.md", configure separate files or place the targets in one atomic group

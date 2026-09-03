@@ -62,24 +62,19 @@ func TestReleaseIndependentBoundaries(t *testing.T) {
 		)
 	})
 
-	t.Run("shared changelog fails before provider mutation", func(t *testing.T) {
+	t.Run("target selection cannot hide shared changelog ownership", func(t *testing.T) {
 		t.Parallel()
 
 		// given: independent targets that would both write the default changelog
-		repoDir, shas := writeIndependentMonorepoHistory(t)
-		opts := independentGitHubOptions(shas)
-		opts.FailOnMutation = true
-		server := fakeprovider.NewGitHub(t, opts)
 		configPath := absoluteTestFile(t, "testdata/release/independent_file_overlap/input.yaml")
 
-		// when: running the release against a mutation-rejecting provider
+		// when: limiting the release to one of the conflicting targets
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--config", configPath},
-			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+			[]string{"release", "--target", "api", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
 		)
 
-		// then: planning reports the conflicting units and path without mutation
+		// then: configuration validation still compares every configured release unit
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,

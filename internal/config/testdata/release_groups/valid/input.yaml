@@ -10,11 +10,17 @@ targets:
     type: path
     path: api
     tag_prefix: api-v
+    changelog:
+      file: api/CHANGELOG.md
   worker:
     type: path
     path: worker
     tag_prefix: worker-v
+    changelog:
+      file: worker/CHANGELOG.md
   web:
     type: path
     path: web
     tag_prefix: web-v
+    changelog:
+      file: web/CHANGELOG.md

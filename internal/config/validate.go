@@ -89,10 +89,64 @@ func (c *Config) validateReleaseAndTargets() error {
 		return err
 	}
 
-	if c.Release.PullRequestMode == PullRequestModeCombined {
+	switch c.Release.PullRequestMode {
+	case PullRequestModeCombined:
 		err = validateTargetVersionFileOwnership(c.Targets)
-		if err != nil {
-			return err
+	case PullRequestModeIndependent:
+		err = validateIndependentReleaseUnitFileOwnership(c.Release, resolvedTargets)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateIndependentReleaseUnitFileOwnership(
+	release ReleaseConfig,
+	targets map[string]ResolvedTarget,
+) error {
+	unitByTarget := make(map[string]string, len(targets))
+
+	for groupName, group := range release.Groups {
+		unitID := "group:" + strings.TrimSpace(groupName)
+		for _, targetID := range group.Targets {
+			unitByTarget[strings.TrimSpace(targetID)] = unitID
+		}
+	}
+
+	owners := make(map[string]string)
+
+	for _, targetID := range slices.Sorted(maps.Keys(targets)) {
+		target := targets[targetID]
+		unitID, grouped := unitByTarget[targetID]
+
+		if !grouped {
+			unitID = "target:" + targetID
+		}
+
+		paths := make([]string, 0, len(target.VersionFiles)+1)
+
+		paths = append(paths, target.Changelog.File)
+		for _, versionFile := range target.VersionFiles {
+			paths = append(paths, versionFile.Path)
+		}
+
+		for _, path := range paths {
+			previous, exists := owners[path]
+			if exists && previous != unitID {
+				return fmt.Errorf(
+					"%w: release units %q and %q both write %q, "+
+						"configure separate files or place the targets in one atomic group",
+					ErrInvalidConfig,
+					previous,
+					unitID,
+					path,
+				)
+			}
+
+			owners[path] = unitID
 		}
 	}
 

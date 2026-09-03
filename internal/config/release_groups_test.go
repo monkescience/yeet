@@ -89,3 +89,142 @@ func TestReleaseGroups(t *testing.T) {
 		}
 	})
 }
+
+func TestIndependentReleaseUnitFileOwnership(t *testing.T) {
+	t.Parallel()
+
+	newConfig := func(t *testing.T) *config.Config {
+		t.Helper()
+
+		cfg := config.Default()
+		cfg.Release.PullRequestMode = config.PullRequestModeIndependent
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "api/CHANGELOG.md"},
+			},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "web",
+				TagPrefix: "web-v",
+				Changelog: config.ChangelogConfig{File: "web/CHANGELOG.md"},
+			},
+		}
+
+		return cfg
+	}
+
+	t.Run("rejects shared inherited changelog across ungrouped targets", func(t *testing.T) {
+		t.Parallel()
+
+		// given: separate release units that inherit the same changelog
+		cfg := newConfig(t)
+		api := cfg.Targets["api"]
+		api.Changelog = config.ChangelogConfig{}
+		cfg.Targets["api"] = api
+		web := cfg.Targets["web"]
+		web.Changelog = config.ChangelogConfig{}
+		cfg.Targets["web"] = web
+
+		// when: validating the complete independent layout
+		err := cfg.Validate()
+
+		// then: the conflict is rejected before release planning
+		testastic.Error(t, err)
+
+		if err == nil {
+			return
+		}
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.AssertFile(
+			t,
+			"testdata/release_unit_file_ownership/shared_ungrouped_changelog/error.expected.txt",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects shared inherited version file across ungrouped targets", func(t *testing.T) {
+		t.Parallel()
+
+		// given: separate release units that inherit the same version file
+		cfg := newConfig(t)
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
+
+		// when: validating the complete independent layout
+		err := cfg.Validate()
+
+		// then: the resolved version file conflict is rejected
+		testastic.Error(t, err)
+
+		if err == nil {
+			return
+		}
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.AssertFile(
+			t,
+			"testdata/release_unit_file_ownership/shared_ungrouped_version_file/error.expected.txt",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects shared changelog across separate groups", func(t *testing.T) {
+		t.Parallel()
+
+		// given: separate atomic groups that inherit the same changelog
+		cfg := newConfig(t)
+		api := cfg.Targets["api"]
+		api.Changelog = config.ChangelogConfig{}
+		cfg.Targets["api"] = api
+		web := cfg.Targets["web"]
+		web.Changelog = config.ChangelogConfig{}
+		cfg.Targets["web"] = web
+		cfg.Release.Groups = map[string]config.ReleaseGroupConfig{
+			"backend":  {Targets: []string{"api"}},
+			"frontend": {Targets: []string{"web"}},
+		}
+
+		// when: validating the complete independent layout
+		err := cfg.Validate()
+
+		// then: group boundaries do not hide the conflict
+		testastic.Error(t, err)
+
+		if err == nil {
+			return
+		}
+
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.AssertFile(
+			t,
+			"testdata/release_unit_file_ownership/shared_group_changelog/error.expected.txt",
+			err.Error(),
+		)
+	})
+
+	t.Run("allows shared outputs inside one atomic group", func(t *testing.T) {
+		t.Parallel()
+
+		// given: targets in one atomic group that share resolved outputs
+		cfg := newConfig(t)
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
+		api := cfg.Targets["api"]
+		api.Changelog = config.ChangelogConfig{}
+		cfg.Targets["api"] = api
+		web := cfg.Targets["web"]
+		web.Changelog = config.ChangelogConfig{}
+		cfg.Targets["web"] = web
+		cfg.Release.Groups = map[string]config.ReleaseGroupConfig{
+			"apps": {Targets: []string{"api", "web"}},
+		}
+
+		// when: validating the complete independent layout
+		err := cfg.Validate()
+
+		// then: one atomic owner may intentionally share its files
+		testastic.NoError(t, err)
+	})
+}
