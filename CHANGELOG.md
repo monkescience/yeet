@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.9](https://github.com/monkescience/yeet/compare/v0.14.8...v0.14.9) (2026-09-03)
+
+### Bug Fixes
+
+- **config:** validate independent file ownership ([81e1e31](https://github.com/monkescience/yeet/commit/81e1e31feaf9dd20f7de1667cad481166e964803))
+
 ## [v0.14.8](https://github.com/monkescience/yeet/compare/v0.14.7...v0.14.8) (2026-09-02)
 
 ### Bug Fixes
