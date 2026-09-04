@@ -64,8 +64,8 @@ func validateAgainstSchema(instance any) error {
 		return nil
 	}
 
-	var validationErr *jsonschema.ValidationError
-	if !errors.As(err, &validationErr) {
+	validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+	if !ok {
 		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
 
