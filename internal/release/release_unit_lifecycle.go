@@ -535,24 +535,16 @@ func (l *releaseUnitLifecycle) findPendingPRs(
 ) ([]*forge.PullRequest, error) {
 	r := l.core
 
+	var expectedBranches []string
 	if r.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
-		pullRequests, err := l.forge.FindOpenPendingReleasePRs(
-			ctx,
-			r.run.baseBranch,
-			r.cfg.Release.Labels.Pending,
-			unit.ReleaseBranch,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("find pending release PRs: %w", err)
-		}
-
-		return pullRequests, nil
+		expectedBranches = []string{unit.ReleaseBranch}
 	}
 
 	pullRequests, err := l.forge.FindOpenPendingReleasePRs(
 		ctx,
 		r.run.baseBranch,
 		r.cfg.Release.Labels.Pending,
+		expectedBranches...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("find pending release PRs: %w", err)
