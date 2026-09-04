@@ -15,7 +15,7 @@ require (
 	github.com/google/go-github/v90 v90.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
-	github.com/monkescience/testastic v0.4.4
+	github.com/monkescience/testastic v0.4.5
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark/v2 v2.0.0

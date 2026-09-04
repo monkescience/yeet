@@ -109,8 +109,8 @@ github.com/microcosm-cc/bluemonday v1.0.27 h1:MpEUotklkwCSLeH+Qdx1VJgNqLlpY2KXwX
 github.com/microcosm-cc/bluemonday v1.0.27/go.mod h1:jFi9vgW+H7c3V0lb6nR74Ib/DIB5OBs92Dimizgw2cA=
 github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0 h1:mmJCWLe63QvybxhW1iBmQWEaCKdc4SKgALfTNZ+OphU=
 github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0/go.mod h1:mDunUZ1IUJdJIRHvFb+LPBUtxe3AYB5MI6BMXNg8194=
-github.com/monkescience/testastic v0.4.4 h1:prKci70TjrzQ/S1iihA4FrZej7KMoH9dvUfAddmLPQg=
-github.com/monkescience/testastic v0.4.4/go.mod h1:uZIRy1Zjvtj267jxcMxNyW46XM4SaI/OoXZ+iFQAGV0=
+github.com/monkescience/testastic v0.4.5 h1:XuV26uOpdYheqbEvIKtjf55zh5ByIMQkwCkH1WgksYU=
+github.com/monkescience/testastic v0.4.5/go.mod h1:uZIRy1Zjvtj267jxcMxNyW46XM4SaI/OoXZ+iFQAGV0=
 github.com/muesli/cancelreader v0.2.2 h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
 github.com/muesli/cancelreader v0.2.2/go.mod h1:3XuTXfFS2VjM+HTLZY9Ak0l6eUKfijIfMUZ4EgX0QYo=
 github.com/pjbgf/sha1cd v0.6.0 h1:3WJ8Wz8gvDz29quX1OcEmkAlUg9diU4GxJHqs0/XiwU=
