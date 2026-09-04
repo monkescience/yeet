@@ -1,6 +1,7 @@
 package changelog_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -286,4 +287,51 @@ func TestMerge(t *testing.T) {
 		// then: the child target and its section sit side by side with the human addition
 		testastic.SliceEqual(t, []string{"api", "Features", "Migration Notes"}, sectionHeadings(merged.Sections))
 	})
+}
+
+func TestMergePreservesManualOrderAroundRepeatedHeadings(t *testing.T) {
+	t.Parallel()
+
+	generated := generatedEntry(
+		changelog.Section{Heading: "Features", Lines: []string{"first generated"}},
+		changelog.Section{Heading: "Features", Lines: []string{"second generated"}},
+	)
+	foreign := changelog.Entry{Sections: []changelog.Section{
+		{Heading: "Before first"},
+		{Heading: "Features"},
+		{Heading: "Between one"},
+		{Heading: "Between two"},
+		{Heading: "Features"},
+		{Heading: "After one"},
+		{Heading: "After two"},
+	}}
+
+	merged := changelog.Merge(generated, foreign)
+
+	testastic.SliceEqual(t, []string{
+		"Before first", "Features", "Between one", "Between two", "Features", "After one", "After two",
+	}, sectionHeadings(merged.Sections))
+	testastic.SliceEqual(t, []string{"first generated"}, merged.Sections[1].Lines)
+	testastic.SliceEqual(t, []string{"second generated"}, merged.Sections[4].Lines)
+}
+
+func BenchmarkMergeManualSections(b *testing.B) {
+	for _, count := range []int{100, 1000, 5000} {
+		b.Run(strconv.Itoa(count), func(b *testing.B) {
+			generated := generatedEntry(changelog.Section{Heading: "Features"})
+
+			foreign := changelog.Entry{Sections: make([]changelog.Section, 0, count+1)}
+			for index := range count {
+				foreign.Sections = append(foreign.Sections, changelog.Section{Heading: strconv.Itoa(index)})
+			}
+
+			foreign.Sections = append(foreign.Sections, changelog.Section{Heading: "Features"})
+
+			b.ReportAllocs()
+
+			for b.Loop() {
+				changelog.Merge(generated, foreign)
+			}
+		})
+	}
 }

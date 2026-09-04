@@ -112,6 +112,16 @@ func manualSectionsByAnchor(generated []Section, owned []string, foreign []Secti
 	generatedLines := lineSet(generated)
 	generatedPositions := matchGeneratedPositions(generated, foreign)
 
+	nextAnchors := make([]int, len(foreign))
+	anchor := len(generated)
+
+	for idx := len(foreign) - 1; idx >= 0; idx-- {
+		nextAnchors[idx] = anchor
+		if position, matched := generatedPositions[idx]; matched {
+			anchor = position
+		}
+	}
+
 	manual := make(map[int][]Section)
 
 	for idx, section := range foreign {
@@ -127,15 +137,7 @@ func manualSectionsByAnchor(generated []Section, owned []string, foreign []Secti
 			continue
 		}
 
-		anchor := len(generated)
-		for followingIdx := idx + 1; followingIdx < len(foreign); followingIdx++ {
-			if position, matched := generatedPositions[followingIdx]; matched {
-				anchor = position
-
-				break
-			}
-		}
-
+		anchor := nextAnchors[idx]
 		manual[anchor] = append(manual[anchor], section)
 	}
 
