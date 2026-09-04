@@ -65,18 +65,12 @@ func (g *GitLab) UpdateFiles(
 			action = gitlab.FileCreate
 		}
 
-		pathValue := path
-		contentValue := update.Content
-		actionValue := action
-
 		actions = append(actions, &gitlab.CommitActionOptions{
-			Action:   &actionValue,
-			FilePath: &pathValue,
-			Content:  &contentValue,
+			Action:   new(action),
+			FilePath: new(path),
+			Content:  new(update.Content),
 		})
 	}
-
-	force := true
 
 	slog.DebugContext(ctx, "gitlab: updating files",
 		slog.String("branch", branch),
@@ -89,7 +83,7 @@ func (g *GitLab) UpdateFiles(
 		CommitMessage: new(message),
 		StartBranch:   new(base),
 		Actions:       actions,
-		Force:         &force,
+		Force:         new(true),
 	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("force update branch %s: %w", branch, err)
