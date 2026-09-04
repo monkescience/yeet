@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.14.10](https://github.com/monkescience/yeet/compare/v0.14.9...v0.14.10) (2026-09-04)
+
+### Bug Fixes
+
+- **deps:** update module github.com/monkescience/testastic to v0.4.5 (#258) ([c3ea5a6](https://github.com/monkescience/yeet/commit/c3ea5a604109319beb0d2e7bb5c1acabb149e377))
+
+### Performance Improvements
+
+- **release:** iterate commit override lines without a split slice ([00216e7](https://github.com/monkescience/yeet/commit/00216e70ac109b642877fa1ff9ec4c725777f3d3))
+- **changelog:** compute section anchors in one pass ([191cab7](https://github.com/monkescience/yeet/commit/191cab7834fb5188e35992c67e94598f108ea93d))
+
 ## [v0.14.9](https://github.com/monkescience/yeet/compare/v0.14.8...v0.14.9) (2026-09-03)
 
 ### Bug Fixes
