@@ -50,7 +50,7 @@ func (t *releaseText) validate(plans []TargetPlan, bodyLimit int) error {
 		return nil
 	}
 
-	_, err := t.render(plans, t.run.releaseBranch, bodyLimit)
+	_, err := t.render(plans, t.run.releaseBranch, bodyLimit, combinedReleaseUnitID)
 
 	return err
 }
@@ -59,11 +59,11 @@ func (t *releaseText) render(
 	plans []TargetPlan,
 	releaseBranch string,
 	providerBodyLimit int,
-	unitIDs ...string,
+	unitID string,
 ) (*RenderedRelease, error) {
-	manifest := releaseManifestForPlans(t.run.baseBranch, plans, unitIDs...)
-	if len(unitIDs) > 0 && unitIDs[0] != combinedReleaseUnitID {
-		manifest.ConfiguredTargets = t.configuredManifestTargets(unitIDs[0])
+	manifest := releaseManifestForPlans(t.run.baseBranch, plans, unitID)
+	if unitID != combinedReleaseUnitID {
+		manifest.ConfiguredTargets = t.configuredManifestTargets(unitID)
 	}
 
 	manifest.Channel = t.run.channelName

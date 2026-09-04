@@ -50,13 +50,13 @@ func releaseRefForPullRequest(pullRequest *forge.PullRequest) (string, error) {
 	return mergeCommitSHA, nil
 }
 
-func releaseManifestForPlans(baseBranch string, plans []TargetPlan, unitIDs ...string) releaseManifest {
+func releaseManifestForPlans(baseBranch string, plans []TargetPlan, unitID string) releaseManifest {
 	manifest := releaseManifest{
 		BaseBranch: baseBranch,
 		Targets:    make([]releaseManifestEntry, 0, len(plans)),
 	}
-	if len(unitIDs) > 0 && unitIDs[0] != combinedReleaseUnitID {
-		manifest.Unit = strings.TrimSpace(unitIDs[0])
+	if unitID != combinedReleaseUnitID {
+		manifest.Unit = strings.TrimSpace(unitID)
 	}
 
 	for _, plan := range plans {
@@ -137,17 +137,9 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 func (c *releaseCore) validateReleaseManifest(
 	pullRequest *forge.PullRequest,
 	manifest releaseManifest,
-	units ...releaseUnit,
+	unit releaseUnit,
 ) (releaseManifest, error) {
-	expectedBranch := c.run.releaseBranch
-	expectedUnitID := combinedReleaseUnitID
-
-	if len(units) > 0 {
-		expectedBranch = units[0].ReleaseBranch
-		expectedUnitID = units[0].ID
-	}
-
-	err := c.validateReleaseManifestContext(pullRequest, manifest, expectedBranch, expectedUnitID)
+	err := c.validateReleaseManifestContext(pullRequest, manifest, unit.ReleaseBranch, unit.ID)
 	if err != nil {
 		return releaseManifest{}, err
 	}
@@ -167,11 +159,7 @@ func (c *releaseCore) validateReleaseManifest(
 
 	manifest.Targets = validatedTargets
 
-	if len(units) == 0 {
-		return manifest, nil
-	}
-
-	expectedUnit := units[0]
+	expectedUnit := unit
 	expectedUnit.Plans = c.configuredUnitPlans(expectedUnit.ID)
 
 	err = validateManifestUnitTargets(manifest.ConfiguredTargets, manifest.Targets, expectedUnit)

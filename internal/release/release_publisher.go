@@ -39,16 +39,8 @@ func newReleasePublisher(
 
 func (p *releasePublisher) finalizeMergedReleasePR(
 	ctx context.Context,
-	units ...releaseUnit,
+	unit releaseUnit,
 ) ([]FinalizedRelease, error) {
-	unit := releaseUnit{
-		ID:            combinedReleaseUnitID,
-		ReleaseBranch: p.core.run.releaseBranch,
-	}
-	if len(units) > 0 {
-		unit = units[0]
-	}
-
 	mergedPR, err := p.findMergedReleasePR(ctx, unit)
 	if err != nil {
 		return nil, err

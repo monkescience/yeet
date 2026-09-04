@@ -70,7 +70,7 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 	}
 
 	// when: rendering the marker and parsing the same bytes back
-	marker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans))
+	marker, err := releaseManifestMarker(releaseManifestForPlans(result.BaseBranch, result.Plans, combinedReleaseUnitID))
 	testastic.NoError(t, err)
 	testastic.Equal(t, waveManifestMarker, marker)
 
@@ -249,7 +249,9 @@ func TestValidateReleaseManifest(t *testing.T) {
 			test.mutate(pullRequest, &manifest)
 
 			// when: validating the altered manifest against the active release configuration
-			_, err := r.core.validateReleaseManifest(pullRequest, manifest)
+			_, err := r.core.validateReleaseManifest(pullRequest, manifest, releaseUnit{
+				ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.releaseBranch,
+			})
 
 			// then: the manifest fails closed
 			testastic.ErrorIs(t, err, errInvalidReleaseManifest)
@@ -275,7 +277,9 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 		},
 	}
 
-	_, err := r.core.validateReleaseManifest(pullRequest, manifest)
+	_, err := r.core.validateReleaseManifest(pullRequest, manifest, releaseUnit{
+		ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.releaseBranch,
+	})
 
 	testastic.NoError(t, err)
 }

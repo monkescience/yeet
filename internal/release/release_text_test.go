@@ -246,7 +246,7 @@ func TestReleaseTextRender(t *testing.T) {
 
 		// when: validating and rendering with the same provider limit
 		validateErr := r.lifecycle.text.validate(plans, 4000)
-		rendered, renderErr := r.lifecycle.text.render(plans, "existing-release-branch", 4000)
+		rendered, renderErr := r.lifecycle.text.render(plans, "existing-release-branch", 4000, combinedReleaseUnitID)
 
 		// then: both calls succeed and render returns the complete publication values
 		testastic.NoError(t, validateErr)
@@ -268,7 +268,7 @@ func TestReleaseTextRender(t *testing.T) {
 
 		// when: validating and rendering the same release data
 		validateErr := r.lifecycle.text.validate(plans, 4000)
-		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000)
+		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000, combinedReleaseUnitID)
 
 		// then: both report the same failure and no partial value escapes
 		testastic.ErrorIs(t, validateErr, config.ErrInvalidConfig)
@@ -294,7 +294,7 @@ func TestReleaseTextRenderOmittingNotesDoesNotLog(t *testing.T) {
 	warnings := captureWarnings(t)
 
 	// when: rendering at the provider limit
-	rendered, err := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000)
+	rendered, err := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000, combinedReleaseUnitID)
 
 	// then: the result reports omission and the pure renderer emits no warning
 	testastic.NoError(t, err)
