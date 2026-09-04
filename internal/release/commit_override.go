@@ -53,11 +53,11 @@ func commitOverrideMessages(
 }
 
 func splitCommitOverrideMessages(ctx context.Context, block string, knownTypes map[string]struct{}) []string {
-	lines := strings.Split(strings.ReplaceAll(block, "\r\n", "\n"), "\n")
+	lines := strings.SplitSeq(strings.ReplaceAll(block, "\r\n", "\n"), "\n")
 	messages := make([]string, 0)
 	current := make([]string, 0)
 
-	for _, line := range lines {
+	for line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if len(current) > 0 && isConventionalCommitHeader(ctx, trimmedLine, knownTypes) && previousLineBlank(current) {
 			messages = appendCommitOverrideMessage(messages, current)
