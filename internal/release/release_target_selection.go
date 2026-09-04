@@ -1,8 +1,9 @@
 package release
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
@@ -170,15 +171,12 @@ func orderedPlans(plans map[string]TargetPlan) []TargetPlan {
 		ordered = append(ordered, plan)
 	}
 
-	sort.SliceStable(ordered, func(leftIdx, rightIdx int) bool {
-		leftPlan := ordered[leftIdx]
-		rightPlan := ordered[rightIdx]
-
-		if leftPlan.Type != rightPlan.Type {
-			return leftPlan.Type < rightPlan.Type
+	slices.SortStableFunc(ordered, func(left, right TargetPlan) int {
+		if order := cmp.Compare(left.Type, right.Type); order != 0 {
+			return order
 		}
 
-		return leftPlan.ID < rightPlan.ID
+		return cmp.Compare(left.ID, right.ID)
 	})
 
 	return ordered
@@ -195,19 +193,7 @@ func sortedTargetIDs(targets map[string]config.ResolvedTarget, targetType config
 		ids = append(ids, targetID)
 	}
 
-	sort.Strings(ids)
-
-	return ids
-}
-
-func sortedHistoryTargetIDs(targets map[string]config.ResolvedTarget) []string {
-	ids := make([]string, 0, len(targets))
-
-	for id := range targets {
-		ids = append(ids, id)
-	}
-
-	sort.Strings(ids)
+	slices.Sort(ids)
 
 	return ids
 }

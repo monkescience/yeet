@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"sort"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
@@ -50,7 +49,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 	refsByTargetID := make(map[string][]string, len(targets))
 	requiredRefs := make(map[string]struct{})
 
-	for _, targetID := range sortedHistoryTargetIDs(targets) {
+	for _, targetID := range slices.Sorted(maps.Keys(targets)) {
 		target := targets[targetID]
 
 		refs := a.versionHistoryRefs(scan, target)
@@ -77,12 +76,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 		return nil
 	}
 
-	refs := make([]string, 0, len(requiredRefs))
-	for ref := range requiredRefs {
-		refs = append(refs, ref)
-	}
-
-	sort.Strings(refs)
+	refs := slices.Sorted(maps.Keys(requiredRefs))
 
 	scanned, err := a.history.GetCommitsSinceRefs(
 		ctx,
