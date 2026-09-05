@@ -1,0 +1,4 @@
+[
+  {"ID":"group:backend","BranchValue":"group-backend-49332e0213","TargetIDs":["worker","api"]},
+  {"ID":"target:web","BranchValue":"target-web-1355f0b5d0","TargetIDs":["web"]}
+]

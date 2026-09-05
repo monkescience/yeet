@@ -2,7 +2,6 @@ package release
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -20,6 +19,7 @@ type releaseText struct {
 	cfg     *config.Config
 	run     releaseRun
 	targets map[string]config.ResolvedTarget
+	layout  config.ReleaseLayout
 	titles  *releaseTitleTemplates
 }
 
@@ -36,13 +36,14 @@ func newReleaseText(
 	cfg *config.Config,
 	run releaseRun,
 	targets map[string]config.ResolvedTarget,
+	layout config.ReleaseLayout,
 ) (*releaseText, error) {
 	titles, err := newReleaseTitleTemplates(cfg.Release)
 	if err != nil {
 		return nil, err
 	}
 
-	return &releaseText{cfg: cfg, run: run, targets: targets, titles: titles}, nil
+	return &releaseText{cfg: cfg, run: run, targets: targets, layout: layout, titles: titles}, nil
 }
 
 func (t *releaseText) validate(plans []TargetPlan, bodyLimit int) error {
@@ -116,17 +117,17 @@ func (t *releaseText) render(
 }
 
 func (t *releaseText) configuredManifestTargets(unitID string) []releaseManifestTarget {
-	targetIDs := make([]string, 0)
-	if targetID, found := strings.CutPrefix(unitID, "target:"); found {
-		targetIDs = append(targetIDs, targetID)
-	} else if groupName, found := strings.CutPrefix(unitID, "group:"); found {
-		group, exists := releaseGroupConfig(t.cfg, groupName)
-		if exists {
-			targetIDs = append(targetIDs, group.Targets...)
+	var targetIDs []string
+
+	if unitID != combinedReleaseUnitID {
+		for _, unit := range t.layout.Units() {
+			if unit.ID == unitID {
+				targetIDs = unit.TargetIDs
+
+				break
+			}
 		}
 	}
-
-	slices.Sort(targetIDs)
 
 	targets := make([]releaseManifestTarget, 0, len(targetIDs))
 	for _, targetID := range targetIDs {

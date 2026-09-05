@@ -253,7 +253,7 @@ func TestExpandReleaseGroupSelection(t *testing.T) {
 	}
 
 	// when: expanding target selection before analysis
-	selected := expandReleaseGroupSelection(cfg, []string{"api"})
+	selected := cfg.ReleaseLayout().ExpandSelection([]string{"api"})
 
 	// then: the full group is selected exactly once
 	testastic.SliceEqual(t, []string{"api", "web"}, selected)

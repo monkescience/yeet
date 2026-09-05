@@ -117,6 +117,7 @@ func newReleaseCoreAt(
 		cfg:         cfg,
 		run:         run,
 		targets:     targets,
+		layout:      cfg.ReleaseLayout(),
 		metadata:    metadata,
 		releaseTime: now.In(location),
 	}, nil
@@ -131,7 +132,7 @@ func newReleaser(
 		return nil, errNilHistorySource
 	}
 
-	text, err := newReleaseText(core.cfg, core.run, core.targets)
+	text, err := newReleaseText(core.cfg, core.run, core.targets, core.layout)
 	if err != nil {
 		return nil, err
 	}

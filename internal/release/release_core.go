@@ -14,6 +14,7 @@ type releaseCore struct {
 	cfg         *config.Config
 	run         releaseRun
 	targets     map[string]config.ResolvedTarget
+	layout      config.ReleaseLayout
 	metadata    repoMetadataProvider
 	releaseTime time.Time
 }

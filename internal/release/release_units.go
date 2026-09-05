@@ -1,8 +1,6 @@
 package release
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
@@ -20,84 +18,6 @@ type releaseUnit struct {
 	BranchValue   string
 	ReleaseBranch string
 	Plans         []TargetPlan
-}
-
-func configuredReleaseUnitBranchValues(cfg *config.Config) []string {
-	if cfg.Release.PullRequestMode != config.PullRequestModeIndependent {
-		return []string{""}
-	}
-
-	groupedTargets := make(map[string]struct{})
-	values := make([]string, 0, len(cfg.Targets)+len(cfg.Release.Groups))
-
-	for _, groupName := range slices.Sorted(maps.Keys(cfg.Release.Groups)) {
-		values = append(values, releaseUnitBranchValue("group", groupName))
-		for _, targetID := range cfg.Release.Groups[groupName].Targets {
-			groupedTargets[strings.TrimSpace(targetID)] = struct{}{}
-		}
-	}
-
-	for _, targetID := range slices.Sorted(maps.Keys(cfg.Targets)) {
-		if _, grouped := groupedTargets[strings.TrimSpace(targetID)]; grouped {
-			continue
-		}
-
-		values = append(values, releaseUnitBranchValue("target", targetID))
-	}
-
-	return values
-}
-
-func releaseUnitBranchValue(kind, name string) string {
-	normalized := strings.TrimSpace(name)
-
-	var slug strings.Builder
-
-	lastWasSeparator := false
-
-	for _, r := range strings.ToLower(normalized) {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
-			slug.WriteRune(r)
-
-			lastWasSeparator = false
-
-			continue
-		}
-
-		if slug.Len() > 0 && !lastWasSeparator {
-			slug.WriteByte('-')
-
-			lastWasSeparator = true
-		}
-	}
-
-	readable := strings.Trim(slug.String(), "-")
-	if readable == "" {
-		readable = "unit"
-	}
-
-	const maxReadableLength = 40
-	if len(readable) > maxReadableLength {
-		readable = strings.TrimRight(readable[:maxReadableLength], "-")
-	}
-
-	digest := sha256.Sum256([]byte(kind + "\x00" + normalized))
-
-	return kind + "-" + readable + "-" + hex.EncodeToString(digest[:5])
-}
-
-func releaseUnitIdentity(kind, name string) string {
-	return kind + ":" + strings.TrimSpace(name)
-}
-
-func releaseGroupConfig(cfg *config.Config, name string) (config.ReleaseGroupConfig, bool) {
-	for groupName, group := range cfg.Release.Groups {
-		if strings.TrimSpace(groupName) == strings.TrimSpace(name) {
-			return group, true
-		}
-	}
-
-	return config.ReleaseGroupConfig{}, false
 }
 
 func planReleaseUnits(core *releaseCore, plans []TargetPlan) ([]releaseUnit, error) {
@@ -118,7 +38,7 @@ func planReleaseUnits(core *releaseCore, plans []TargetPlan) ([]releaseUnit, err
 		}}, nil
 	}
 
-	units := independentReleaseUnits(core.cfg, plans)
+	units := independentReleaseUnits(core.layout, plans)
 	for index := range units {
 		units[index].ReleaseBranch, err = renderReleaseBranch(
 			tmpl,
@@ -154,7 +74,7 @@ func configuredReleaseUnits(core *releaseCore) ([]releaseUnit, error) {
 		}}, nil
 	}
 
-	units := independentReleaseUnits(core.cfg, plans)
+	units := independentReleaseUnits(core.layout, plans)
 
 	tmpl, err := newReleaseBranchTemplate(effectiveReleaseBranchTemplateSource(core.cfg))
 	if err != nil {
@@ -193,69 +113,47 @@ func (c *releaseCore) configuredUnitPlans(unitID string) []TargetPlan {
 		return plans
 	}
 
-	groupByTarget := make(map[string]string)
-
-	for groupName, group := range c.cfg.Release.Groups {
-		for _, targetID := range group.Targets {
-			groupByTarget[strings.TrimSpace(targetID)] = groupName
-		}
-	}
-
 	plans := make([]TargetPlan, 0)
 
-	for _, targetID := range slices.Sorted(maps.Keys(c.targets)) {
-		kind := "target"
-
-		name := targetID
-		if groupName, grouped := groupByTarget[targetID]; grouped {
-			kind = "group"
-			name = groupName
-		}
-
-		if releaseUnitIdentity(kind, name) != unitID {
+	for _, unit := range c.layout.Units() {
+		if unit.ID != unitID {
 			continue
 		}
 
-		target := c.targets[targetID]
-		plans = append(plans, TargetPlan{ID: targetID, Type: target.Type})
+		for _, targetID := range unit.TargetIDs {
+			target := c.targets[targetID]
+			plans = append(plans, TargetPlan{ID: targetID, Type: target.Type})
+		}
 	}
+
+	slices.SortFunc(plans, func(left, right TargetPlan) int {
+		return strings.Compare(left.ID, right.ID)
+	})
 
 	return plans
 }
 
-func independentReleaseUnits(cfg *config.Config, plans []TargetPlan) []releaseUnit {
-	groupByTarget := make(map[string]string)
+func independentReleaseUnits(layout config.ReleaseLayout, plans []TargetPlan) []releaseUnit {
+	unitByTarget := make(map[string]config.ConfiguredReleaseUnit)
 
-	for _, groupName := range slices.Sorted(maps.Keys(cfg.Release.Groups)) {
-		for _, targetID := range cfg.Release.Groups[groupName].Targets {
-			groupByTarget[strings.TrimSpace(targetID)] = groupName
+	for _, unit := range layout.Units() {
+		for _, targetID := range unit.TargetIDs {
+			unitByTarget[targetID] = unit
 		}
 	}
 
 	unitsByID := make(map[string]releaseUnit)
 
 	for _, plan := range plans {
-		kind := "target"
-
-		name := plan.ID
-		if groupName, grouped := groupByTarget[plan.ID]; grouped {
-			kind = "group"
-			name = groupName
-		}
-
-		unitID := releaseUnitIdentity(kind, name)
-		unit := unitsByID[unitID]
-		unit.ID = unitID
-		unit.BranchValue = releaseUnitBranchValue(kind, name)
+		configured := unitByTarget[plan.ID]
+		unit := unitsByID[configured.ID]
+		unit.ID = configured.ID
+		unit.BranchValue = configured.BranchValue
 		unit.Plans = append(unit.Plans, plan)
-		unitsByID[unitID] = unit
+		unitsByID[unit.ID] = unit
 	}
 
-	units := make([]releaseUnit, 0, len(unitsByID))
-	for _, unit := range unitsByID {
-		units = append(units, unit)
-	}
-
+	units := slices.Collect(maps.Values(unitsByID))
 	slices.SortFunc(units, func(left, right releaseUnit) int {
 		return strings.Compare(left.ID, right.ID)
 	})

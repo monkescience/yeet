@@ -229,11 +229,16 @@ func TestIndependentReleaseWorkflow(t *testing.T) {
 		tmpl, templateErr := newReleaseBranchTemplate(effectiveReleaseBranchTemplateSource(cfg))
 		testastic.NoError(t, templateErr)
 
+		previousConfig := newConfig(t)
+		previousConfig.Release.Groups = map[string]config.ReleaseGroupConfig{
+			"backend": {Targets: []string{"api", "web"}},
+		}
+
 		oldBranch, branchErr := renderReleaseBranch(
 			tmpl,
 			cfg.Branch,
 			"",
-			releaseUnitBranchValue("group", "backend"),
+			previousConfig.ReleaseLayout().Units()[0].BranchValue,
 		)
 		testastic.NoError(t, branchErr)
 

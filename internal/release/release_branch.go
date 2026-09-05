@@ -28,7 +28,13 @@ func validateReleaseBranchTemplates(cfg *config.Config) error {
 		return err
 	}
 
-	unitValues := configuredReleaseUnitBranchValues(cfg)
+	configuredUnits := cfg.ReleaseLayout().Units()
+
+	unitValues := make([]string, 0, len(configuredUnits))
+	for _, unit := range configuredUnits {
+		unitValues = append(unitValues, unit.BranchValue)
+	}
+
 	seen := make(map[string]string, (len(cfg.Release.Channels)+1)*len(unitValues))
 
 	if strings.TrimSpace(cfg.Branch) != "" {
