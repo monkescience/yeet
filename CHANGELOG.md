@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.14.11](https://github.com/monkescience/yeet/compare/v0.14.10...v0.14.11) (2026-09-05)
+
+### Bug Fixes
+
+- generate structured Homebrew postflight steps ([f1876f2](https://github.com/monkescience/yeet/commit/f1876f2679a31c0abe0a8aac228bad8572e0425a))
+
 ## [v0.14.10](https://github.com/monkescience/yeet/compare/v0.14.9...v0.14.10) (2026-09-04)
 
 ### Bug Fixes
