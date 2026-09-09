@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.14.12](https://github.com/monkescience/yeet/compare/v0.14.11...v0.14.12) (2026-09-09)
+
+### Bug Fixes
+
+- **deps:** update module charm.land/log/v2 to v2.0.1 (#262) ([d6822e3](https://github.com/monkescience/yeet/commit/d6822e3ab0f8f43b8c5ace7e052ec434ae03d1ca))
+- **deps:** update module github.com/google/go-github/v90 to v91 (#265) ([23bc430](https://github.com/monkescience/yeet/commit/23bc4303522b7940ddefda91c2a65e022702e2e1))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.0.1 (#263) ([279f1a0](https://github.com/monkescience/yeet/commit/279f1a0d633e65d2f419c0a80769ce406d4a9926))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.62.0 (#264) ([8f36d5a](https://github.com/monkescience/yeet/commit/8f36d5a55938f32c90d1fdba971b4bde2b1c6251))
+
 ## [v0.14.11](https://github.com/monkescience/yeet/compare/v0.14.10...v0.14.11) (2026-09-05)
 
 ### Bug Fixes
