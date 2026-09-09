@@ -1,2 +1,2 @@
-DEBU initializing config file path=.yeet.yaml
-INFO created config file path=.yeet.yaml
+DEBUG initializing config file path=.yeet.yaml
+INFO  created config file path=.yeet.yaml
