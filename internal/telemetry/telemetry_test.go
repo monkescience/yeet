@@ -199,6 +199,65 @@ func TestEventFields(t *testing.T) {
 		testastic.Equal(t, "failure", outcome(errors.New("failed")))
 	})
 
+	for name, test := range map[string]struct {
+		configuredEnabled bool
+		configuredForce   bool
+		options           release.Options
+		expected          string
+	}{
+		"configured off": {
+			expected: "off",
+		},
+		"configured normal": {
+			configuredEnabled: true,
+			expected:          "normal",
+		},
+		"configured force": {
+			configuredForce: true,
+			expected:        "force",
+		},
+		"explicit enable overrides configured off": {
+			options:  release.Options{AutoMerge: new(true)},
+			expected: "normal",
+		},
+		"explicit false clears configured force": {
+			configuredEnabled: true,
+			configuredForce:   true,
+			options:           release.Options{AutoMerge: new(false)},
+			expected:          "off",
+		},
+		"explicit force false retains configured normal": {
+			configuredEnabled: true,
+			configuredForce:   true,
+			options:           release.Options{AutoMergeForce: new(false)},
+			expected:          "normal",
+		},
+		"explicit force overrides explicit false": {
+			configuredEnabled: true,
+			configuredForce:   true,
+			options: release.Options{
+				AutoMerge:      new(false),
+				AutoMergeForce: new(true),
+			},
+			expected: "force",
+		},
+	} {
+		t.Run("auto merge mode/"+name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: configured auto-merge behavior and optional explicit flags
+			cfg := config.Default()
+			cfg.Release.AutoMerge = test.configuredEnabled
+			cfg.Release.AutoMergeForce = test.configuredForce
+
+			// when: building the release telemetry profile
+			profile := releaseProfile(cfg, test.options, nil)
+
+			// then: the field reports the release package's resolved mode
+			testastic.Equal(t, test.expected, profile.autoMerge)
+		})
+	}
+
 	t.Run("failure categories", func(t *testing.T) {
 		t.Parallel()
 

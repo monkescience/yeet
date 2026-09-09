@@ -181,7 +181,7 @@ func releaseProfile(cfg *config.Config, opts release.Options, result *release.Re
 		versioning:         releaseVersioning(cfg),
 		dryRun:             boolString(opts.DryRun),
 		channelsConfigured: boolString(len(cfg.Release.Channels) > 0),
-		autoMerge:          releaseAutoMerge(cfg, opts),
+		autoMerge:          string(opts.ResolveAutoMerge(cfg.Release)),
 	}
 }
 
@@ -245,32 +245,6 @@ func releaseVersioning(cfg *config.Config) string {
 	}
 
 	return ""
-}
-
-func releaseAutoMerge(cfg *config.Config, opts release.Options) string {
-	enabled := cfg.Release.AutoMerge
-	forced := cfg.Release.AutoMergeForce
-
-	if opts.AutoMerge != nil {
-		enabled = *opts.AutoMerge
-		if !enabled {
-			forced = false
-		}
-	}
-
-	if opts.AutoMergeForce != nil {
-		forced = *opts.AutoMergeForce
-	}
-
-	if forced {
-		return "force"
-	}
-
-	if enabled {
-		return "normal"
-	}
-
-	return "off"
 }
 
 func boolString(value bool) string {

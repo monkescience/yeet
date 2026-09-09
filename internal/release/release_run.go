@@ -24,16 +24,19 @@ type autoMergeSettings struct {
 }
 
 func resolveRun(cfg *config.Config, currentBranch string, options Options) (releaseRun, error) {
+	autoMergeMode := options.ResolveAutoMerge(cfg.Release)
 	run := releaseRun{
 		baseBranch: strings.TrimSpace(cfg.Branch),
 		autoMerge: autoMergeSettings{
-			enabled: cfg.Release.AutoMerge,
-			force:   cfg.Release.AutoMergeForce,
+			enabled: autoMergeMode != AutoMergeModeOff,
+			force:   autoMergeMode == AutoMergeModeForce,
 			method:  cfg.Release.AutoMergeMethod,
 		},
 	}
 
-	applyAutoMergeOptions(&run.autoMerge, options)
+	if options.AutoMergeMethod != nil {
+		run.autoMerge.method = config.AutoMergeMethod(*options.AutoMergeMethod)
+	}
 
 	err := config.ValidateAutoMergeMethod(run.autoMerge.method)
 	if err != nil {
@@ -57,27 +60,6 @@ func resolveRun(cfg *config.Config, currentBranch string, options Options) (rele
 	}
 
 	return run, nil
-}
-
-func applyAutoMergeOptions(settings *autoMergeSettings, options Options) {
-	if options.AutoMerge != nil {
-		settings.enabled = *options.AutoMerge
-		if !*options.AutoMerge {
-			settings.force = false
-		}
-	}
-
-	if options.AutoMergeForce != nil {
-		settings.force = *options.AutoMergeForce
-	}
-
-	if options.AutoMergeMethod != nil {
-		settings.method = config.AutoMergeMethod(*options.AutoMergeMethod)
-	}
-
-	if settings.force {
-		settings.enabled = true
-	}
 }
 
 func resolveRunChannel(
