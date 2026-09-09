@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	githubapi "github.com/google/go-github/v90/github"
+	githubapi "github.com/google/go-github/v91/github"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/forge"
