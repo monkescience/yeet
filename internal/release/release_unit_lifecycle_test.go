@@ -7,11 +7,45 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
 type lifecycleTestError struct{}
+
+func TestReleaseRefreshReturnsPlansWithoutMutatingInputs(t *testing.T) {
+	t.Parallel()
+
+	// given: an existing release PR with manual notes and auto merge enabled
+	r, stub, units := newPlannedIndependentLifecycle(t, true)
+	preview, err := r.lifecycle.preview(t.Context(), units)
+	testastic.NoError(t, err)
+
+	unit := units[0]
+	plan := unit.Plans[0]
+	originalEntry := changelog.Render(plan.Entry)
+	originalPREntry := changelog.Render(plan.PREntry)
+	manualNotes := "\n### Upgrade notes\n\n- restart the service after upgrading\n"
+	stub.files[providerFileKey(unit.ReleaseBranch, plan.ChangelogFile)] = originalEntry + manualNotes
+	stub.openPending = []*forge.PullRequest{{
+		Number: 7,
+		Branch: unit.ReleaseBranch,
+		Body:   preview.units[0].text.PROptions.Body,
+	}}
+
+	// when: refreshing and publishing the planned release units
+	outcome, err := r.lifecycle.apply(t.Context(), units)
+
+	// then: the inputs stay unchanged and every refreshed output carries the manual notes
+	testastic.NoError(t, err)
+	testastic.Equal(t, originalEntry, changelog.Render(units[0].Plans[0].Entry))
+	testastic.Equal(t, originalPREntry, changelog.Render(units[0].Plans[0].PREntry))
+	testastic.Contains(t, changelog.Render(outcome.units[0].plans[0].Entry), manualNotes)
+	testastic.Contains(t, changelog.Render(outcome.units[0].plans[0].PREntry), manualNotes)
+	testastic.Contains(t, outcome.units[0].pullRequest.Body, "restart the service after upgrading")
+	testastic.Contains(t, outcome.units[0].releases[0].Release.Body, manualNotes)
+}
 
 func (e *lifecycleTestError) Error() string {
 	return "test lifecycle failure"

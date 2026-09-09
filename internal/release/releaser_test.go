@@ -1802,7 +1802,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}
 
 		// when: preserving edits for both release plans
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
+		_, err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the shared branch and path are fetched once
 		testastic.NoError(t, err)
@@ -1839,7 +1839,7 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}
 
 		// when: preserving edits for both release plans
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
+		_, err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the shared missing branch and path are fetched once
 		testastic.NoError(t, err)
@@ -1888,11 +1888,11 @@ func TestReleaseChangelogSourceOfTruth(t *testing.T) {
 		}}}
 
 		// when: preserving edits after the configured changelog path moved
-		err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
+		plans, err := workflow.preserveExistingChangelogEdits(t.Context(), existing, result.Plans)
 
 		// then: the manual section recorded at the manifest path survives
 		testastic.NoError(t, err)
-		testastic.True(t, strings.Contains(changelog.Render(result.Plans[0].Entry), "rotate the signing key by hand"))
+		testastic.True(t, strings.Contains(changelog.Render(plans[0].Entry), "rotate the signing key by hand"))
 	})
 
 	t.Run("new release PR includes changelog guidance without editable notes markers", func(t *testing.T) {

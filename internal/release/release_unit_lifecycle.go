@@ -139,7 +139,7 @@ func (l *releaseUnitLifecycle) apply(
 	l.logReleaseAnalysis(ctx, units)
 
 	reconciliationErr := l.reconcile(ctx, units, &outcome)
-	autoMergeErr := l.autoMergeUnits(ctx, units, &outcome)
+	autoMergeErr := l.autoMergeUnits(ctx, &outcome)
 
 	return outcome, errors.Join(reconciliationErr, autoMergeErr)
 }
@@ -278,13 +278,13 @@ func (l *releaseUnitLifecycle) reconcile(
 			)
 		}
 
-		pullRequest, text, err := l.createOrUpdate(ctx, unit)
+		reconciled, err := l.createOrUpdate(ctx, unit)
 		unitOutcome := &outcome.units[index]
-		unitOutcome.pullRequest = pullRequest
-		unitOutcome.plans = slices.Clone(unit.Plans)
+		unitOutcome.pullRequest = reconciled.pullRequest
+		unitOutcome.plans = reconciled.plans
 
-		if text != nil {
-			unitOutcome.text = text
+		if reconciled.text != nil {
+			unitOutcome.text = reconciled.text
 		}
 
 		if err == nil {
@@ -301,7 +301,6 @@ func (l *releaseUnitLifecycle) reconcile(
 
 func (l *releaseUnitLifecycle) autoMergeUnits(
 	ctx context.Context,
-	units []releaseUnit,
 	outcome *releaseUnitBatchOutcome,
 ) error {
 	if !l.core.run.autoMerge.enabled {
@@ -310,7 +309,7 @@ func (l *releaseUnitLifecycle) autoMergeUnits(
 
 	errs := make([]error, 0)
 
-	for index, unit := range units {
+	for index := range outcome.units {
 		unitOutcome := &outcome.units[index]
 		if unitOutcome.err != nil {
 			continue
@@ -318,7 +317,7 @@ func (l *releaseUnitLifecycle) autoMergeUnits(
 
 		if l.core.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
 			slog.InfoContext(ctx, "auto-merging release unit",
-				slog.String("unit", unit.ID),
+				slog.String("unit", unitOutcome.unit),
 				slog.String("phase", "auto_merge"),
 			)
 		}
@@ -326,7 +325,7 @@ func (l *releaseUnitLifecycle) autoMergeUnits(
 		published, err := l.autoMerge(
 			ctx,
 			unitOutcome.pullRequest,
-			unit.Plans,
+			unitOutcome.plans,
 			unitOutcome.text.ReleaseNames,
 		)
 		unitOutcome.releases = append(unitOutcome.releases, published...)
@@ -336,7 +335,7 @@ func (l *releaseUnitLifecycle) autoMergeUnits(
 			continue
 		}
 
-		unitErr := l.unitError(unit.ID, "auto-merge", err)
+		unitErr := l.unitError(unitOutcome.unit, "auto-merge", err)
 		unitOutcome.err = unitErr
 		errs = append(errs, unitErr)
 	}
@@ -495,16 +494,16 @@ func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {
 func (l *releaseUnitLifecycle) createOrUpdate(
 	ctx context.Context,
 	unit releaseUnit,
-) (*forge.PullRequest, *RenderedRelease, error) {
-	plans := unit.Plans
+) (releaseUnitOutcome, error) {
+	outcome := releaseUnitOutcome{unit: unit.ID, plans: slices.Clone(unit.Plans)}
 
 	pendingPRs, err := l.findPendingPRs(ctx, unit)
 	if err != nil {
-		return nil, nil, err
+		return outcome, err
 	}
 
 	if len(pendingPRs) > 1 {
-		return nil, nil, multiplePendingReleasePRError(pendingPRs)
+		return outcome, multiplePendingReleasePRError(pendingPRs)
 	}
 
 	if len(pendingPRs) == 1 {
@@ -513,20 +512,21 @@ func (l *releaseUnitLifecycle) createOrUpdate(
 
 	releaseBranch := unit.ReleaseBranch
 
-	rendered, err := l.render(ctx, plans, releaseBranch, unit.ID)
+	rendered, err := l.render(ctx, outcome.plans, releaseBranch, unit.ID)
 	if err != nil {
-		return nil, nil, err
+		return outcome, err
 	}
 
-	pullRequest, err := l.createNew(
+	outcome.text = rendered
+	outcome.pullRequest, err = l.createNew(
 		ctx,
 		releaseBranch,
 		rendered.PROptions,
 		rendered.CommitSubject,
-		plans,
+		outcome.plans,
 	)
 
-	return pullRequest, rendered, err
+	return outcome, err
 }
 
 func (l *releaseUnitLifecycle) findPendingPRs(
@@ -557,44 +557,47 @@ func (l *releaseUnitLifecycle) refreshExisting(
 	ctx context.Context,
 	existing *forge.PullRequest,
 	unit releaseUnit,
-) (*forge.PullRequest, *RenderedRelease, error) {
+) (releaseUnitOutcome, error) {
+	outcome := releaseUnitOutcome{unit: unit.ID, plans: slices.Clone(unit.Plans)}
+
 	if l.core.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
 		manifest, err := releaseManifestFromPullRequest(existing)
 		if err != nil {
-			return nil, nil, err
+			return outcome, err
 		}
 
 		_, err = l.core.validateReleaseManifest(existing, manifest, unit)
 		if err != nil {
-			return nil, nil, err
+			return outcome, err
 		}
 	}
 
 	err := l.adoptUnlabeledReleasePR(ctx, existing)
 	if err != nil {
-		return nil, nil, err
+		return outcome, err
 	}
 
-	err = l.preserveExistingChangelogEdits(ctx, existing, unit.Plans)
+	outcome.plans, err = l.preserveExistingChangelogEdits(ctx, existing, unit.Plans)
 	if err != nil {
-		return nil, nil, err
+		return outcome, err
 	}
 
-	rendered, err := l.render(ctx, unit.Plans, existing.Branch, unit.ID)
+	rendered, err := l.render(ctx, outcome.plans, existing.Branch, unit.ID)
 	if err != nil {
-		return nil, nil, err
+		return outcome, err
 	}
 
-	pullRequest, err := l.updateExisting(
+	outcome.text = rendered
+	outcome.pullRequest, err = l.updateExisting(
 		ctx,
 		existing,
 		existing.Branch,
 		rendered.PROptions,
 		rendered.CommitSubject,
-		unit.Plans,
+		outcome.plans,
 	)
 
-	return pullRequest, rendered, err
+	return outcome, err
 }
 
 func (l *releaseUnitLifecycle) render(
@@ -642,14 +645,15 @@ func (l *releaseUnitLifecycle) preserveExistingChangelogEdits(
 	ctx context.Context,
 	existing *forge.PullRequest,
 	plans []TargetPlan,
-) error {
+) ([]TargetPlan, error) {
+	plans = slices.Clone(plans)
 	r := l.core
 	previousTags := make(map[string]string)
 	previousChangelogFiles := make(map[string]string)
 
 	manifest, hasManifest, err := releaseManifestFromBody(existing.Body)
 	if err != nil {
-		return fmt.Errorf("parse existing release PR manifest: %w", err)
+		return plans, fmt.Errorf("parse existing release PR manifest: %w", err)
 	}
 
 	if hasManifest {
@@ -664,7 +668,7 @@ func (l *releaseUnitLifecycle) preserveExistingChangelogEdits(
 
 		target, exists := r.targets[plan.ID]
 		if !exists {
-			return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
+			return plans, fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
 		}
 
 		changelogFile := target.Changelog.File
@@ -680,7 +684,7 @@ func (l *releaseUnitLifecycle) preserveExistingChangelogEdits(
 			plan,
 		)
 		if err != nil {
-			return err
+			return plans, err
 		}
 
 		if found {
@@ -689,7 +693,7 @@ func (l *releaseUnitLifecycle) preserveExistingChangelogEdits(
 		}
 	}
 
-	return nil
+	return plans, nil
 }
 
 type changelogEdits struct {
