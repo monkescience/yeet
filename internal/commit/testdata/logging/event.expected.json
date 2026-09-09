@@ -1,0 +1,6 @@
+{
+  "time": "{{anyDateTime}}",
+  "level": "DEBUG",
+  "msg": "commit: non-conventional header, treating as no-bump",
+  "hash": "abc1234"
+}

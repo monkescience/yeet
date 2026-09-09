@@ -45,8 +45,9 @@ func TestMerge(t *testing.T) {
 		merged := changelog.Merge(generated, foreign)
 
 		// then: the regenerated section stays authoritative
-		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(merged.Sections))
-		testastic.SliceEqual(t, []string{"- patch issue (abc1234)"}, merged.Sections[0].Lines)
+		testastic.DeepEqual(t, []changelog.Section{
+			{Heading: "Bug Fixes", Lines: []string{"- patch issue (abc1234)"}},
+		}, merged.Sections)
 	})
 
 	t.Run("skips a regenerated section with optional closing hashes", func(t *testing.T) {
@@ -64,8 +65,9 @@ func TestMerge(t *testing.T) {
 		merged := changelog.Merge(generated, foreign)
 
 		// then: the equivalent owned heading is regenerated without a stale duplicate
-		testastic.SliceEqual(t, []string{"Bug Fixes"}, sectionHeadings(merged.Sections))
-		testastic.SliceEqual(t, []string{"- patch issue (abc1234)"}, merged.Sections[0].Lines)
+		testastic.DeepEqual(t, []changelog.Section{
+			{Heading: "Bug Fixes", Lines: []string{"- patch issue (abc1234)"}},
+		}, merged.Sections)
 	})
 
 	t.Run("skips an owned section absent from this entry", func(t *testing.T) {
@@ -292,6 +294,7 @@ func TestMerge(t *testing.T) {
 func TestMergePreservesManualOrderAroundRepeatedHeadings(t *testing.T) {
 	t.Parallel()
 
+	// given: repeated generated headings with manual sections before, between, and after them
 	generated := generatedEntry(
 		changelog.Section{Heading: "Features", Lines: []string{"first generated"}},
 		changelog.Section{Heading: "Features", Lines: []string{"second generated"}},
@@ -306,13 +309,19 @@ func TestMergePreservesManualOrderAroundRepeatedHeadings(t *testing.T) {
 		{Heading: "After two"},
 	}}
 
+	// when: refreshing the generated sections
 	merged := changelog.Merge(generated, foreign)
 
-	testastic.SliceEqual(t, []string{
-		"Before first", "Features", "Between one", "Between two", "Features", "After one", "After two",
-	}, sectionHeadings(merged.Sections))
-	testastic.SliceEqual(t, []string{"first generated"}, merged.Sections[1].Lines)
-	testastic.SliceEqual(t, []string{"second generated"}, merged.Sections[4].Lines)
+	// then: manual sections retain their order and each repeated heading gets its own generated lines
+	testastic.DeepEqual(t, []changelog.Section{
+		{Heading: "Before first"},
+		{Heading: "Features", Lines: []string{"first generated"}},
+		{Heading: "Between one"},
+		{Heading: "Between two"},
+		{Heading: "Features", Lines: []string{"second generated"}},
+		{Heading: "After one"},
+		{Heading: "After two"},
+	}, merged.Sections)
 }
 
 func BenchmarkMergeManualSections(b *testing.B) {

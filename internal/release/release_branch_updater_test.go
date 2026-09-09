@@ -102,10 +102,12 @@ func assertUpdateFilesCommit(
 		return
 	}
 
-	testastic.Equal(t, branch, commits[0].Branch)
-	testastic.Equal(t, base, commits[0].Base)
-	testastic.Equal(t, updateFilesCommitSubject, commits[0].Message)
-	testastic.Equal(t, strings.Join(paths, "\n"), strings.Join(commits[0].Paths, "\n"))
+	testastic.DeepEqual(t, fakeprovider.ContentCommit{
+		Branch:  branch,
+		Base:    base,
+		Message: updateFilesCommitSubject,
+		Paths:   paths,
+	}, commits[0])
 	testastic.True(t, slices.IsSorted(commits[0].Paths))
 }
 

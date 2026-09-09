@@ -119,13 +119,14 @@ func TestAzureDevOpsFindOpenPendingReleasePRsAcceptsExactPaginationCapacity(t *t
 
 	// then: the empty exhaustion probe proves the complete result fits
 	testastic.NoError(t, err)
-	testastic.Equal(t, 0, len(prs))
+	testastic.Empty(t, prs)
 	testastic.Equal(t, int32(101), calls.Load())
 }
 
 func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *testing.T) {
 	t.Parallel()
 
+	// given: a missing release branch and an Azure DevOps server recording ref lookups
 	var baseLookups atomic.Int32
 
 	var branchLookups atomic.Int32
@@ -156,6 +157,7 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 
 	p := newAzureDevOpsContractProvider(t, server)
 
+	// when: updating a file on the missing release branch
 	err := p.UpdateFiles(
 		context.Background(),
 		providerContractReleaseBranch,
@@ -164,6 +166,7 @@ func TestAzureDevOpsUpdateFilesCreatesMissingBranchWithoutDuplicateLookups(t *te
 		"chore: release v1.2.3",
 	)
 
+	// then: branch creation reuses the resolved base and release refs
 	testastic.NoError(t, err)
 	testastic.Equal(t, int32(1), baseLookups.Load())
 	testastic.Equal(t, int32(1), branchLookups.Load())
@@ -757,7 +760,7 @@ func TestAzureDevOpsFindMergedReleasePRReportsWithheldCloseDate(t *testing.T) {
 	)
 
 	// then: the ambiguity names the pull request that caused it, unmasked by the later failure
-	testastic.Contains(t, err.Error(), "merged release PR completion time is unavailable: pull request !41")
+	testastic.ErrorContains(t, err, "merged release PR completion time is unavailable: pull request !41")
 	testastic.SliceEqual(t, []string{"41"}, rereads)
 }
 

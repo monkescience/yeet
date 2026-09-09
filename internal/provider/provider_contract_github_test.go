@@ -497,7 +497,7 @@ func TestGitHubFindMergedReleasePRRereadsUndatedCandidates(t *testing.T) {
 		)
 
 		// then: the failure carries the candidate it belongs to
-		testastic.Contains(t, err.Error(), "get pull request #41")
+		testastic.ErrorContains(t, err, "get pull request #41")
 	})
 
 	t.Run("reports a withheld merge time before re-reading another candidate", func(t *testing.T) {
@@ -785,7 +785,7 @@ func TestGitHubConcurrentTagCreationValidatesCommit(t *testing.T) {
 
 			if testCase.wantErr {
 				testastic.ErrorIs(t, err, forge.ErrReleaseTagMismatch)
-				testastic.True(t, release == nil)
+				testastic.Nil(t, release)
 
 				return
 			}

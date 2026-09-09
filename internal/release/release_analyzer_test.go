@@ -4,10 +4,11 @@ package release
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"log/slog"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
@@ -36,10 +37,27 @@ func TestLogParsedCommits(t *testing.T) {
 	// when: logging the parsed commit metadata
 	logParsedCommits(t.Context(), "service", commits)
 
-	// then: useful classification remains without copying commit text into the log
-	testastic.True(t, strings.Contains(logOutput.String(), `"hash":"abc1234"`))
-	testastic.True(t, strings.Contains(logOutput.String(), `"type":"fix"`))
-	testastic.False(t, strings.Contains(logOutput.String(), "private customer incident details"))
+	// then: the complete event contains only the expected metadata and a valid timestamp
+	var event map[string]any
+
+	err := json.Unmarshal(logOutput.Bytes(), &event)
+	testastic.NoError(t, err)
+
+	loggedAt, ok := event["time"].(string)
+	testastic.True(t, ok)
+
+	_, err = time.Parse(time.RFC3339Nano, loggedAt)
+	testastic.NoError(t, err)
+	delete(event, "time")
+
+	testastic.DeepEqual(t, map[string]any{
+		"level":    "DEBUG",
+		"msg":      "parsed commit",
+		"target":   "service",
+		"hash":     "abc1234",
+		"type":     "fix",
+		"breaking": false,
+	}, event)
 }
 
 func TestOrderedPlans(t *testing.T) {
@@ -55,7 +73,7 @@ func TestOrderedPlans(t *testing.T) {
 		ordered := orderedPlans(plans)
 
 		// then: the slice is empty
-		testastic.Equal(t, 0, len(ordered))
+		testastic.Empty(t, ordered)
 	})
 
 	t.Run("single entry is returned as is", func(t *testing.T) {
@@ -70,8 +88,7 @@ func TestOrderedPlans(t *testing.T) {
 		ordered := orderedPlans(plans)
 
 		// then: that plan is the sole element
-		testastic.Equal(t, 1, len(ordered))
-		testastic.Equal(t, "only", ordered[0].ID)
+		testastic.DeepEqual(t, []TargetPlan{{ID: "only", Type: "service"}}, ordered)
 	})
 
 	t.Run("sorts by type before id", func(t *testing.T) {
@@ -89,11 +106,12 @@ func TestOrderedPlans(t *testing.T) {
 		ordered := orderedPlans(plans)
 
 		// then: type is the primary key, id breaks ties
-		testastic.Equal(t, 4, len(ordered))
-		testastic.Equal(t, "lib-a", ordered[0].ID)
-		testastic.Equal(t, "lib-b", ordered[1].ID)
-		testastic.Equal(t, "svc-a", ordered[2].ID)
-		testastic.Equal(t, "svc-b", ordered[3].ID)
+		testastic.DeepEqual(t, []TargetPlan{
+			{ID: "lib-a", Type: "library"},
+			{ID: "lib-b", Type: "library"},
+			{ID: "svc-a", Type: "service"},
+			{ID: "svc-b", Type: "service"},
+		}, ordered)
 	})
 
 	t.Run("same type sorts by id lexicographically", func(t *testing.T) {
@@ -110,9 +128,11 @@ func TestOrderedPlans(t *testing.T) {
 		ordered := orderedPlans(plans)
 
 		// then: ids appear in ascending order
-		testastic.Equal(t, "alpha", ordered[0].ID)
-		testastic.Equal(t, "beta", ordered[1].ID)
-		testastic.Equal(t, "gamma", ordered[2].ID)
+		testastic.DeepEqual(t, []TargetPlan{
+			{ID: "alpha", Type: "service"},
+			{ID: "beta", Type: "service"},
+			{ID: "gamma", Type: "service"},
+		}, ordered)
 	})
 }
 

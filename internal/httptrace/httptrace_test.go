@@ -6,9 +6,11 @@ import (
 	"encoding/json/v2"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/httptrace"
@@ -56,30 +58,24 @@ func TestTracer(t *testing.T) {
 		_ = response.Body.Close()
 
 		// then: the log keeps diagnostic metadata and excludes private transport data
-		var event struct {
-			Message            string `json:"msg"`
-			Provider           string `json:"provider"`
-			Method             string `json:"method"`
-			Path               string `json:"path"`
-			Status             int    `json:"status"`
-			Attempt            int    `json:"attempt"`
-			RequestID          string `json:"request_id"`
-			RateLimitRemaining string `json:"rate_limit_remaining"`
-		}
+		assertTraceEvent(t, logOutput.Bytes(), map[string]any{
+			"level":                "DEBUG",
+			"msg":                  "http request completed",
+			"provider":             "github",
+			"method":               http.MethodPost,
+			"path":                 "/repos/acme/private/pulls",
+			"status":               float64(http.StatusCreated),
+			"attempt":              float64(2),
+			"request_id":           "request-123",
+			"rate_limit_remaining": "4999",
+			"rate_limit_reset":     "",
+			"retry_after":          "",
+			"transport_error":      "",
+		})
 
-		err = json.Unmarshal(bytes.TrimSpace(logOutput.Bytes()), &event)
-		testastic.NoError(t, err)
-		testastic.Equal(t, "http request completed", event.Message)
-		testastic.Equal(t, "github", event.Provider)
-		testastic.Equal(t, http.MethodPost, event.Method)
-		testastic.Equal(t, "/repos/acme/private/pulls", event.Path)
-		testastic.Equal(t, http.StatusCreated, event.Status)
-		testastic.Equal(t, 2, event.Attempt)
-		testastic.Equal(t, "request-123", event.RequestID)
-		testastic.Equal(t, "4999", event.RateLimitRemaining)
-		testastic.False(t, strings.Contains(logOutput.String(), "fake-sensitive"))
-		testastic.False(t, strings.Contains(logOutput.String(), "private request body"))
-		testastic.False(t, strings.Contains(logOutput.String(), "private response body"))
+		for _, private := range []string{"fake-sensitive", "private request body", "private response body"} {
+			testastic.NotContains(t, logOutput.String(), private)
+		}
 	})
 
 	t.Run("classifies a transport failure without logging its details", func(t *testing.T) {
@@ -114,8 +110,21 @@ func TestTracer(t *testing.T) {
 
 		// then: the failure category is logged without the raw error or query
 		testastic.ErrorIs(t, err, context.DeadlineExceeded)
-		testastic.True(t, strings.Contains(logOutput.String(), `"transport_error":"timeout"`))
-		testastic.False(t, strings.Contains(logOutput.String(), "fake-sensitive"))
+		assertTraceEvent(t, logOutput.Bytes(), map[string]any{
+			"level":                "DEBUG",
+			"msg":                  "http request completed",
+			"provider":             "github",
+			"method":               http.MethodGet,
+			"path":                 "/repos/acme/private",
+			"status":               float64(0),
+			"attempt":              float64(1),
+			"request_id":           "",
+			"rate_limit_remaining": "",
+			"rate_limit_reset":     "",
+			"retry_after":          "",
+			"transport_error":      "timeout",
+		})
+		testastic.NotContains(t, logOutput.String(), "fake-sensitive")
 	})
 
 	t.Run("is silent when debug logging is disabled", func(t *testing.T) {
@@ -156,6 +165,31 @@ func TestTracer(t *testing.T) {
 		// then: no HTTP summary is emitted
 		testastic.Equal(t, "", logOutput.String())
 	})
+}
+
+func assertTraceEvent(t *testing.T, data []byte, expected map[string]any) {
+	t.Helper()
+
+	var event map[string]any
+
+	err := json.Unmarshal(data, &event)
+	testastic.NoError(t, err)
+
+	timestamp, ok := event["time"].(string)
+	testastic.True(t, ok)
+
+	parsed, err := time.Parse(time.RFC3339Nano, timestamp)
+	testastic.NoError(t, err)
+	testastic.False(t, parsed.IsZero())
+
+	duration, ok := event["duration_ms"].(float64)
+	testastic.True(t, ok)
+	testastic.GreaterOrEqual(t, duration, float64(0))
+	testastic.Equal(t, math.Trunc(duration), duration)
+
+	delete(event, "time")
+	delete(event, "duration_ms")
+	testastic.DeepEqual(t, expected, event)
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

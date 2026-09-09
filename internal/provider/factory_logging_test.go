@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -42,8 +41,19 @@ func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
 
 	// then: the SDK request passes through the sanitized HTTP logger
 	testastic.NoError(t, err)
-	testastic.True(t, strings.Contains(logOutput.String(), `"msg":"http request completed"`))
-	testastic.True(t, strings.Contains(logOutput.String(), `"provider":"gitlab"`))
-	testastic.True(t, strings.Contains(logOutput.String(), `"request_id":"gitlab-request-123"`))
-	testastic.False(t, strings.Contains(logOutput.String(), "fake-token"))
+	assertProviderTraceEvent(t, &logOutput, map[string]any{
+		"level":                "DEBUG",
+		"msg":                  "http request completed",
+		"provider":             providerNameGitLab,
+		"method":               http.MethodGet,
+		"path":                 "/api/v4/projects/group%2Fprivate/repository/tags",
+		"status":               float64(http.StatusOK),
+		"attempt":              float64(1),
+		"request_id":           "gitlab-request-123",
+		"rate_limit_remaining": "",
+		"rate_limit_reset":     "",
+		"retry_after":          "",
+		"transport_error":      "",
+	})
+	testastic.NotContains(t, logOutput.String(), "fake-token")
 }

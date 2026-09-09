@@ -52,7 +52,11 @@ func TestReleaseUnlabeledOpenPR(t *testing.T) {
 
 		// then: yeet relabels the interrupted MR instead of opening a second one
 		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Contains(t, result.Stderr, "adopting unlabelled release PR")
+		testastic.AssertFile(
+			t,
+			"testdata/release/gitlab_adopts_unlabeled_release_m_r/stderr.expected.txt",
+			result.Stderr,
+		)
 	})
 
 	t.Run("gitlab refuses a release MR carrying an unrelated label", func(t *testing.T) {

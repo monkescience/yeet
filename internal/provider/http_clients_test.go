@@ -3,12 +3,12 @@ package provider //nolint:testpackage // validates unexported HTTP transport pol
 import (
 	"bytes"
 	"context"
-	"errors"
+	"encoding/json/v2"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +18,58 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 )
+
+func assertProviderTraceEvent(
+	t *testing.T,
+	logOutput *bytes.Buffer,
+	expected map[string]any,
+) {
+	t.Helper()
+
+	var actual map[string]any
+
+	for line := range bytes.SplitSeq(bytes.TrimSpace(logOutput.Bytes()), []byte{'\n'}) {
+		var candidate map[string]any
+
+		err := json.Unmarshal(line, &candidate)
+		testastic.NoError(t, err)
+
+		if candidate["request_id"] == expected["request_id"] {
+			actual = candidate
+		}
+	}
+
+	testastic.NotNil(t, actual)
+
+	if actual == nil {
+		return
+	}
+
+	timestamp, ok := actual["time"].(string)
+	testastic.True(t, ok)
+
+	if !ok {
+		return
+	}
+
+	parsed, err := time.Parse(time.RFC3339Nano, timestamp)
+	testastic.NoError(t, err)
+	testastic.False(t, parsed.IsZero())
+
+	duration, ok := actual["duration_ms"].(float64)
+	testastic.True(t, ok)
+
+	if !ok {
+		return
+	}
+
+	testastic.GreaterOrEqual(t, duration, float64(0))
+	testastic.Equal(t, math.Trunc(duration), duration)
+
+	delete(actual, "time")
+	delete(actual, "duration_ms")
+	testastic.DeepEqual(t, expected, actual)
+}
 
 // fastRetryClient keeps the production attempt bound while shortening the waits
 // so a real retry test finishes in milliseconds.
@@ -95,8 +147,8 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 		testastic.Equal(t, defaults.Retry.MinBackoff, client.RetryWaitMin)
 		testastic.Equal(t, defaults.Retry.MaxBackoff, client.RetryWaitMax)
 		testastic.Equal(t, defaults.RequestTimeout, client.HTTPClient.Timeout)
-		testastic.True(t, client.Logger == nil)
-		testastic.True(t, client.RequestLogHook != nil)
+		testastic.Nil(t, client.Logger)
+		testastic.NotNil(t, client.RequestLogHook)
 		testastic.NotNil(t, client.HTTPClient.Transport)
 		testastic.MapHasKey(t, forgeSpecs, forge)
 	}
@@ -193,14 +245,27 @@ func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
 	// then: the shared retry policy and sanitized tracing cover the SDK requests
 	testastic.NoError(t, err)
 	testastic.Equal(t, int32(2), attempts.Load())
-	testastic.True(t, strings.Contains(logOutput.String(), `"provider":"azuredevops"`))
-	testastic.True(t, strings.Contains(logOutput.String(), `"request_id":"azure-git-request-456"`))
-	testastic.False(t, strings.Contains(logOutput.String(), "fake-token"))
+	assertProviderTraceEvent(t, &logOutput, map[string]any{
+		"level":                "DEBUG",
+		"msg":                  "http request completed",
+		"provider":             providerNameAzureDevOps,
+		"method":               http.MethodGet,
+		"path":                 "/platform/release-tools/_apis/git/repositories/yeet/refs",
+		"status":               float64(http.StatusOK),
+		"attempt":              float64(1),
+		"request_id":           "azure-git-request-456",
+		"rate_limit_remaining": "",
+		"rate_limit_reset":     "",
+		"retry_after":          "",
+		"transport_error":      "",
+	})
+	testastic.NotContains(t, logOutput.String(), "fake-token")
 }
 
 func TestTracedRetryableClientUsesConfiguredNetworkSettings(t *testing.T) {
 	t.Parallel()
 
+	// given: non-default request and retry settings
 	network := config.NetworkConfig{
 		RequestTimeout: 45 * time.Second,
 		Retry: config.NetworkRetryConfig{
@@ -210,8 +275,10 @@ func TestTracedRetryableClientUsesConfiguredNetworkSettings(t *testing.T) {
 		},
 	}
 
+	// when: constructing the shared retryable client
 	client := newTracedRetryableClientWithConfig(providerNameGitHub, network)
 
+	// then: every configured network bound is applied to the client
 	testastic.Equal(t, 6, client.RetryMax)
 	testastic.Equal(t, 2*time.Second, client.RetryWaitMin)
 	testastic.Equal(t, 20*time.Second, client.RetryWaitMax)
@@ -371,7 +438,6 @@ func TestTracedRetryableClientStopsWhenContextIsCanceled(t *testing.T) {
 	// then: cancellation is returned without any retry attempt
 	testastic.ErrorIs(t, err, context.Canceled)
 	testastic.Equal(t, int32(0), attempts.Load())
-	testastic.True(t, errors.Is(err, context.Canceled))
 }
 
 func TestGitLabMutationRequestsAreNotRetried(t *testing.T) {

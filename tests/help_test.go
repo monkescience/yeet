@@ -9,59 +9,46 @@ import (
 func TestHelp(t *testing.T) {
 	t.Parallel()
 
-	t.Run("root --help shows the top-level usage", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name           string
+		args           []string
+		expectedStdout string
+	}{
+		{
+			name:           "root --help shows the top-level usage",
+			args:           []string{"--help"},
+			expectedStdout: "testdata/help/root/stdout.expected.txt",
+		},
+		{
+			name:           "release --help shows the release usage",
+			args:           []string{"release", "--help"},
+			expectedStdout: "testdata/help/release/stdout.expected.txt",
+		},
+		{
+			name:           "init --help shows the init usage",
+			args:           []string{"init", "--help"},
+			expectedStdout: "testdata/help/init/stdout.expected.txt",
+		},
+		{
+			name:           "version --help shows the version usage",
+			args:           []string{"version", "--help"},
+			expectedStdout: "testdata/help/version/stdout.expected.txt",
+		},
+	}
 
-		// given: the yeet binary with no subcommand context
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		// when: running `yeet --help`
-		result := binary.Run(t, "--help")
+			// given: the yeet binary and a help command scope
 
-		// then: the root usage matches the golden file
-		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stderr)
-		testastic.AssertFile(t, "testdata/help/root/stdout.expected.txt", result.Stdout)
-	})
+			// when: requesting help for that scope
+			result := binary.Run(t, test.args...)
 
-	t.Run("release --help shows the release usage", func(t *testing.T) {
-		t.Parallel()
-
-		// given: the yeet binary
-
-		// when: running `yeet release --help`
-		result := binary.Run(t, "release", "--help")
-
-		// then: the release usage matches the golden file
-		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stderr)
-		testastic.AssertFile(t, "testdata/help/release/stdout.expected.txt", result.Stdout)
-	})
-
-	t.Run("init --help shows the init usage", func(t *testing.T) {
-		t.Parallel()
-
-		// given: the yeet binary
-
-		// when: running `yeet init --help`
-		result := binary.Run(t, "init", "--help")
-
-		// then: the init usage matches the golden file
-		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stderr)
-		testastic.AssertFile(t, "testdata/help/init/stdout.expected.txt", result.Stdout)
-	})
-
-	t.Run("version --help shows the version usage", func(t *testing.T) {
-		t.Parallel()
-
-		// given: the yeet binary
-
-		// when: running `yeet version --help`
-		result := binary.Run(t, "version", "--help")
-
-		// then: the version usage matches the golden file
-		testastic.Equal(t, 0, result.ExitCode)
-		testastic.Equal(t, "", result.Stderr)
-		testastic.AssertFile(t, "testdata/help/version/stdout.expected.txt", result.Stdout)
-	})
+			// then: the command succeeds with the complete usage on stdout and no stderr
+			testastic.Equal(t, 0, result.ExitCode)
+			testastic.Equal(t, "", result.Stderr)
+			testastic.AssertFile(t, test.expectedStdout, result.Stdout)
+		})
+	}
 }

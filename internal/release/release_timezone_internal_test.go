@@ -13,6 +13,7 @@ import (
 func TestReleaseTimezoneUsesOneCapturedCalendarDate(t *testing.T) {
 	t.Parallel()
 
+	// given: a CalVer release crossing midnight in the configured timezone
 	cfg := config.Default()
 	cfg.Timezone = "America/Los_Angeles"
 	cfg.Versioning = config.VersioningCalVer
@@ -40,8 +41,10 @@ func TestReleaseTimezoneUsesOneCapturedCalendarDate(t *testing.T) {
 	r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
 	testastic.NoError(t, err)
 
+	// when: planning the release from one captured instant
 	result, err := r.Release(context.Background(), true)
 
+	// then: the version and both changelog entries use the same local calendar date
 	testastic.NoError(t, err)
 	testastic.Len(t, result.Plans, 1)
 	testastic.Equal(t, "2025.12.1", result.Plans[0].NextVersion)

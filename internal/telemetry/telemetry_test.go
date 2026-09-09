@@ -54,6 +54,7 @@ func TestRecordingConfigPrecedence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// given: repository and environment preferences with optional build configuration
 			path := repositoryConfig(t, tt.enabled)
 
 			manager := testManager(tt.environment, nil)
@@ -61,8 +62,10 @@ func TestRecordingConfigPrecedence(t *testing.T) {
 				manager.namespace = ""
 			}
 
+			// when: resolving whether recording is enabled
 			_, enabled := manager.recordingConfig(t.Context(), path)
 
+			// then: opt-out precedence and build availability determine recording
 			testastic.Equal(t, tt.want, enabled)
 		})
 	}
@@ -71,30 +74,37 @@ func TestRecordingConfigPrecedence(t *testing.T) {
 func TestRecordingConfigFallsBackWhenRepositoryConfigIsUnavailable(t *testing.T) {
 	t.Parallel()
 
+	// given: a configured telemetry manager and a missing repository config
 	manager := testManager(nil, nil)
 
+	// when: resolving recording preferences
 	_, enabled := manager.recordingConfig(t.Context(), filepath.Join(t.TempDir(), "missing.yaml"))
 
+	// then: the default enabled preference applies
 	testastic.True(t, enabled)
 }
 
 func TestRecordingConfigFailsClosedWhenRepositoryConfigIsInvalid(t *testing.T) {
 	t.Parallel()
 
+	// given: a repository config with an invalid telemetry preference
 	path := filepath.Join(t.TempDir(), config.DefaultFile)
 	err := os.WriteFile(path, []byte("telemetry:\n  enabled: maybe\n"), 0o600)
 	testastic.NoError(t, err)
 
 	manager := testManager(nil, nil)
 
+	// when: resolving recording preferences
 	_, enabled := manager.recordingConfig(t.Context(), path)
 
+	// then: invalid configuration prevents recording
 	testastic.False(t, enabled)
 }
 
 func TestRecordInit(t *testing.T) {
 	t.Parallel()
 
+	// given: enabled telemetry, a fixed clock, and a transport capturing the request
 	var (
 		requestCount atomic.Int32
 		body         []byte
@@ -118,8 +128,10 @@ func TestRecordInit(t *testing.T) {
 	path := repositoryConfig(t, new(true))
 	started := time.Date(2026, time.August, 21, 11, 59, 54, 0, time.UTC)
 
+	// when: recording a successful initialization
 	manager.RecordInit(t.Context(), started, path, nil)
 
+	// then: one request contains the complete initialization event
 	testastic.Equal(t, int32(1), requestCount.Load())
 	testastic.AssertJSON(t, "testdata/init_event.expected.json", body)
 }
@@ -127,6 +139,7 @@ func TestRecordInit(t *testing.T) {
 func TestDeliveryIsBoundedAndBestEffort(t *testing.T) {
 	t.Parallel()
 
+	// given: enabled telemetry and a transport that always fails
 	var requestCount atomic.Int32
 
 	transport := roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -137,22 +150,32 @@ func TestDeliveryIsBoundedAndBestEffort(t *testing.T) {
 	manager := testManager(nil, transport)
 	path := repositoryConfig(t, new(true))
 
+	// when: recording an initialization during a network failure
 	manager.RecordInit(t.Context(), manager.now(), path, nil)
+
+	// then: delivery makes one attempt with a bounded timeout
 	testastic.Equal(t, int32(1), requestCount.Load())
 	testastic.Equal(t, 3*time.Second, manager.client.Timeout)
 
+	// when: delivering an event larger than the payload limit
 	event := wireEvent{AppID: strings.Repeat("x", maxPayloadSize), Type: eventType}
 	err := manager.deliver(t.Context(), event)
+
+	// then: the payload is rejected before another network request
 	testastic.ErrorIs(t, err, errEventPayloadTooLarge)
 	testastic.Equal(t, int32(1), requestCount.Load())
 
+	// when: the client receives a redirect
 	redirectErr := manager.client.CheckRedirect(&http.Request{}, nil)
+
+	// then: it returns the original response without following the redirect
 	testastic.ErrorIs(t, redirectErr, http.ErrUseLastResponse)
 }
 
 func TestRecordingStopsBeforeDelivery(t *testing.T) {
 	t.Parallel()
 
+	// given: a capture transport, an opted-out manager, and a canceled context
 	var requestCount atomic.Int32
 
 	transport := roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -163,41 +186,79 @@ func TestRecordingStopsBeforeDelivery(t *testing.T) {
 	path := repositoryConfig(t, new(true))
 
 	optedOut := testManager([]string{"DO_NOT_TRACK=on", "CI=true"}, transport)
-	optedOut.RecordInit(t.Context(), optedOut.now(), path, nil)
-
 	canceledContext, cancel := context.WithCancel(t.Context())
 	cancel()
+
+	// when: recording with either opt-out or cancellation
+	optedOut.RecordInit(t.Context(), optedOut.now(), path, nil)
 	testManager(nil, transport).RecordInit(canceledContext, time.Now(), path, nil)
 
+	// then: neither recording reaches the transport
 	testastic.Equal(t, int32(0), requestCount.Load())
 }
 
 func TestEventFields(t *testing.T) {
 	t.Parallel()
 
-	t.Run("duration seconds", func(t *testing.T) {
-		t.Parallel()
+	for _, test := range []struct {
+		duration time.Duration
+		expected float64
+	}{
+		{1500 * time.Millisecond, 1.5},
+		{1234567 * time.Nanosecond, 0.001},
+		{6 * time.Second, 6.0},
+	} {
+		t.Run("duration seconds/"+test.duration.String(), func(t *testing.T) {
+			t.Parallel()
 
-		testastic.Equal(t, 1.5, durationSeconds(1500*time.Millisecond))
-		testastic.Equal(t, 0.001, durationSeconds(1234567*time.Nanosecond))
-		testastic.Equal(t, 6.0, durationSeconds(6*time.Second))
-	})
+			// given: an elapsed duration with millisecond or finer precision
+			// when: converting it into telemetry seconds
+			seconds := durationSeconds(test.duration)
 
-	t.Run("official versions", func(t *testing.T) {
-		t.Parallel()
+			// then: seconds retain millisecond precision and truncate finer units
+			testastic.Equal(t, test.expected, seconds)
+		})
+	}
 
-		testastic.Equal(t, "1.4.0", officialVersion("v1.4.0"))
-		testastic.Equal(t, "1.4.0-beta.1", officialVersion("1.4.0-beta.1"))
-		testastic.Equal(t, "", officialVersion("dev"))
-		testastic.Equal(t, "", officialVersion("1.4.0-dirty"))
-	})
+	for _, test := range []struct {
+		version  string
+		expected string
+	}{
+		{"v1.4.0", "1.4.0"},
+		{"1.4.0-beta.1", "1.4.0-beta.1"},
+		{"dev", ""},
+		{"1.4.0-dirty", ""},
+	} {
+		t.Run("official versions/"+test.version, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("outcomes", func(t *testing.T) {
-		t.Parallel()
+			// given: an official or development build version
+			// when: normalizing it for telemetry
+			version := officialVersion(test.version)
 
-		testastic.Equal(t, "success", outcome(nil))
-		testastic.Equal(t, "failure", outcome(errors.New("failed")))
-	})
+			// then: only official versions are reported, without the tag prefix
+			testastic.Equal(t, test.expected, version)
+		})
+	}
+
+	for _, test := range []struct {
+		err      error
+		expected string
+	}{
+		{nil, "success"},
+		{errors.New("failed"), "failure"},
+	} {
+		t.Run("outcomes/"+test.expected, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a command result with or without an error
+			// when: classifying the outcome
+			result := outcome(test.err)
+
+			// then: only error presence determines success or failure
+			testastic.Equal(t, test.expected, result)
+		})
+	}
 
 	for name, test := range map[string]struct {
 		configuredEnabled bool
@@ -261,21 +322,36 @@ func TestEventFields(t *testing.T) {
 	t.Run("failure categories", func(t *testing.T) {
 		t.Parallel()
 
-		testastic.Equal(t, "", failureCategory(nil))
-		testastic.Equal(t, "config_exists", failureCategory(fmt.Errorf("init: %w", config.ErrExists)))
-		testastic.Equal(t, "config_invalid", failureCategory(fmt.Errorf("load: %w", config.ErrInvalidConfig)))
+		_, missingConfigErr := release.Run(t.Context(), filepath.Join(t.TempDir(), "missing.yaml"), release.Options{})
+		for _, test := range []struct {
+			name     string
+			err      error
+			expected string
+		}{
+			{"success", nil, ""},
+			{"existing config", fmt.Errorf("init: %w", config.ErrExists), "config_exists"},
+			{"invalid config", fmt.Errorf("load: %w", config.ErrInvalidConfig), "config_invalid"},
+			{"network error", &url.Error{Op: "Post", URL: "https://api.invalid", Err: errors.New("refused")}, "network"},
+			{"unexpected error", errors.New("boom"), "unexpected"},
+			{"missing config", fmt.Errorf("release failed: %w", missingConfigErr), "config_missing"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
 
-		refused := &url.Error{Op: "Post", URL: "https://api.invalid", Err: errors.New("refused")}
-		testastic.Equal(t, "network", failureCategory(refused))
-		testastic.Equal(t, "unexpected", failureCategory(errors.New("boom")))
+				// given: a command error, possibly wrapped with context, or success
+				// when: selecting a telemetry failure category
+				category := failureCategory(test.err)
 
-		_, err := release.Run(t.Context(), filepath.Join(t.TempDir(), "missing.yaml"), release.Options{})
-		testastic.Equal(t, "config_missing", failureCategory(fmt.Errorf("release failed: %w", err)))
+				// then: the category describes the cause without exposing error details
+				testastic.Equal(t, test.expected, category)
+			})
+		}
 	})
 
 	t.Run("release profile", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a release configuration and its resolved provider
 		cfg := config.Default()
 		cfg.Provider = config.ProviderGitHub
 		cfg.Targets = map[string]config.Target{
@@ -287,23 +363,30 @@ func TestEventFields(t *testing.T) {
 		}
 		cfg.Release.AutoMerge = true
 		finished := time.Date(2026, time.August, 21, 12, 0, 0, 0, time.UTC)
+		started := finished.Add(-6 * time.Second)
+
+		// when: building the release telemetry profile
 		profile := releaseProfile(
 			cfg,
 			release.Options{DryRun: true},
 			&release.Result{Provider: config.ProviderGitHub},
 		)
-		started := finished.Add(-6 * time.Second)
 		event := newEvent("test-app", "v1.4.0", "linux", "arm64", "release", finished, started, nil, profile)
 
+		// then: the complete event describes the release with the fixed clock and platform
 		testastic.AssertJSON(t, "testdata/release_event.expected.json", []wireEvent{event})
 	})
 
 	t.Run("resolved provider", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a release configuration and its resolved provider
 		cfg := config.Default()
+
+		// when: building the release telemetry profile
 		profile := releaseProfile(cfg, release.Options{}, &release.Result{Provider: config.ProviderGitLab})
 
+		// then: the actual provider overrides the unresolved configuration
 		testastic.Equal(t, string(config.ProviderGitLab), profile.provider)
 	})
 }
@@ -311,6 +394,8 @@ func TestEventFields(t *testing.T) {
 func TestPayloadExcludesProhibitedData(t *testing.T) {
 	t.Parallel()
 
+	// given: a command failure containing private repository details
+	// when: constructing its telemetry event
 	event := newEvent(
 		"test-app",
 		"v1.4.0",
@@ -323,16 +408,20 @@ func TestPayloadExcludesProhibitedData(t *testing.T) {
 		nil,
 	)
 
+	// then: the event reports failure without a user identity or private error details
 	testastic.Equal(t, "", event.ClientUser)
 	testastic.Equal(t, "failure", event.Payload.Outcome)
-	testastic.False(t, strings.Contains(event.Type, "secret repository path"))
-	testastic.False(t, strings.Contains(event.AppID, "secret repository path"))
+	testastic.NotContains(t, event.Type, "secret repository path")
+	testastic.NotContains(t, event.AppID, "secret repository path")
+
+	// when: encoding the event for delivery
 	encoded, err := json.Marshal(event)
 	testastic.NoError(t, err)
 
+	// then: no prohibited identifier or repository metadata appears anywhere in the payload
 	data := string(encoded)
 	for _, prohibited := range []string{"sessionID", "secret repository path", "repository", "branch", "targetCount"} {
-		testastic.False(t, strings.Contains(data, prohibited))
+		testastic.NotContains(t, data, prohibited)
 	}
 }
 

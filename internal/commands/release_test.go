@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -508,13 +507,7 @@ func TestReleaseLogMessages(t *testing.T) {
 		testastic.NoError(t, handleReleaseResult(t.Context(), &bytes.Buffer{}, result, false))
 
 		// then: the log message uses plain sentence wording
-		testastic.True(
-			t,
-			strings.Contains(
-				logOutput.String(),
-				`"msg":"release finalized with no new release needed"`,
-			),
-		)
+		testastic.AssertJSON(t, "testdata/release_log/finalized.expected.json", logOutput.Bytes())
 	})
 }
 

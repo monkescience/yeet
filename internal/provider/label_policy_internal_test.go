@@ -109,7 +109,7 @@ func TestManagedLabelChangeAnchorsTheDiscoverableLabel(t *testing.T) {
 	testastic.SliceEqual(t, []string{labels.Tagged}, pending.remove)
 
 	testastic.Equal(t, labels.Tagged, tagged.anchor)
-	testastic.Equal(t, 0, len(tagged.add))
+	testastic.Empty(t, tagged.add)
 	testastic.SliceEqual(t, []string{labels.Pending}, tagged.remove)
 
 	// then: a forge sending one request still attaches the anchor first
@@ -334,7 +334,7 @@ func TestManagedLabelChangeLeavesMaintainerLabelsAlone(t *testing.T) {
 
 	// then: the maintainer's labels survive both transitions
 	for _, phase := range [][]string{pending, tagged} {
-		testastic.True(t, slices.Contains(phase, "priority/high"))
-		testastic.True(t, slices.Contains(phase, "area/api"))
+		testastic.SliceContains(t, phase, "priority/high")
+		testastic.SliceContains(t, phase, "area/api")
 	}
 }

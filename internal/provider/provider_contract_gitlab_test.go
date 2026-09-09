@@ -626,7 +626,7 @@ func TestGitLabCreateReleaseRejectsConflictingCommit(t *testing.T) {
 
 	// then: the conflicting tag target is rejected
 	testastic.ErrorIs(t, err, forge.ErrReleaseTagMismatch)
-	testastic.True(t, release == nil)
+	testastic.Nil(t, release)
 }
 
 func handleGitLabGetFileContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -880,7 +880,7 @@ func TestGitLabFindMergedReleasePR(t *testing.T) {
 		_, err := p.FindMergedReleasePR(context.Background(), providerContractBaseBranch, testReleaseLabelPending)
 
 		// then: the ambiguity names the MR that caused it, and no later failure masks it
-		testastic.Contains(t, err.Error(), "merged release PR completion time is unavailable: merge request !5")
+		testastic.ErrorContains(t, err, "merged release PR completion time is unavailable: merge request !5")
 		testastic.SliceEqual(t, []string{"5"}, rereads)
 	})
 
@@ -1236,10 +1236,10 @@ func TestGitLabMatchesThePendingLabelExactly(t *testing.T) {
 	// then: the case variant is a different label, so the MR is a mismatch naming
 	// the merge request, its branch and the label yeet expected
 	testastic.ErrorIs(t, err, forge.ErrReleasePRLabelMismatch)
-	testastic.Equal(t, 0, len(prs))
-	testastic.Contains(
+	testastic.Empty(t, prs)
+	testastic.ErrorContains(
 		t,
-		err.Error(),
+		err,
 		`trusted merge request !10 on branch "yeet/release-main" is missing configured pending label "autorelease: pending"`,
 	)
 }

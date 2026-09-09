@@ -16,18 +16,28 @@ var errMergePollingProbe = errors.New("forge is unreachable")
 func TestMergePollingSettings(t *testing.T) {
 	t.Parallel()
 
+	// given: the default release polling settings
 	defaults := config.Default().Release.MergePolling
+
+	// when: constructing polling without overrides
 	polling := newMergePolling()
 
-	testastic.Equal(t, defaults.InitialInterval, polling.interval)
-	testastic.Equal(t, defaults.MaxInterval, polling.maxInterval)
-	testastic.Equal(t, defaults.Timeout, polling.timeout)
+	// then: every default polling value is preserved
+	testastic.Equal(t, mergePolling{
+		interval:    defaults.InitialInterval,
+		maxInterval: defaults.MaxInterval,
+		timeout:     defaults.Timeout,
+	}, polling)
 
+	// when: constructing polling with explicit overrides
 	polling = newMergePolling(WithMergePolling(time.Second, 7*time.Second, 3*time.Minute))
 
-	testastic.Equal(t, time.Second, polling.interval)
-	testastic.Equal(t, 7*time.Second, polling.maxInterval)
-	testastic.Equal(t, 3*time.Minute, polling.timeout)
+	// then: every polling value is replaced together
+	testastic.Equal(t, mergePolling{
+		interval:    time.Second,
+		maxInterval: 7 * time.Second,
+		timeout:     3 * time.Minute,
+	}, polling)
 }
 
 func TestAwaitMergedCommitReportsTheCauseThatEndedTheWait(t *testing.T) {

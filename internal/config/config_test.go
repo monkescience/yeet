@@ -49,7 +49,7 @@ func TestDefault(t *testing.T) {
 	testastic.AssertFile(t, "testdata/default/pr_body_footer.expected.md", cfg.Release.PRBodyFooter)
 	testastic.Equal(t, 0, len(cfg.VersionFiles))
 	testastic.Equal(t, "CHANGELOG.md", cfg.Changelog.File)
-	testastic.Equal(t, 4, len(cfg.Changelog.Include))
+	testastic.SliceEqual(t, []string{"feat", "fix", "perf", "revert"}, cfg.Changelog.Include)
 	testastic.Equal(t, "⚠ BREAKING CHANGES", cfg.Changelog.Sections["breaking"])
 	testastic.Equal(t, "YYYY.0M.MICRO", cfg.CalVer.Format)
 	testastic.True(t, cfg.PreMajorBreakingBumpsMinor)
@@ -2483,11 +2483,15 @@ func TestPreMajorOptions(t *testing.T) {
 
 		// then: target inherits top-level patterns (no override) and merges footers
 		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(resolved["app"].Changelog.References.Patterns))
-		testastic.Equal(t, `JIRA-\d+`, resolved["app"].Changelog.References.Patterns[0].Pattern)
-		testastic.Equal(t, 2, len(resolved["app"].Changelog.References.Footers))
-		testastic.Equal(t, "https://jira.example.com/browse/{value}", resolved["app"].Changelog.References.Footers["Refs"])
-		testastic.Equal(t, "", resolved["app"].Changelog.References.Footers["Closes"])
+		testastic.DeepEqual(t, config.ReferencesConfig{
+			Patterns: []config.ReferencePattern{
+				{Pattern: `JIRA-\d+`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			Footers: map[string]string{
+				"Refs":   "https://jira.example.com/browse/{value}",
+				"Closes": "",
+			},
+		}, resolved["app"].Changelog.References)
 	})
 
 	t.Run("rejects pre_major_breaking_bumps_minor on calver target", func(t *testing.T) {

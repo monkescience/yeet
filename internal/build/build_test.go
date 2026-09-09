@@ -11,6 +11,8 @@ import (
 func TestServiceName(t *testing.T) {
 	t.Parallel()
 
+	// given: the build package
+	// when: reading its service identity
 	// then: ServiceName is the constant "yeet"
 	testastic.Equal(t, "yeet", build.ServiceName)
 }

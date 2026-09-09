@@ -28,8 +28,8 @@ func TestParseLogging(t *testing.T) {
 
 	// then: the commit is parsed without copying its text into the log
 	testastic.Equal(t, "private customer incident details", parsed.Description)
-	testastic.True(t, strings.Contains(logOutput.String(), `"hash":"abc1234"`))
-	testastic.False(t, strings.Contains(logOutput.String(), "private customer incident details"))
+	testastic.AssertJSON(t, "testdata/logging/event.expected.json", logOutput.Bytes())
+	testastic.NotContains(t, logOutput.String(), "private customer incident details")
 }
 
 func TestParse(t *testing.T) {
@@ -95,9 +95,9 @@ func TestParse(t *testing.T) {
 		// then: breaking flag is set and footer is parsed
 		testastic.True(t, c.Breaking)
 		testastic.Equal(t, "Some body text.", c.Body)
-		testastic.Equal(t, 1, len(c.Footers))
-		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
-		testastic.Equal(t, "old auth tokens are no longer valid", c.Footers[0].Value)
+		testastic.SliceEqual(t, []commit.Footer{
+			{Key: "BREAKING CHANGE", Value: "old auth tokens are no longer valid"},
+		}, c.Footers)
 	})
 
 	t.Run("breaking change footer without space", func(t *testing.T) {
@@ -111,9 +111,7 @@ func TestParse(t *testing.T) {
 
 		// then: the footer is parsed and marks the commit as breaking
 		testastic.True(t, c.Breaking)
-		testastic.Equal(t, 1, len(c.Footers))
-		testastic.Equal(t, "BREAKING CHANGE", c.Footers[0].Key)
-		testastic.Equal(t, "drop legacy API", c.Footers[0].Value)
+		testastic.SliceEqual(t, []commit.Footer{{Key: "BREAKING CHANGE", Value: "drop legacy API"}}, c.Footers)
 	})
 
 	t.Run("fix commit", func(t *testing.T) {
@@ -203,9 +201,7 @@ func TestParse(t *testing.T) {
 
 		// then: only the final blank-line-separated block is parsed as footers
 		testastic.Equal(t, "Explain the retry behavior.\nNote: this is body text\nretries: 3", c.Body)
-		testastic.Equal(t, 1, len(c.Footers))
-		testastic.Equal(t, "Refs", c.Footers[0].Key)
-		testastic.Equal(t, "#123", c.Footers[0].Value)
+		testastic.SliceEqual(t, []commit.Footer{{Key: "Refs", Value: "#123"}}, c.Footers)
 	})
 
 	t.Run("multi-line breaking change footer", func(t *testing.T) {
@@ -519,8 +515,11 @@ func FuzzParse(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, rawMessage string) {
+		// given: an arbitrary commit message and a fixed commit hash
+		// when: parsing the message
 		c := commit.Parse(t.Context(), "abc1234", rawMessage)
 
+		// then: the hash is preserved and conventional types are normalized consistently
 		testastic.Equal(t, "abc1234", c.Hash)
 		testastic.Equal(t, strings.ToLower(c.Type), c.Type)
 		testastic.Equal(t, c.Type != "", c.IsConventional())

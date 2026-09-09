@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -159,7 +158,7 @@ func TestReleaseHostTrust(t *testing.T) {
 			"testdata/release/redacted_invalid_remote/stderr.expected.txt",
 			result.Stderr,
 		)
-		testastic.Equal(t, false, strings.Contains(result.Stderr, "fixture-password"))
+		testastic.NotContains(t, result.Stderr, "fixture-password")
 	})
 
 	t.Run("reports a missing remote when validating a custom host", func(t *testing.T) {

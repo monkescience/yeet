@@ -13,6 +13,9 @@ import (
 func TestNewAzureDevOpsWithSystemAccessTokenUsesBearerAuth(t *testing.T) {
 	t.Parallel()
 
+	// given: an Azure DevOps pipeline system access token
+
+	// when: constructing a provider with system-token authentication
 	azureDevOpsProvider := NewAzureDevOpsWithSystemAccessToken(
 		nil,
 		"https://dev.azure.com",
@@ -23,12 +26,16 @@ func TestNewAzureDevOpsWithSystemAccessTokenUsesBearerAuth(t *testing.T) {
 		"yeet",
 	)
 
+	// then: the SDK connection uses bearer authentication
 	testastic.Equal(t, "Bearer system-token", azureDevOpsProvider.conn.AuthorizationString)
 }
 
 func TestNewAzureDevOpsUsesPATBasicAuth(t *testing.T) {
 	t.Parallel()
 
+	// given: an Azure DevOps personal access token
+
+	// when: constructing a provider with PAT authentication
 	azureDevOpsProvider := NewAzureDevOps(
 		nil,
 		"https://dev.azure.com",
@@ -41,6 +48,8 @@ func TestNewAzureDevOpsUsesPATBasicAuth(t *testing.T) {
 
 	auth := strings.TrimPrefix(azureDevOpsProvider.conn.AuthorizationString, "Basic ")
 	decoded, err := base64.StdEncoding.DecodeString(auth)
+
+	// then: the SDK connection sends the PAT as the basic-auth password
 	testastic.NoError(t, err)
 	testastic.Equal(t, ":pat-token", string(decoded))
 }
@@ -149,12 +158,13 @@ func TestTrustedAzureDevOpsReleasePRMatchesRepositoryConfiguredByID(t *testing.T
 	trusted := azureDevOpsProvider.isTrustedReleasePR(&pullRequest, "main")
 
 	// then: the repository matches regardless of the configured id casing
-	testastic.Equal(t, true, trusted)
+	testastic.True(t, trusted)
 }
 
 func TestAzureDevOpsPullRequestWebURL(t *testing.T) {
 	t.Parallel()
 
+	// given: an Azure DevOps provider with cloud repository coordinates
 	azureDevOpsProvider := NewAzureDevOps(
 		nil,
 		"https://dev.azure.com",
@@ -165,10 +175,14 @@ func TestAzureDevOpsPullRequestWebURL(t *testing.T) {
 		"yeet",
 	)
 
+	// when: building the browser URL for pull request 42
+	pullRequestURL := azureDevOpsProvider.pullRequestWebURL(42)
+
+	// then: the URL points to that pull request under the configured repository
 	testastic.Equal(
 		t,
 		"https://dev.azure.com/contoso/platform/_git/yeet/pullrequest/42",
-		azureDevOpsProvider.pullRequestWebURL(42),
+		pullRequestURL,
 	)
 }
 

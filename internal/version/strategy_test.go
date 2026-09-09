@@ -129,7 +129,7 @@ func TestSemVerNextReleaseErrors(t *testing.T) {
 
 		// then: the footer is refused with the scheme's own wording
 		testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
-		testastic.Contains(t, err.Error(), "must be greater than current version 1.2.3")
+		testastic.ErrorContains(t, err, "must be greater than current version 1.2.3")
 	})
 
 	t.Run("rejects a release-as that is not stable", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestSemVerNextReleaseErrors(t *testing.T) {
 
 		// then: the footer is refused
 		testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
-		testastic.Contains(t, err.Error(), "must be a stable version")
+		testastic.ErrorContains(t, err, "must be a stable version")
 	})
 
 	t.Run("reports a current version it cannot parse", func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestSemVerNextReleaseErrors(t *testing.T) {
 		_, _, _, err := sv.NextRelease("garbage", commit.BumpPatch, "", "")
 
 		// then: the failure names the step that could not read it
-		testastic.Contains(t, err.Error(), "calculate next version: invalid version: garbage")
+		testastic.ErrorContains(t, err, "calculate next version: invalid version: garbage")
 	})
 
 	t.Run("reports a current version it cannot parse inside a channel", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestSemVerNextReleaseErrors(t *testing.T) {
 		_, _, _, err := sv.NextRelease("garbage", commit.BumpPatch, "", "beta")
 
 		// then: the prerelease path names the value it could not read
-		testastic.Contains(t, err.Error(), `parse current prerelease version "garbage"`)
+		testastic.ErrorContains(t, err, `parse current prerelease version "garbage"`)
 	})
 }
 
@@ -231,7 +231,7 @@ func TestCalVerReleaseControls(t *testing.T) {
 
 		// then: the scheme reports that it has nothing to act on
 		testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
-		testastic.Contains(t, err.Error(), `calver targets do not support "2.0.0"`)
+		testastic.ErrorContains(t, err, `calver targets do not support "2.0.0"`)
 	})
 
 	t.Run("ignores release controls it does not support", func(t *testing.T) {

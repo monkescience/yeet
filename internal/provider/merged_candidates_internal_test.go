@@ -82,7 +82,7 @@ func TestResolveLatestMerged(t *testing.T) {
 		// then: nothing competes with it, so the forge is not asked again
 		testastic.NoError(t, err)
 		testastic.Equal(t, 7, best.number)
-		testastic.Equal(t, 0, len(calls))
+		testastic.Empty(t, calls)
 	})
 
 	t.Run("picks the candidate that merged last", func(t *testing.T) {
@@ -100,7 +100,7 @@ func TestResolveLatestMerged(t *testing.T) {
 		// then: the later merge wins and no re-read was needed
 		testastic.NoError(t, err)
 		testastic.Equal(t, 9, best.number)
-		testastic.Equal(t, 0, len(calls))
+		testastic.Empty(t, calls)
 	})
 
 	t.Run("keeps the first of two candidates that merged at the same time", func(t *testing.T) {

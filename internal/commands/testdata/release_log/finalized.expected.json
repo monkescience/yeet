@@ -1,0 +1,6 @@
+{
+  "time": "{{anyDateTime}}",
+  "level": "INFO",
+  "msg": "release finalized with no new release needed",
+  "tag": "v1.2.3"
+}

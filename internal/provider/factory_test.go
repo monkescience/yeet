@@ -52,6 +52,7 @@ func TestCreateGitHubProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "test-token")
 	t.Setenv(githubURLEnv, "")
 
+	// when: creating the GitHub provider
 	created, err := create(&resolvedGitHubRepository{
 		Host:   "github.company.com",
 		APIURL: "https://github.company.com/root/api/v3/",
@@ -60,6 +61,7 @@ func TestCreateGitHubProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 		Repo:   "yeet",
 	})
 
+	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
 
 	githubProvider, ok := created.(*GitHub)
@@ -73,6 +75,7 @@ func TestCreateGitHubProviderEnvironmentURLWinsOverConfiguredAPIURL(t *testing.T
 	t.Setenv("GITHUB_TOKEN", "test-token")
 	t.Setenv(githubURLEnv, "https://proxy.example/api/v3/")
 
+	// when: creating the GitHub provider
 	created, err := create(&resolvedGitHubRepository{
 		Host:   "github.company.com",
 		APIURL: "https://github.company.com/root/api/v3/",
@@ -81,6 +84,7 @@ func TestCreateGitHubProviderEnvironmentURLWinsOverConfiguredAPIURL(t *testing.T
 		Repo:   "yeet",
 	})
 
+	// then: the environment controls API requests while browser links retain their configured root
 	testastic.NoError(t, err)
 
 	githubProvider, ok := created.(*GitHub)
@@ -279,6 +283,7 @@ func TestCreateGitLabProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv("GITLAB_TOKEN", "test-token")
 	t.Setenv(gitlabURLEnv, "")
 
+	// when: creating the GitLab provider
 	created, err := create(&resolvedGitLabRepository{
 		Host:    "gitlab.company.com",
 		APIURL:  "https://gitlab.company.com/root/api/v4",
@@ -286,6 +291,7 @@ func TestCreateGitLabProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 		Project: "group/service",
 	})
 
+	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
 
 	gitlabProvider, ok := created.(*GitLab)
@@ -349,6 +355,7 @@ func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 	t.Setenv(azureURLEnv, "")
 
+	// when: creating the Azure DevOps provider
 	created, err := create(&resolvedAzureDevOpsRepository{
 		Host:         "devops.company.com",
 		APIURL:       "https://devops.company.com/api/tfs",
@@ -359,6 +366,7 @@ func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 		Repo:         "yeet",
 	})
 
+	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
 
 	azureProvider, ok := created.(*AzureDevOps)

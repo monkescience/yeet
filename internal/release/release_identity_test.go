@@ -78,10 +78,23 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 
 	// then: all manifest entries survive the round trip
 	testastic.NoError(t, err)
-	testastic.Equal(t, "main", manifest.BaseBranch)
-	testastic.Equal(t, 2, len(manifest.Targets))
-	testastic.Equal(t, "api-v1.2.3", manifest.Targets[0].Tag)
-	testastic.Equal(t, "CHANGELOG.md", manifest.Targets[1].ChangelogFile)
+	testastic.DeepEqual(t, releaseManifest{
+		BaseBranch: "main",
+		Targets: []releaseManifestEntry{
+			{
+				ID:            "api",
+				Type:          "path",
+				Tag:           "api-v1.2.3",
+				ChangelogFile: "services/api/CHANGELOG.md",
+			},
+			{
+				ID:            "root",
+				Type:          "derived",
+				Tag:           "v3.0.0",
+				ChangelogFile: "CHANGELOG.md",
+			},
+		},
+	}, manifest)
 }
 
 func TestReleaseManifestFromBody(t *testing.T) {
@@ -101,12 +114,15 @@ func TestReleaseManifestFromBody(t *testing.T) {
 
 		// then: the manifest is still recovered
 		testastic.NoError(t, err)
-		testastic.Equal(t, "main", manifest.BaseBranch)
-		testastic.Equal(t, 1, len(manifest.Targets))
-
-		if len(manifest.Targets) > 0 {
-			testastic.Equal(t, "v1.2.3", manifest.Targets[0].Tag)
-		}
+		testastic.DeepEqual(t, releaseManifest{
+			BaseBranch: "main",
+			Targets: []releaseManifestEntry{{
+				ID:            "default",
+				Type:          "path",
+				Tag:           "v1.2.3",
+				ChangelogFile: "CHANGELOG.md",
+			}},
+		}, manifest)
 	})
 
 	t.Run("parses manifest JSON directly after marker name", func(t *testing.T) {
@@ -122,12 +138,15 @@ func TestReleaseManifestFromBody(t *testing.T) {
 
 		// then: the manifest is still recovered
 		testastic.NoError(t, err)
-		testastic.Equal(t, "main", manifest.BaseBranch)
-		testastic.Equal(t, 1, len(manifest.Targets))
-
-		if len(manifest.Targets) > 0 {
-			testastic.Equal(t, "v1.2.3", manifest.Targets[0].Tag)
-		}
+		testastic.DeepEqual(t, releaseManifest{
+			BaseBranch: "main",
+			Targets: []releaseManifestEntry{{
+				ID:            "default",
+				Type:          "path",
+				Tag:           "v1.2.3",
+				ChangelogFile: "CHANGELOG.md",
+			}},
+		}, manifest)
 	})
 
 	t.Run("rejects duplicate manifest members", func(t *testing.T) {
@@ -262,6 +281,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 	t.Parallel()
 
+	// given: a manifest whose changelog path is equivalent after cleaning
 	cfg := config.Default()
 	r := newTestReleaser(t, cfg, newProviderStub())
 	pullRequest := &forge.PullRequest{Branch: r.core.run.releaseBranch}
@@ -277,9 +297,11 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 		},
 	}
 
+	// when: validating the manifest against the configured release unit
 	_, err := r.core.validateReleaseManifest(pullRequest, manifest, releaseUnit{
 		ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.releaseBranch,
 	})
 
+	// then: the equivalent path is accepted
 	testastic.NoError(t, err)
 }
