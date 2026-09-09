@@ -1,2 +1,2 @@
-INFO release analysis complete targets=1
+INFO  release analysis complete targets=1
 release failed: multiple pending release changes were found. Close or relabel stale pending release changes: multiple pending release PRs found: #43 https://example.test/mr/42, #44 https://example.test/mr/42
