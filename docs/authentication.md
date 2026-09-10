@@ -28,7 +28,7 @@ For a GitHub App or fine-grained personal access token, grant these repository p
 
 Add Workflows (write) when a configured `version_files` or changelog path is under `.github/workflows/`.
 
-Install the App on each repository it releases. Allow it to create and force-update the generated release branch. With auto-merge, allow it to merge into the base branch after required checks, approvals, and branch rules pass.
+Install the App on each repository it releases. Allow it to create and force-update the generated release branch. In provider auto-merge mode, allow it to enable pull request auto-merge or add the pull request to a required merge queue. In direct mode, allow it to merge into the base branch after required checks, approvals, and branch rules pass.
 
 A classic personal access token needs `repo` for a private repository or `public_repo` for a public repository. For an organization-owned repository with `release.reviewers`, use `repo` and `read:org` even when the repository is public. Add `workflow` when yeet changes a workflow file. See [GitHub's REST permission table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
 
@@ -47,7 +47,8 @@ Repository access requirements:
 
 - If a protected branch rule matches the generated release branch, allow the token identity to push and enable force pushes for that rule.
 - If a protected tag rule matches a release tag, add the token role or identity to Allowed to create.
-- With auto-merge, the target branch must allow the token identity to merge after its checks and approvals pass.
+- In provider auto-merge mode, the token identity must be allowed to enable auto-merge or add the merge request to a required merge train.
+- In direct mode, the target branch must allow the token identity to merge after its checks and approvals pass.
 
 See GitLab's documentation for [`api` scope](https://docs.gitlab.com/security/tokens/access_token_scopes/), [project roles](https://docs.gitlab.com/user/permissions/), [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), and [protected tags](https://docs.gitlab.com/user/project/protected_tags/).
 
@@ -84,7 +85,7 @@ Set repository permissions under Project settings > Repositories > the target re
 | Create tag | Repository | Publishing a release tag |
 | Force push | Generated release branch | Resetting the release branch to the current base before each refresh |
 
-The build service needs effective Force push permission on the generated release branch, either inherited when it creates the branch or granted explicitly. With auto-merge, it needs Contribute permission on the target branch and all branch policies must pass.
+The build service needs effective Force push permission on the generated release branch, either inherited when it creates the branch or granted explicitly. Azure DevOps supports direct auto-merge mode only. Direct mode needs Contribute permission on the target branch, and all branch policies must pass.
 
 Authorization for identity reads through `System.AccessToken` depends on the organization and job authorization settings. Verify it when `release.reviewers` is configured. See Azure DevOps documentation for [job access tokens](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/access-tokens), [token scopes](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth#oauth-scopes), and [Git repository permissions](https://learn.microsoft.com/en-us/azure/devops/organizations/security/permissions#git-repository-object-level).
 

@@ -288,6 +288,11 @@ func validateReleaseConfig(release ReleaseConfig) error {
 		return err
 	}
 
+	err = ValidateAutoMergeMode(release.AutoMergeMode)
+	if err != nil {
+		return err
+	}
+
 	err = validateReleaseLabels(release.Labels)
 	if err != nil {
 		return err
@@ -301,6 +306,20 @@ func validateReleaseConfig(release ReleaseConfig) error {
 	err = validateReleaseChannels(release.Channels)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func ValidateAutoMergeMode(mode AutoMergeMode) error {
+	switch mode {
+	case AutoMergeModeProvider, AutoMergeModeDirect:
+	default:
+		return fmt.Errorf(
+			"%w: release.auto_merge_mode must be \"provider\" or \"direct\", got %q",
+			ErrInvalidConfig,
+			mode,
+		)
 	}
 
 	return nil

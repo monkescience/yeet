@@ -43,6 +43,7 @@ type releasePRProvider interface {
 	) ([]*forge.PullRequest, error)
 	CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error)
 	UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error
+	EnsureAutoMerge(ctx context.Context, number int, opts forge.MergeReleasePROptions) error
 	MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error)
 	releasePRLabelSetter
 	MaxPRBodyLength() int

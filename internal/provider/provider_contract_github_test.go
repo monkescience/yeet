@@ -98,10 +98,10 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubUnsupportedMergeContract(t, w, r)
 		case providerContractTagPaginationLimit:
 			handleGitHubTagPaginationLimitContract(t, w, r, &tagPages)
-		case providerContractForcedMergeUntrusted:
-			handleGitHubForcedMergeUntrustedContract(t, w, r)
-		case providerContractForcedMergeConflicted:
-			handleGitHubForcedMergeConflictedContract(t, w, r)
+		case providerContractMergeUntrustedSource:
+			handleGitHubMergeUntrustedSourceContract(t, w, r)
+		case providerContractMergeConflictedRefused:
+			handleGitHubMergeConflictedRefusedContract(t, w, r)
 		default:
 			failProviderContractHandler(t, fmt.Sprintf("unhandled GitHub contract scenario: %s", scenario))
 		}
@@ -921,11 +921,11 @@ func handleGitHubTagPaginationLimitContract(
 	}})
 }
 
-func handleGitHubForcedMergeConflictedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitHubMergeConflictedRefusedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42" {
-		writeJSONFixture(t, w, "contracts/github/forced_merge_conflicted/pr.json")
+		writeJSONFixture(t, w, "contracts/github/merge_conflicted_refused/pr.json")
 
 		return
 	}
@@ -933,11 +933,11 @@ func handleGitHubForcedMergeConflictedContract(t *testing.T, w http.ResponseWrit
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
-func handleGitHubForcedMergeUntrustedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitHubMergeUntrustedSourceContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42" {
-		writeJSONFixture(t, w, "contracts/github/forced_merge_untrusted/pr.json")
+		writeJSONFixture(t, w, "contracts/github/merge_untrusted_source/pr.json")
 
 		return
 	}
@@ -1160,9 +1160,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			BypassMergeChecks: false,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: no error
@@ -1179,9 +1178,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with squash method (which is disabled)
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			BypassMergeChecks: false,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodSquash,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodSquash,
 		})
 
 		// then: merge is blocked because squash is disabled
@@ -1199,9 +1197,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			BypassMergeChecks: false,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: no error - auto selects rebase
@@ -1218,9 +1215,8 @@ func TestGitHubResolveGitHubMergeMethod(t *testing.T) {
 
 		// when: merging with auto method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			BypassMergeChecks: false,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
 		// then: merge is blocked
@@ -1313,7 +1309,7 @@ func TestGitHubKeepsTheOldLifecycleLabelWhenAttachingFails(t *testing.T) {
 func TestGitHubMergeReleasePR(t *testing.T) {
 	t.Parallel()
 
-	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
+	t.Run("blocks readiness checks", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub server reporting PR 42 as open with a blocked mergeable state
@@ -1340,19 +1336,19 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 		testastic.Equal(t, "release PR merge blocked: pull request #42 mergeable_state=blocked", err.Error())
 	})
 
-	t.Run("forces merge when readiness is otherwise blocked", func(t *testing.T) {
+	t.Run("refuses blocked readiness", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub server reporting PR 42 as blocked with squash merging allowed on the repo
 		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
-				writeJSONFixture(t, w, "contracts/github/forced_merge/pr.json")
+				writeJSONFixture(t, w, "contracts/github/merge_blocked_readiness/pr.json")
 			case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r":
-				writeJSONFixture(t, w, "contracts/github/forced_merge/repo.json")
+				writeJSONFixture(t, w, "contracts/github/merge_blocked_readiness/repo.json")
 			case r.Method == http.MethodPut && r.URL.Path == "/repos/o/r/pulls/42/merge":
-				assertJSONRequest(t, r, "contracts/github/forced_merge/merge_request.json")
-				writeJSONFixture(t, w, "contracts/github/forced_merge/result.json")
+				assertJSONRequest(t, r, "contracts/github/merge_blocked_readiness/merge_request.json")
+				writeJSONFixture(t, w, "contracts/github/merge_blocked_readiness/result.json")
 			default:
 				fatalUnexpectedProviderRequest(t, "GitHub", r)
 			}
@@ -1360,15 +1356,14 @@ func TestGitHubMergeReleasePR(t *testing.T) {
 
 		p := newGitHubContractProvider(t, server)
 
-		// when: MergeReleasePR is invoked with merge checks bypassed and auto method selection
+		// when: MergeReleasePR is invoked with auto method selection
 		_, err := p.MergeReleasePR(context.Background(), 42, forge.MergeReleasePROptions{
-			BypassMergeChecks: true,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodAuto,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodAuto,
 		})
 
-		// then: the squash merge method is chosen and the head SHA is sent in the merge request
-		testastic.NoError(t, err)
+		// then: repository readiness still blocks the merge
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	})
 }
 

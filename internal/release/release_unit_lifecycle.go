@@ -789,10 +789,21 @@ func (l *releaseUnitLifecycle) autoMerge(
 	}
 
 	mergeOptions := forge.MergeReleasePROptions{
-		BypassMergeChecks: r.run.autoMerge.force,
-		BaseBranch:        r.run.baseBranch,
-		Method:            forge.MergeMethod(r.run.autoMerge.method),
-		ReleaseBranch:     pullRequest.Branch,
+		BaseBranch:    r.run.baseBranch,
+		Method:        forge.MergeMethod(r.run.autoMerge.method),
+		ReleaseBranch: pullRequest.Branch,
+	}
+
+	if r.run.autoMerge.mode == config.AutoMergeModeProvider {
+		err := l.forge.EnsureAutoMerge(ctx, pullRequest.Number, mergeOptions)
+		if err != nil {
+			return nil, fmt.Errorf("schedule release PR #%d %s: %w", pullRequest.Number, pullRequest.URL, err)
+		}
+
+		slog.InfoContext(ctx, "provider accepted release PR auto-merge",
+			slog.Int("number", pullRequest.Number), slog.String("url", pullRequest.URL))
+
+		return nil, nil
 	}
 
 	err := l.publisher.preflightReleasePRTagging(ctx)
@@ -802,10 +813,6 @@ func (l *releaseUnitLifecycle) autoMerge(
 
 	mergeSHA, err := l.forge.MergeReleasePR(ctx, pullRequest.Number, mergeOptions)
 	if err != nil {
-		if mergeOptions.BypassMergeChecks {
-			return nil, fmt.Errorf("force merge release PR: %w", err)
-		}
-
 		return nil, fmt.Errorf("merge release PR: %w", err)
 	}
 

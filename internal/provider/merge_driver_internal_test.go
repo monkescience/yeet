@@ -61,7 +61,6 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 	for _, testCase := range []struct {
 		name     string
 		current  func() mergeState
-		bypass   bool
 		expected forge.MergeBlockedReason
 	}{
 		{
@@ -75,7 +74,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 			expected: forge.MergeBlockedReasonDraft,
 		},
 		{
-			name: "conflicted while bypassing merge checks",
+			name: "conflicted",
 			current: func() mergeState {
 				current := mergeableState()
 				current.HasConflicts = true
@@ -83,7 +82,6 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 
 				return current
 			},
-			bypass:   true,
 			expected: forge.MergeBlockedReasonConflicts,
 		},
 		{
@@ -116,10 +114,7 @@ func TestMergeDriverRefusesBeforeMutating(t *testing.T) {
 			adapter := &fakeForgeMerge{states: []mergeState{testCase.current()}}
 
 			// when: the merge driver runs
-			mergeSHA, err := newTestMergeDriver(adapter).run(
-				context.Background(),
-				forge.MergeReleasePROptions{BypassMergeChecks: testCase.bypass},
-			)
+			mergeSHA, err := newTestMergeDriver(adapter).run(context.Background(), forge.MergeReleasePROptions{})
 
 			// then: the reason is named and no merge is attempted
 			var blocked *forge.MergeBlockedError

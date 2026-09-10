@@ -9,7 +9,7 @@
       "Yeet.eventDay": "2026-08-21",
       "Yeet.os": "linux",
       "Yeet.outcome": "success",
-      "Yeet.release.autoMerge": "normal",
+      "Yeet.release.autoMerge": "provider",
       "Yeet.release.channelsConfigured": "true",
       "Yeet.release.dryRun": "true",
       "Yeet.release.layout": "monorepo",

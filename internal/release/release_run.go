@@ -19,7 +19,7 @@ type releaseRun struct {
 
 type autoMergeSettings struct {
 	enabled bool
-	force   bool
+	mode    config.AutoMergeMode
 	method  config.AutoMergeMethod
 }
 
@@ -29,7 +29,7 @@ func resolveRun(cfg *config.Config, currentBranch string, options Options) (rele
 		baseBranch: strings.TrimSpace(cfg.Branch),
 		autoMerge: autoMergeSettings{
 			enabled: autoMergeMode != AutoMergeModeOff,
-			force:   autoMergeMode == AutoMergeModeForce,
+			mode:    options.resolveAutoMergeMode(cfg.Release),
 			method:  cfg.Release.AutoMergeMethod,
 		},
 	}
@@ -38,7 +38,13 @@ func resolveRun(cfg *config.Config, currentBranch string, options Options) (rele
 		run.autoMerge.method = config.AutoMergeMethod(*options.AutoMergeMethod)
 	}
 
-	err := config.ValidateAutoMergeMethod(run.autoMerge.method)
+	err := config.ValidateAutoMergeMode(run.autoMerge.mode)
+	if err != nil {
+		//nolint:wrapcheck // Config owns this user-facing validation error.
+		return releaseRun{}, err
+	}
+
+	err = config.ValidateAutoMergeMethod(run.autoMerge.method)
 	if err != nil {
 		//nolint:wrapcheck // Config owns this user-facing validation error.
 		return releaseRun{}, err

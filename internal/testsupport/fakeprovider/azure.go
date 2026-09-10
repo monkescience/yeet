@@ -118,7 +118,7 @@ func registerAzureHistory(
 			writeJSON(w, map[string]any{
 				azureKeyObjectID: r.PathValue("id"),
 				gitlabKeyName:    opts.ExistingReleaseTag,
-				"message":        "existing release notes",
+				githubKeyMessage: "existing release notes",
 				"taggedObject": map[string]any{
 					azureKeyObjectID: opts.BranchHeadSHA,
 				},
@@ -644,7 +644,7 @@ func azurePRBase(opts AzureOptions, id int, status string, draft, completed bool
 
 	pr := map[string]any{
 		"pullRequestId": id,
-		"status":        status,
+		keyStatus:       status,
 		"sourceRefName": "refs/heads/" + fakeReleaseBranch,
 		"targetRefName": "refs/heads/" + fakeBaseBranch,
 		"repository":    map[string]any{gitlabKeyName: opts.Repo},

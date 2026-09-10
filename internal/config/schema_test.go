@@ -240,6 +240,11 @@ func TestSchemaErrorTranslation(t *testing.T) {
 			want: "invalid config: version_files json_pointer: contains invalid escape",
 		},
 		{
+			name:  "an auto merge mode lists both alternatives",
+			input: "release:\n  auto_merge_mode: automatic\n" + schemaTestTarget,
+			want:  "invalid config: release.auto_merge_mode must be \"provider\" or \"direct\", got \"automatic\"",
+		},
+		{
 			name:  "an enum lists four alternatives with an oxford comma",
 			input: "release:\n  auto_merge_method: wrongo\n" + schemaTestTarget,
 			want: "invalid config: release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", " +

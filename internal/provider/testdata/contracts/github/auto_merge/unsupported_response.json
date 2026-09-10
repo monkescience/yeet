@@ -1,0 +1,7 @@
+{
+  "errors": [
+    {
+      "message": "Field 'isMergeQueueEnabled' does not exist on type 'PullRequest'"
+    }
+  ]
+}

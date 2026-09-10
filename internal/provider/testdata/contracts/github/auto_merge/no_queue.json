@@ -1,0 +1,11 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "isMergeQueueEnabled": false,
+        "mergeQueueEntry": null
+      },
+      "mergeQueue": null
+    }
+  }
+}

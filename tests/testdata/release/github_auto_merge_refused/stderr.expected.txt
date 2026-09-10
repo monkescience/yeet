@@ -1,0 +1,3 @@
+INFO  release analysis complete targets=1
+INFO  created release PR url=https://example.test/pulls/42
+release failed: the provider refused the merge. Resolve the reported provider failure before retrying: schedule release PR #42 https://example.test/pulls/42: enable auto-merge for pull request #42: release PR merge blocked: github GraphQL request failed: Auto-merge is not allowed for this repository

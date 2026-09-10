@@ -33,7 +33,7 @@ func TestDefault(t *testing.T) {
 	testastic.Equal(t, 5*time.Second, cfg.Release.MergePolling.MaxInterval)
 	testastic.Equal(t, 2*time.Minute, cfg.Release.MergePolling.Timeout)
 	testastic.False(t, cfg.Release.AutoMerge)
-	testastic.False(t, cfg.Release.AutoMergeForce)
+	testastic.Equal(t, config.AutoMergeModeProvider, cfg.Release.AutoMergeMode)
 	testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
 	testastic.Equal(t, 0, len(cfg.Release.Channels))
 	testastic.Equal(t, 0, cfg.Release.PRBodyMaxLength)
@@ -1185,6 +1185,29 @@ func TestValidate(t *testing.T) {
 				err.Error(),
 			)
 		}
+	})
+
+	t.Run("invalid auto merge mode fails", func(t *testing.T) {
+		t.Parallel()
+
+		// given: config with an unsupported auto merge mode
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+		cfg.Release.AutoMergeMode = "automatic"
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation rejects the unsupported execution mode
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: release.auto_merge_mode must be \"provider\" or \"direct\", got \"automatic\"",
+			err.Error(),
+		)
 	})
 
 	t.Run("invalid provider fails", func(t *testing.T) {

@@ -18,33 +18,47 @@ import (
 )
 
 type GitHubOptions struct {
-	Owner                       string
-	Repo                        string
-	BranchHeadSHA               string
-	ReleaseBranchMissing        bool
-	LatestTag                   string
-	ExtraTags                   []string
-	BoundarySHA                 string
-	TagSHAs                     map[string]string
-	Commits                     []GitHubCommit
-	MergedPendingRelease        bool
-	MergedPendingReleaseBody    string
-	Files                       map[string]string
-	MultipleOpenPRs             bool
-	MergeBlocked                bool
-	ExistingOpenReleasePRBody   string
-	ExistingRelease             bool
-	PaginateCommits             bool
-	PaginateTags                bool
-	TruncateRecursiveTree       bool
-	FailOnMutation              bool
-	Collaborators               map[string]bool
-	ExistingLabels              []string
-	ExpectPRTitle               string
-	ExpectPRBodyFile            string
-	ExpectCommitSubject         string
-	ExpectedUpdatedFiles        map[string]string
-	ExpectedCreatedPullRequests []GitHubPullRequestExpectation
+	Owner                         string
+	Repo                          string
+	BranchHeadSHA                 string
+	ReleaseBranchMissing          bool
+	LatestTag                     string
+	ExtraTags                     []string
+	BoundarySHA                   string
+	TagSHAs                       map[string]string
+	Commits                       []GitHubCommit
+	MergedPendingRelease          bool
+	MergedPendingReleaseBody      string
+	Files                         map[string]string
+	MultipleOpenPRs               bool
+	MergeBlocked                  bool
+	ExistingOpenReleasePRBody     string
+	ExistingRelease               bool
+	PaginateCommits               bool
+	PaginateTags                  bool
+	TruncateRecursiveTree         bool
+	FailOnMutation                bool
+	Collaborators                 map[string]bool
+	ExistingLabels                []string
+	ExpectPRTitle                 string
+	ExpectPRBodyFile              string
+	ExpectCommitSubject           string
+	ExpectedUpdatedFiles          map[string]string
+	ExpectedCreatedPullRequests   []GitHubPullRequestExpectation
+	PendingChecks                 bool
+	AutoMergeAlreadyEnabled       bool
+	AutoMergeCanceledAfterRefresh bool
+	AutoMergeImmediate            bool
+	AutoMergeStatusCodes          []int
+	ExpectedAutoMergeMethod       string
+	ExpectedAutoMergeOperation    string
+	MergeQueue                    bool
+	MergeQueueMethod              string
+	AlreadyQueued                 bool
+	AssertAutoMergeRequests       bool
+	ExpectedAutoMergeRequests     int
+	AssertPublication             bool
+	ForbidPublication             bool
 }
 
 // GitHubPullRequestExpectation describes one pull request creation expected by the fake server.
@@ -65,6 +79,13 @@ type githubPullRequestExpectations struct {
 type labelRegistry struct {
 	mu     sync.Mutex
 	labels map[string]struct{}
+}
+
+type githubPublicationAssertions struct {
+	release atomic.Bool
+	tag     atomic.Bool
+	tagRef  atomic.Bool
+	tagged  atomic.Bool
 }
 
 func newLabelRegistry(names []string) *labelRegistry {
@@ -194,6 +215,7 @@ type GitHubCommit struct {
 
 const (
 	githubKeySHA       = "sha"
+	githubKeyData      = "data"
 	githubKeyMessage   = "message"
 	githubKeyCommit    = "commit"
 	githubKeyRef       = "ref"
@@ -216,14 +238,22 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 
 	mux := http.NewServeMux()
 	merged := &atomic.Bool{}
+	refreshCompleted := &atomic.Bool{}
+	autoMergeRequests := &atomic.Int64{}
+	autoMergeReads := &atomic.Int64{}
+	publication := &githubPublicationAssertions{}
 	reviewersRequested := &atomic.Bool{}
 	pullRequestExpectations := newGitHubPullRequestExpectations(t, opts.ExpectedCreatedPullRequests)
 
-	registerGitHubReleases(mux, prefix, opts)
+	registerGitHubReleases(mux, prefix, opts, publication)
 	registerGitHubHistory(mux, prefix, opts)
 	registerGitHubSearch(mux, opts, merged)
 	registerGitHubPullsRead(mux, prefix, opts, merged)
-	registerGitHubWritePath(t, mux, prefix, opts, merged, reviewersRequested, pullRequestExpectations)
+	registerGitHubWritePath(
+		t, mux, prefix, opts, merged, refreshCompleted, reviewersRequested, autoMergeReads, publication,
+		pullRequestExpectations,
+	)
+	registerGitHubAutoMerge(t, mux, prefix, opts, merged, autoMergeRequests)
 	registerGitHubUser(mux)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -232,7 +262,12 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	})
 
 	var handler http.Handler = mux
+	if opts.ForbidPublication {
+		handler = forbidGitHubPublication(t, handler, prefix)
+	}
+
 	if opts.FailOnMutation {
+		next := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
 				t.Errorf("fakeprovider/github: unexpected mutation %s %s", r.Method, r.URL.String())
@@ -241,14 +276,216 @@ func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 				return
 			}
 
-			mux.ServeHTTP(w, r)
+			next.ServeHTTP(w, r)
 		})
 	}
+
+	if opts.AssertAutoMergeRequests {
+		t.Cleanup(func() {
+			testastic.Equal(t, int64(opts.ExpectedAutoMergeRequests), autoMergeRequests.Load())
+		})
+	}
+
+	registerGitHubPublicationAssertions(t, opts, publication)
 
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func registerGitHubPublicationAssertions(
+	t *testing.T,
+	opts GitHubOptions,
+	publication *githubPublicationAssertions,
+) {
+	t.Helper()
+
+	if !opts.AssertPublication {
+		return
+	}
+
+	t.Cleanup(func() {
+		testastic.True(t, publication.tag.Load())
+		testastic.True(t, publication.tagRef.Load())
+		testastic.True(t, publication.release.Load())
+		testastic.True(t, publication.tagged.Load())
+	})
+}
+
+func forbidGitHubPublication(t *testing.T, next http.Handler, prefix string) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isRelease := r.Method == http.MethodPost && r.URL.Path == prefix+"/releases"
+
+		isAnnotatedTag := r.Method == http.MethodPost && r.URL.Path == prefix+"/git/tags"
+		if isRelease || isAnnotatedTag {
+			t.Errorf("fakeprovider/github: publication forbidden: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "publication rejected", http.StatusInternalServerError)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func registerGitHubAutoMerge(
+	t *testing.T,
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	merged *atomic.Bool,
+	requests *atomic.Int64,
+) {
+	t.Helper()
+
+	mux.HandleFunc("GET "+prefix+"/rules/branches/{branch}", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, []any{})
+	})
+
+	handler := githubAutoMergeHandler(t, opts, merged, requests)
+	mux.HandleFunc("POST /graphql", handler)
+	mux.HandleFunc("POST /api/graphql", handler)
+}
+
+func githubAutoMergeHandler(
+	t *testing.T,
+	opts GitHubOptions,
+	merged *atomic.Bool,
+	requests *atomic.Int64,
+) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		payload, ok := decodeGitHubGraphQLRequest(t, w, r)
+		if !ok {
+			return
+		}
+
+		if strings.Contains(payload.Query, "YeetPullRequestMergeQueue") {
+			writeGitHubMergeQueue(w, opts)
+
+			return
+		}
+
+		handleGitHubAutoMergeMutation(t, w, payload, opts, merged, requests)
+	}
+}
+
+type githubGraphQLPayload struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables"`
+}
+
+func decodeGitHubGraphQLRequest(
+	t *testing.T,
+	w http.ResponseWriter,
+	r *http.Request,
+) (githubGraphQLPayload, bool) {
+	t.Helper()
+
+	var payload githubGraphQLPayload
+
+	err := json.UnmarshalRead(r.Body, &payload)
+	if err != nil {
+		testastic.NoError(t, err)
+		http.Error(w, "invalid request", http.StatusBadRequest)
+
+		return githubGraphQLPayload{}, false
+	}
+
+	return payload, true
+}
+
+func writeGitHubMergeQueue(w http.ResponseWriter, opts GitHubOptions) {
+	method := opts.MergeQueueMethod
+	if method == "" {
+		method = "SQUASH"
+	}
+
+	var entry any
+	if opts.AlreadyQueued {
+		entry = map[string]any{"id": "MQE_fake42"}
+	}
+
+	var queue any
+	if opts.MergeQueue {
+		queue = map[string]any{"configuration": map[string]any{"mergeMethod": method}}
+	}
+
+	writeJSON(w, map[string]any{
+		githubKeyData: map[string]any{
+			"repository": map[string]any{
+				"pullRequest": map[string]any{
+					"isMergeQueueEnabled": opts.MergeQueue,
+					"mergeQueueEntry":     entry,
+				},
+				"mergeQueue": queue,
+			},
+		},
+	})
+}
+
+func handleGitHubAutoMergeMutation(
+	t *testing.T,
+	w http.ResponseWriter,
+	payload githubGraphQLPayload,
+	opts GitHubOptions,
+	merged *atomic.Bool,
+	requests *atomic.Int64,
+) {
+	t.Helper()
+
+	testastic.True(t, strings.Contains(payload.Query, "enablePullRequestAutoMerge") ||
+		strings.Contains(payload.Query, "enqueuePullRequest"))
+
+	if opts.ExpectedAutoMergeOperation != "" {
+		testastic.Contains(t, payload.Query, opts.ExpectedAutoMergeOperation)
+	}
+
+	requestNumber := int(requests.Add(1))
+	input, _ := payload.Variables["input"].(map[string]any)
+	testastic.Equal(t, "PR_fake42", input["pullRequestId"])
+	testastic.Equal(t, fakeHeadSHA, input["expectedHeadOid"])
+
+	if opts.ExpectedAutoMergeMethod != "" {
+		method, _ := input["mergeMethod"].(string)
+		testastic.Equal(t, opts.ExpectedAutoMergeMethod, method)
+	}
+
+	if requestNumber <= len(opts.AutoMergeStatusCodes) && opts.AutoMergeStatusCodes[requestNumber-1] != 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(opts.AutoMergeStatusCodes[requestNumber-1])
+		writeJSON(w, map[string]any{githubKeyMessage: "auto-merge refused"})
+
+		return
+	}
+
+	if opts.AutoMergeImmediate {
+		merged.Store(true)
+	}
+
+	if strings.Contains(payload.Query, "enqueuePullRequest") {
+		writeJSON(w, map[string]any{
+			githubKeyData: map[string]any{
+				"enqueuePullRequest": map[string]any{
+					"mergeQueueEntry": map[string]any{"id": "MQE_fake42"},
+				},
+			},
+		})
+
+		return
+	}
+
+	writeJSON(w, map[string]any{
+		githubKeyData: map[string]any{
+			"enablePullRequestAutoMerge": map[string]any{
+				"pullRequest": map[string]any{"id": "PR_fake42"},
+			},
+		},
+	})
 }
 
 func registerGitHubSearch(mux *http.ServeMux, opts GitHubOptions, merged *atomic.Bool) {
@@ -266,7 +503,12 @@ func registerGitHubSearch(mux *http.ServeMux, opts GitHubOptions, merged *atomic
 	})
 }
 
-func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubReleases(
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	publication *githubPublicationAssertions,
+) {
 	mux.HandleFunc("GET "+prefix+"/releases/latest", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "no release", http.StatusNotFound)
 	})
@@ -288,6 +530,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOption
 	})
 
 	mux.HandleFunc("POST "+prefix+"/releases", func(w http.ResponseWriter, _ *http.Request) {
+		publication.release.Store(true)
 		writeJSON(w, map[string]any{
 			"id":               githubFakePRID,
 			githubKeyTagName:   fakeNextTag,
@@ -297,6 +540,7 @@ func registerGitHubReleases(mux *http.ServeMux, prefix string, opts GitHubOption
 	})
 
 	mux.HandleFunc("POST "+prefix+"/git/tags", func(w http.ResponseWriter, _ *http.Request) {
+		publication.tag.Store(true)
 		writeJSON(w, map[string]any{githubKeySHA: "7461676f626a6563747368610000000000000000", "tag": fakeNextTag})
 	})
 }
@@ -440,7 +684,7 @@ func githubCommitsAhead(commits []GitHubCommit, boundarySHA string) ([]GitHubCom
 
 func githubComparisonPayload(commits []GitHubCommit, total int, status string) map[string]any {
 	return map[string]any{
-		"status":        status,
+		keyStatus:       status,
 		"ahead_by":      total,
 		"total_commits": total,
 		keyCommits:      githubCommitsList(commits),
@@ -508,8 +752,8 @@ func registerGitHubPullsRead(
 func registerGitHubUser(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v3/user", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
-			"login":       "yeet-bot",
-			githubKeyName: "yeet-bot",
+			"login":       fakeBotLogin,
+			githubKeyName: fakeBotLogin,
 			"email":       "yeet-bot@example.test",
 		})
 	})
@@ -596,15 +840,19 @@ func registerGitHubWritePath(
 	mux *http.ServeMux,
 	prefix string,
 	opts GitHubOptions,
-	merged, reviewersRequested *atomic.Bool,
+	merged, refreshCompleted, reviewersRequested *atomic.Bool,
+	autoMergeReads *atomic.Int64,
+	publication *githubPublicationAssertions,
 	pullRequestExpectations *githubPullRequestExpectations,
 ) {
 	t.Helper()
 
-	registerGitHubGitData(t, mux, prefix, opts)
+	registerGitHubGitData(t, mux, prefix, opts, publication)
 	registerGitHubContent(mux, prefix, opts)
-	registerGitHubPullsWrite(t, mux, prefix, opts, merged, reviewersRequested, pullRequestExpectations)
-	registerGitHubLabels(t, mux, prefix, opts, reviewersRequested)
+	registerGitHubPullsWrite(
+		t, mux, prefix, opts, merged, refreshCompleted, reviewersRequested, autoMergeReads, pullRequestExpectations,
+	)
+	registerGitHubLabels(t, mux, prefix, opts, reviewersRequested, publication)
 	registerGitHubCollaborators(mux, prefix, opts)
 
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
@@ -616,7 +864,13 @@ func registerGitHubWritePath(
 	})
 }
 
-func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts GitHubOptions) {
+func registerGitHubGitData(
+	t *testing.T,
+	mux *http.ServeMux,
+	prefix string,
+	opts GitHubOptions,
+	publication *githubPublicationAssertions,
+) {
 	t.Helper()
 
 	const fakeCommitSHA = "6e6577636f6d6d69747368610000000000000000"
@@ -629,12 +883,7 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
-	mux.HandleFunc("POST "+prefix+"/git/refs", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{
-			githubKeyRef:    "refs/heads/yeet/release-main",
-			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
-		})
-	})
+	mux.HandleFunc("POST "+prefix+"/git/refs", githubCreateRefHandler(publication))
 
 	mux.HandleFunc("PATCH "+prefix+"/git/refs/heads/{branch...}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{
@@ -670,6 +919,30 @@ func registerGitHubGitData(t *testing.T, mux *http.ServeMux, prefix string, opts
 			contentKeyTree: map[string]any{githubKeySHA: fakeTreeSHA},
 		})
 	})
+}
+
+func githubCreateRefHandler(publication *githubPublicationAssertions) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Ref string `json:"ref"`
+		}
+
+		err := json.UnmarshalRead(r.Body, &request)
+		if err != nil {
+			http.Error(w, "invalid ref request", http.StatusBadRequest)
+
+			return
+		}
+
+		if strings.HasPrefix(request.Ref, "refs/tags/") {
+			publication.tagRef.Store(true)
+		}
+
+		writeJSON(w, map[string]any{
+			githubKeyRef:    "refs/heads/yeet/release-main",
+			githubKeyObject: map[string]any{githubKeySHA: fakeBaseSHA, githubKeyType: githubKeyCommit},
+		})
+	}
 }
 
 func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected map[string]string) {
@@ -802,7 +1075,8 @@ func registerGitHubPullsWrite(
 	mux *http.ServeMux,
 	prefix string,
 	opts GitHubOptions,
-	merged, reviewersRequested *atomic.Bool,
+	merged, refreshCompleted, reviewersRequested *atomic.Bool,
+	autoMergeReads *atomic.Int64,
 	pullRequestExpectations *githubPullRequestExpectations,
 ) {
 	t.Helper()
@@ -819,23 +1093,22 @@ func registerGitHubPullsWrite(
 			return
 		}
 
-		writeJSON(w, githubFakePR(opts))
-	})
-
-	mux.HandleFunc("GET "+prefix+"/pulls/{number}", func(w http.ResponseWriter, _ *http.Request) {
-		if opts.MergedPendingRelease || merged.Load() {
-			writeJSON(w, githubMergedPendingPR(opts))
-
-			return
+		if opts.AutoMergeCanceledAfterRefresh {
+			refreshCompleted.Store(true)
 		}
 
-		pr := githubFakePR(opts)
-		if opts.MergeBlocked {
-			pr["draft"] = true
+		responseOpts := opts
+		if refreshCompleted.Load() {
+			responseOpts.AutoMergeAlreadyEnabled = false
 		}
 
-		writeJSON(w, pr)
+		writeJSON(w, githubFakePR(responseOpts))
 	})
+
+	mux.HandleFunc(
+		"GET "+prefix+"/pulls/{number}",
+		githubPullRequestHandler(opts, merged, refreshCompleted, autoMergeReads),
+	)
 
 	mux.HandleFunc("GET "+prefix+"/pulls/{number}/files", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, []any{})
@@ -850,6 +1123,42 @@ func registerGitHubPullsWrite(
 		"POST "+prefix+"/pulls/{number}/requested_reviewers",
 		githubRequestReviewersHandler(opts, reviewersRequested),
 	)
+}
+
+func githubPullRequestHandler(
+	opts GitHubOptions,
+	merged *atomic.Bool,
+	refreshCompleted *atomic.Bool,
+	autoMergeReads *atomic.Int64,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		if opts.MergedPendingRelease || merged.Load() {
+			writeJSON(w, githubMergedPendingPR(opts))
+
+			return
+		}
+
+		prOpts := opts
+		if opts.AutoMergeCanceledAfterRefresh && refreshCompleted.Load() {
+			prOpts.AutoMergeAlreadyEnabled = false
+		}
+
+		pr := githubFakePR(prOpts)
+		readIndex := int(autoMergeReads.Add(1) - 1)
+
+		if readIndex < len(opts.ExpectedCreatedPullRequests) {
+			head, ok := pr["head"].(map[string]any)
+			if ok {
+				head[githubKeyRef] = opts.ExpectedCreatedPullRequests[readIndex].Head
+			}
+		}
+
+		if opts.MergeBlocked {
+			pr["draft"] = true
+		}
+
+		writeJSON(w, pr)
+	}
 }
 
 func githubCreatePullRequestHandler(
@@ -998,6 +1307,7 @@ func registerGitHubLabels(
 	prefix string,
 	opts GitHubOptions,
 	reviewersRequested *atomic.Bool,
+	publication *githubPublicationAssertions,
 ) {
 	t.Helper()
 
@@ -1032,19 +1342,56 @@ func registerGitHubLabels(
 		writeJSON(w, map[string]any{githubKeyName: name})
 	})
 
-	mux.HandleFunc("POST "+prefix+"/issues/{number}/labels", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(
+		"POST "+prefix+"/issues/{number}/labels",
+		githubAddLabelsHandler(t, opts, reviewersRequested, publication),
+	)
+
+	mux.HandleFunc("DELETE "+prefix+"/issues/{number}/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func githubAddLabelsHandler(
+	t *testing.T,
+	opts GitHubOptions,
+	reviewersRequested *atomic.Bool,
+	publication *githubPublicationAssertions,
+) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
 		if len(opts.Collaborators) > 0 && !reviewersRequested.Load() {
 			http.Error(w, "reviewers were not requested", http.StatusConflict)
 
 			return
 		}
 
-		writeJSON(w, []any{})
-	})
+		isTagged := githubLabelsContainTagged(t, r)
+		if opts.ForbidPublication && isTagged {
+			t.Errorf("fakeprovider/github: tagged lifecycle label forbidden: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "publication rejected", http.StatusInternalServerError)
 
-	mux.HandleFunc("DELETE "+prefix+"/issues/{number}/labels/{name}", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
+			return
+		}
+
+		if opts.AssertPublication && isTagged {
+			publication.tagged.Store(true)
+		}
+
+		writeJSON(w, []any{})
+	}
+}
+
+func githubLabelsContainTagged(t *testing.T, r *http.Request) bool {
+	t.Helper()
+
+	var labels []string
+
+	err := json.UnmarshalRead(r.Body, &labels)
+	testastic.NoError(t, err)
+
+	return slices.Contains(labels, "autorelease: tagged")
 }
 
 const githubReleaseManifest = "<!-- yeet-release-manifest\n" +
@@ -1076,16 +1423,22 @@ func githubFakePR(opts GitHubOptions) map[string]any {
 }
 
 func githubPendingPR(opts GitHubOptions, number int) map[string]any {
-	return map[string]any{
+	mergeableState := "clean"
+	if opts.PendingChecks {
+		mergeableState = "blocked"
+	}
+
+	pr := map[string]any{
 		"number":          number,
+		"node_id":         "PR_fake42",
 		"state":           fakeStateOpen,
 		"draft":           false,
 		fakeStateMerged:   false,
-		"mergeable_state": "clean",
+		"mergeable_state": mergeableState,
 		githubKeyHTMLURL:  "https://example.test/pulls/42",
 		"head": map[string]any{
 			githubKeyRef: fakeReleaseBranch,
-			githubKeySHA: "6865616473686100000000000000000000000000",
+			githubKeySHA: fakeHeadSHA,
 			"repo": map[string]any{
 				"full_name": opts.Owner + "/" + opts.Repo,
 			},
@@ -1093,6 +1446,15 @@ func githubPendingPR(opts GitHubOptions, number int) map[string]any {
 		"base":   map[string]any{githubKeyRef: fakeBaseBranch},
 		"labels": []map[string]any{{githubKeyName: fakePendingReleaseTag}},
 	}
+
+	if opts.AutoMergeAlreadyEnabled {
+		pr["auto_merge"] = map[string]any{
+			"enabled_by":   map[string]any{"login": fakeBotLogin},
+			"merge_method": "squash",
+		}
+	}
+
+	return pr
 }
 
 func githubCommitsList(commits []GitHubCommit) []map[string]any {

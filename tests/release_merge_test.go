@@ -40,7 +40,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "rebase",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -80,7 +81,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "merge",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -118,7 +120,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "rebase",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -163,7 +166,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method squash`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "squash",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "squash",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -201,7 +205,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "merge",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -281,7 +286,7 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 
 		// when: invoking `yeet release --auto-merge` against the gated MR
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
@@ -327,7 +332,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method rebase`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "rebase",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "rebase",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -369,7 +375,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method merge`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "merge",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "merge",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -411,7 +418,8 @@ func TestReleaseAutoMergeMethods(t *testing.T) {
 		// when: invoking `yeet release --auto-merge --auto-merge-method squash`
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-method", "squash",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
+				"--auto-merge-method", "squash",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),

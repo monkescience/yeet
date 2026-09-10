@@ -87,7 +87,7 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)

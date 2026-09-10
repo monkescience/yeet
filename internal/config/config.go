@@ -49,6 +49,13 @@ const (
 	AutoMergeMethodMerge  AutoMergeMethod = "merge"
 )
 
+type AutoMergeMode string
+
+const (
+	AutoMergeModeProvider AutoMergeMode = "provider"
+	AutoMergeModeDirect   AutoMergeMode = "direct"
+)
+
 type PullRequestMode string
 
 const (
@@ -215,7 +222,7 @@ type ReleaseConfig struct {
 	CommitSubject      string                          `yaml:"commit_subject"`
 	CommitSubjectGroup string                          `yaml:"commit_subject_group"`
 	AutoMerge          bool                            `yaml:"auto_merge"`
-	AutoMergeForce     bool                            `yaml:"auto_merge_force"`
+	AutoMergeMode      AutoMergeMode                   `yaml:"auto_merge_mode"`
 	AutoMergeMethod    AutoMergeMethod                 `yaml:"auto_merge_method"`
 	PRBodyHeader       string                          `yaml:"pr_body_header"`
 	PRBodyFooter       string                          `yaml:"pr_body_footer"`

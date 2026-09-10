@@ -372,16 +372,21 @@ func TestReleaseFailureMessage(t *testing.T) {
 				"pending release changes",
 		},
 		{
-			name:   "merge blocked",
-			kind:   release.FailureMergeBlocked,
-			reason: release.MergeReasonPolicy,
-			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and " +
-				"checks, or use --auto-merge-force when appropriate",
+			name:     "merge blocked",
+			kind:     release.FailureMergeBlocked,
+			reason:   release.MergeReasonPolicy,
+			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and checks",
 		},
 		{
 			name:     "merge timeout",
 			kind:     release.FailureMergeTimeout,
 			expected: "release failed: merge finalization timed out. Inspect provider state before retrying",
+		},
+		{
+			name: "auto-merge unsupported",
+			kind: release.FailureAutoMergeUnsupported,
+			expected: "release failed: provider-managed auto-merge is unsupported. " +
+				"Check provider prerequisites, or use --auto-merge-mode direct",
 		},
 		{
 			name: "reviewer",
@@ -426,10 +431,9 @@ func TestMergeBlockedMessage(t *testing.T) {
 		expected string
 	}{
 		{
-			name:   "conflicts",
-			reason: release.MergeReasonConflicts,
-			expected: "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch, " +
-				"which --auto-merge-force never bypasses",
+			name:     "conflicts",
+			reason:   release.MergeReasonConflicts,
+			expected: "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch",
 		},
 		{
 			name:   "draft",
@@ -444,10 +448,9 @@ func TestMergeBlockedMessage(t *testing.T) {
 				"closed. Reopen it, or let the next run open a new one",
 		},
 		{
-			name:   "policy",
-			reason: release.MergeReasonPolicy,
-			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and " +
-				"checks, or use --auto-merge-force when appropriate",
+			name:     "policy",
+			reason:   release.MergeReasonPolicy,
+			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and checks",
 		},
 		{
 			name:   "method",
@@ -461,10 +464,9 @@ func TestMergeBlockedMessage(t *testing.T) {
 			expected: "release failed: the provider refused the merge. Resolve the reported provider failure before retrying",
 		},
 		{
-			name:   "unknown",
-			reason: release.MergeReasonUnknown,
-			expected: "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
-				"or use --auto-merge-force when appropriate",
+			name:     "unknown",
+			reason:   release.MergeReasonUnknown,
+			expected: "release failed: merge readiness is unknown. Resolve pull request or merge request readiness",
 		},
 	}
 

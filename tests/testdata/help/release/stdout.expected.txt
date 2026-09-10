@@ -30,9 +30,9 @@ Examples:
   yeet release --provider github --owner platform --repo yeet --dry-run
 
 Flags:
-      --auto-merge                 automatically merge the release PR/MR and finalize the release in the same run
-      --auto-merge-force           attempt auto-merge while bypassing yeet readiness checks. Draft status and conflicts still block merging. Provider rules may still apply
+      --auto-merge                 enable the configured auto-merge mode
       --auto-merge-method string   merge method for auto-merge: auto|squash|rebase|merge (defaults to the configured method, or auto if unset)
+      --auto-merge-mode string     auto-merge execution mode: provider|direct (defaults to the configured mode, or provider if unset)
       --channel string             run a configured prerelease channel, defaulting to the channel matching the current branch
       --config string              path to config file (default: nearest ancestor .yeet.yaml)
       --dry-run                    show the planned release without creating a PR/MR

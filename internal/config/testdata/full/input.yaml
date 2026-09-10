@@ -42,7 +42,7 @@ release:
   commit_subject: 'commit {{ .Tag }}'
   commit_subject_group: 'commit {{ .TargetCount }} targets'
   auto_merge: true
-  auto_merge_force: true
+  auto_merge_mode: direct
   auto_merge_method: rebase
   pr_body_header: |-
     ## Release checklist

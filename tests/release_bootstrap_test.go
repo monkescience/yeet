@@ -101,10 +101,10 @@ func TestReleaseCommitMix(t *testing.T) {
 	})
 }
 
-func TestReleaseAutoMergeForce(t *testing.T) {
+func TestReleaseDirectAutoMergeReadiness(t *testing.T) {
 	t.Parallel()
 
-	t.Run("github --auto-merge-force does not bypass draft state", func(t *testing.T) {
+	t.Run("github direct auto-merge does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server that flags the PR as draft (merge-blocked)
@@ -131,10 +131,10 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 			Repo:     "testrepo",
 		})
 
-		// when: invoking `yeet release --auto-merge --auto-merge-force` against the blocked PR
+		// when: invoking direct auto-merge against the blocked PR
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-force",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -145,8 +145,26 @@ func TestReleaseAutoMergeForce(t *testing.T) {
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release/github___auto_merge_force_does_not_bypass_draft_state/"+
+			"testdata/release/github_direct_auto_merge_does_not_bypass_draft_state/"+
 				"stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("removed auto-merge force flag is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the removed auto-merge force flag
+
+		// when: invoking `yeet release --auto-merge-force`
+		result := binary.Run(t, "release", "--auto-merge-force")
+
+		// then: the binary rejects the unknown flag
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Equal(t, "", result.Stdout)
+		testastic.AssertFile(
+			t,
+			"testdata/release/rejects_removed_auto_merge_force_flag/stderr.expected.txt",
 			result.Stderr,
 		)
 	})

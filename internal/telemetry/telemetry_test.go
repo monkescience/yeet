@@ -136,6 +136,30 @@ func TestRecordInit(t *testing.T) {
 	testastic.AssertJSON(t, "testdata/init_event.expected.json", body)
 }
 
+func TestRecordReleaseOmitsInvalidAutoMergeMode(t *testing.T) {
+	t.Parallel()
+
+	// given: enabled telemetry and a release invocation with an invalid mode
+	var events []wireEvent
+
+	manager := testManager(nil, roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		err := json.UnmarshalRead(request.Body, &events)
+		testastic.NoError(t, err)
+
+		return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody}, nil
+	}))
+	path := repositoryConfig(t, new(true))
+	opts := release.Options{AutoMerge: new(true), AutoMergeMode: new("anything")}
+
+	// when: recording the failed release invocation
+	manager.RecordRelease(t.Context(), manager.now(), path, opts, nil, config.ErrInvalidConfig)
+
+	// then: the failure event is delivered without the unvalidated flag value
+	testastic.Equal(t, 1, len(events))
+	testastic.Equal(t, "failure", events[0].Payload.Outcome)
+	testastic.Equal(t, "", events[0].Payload.ReleaseAutoMerge)
+}
+
 func TestDeliveryIsBoundedAndBestEffort(t *testing.T) {
 	t.Parallel()
 
@@ -262,46 +286,24 @@ func TestEventFields(t *testing.T) {
 
 	for name, test := range map[string]struct {
 		configuredEnabled bool
-		configuredForce   bool
+		configuredMode    config.AutoMergeMode
 		options           release.Options
 		expected          string
 	}{
-		"configured off": {
-			expected: "off",
-		},
-		"configured normal": {
+		"configured off":      {expected: "off"},
+		"configured provider": {configuredEnabled: true, expected: "provider"},
+		"configured direct":   {configuredEnabled: true, configuredMode: config.AutoMergeModeDirect, expected: "direct"},
+		"explicit enable":     {options: release.Options{AutoMerge: new(true)}, expected: "provider"},
+		"explicit false":      {configuredEnabled: true, options: release.Options{AutoMerge: new(false)}, expected: "off"},
+		"explicit mode override": {
 			configuredEnabled: true,
-			expected:          "normal",
+			options:           release.Options{AutoMergeMode: new("direct")},
+			expected:          "direct",
 		},
-		"configured force": {
-			configuredForce: true,
-			expected:        "force",
+		"invalid enabled mode is omitted": {
+			options: release.Options{AutoMerge: new(true), AutoMergeMode: new("anything")},
 		},
-		"explicit enable overrides configured off": {
-			options:  release.Options{AutoMerge: new(true)},
-			expected: "normal",
-		},
-		"explicit false clears configured force": {
-			configuredEnabled: true,
-			configuredForce:   true,
-			options:           release.Options{AutoMerge: new(false)},
-			expected:          "off",
-		},
-		"explicit force false retains configured normal": {
-			configuredEnabled: true,
-			configuredForce:   true,
-			options:           release.Options{AutoMergeForce: new(false)},
-			expected:          "normal",
-		},
-		"explicit force overrides explicit false": {
-			configuredEnabled: true,
-			configuredForce:   true,
-			options: release.Options{
-				AutoMerge:      new(false),
-				AutoMergeForce: new(true),
-			},
-			expected: "force",
-		},
+		"mode does not enable": {options: release.Options{AutoMergeMode: new("direct")}, expected: "off"},
 	} {
 		t.Run("auto merge mode/"+name, func(t *testing.T) {
 			t.Parallel()
@@ -309,7 +311,10 @@ func TestEventFields(t *testing.T) {
 			// given: configured auto-merge behavior and optional explicit flags
 			cfg := config.Default()
 			cfg.Release.AutoMerge = test.configuredEnabled
-			cfg.Release.AutoMergeForce = test.configuredForce
+
+			if test.configuredMode != "" {
+				cfg.Release.AutoMergeMode = test.configuredMode
+			}
 
 			// when: building the release telemetry profile
 			profile := releaseProfile(cfg, test.options, nil)

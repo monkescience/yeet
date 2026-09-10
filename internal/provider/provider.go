@@ -35,9 +35,13 @@ const (
 )
 
 var (
-	ErrUnknownRemote    = errors.New("unable to parse remote URL")
-	ErrUnsupportedHost  = errors.New("unsupported remote host")
-	errMergeTimeMissing = errors.New("merged release PR completion time is unavailable")
+	ErrUnknownRemote            = errors.New("unable to parse remote URL")
+	ErrUnsupportedHost          = errors.New("unsupported remote host")
+	errMergeTimeMissing         = errors.New("merged release PR completion time is unavailable")
+	errAutoMergeResponseInvalid = blockedMerge(
+		"", forge.MergeBlockedReasonFailure, "provider auto-merge response is invalid",
+	)
+	errGitHubGraphQLRequest = blockedMerge("", forge.MergeBlockedReasonFailure, "github GraphQL request failed")
 )
 
 type releasePRLabelsError struct {

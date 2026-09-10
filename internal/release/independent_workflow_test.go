@@ -172,6 +172,7 @@ func TestIndependentReleaseWorkflow(t *testing.T) {
 		// given: two reconciled units where the first merge fails
 		cfg := newConfig(t)
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 		stub := newStub(t)
 		stub.mergePRErrByNumber = map[int]error{1: errTestUnitMerge}
 		r := newTestReleaser(t, cfg, stub)
@@ -510,6 +511,7 @@ func TestIndependentReleaseWorkflow(t *testing.T) {
 			"apps": {Targets: []string{"api", "web"}},
 		}
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 		stub := newStub(t)
 		stub.createReleaseErrByCall = map[int]error{2: errTestUnitPublish}
 		r := newTestReleaser(t, cfg, stub)

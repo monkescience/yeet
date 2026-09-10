@@ -131,7 +131,7 @@ func TestReleaseAzureCalVer(t *testing.T) {
 
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
@@ -198,10 +198,10 @@ func TestReleaseExtraTagsCrossProvider(t *testing.T) {
 	})
 }
 
-func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
+func TestReleaseAzureDirectAutoMergeRejectsDraft(t *testing.T) {
 	t.Parallel()
 
-	t.Run("azuredevops --auto-merge-force does not bypass draft state", func(t *testing.T) {
+	t.Run("azuredevops direct auto-merge does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an Azure server that reports the PR as draft
@@ -230,10 +230,10 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 			Project:      "platform",
 		})
 
-		// when: invoking `yeet release --auto-merge --auto-merge-force` against a draft PR
+		// when: invoking direct auto-merge against a draft PR
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-force",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -245,7 +245,7 @@ func TestReleaseAzureAutoMergeForceRejectsDraft(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/release/"+
-				"azuredevops___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
+				"azuredevops_direct_auto_merge_does_not_bypass_draft_state/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -300,7 +300,7 @@ func TestReleaseAzureAutoMergeTagsMultipleTargets(t *testing.T) {
 
 		// when: invoking `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)

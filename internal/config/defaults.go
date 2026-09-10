@@ -79,7 +79,7 @@ func Default() *Config {
 				Timeout:         defaultMergePollingTimeout,
 			},
 			AutoMerge:       false,
-			AutoMergeForce:  false,
+			AutoMergeMode:   AutoMergeModeProvider,
 			AutoMergeMethod: AutoMergeMethodAuto,
 			PRBodyHeader:    "## ٩(^ᴗ^)۶ release created",
 			PRBodyFooter: "_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n" +

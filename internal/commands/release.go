@@ -84,7 +84,7 @@ type releaseFlagValues struct {
 	repo            string
 	project         string
 	autoMerge       bool
-	autoMergeForce  bool
+	autoMergeMode   string
 	autoMergeMethod string
 	channel         string
 	targets         []string
@@ -117,14 +117,17 @@ func bindReleaseFlags(cmd *cobra.Command, flags *releaseFlagValues) {
 		&flags.autoMerge,
 		"auto-merge",
 		false,
-		"automatically merge the release PR/MR and finalize the release in the same run",
+		"enable the configured auto-merge mode",
 	)
-	cmd.Flags().BoolVar(
-		&flags.autoMergeForce,
-		"auto-merge-force",
-		false,
-		"attempt auto-merge while bypassing yeet readiness checks. "+
-			"Draft status and conflicts still block merging. Provider rules may still apply",
+	cmd.Flags().StringVar(
+		&flags.autoMergeMode,
+		"auto-merge-mode",
+		"",
+		fmt.Sprintf(
+			"auto-merge execution mode: provider|direct "+
+				"(defaults to the configured mode, or %s if unset)",
+			config.AutoMergeModeProvider,
+		),
 	)
 	cmd.Flags().StringVar(
 		&flags.autoMergeMethod,
@@ -160,7 +163,7 @@ func releaseOptionsFromCommand(cmd *cobra.Command, flags releaseFlagValues) rele
 		RepositoryRepo:    changedFlag(cmd, "repo", &flags.repo),
 		RepositoryProject: changedFlag(cmd, "project", &flags.project),
 		AutoMerge:         changedFlag(cmd, "auto-merge", &flags.autoMerge),
-		AutoMergeForce:    changedFlag(cmd, "auto-merge-force", &flags.autoMergeForce),
+		AutoMergeMode:     changedFlag(cmd, "auto-merge-mode", &flags.autoMergeMode),
 		AutoMergeMethod:   changedFlag(cmd, "auto-merge-method", &flags.autoMergeMethod),
 		Channel:           changedFlag(cmd, "channel", &flags.channel),
 		Targets:           append([]string(nil), flags.targets...),
@@ -262,6 +265,9 @@ func releaseFailureMessage(kind release.FailureKind, configPath string, mergeRea
 		return mergeBlockedMessage(mergeReason)
 	case release.FailureMergeTimeout:
 		return "release failed: merge finalization timed out. Inspect provider state before retrying"
+	case release.FailureAutoMergeUnsupported:
+		return "release failed: provider-managed auto-merge is unsupported. " +
+			"Check provider prerequisites, or use --auto-merge-mode direct"
 	case release.FailureReviewer:
 		return "release failed: release reviewers could not be applied. " +
 			"Check identity, membership, permissions, and provider limits"
@@ -278,8 +284,7 @@ func releaseFailureMessage(kind release.FailureKind, configPath string, mergeRea
 func mergeBlockedMessage(reason release.MergeReason) string {
 	switch reason {
 	case release.MergeReasonConflicts:
-		return "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch, " +
-			"which --auto-merge-force never bypasses"
+		return "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch"
 	case release.MergeReasonDraft:
 		return "release failed: merge is blocked because the release pull request or merge request is a draft. " +
 			"Mark it ready to merge"
@@ -287,18 +292,15 @@ func mergeBlockedMessage(reason release.MergeReason) string {
 		return "release failed: merge is blocked because the release pull request or merge request is closed. " +
 			"Reopen it, or let the next run open a new one"
 	case release.MergeReasonPolicy:
-		return "release failed: merge is blocked by repository policy. Satisfy required approvals and checks, " +
-			"or use --auto-merge-force when appropriate"
+		return "release failed: merge is blocked by repository policy. Satisfy required approvals and checks"
 	case release.MergeReasonMethod:
 		return "release failed: merge is blocked by the requested method. Enable it in the forge settings, " +
 			"or choose another --auto-merge-method"
 	case release.MergeReasonProvider:
 		return "release failed: the provider refused the merge. Resolve the reported provider failure before retrying"
 	case release.MergeReasonUnknown:
-		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
-			"or use --auto-merge-force when appropriate"
+		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness"
 	default:
-		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness, " +
-			"or use --auto-merge-force when appropriate"
+		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness"
 	}
 }

@@ -1,0 +1,9 @@
+{
+  "data": {
+    "enablePullRequestAutoMerge": {
+      "pullRequest": {
+        "id": "PR_release"
+      }
+    }
+  }
+}

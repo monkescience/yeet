@@ -69,9 +69,8 @@ const (
 )
 
 type MergeReleasePROptions struct {
-	BypassMergeChecks bool
-	BaseBranch        string
-	ReleaseBranch     string
+	BaseBranch    string
+	ReleaseBranch string
 	// Method is best effort because the three forges expose unrelated
 	// capability models. Adapters validate only what their forge exposes.
 	Method MergeMethod
@@ -118,6 +117,9 @@ type Provider interface {
 		baseBranch, pendingLabel string,
 		expectedBranches ...string,
 	) ([]*PullRequest, error)
+	// EnsureAutoMerge asks the forge to merge the request when its requirements
+	// pass. It returns once the forge accepts or already satisfies the request.
+	EnsureAutoMerge(ctx context.Context, number int, opts MergeReleasePROptions) error
 	// MergeReleasePR returns the commit produced on the base branch. It is
 	// idempotent for an already merged request. It returns ErrUntrustedReleasePR,
 	// ErrMergeBlocked as a *MergeBlockedError, ErrMergeMethodUnsupported, or
@@ -157,6 +159,7 @@ var (
 	ErrMergeNotFinalized       = errors.New("release PR merge did not finalize")
 	ErrUntrustedReleasePR      = errors.New("untrusted release PR")
 	ErrMergeMethodUnsupported  = errors.New("merge method unsupported")
+	ErrAutoMergeUnsupported    = errors.New("provider-managed auto-merge unsupported")
 	ErrReviewerNotFound        = errors.New("reviewer not found")
 	ErrReviewerAmbiguous       = errors.New("reviewer is ambiguous")
 	ErrReviewerNotApplied      = errors.New("reviewer not applied")

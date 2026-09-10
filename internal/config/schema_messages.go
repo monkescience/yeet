@@ -165,6 +165,7 @@ func releaseRules() []schemaRule {
 		entryRules(extra, "must not contain blank labels", "release.labels.extra entry"),
 		[]schemaRule{
 			duplicateRule(extra, "release.labels.extra entry %q duplicates release.labels.extra"),
+			enumRule([]string{releaseNode, "auto_merge_mode"}),
 			enumRule([]string{releaseNode, "auto_merge_method"}),
 			{
 				path:    []string{releaseNode, "pr_body_max_length"},

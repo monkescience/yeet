@@ -1,0 +1,14 @@
+{
+  "state": "opened",
+  "detailed_merge_status": "ci_still_running",
+  "sha": "736f757263657469707368610000000000000000",
+  "source_branch": "release-main",
+  "target_branch": "main",
+  "source_project_id": 7,
+  "target_project_id": 7,
+  "draft": false,
+  "has_conflicts": false,
+  "merge_when_pipeline_succeeds": false,
+  "squash": false,
+  "squash_on_merge": false
+}

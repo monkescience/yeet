@@ -484,6 +484,7 @@ func TestPrereleaseChannels(t *testing.T) {
 		// given: auto-merge enabled for a beta channel
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
 		}
@@ -980,6 +981,7 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 		// given: a merged pending release PR, fresh commits after its tag, and auto-merge enabled
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 
 		stub := newProviderStub()
 		stub.mergePRSHA = "second-merged-sha"
@@ -1244,6 +1246,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		// given: auto-merge enabled with one releasable commit
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 		cfg.Release.NameTemplate = "{{ .Target }} {{ .Version }}"
 
 		stub := newProviderStub()
@@ -1269,7 +1272,6 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, len(stub.mergePRNumbers))
 		testastic.Equal(t, result.PullRequest.Number, stub.mergePRNumbers[0])
 		testastic.Equal(t, 1, len(stub.mergePROptions))
-		testastic.False(t, stub.mergePROptions[0].BypassMergeChecks)
 		testastic.Equal(t, cfg.Branch, stub.mergePROptions[0].BaseBranch)
 		testastic.Equal(t, forge.MergeMethodAuto, stub.mergePROptions[0].Method)
 		testastic.Equal(t, result.PullRequest.Branch, stub.mergePROptions[0].ReleaseBranch)
@@ -1287,6 +1289,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		// given: auto-merge enabled and the base branch may advance after the merge
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 
 		stub := newProviderStub()
 		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
@@ -1309,42 +1312,13 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 1, stub.findMergedPRCalls)
 	})
 
-	t.Run("force mode forwards force option to provider merge", func(t *testing.T) {
-		t.Parallel()
-
-		// given: force auto-merge enabled
-		cfg := config.Default()
-		cfg.Release.AutoMergeForce = true
-
-		stub := newProviderStub()
-		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
-		stub.tagList = []string{"v1.2.3"}
-		stub.commits = []history.CommitEntry{{
-			Hash:    "abcdef1234567890",
-			Message: "fix: patch bug",
-		}}
-
-		r := newTestReleaser(t, cfg, stub)
-
-		// when: running release end-to-end
-		result, err := r.Release(context.Background(), false)
-
-		// then: merge is attempted in force mode and release is finalized
-		testastic.NoError(t, err)
-		testastic.NotEqual(t, (*forge.PullRequest)(nil), result.PullRequest)
-		testastic.True(t, len(result.Releases) > 0)
-		testastic.Equal(t, 1, stub.mergePRCalls)
-		testastic.Equal(t, 1, len(stub.mergePROptions))
-		testastic.True(t, stub.mergePROptions[0].BypassMergeChecks)
-		testastic.Equal(t, forge.MergeMethodAuto, stub.mergePROptions[0].Method)
-	})
-
 	t.Run("passes configured merge method to provider", func(t *testing.T) {
 		t.Parallel()
 
 		// given: auto-merge enabled with explicit merge method
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 		cfg.Release.AutoMergeMethod = config.AutoMergeMethodSquash
 
 		stub := newProviderStub()
@@ -1373,6 +1347,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		// given: auto-merge enabled but provider refuses merge
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 
 		stub := newProviderStub()
 		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}
@@ -1405,6 +1380,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		// given: an auto-merged release whose tagged-label preflight fails
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 
 		stub := newProviderStub()
 		stub.latestRelease = &forge.Release{TagName: "v1.2.3"}

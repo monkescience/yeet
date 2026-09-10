@@ -37,6 +37,7 @@ func TestClassifyFailure(t *testing.T) {
 			reason: MergeReasonPolicy,
 		},
 		{name: "merge timeout", cause: forge.ErrMergeNotFinalized, kind: FailureMergeTimeout},
+		{name: "auto-merge unsupported", cause: forge.ErrAutoMergeUnsupported, kind: FailureAutoMergeUnsupported},
 		{name: "reviewer", cause: forge.ErrReviewerNotFound, kind: FailureReviewer},
 		{name: "labels", cause: forge.ErrReleasePRLabelMissing, kind: FailureLabels},
 		{name: "unexpected", cause: errors.New("surprise"), kind: FailureUnexpected},

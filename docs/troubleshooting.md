@@ -14,9 +14,20 @@ Every release error starts with `release failed`, followed by an operational cat
 | `multiple pending release changes were found` | Close or relabel stale pending releases until only one remains for the base branch |
 | `merge is blocked` | Resolve the reported conflict, draft state, closure, policy, method, permission, or provider refusal |
 | `merge finalization timed out` | Inspect the provider state before retrying |
+| `provider-managed auto-merge is unsupported` | Check provider prerequisites, or select `--auto-merge-mode direct` |
 | `release reviewers could not be applied` | Check identity, membership, permissions, and provider limits |
 | `release labels are missing, mismatched, or rejected` | Use the decision table below |
 | `unexpected failure` | Enable verbose logging and diagnose the preserved original cause |
+
+## Auto-merge
+
+| Observed state | Recovery |
+|---|---|
+| Provider-managed auto-merge is unsupported | Azure DevOps requires `--auto-merge-mode direct`. GitLab requires 17.11 or newer for provider mode. Check the [provider prerequisites](release.md#auto-merge-modes) for self-hosted installations |
+| Native scheduling is disabled or refused | Enable native auto-merge in the provider settings and check token permissions and repository rules. Yeet does not fall back to a direct merge. Select `direct` explicitly if that is the intended workflow |
+| Scheduling was accepted but no release was published | Run `yeet release` on the base branch after the provider merges. Provider mode only schedules the merge. Direct mode merges and publishes in one run when normal readiness checks pass |
+
+See [auto-merge modes](release.md#auto-merge-modes). Setting `--auto-merge=false` does not cancel existing provider scheduling. Cancel it through the provider.
 
 ## Release labels
 

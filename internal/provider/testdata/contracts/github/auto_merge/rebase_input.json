@@ -1,0 +1,5 @@
+{
+  "pullRequestId": "PR_release",
+  "expectedHeadOid": "6865616473686100000000000000000000000000",
+  "mergeMethod": "REBASE"
+}

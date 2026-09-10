@@ -1,0 +1,14 @@
+[
+  {
+    "id": 267,
+    "merge_request": {
+      "id": 273,
+      "iid": 42,
+      "project_id": 7,
+      "state": "opened"
+    },
+    "target_branch": "main",
+    "status": "idle",
+    "merged_at": null
+  }
+]

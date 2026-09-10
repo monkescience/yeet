@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/forge"
 )
@@ -76,7 +75,7 @@ func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROption
 		return d.awaitMergeCommit(ctx, current.Reference)
 	}
 
-	err = checkMergeReadiness(current, opts.BypassMergeChecks)
+	err = checkMergeReadiness(current)
 	if err != nil {
 		return "", err
 	}
@@ -99,11 +98,7 @@ func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROption
 }
 
 func (d mergeDriver[M]) isTrusted(current mergeState) bool {
-	expectedBase := strings.TrimSpace(d.baseBranch)
-
-	return current.SameRepository &&
-		strings.TrimSpace(current.BaseBranch) == expectedBase &&
-		isExpectedReleaseBranch(current.SourceBranch, expectedBase, d.releaseBranch)
+	return isTrustedMergeState(current, d.baseBranch, d.releaseBranch)
 }
 
 func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) (string, error) {
@@ -117,8 +112,6 @@ func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) 
 			return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
 		}
 
-		// Readiness is deliberately absent here: a forge that accepted a merge
-		// under --auto-merge-force still reports the policy it was told to skip.
 		switch {
 		case current.Refusal != nil:
 			return "", blockedMerge(reference, current.Refusal.reason, current.Refusal.detail)
@@ -134,18 +127,14 @@ func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) 
 	})
 }
 
-// checkMergeReadiness gates conflicts unconditionally and policy behind the
-// bypass, because --auto-merge-force overrides a repository's own rules and
-// never overrides a merge the forge cannot perform.
-func checkMergeReadiness(current mergeState, bypassMergeChecks bool) error {
+func checkMergeReadiness(current mergeState) error {
+	err := checkAutoMergeCandidate(current)
+	if err != nil {
+		return err
+	}
+
 	switch {
-	case !current.IsOpen:
-		return blockedMerge(current.Reference, forge.MergeBlockedReasonClosed, "is closed")
-	case current.IsDraft:
-		return blockedMerge(current.Reference, forge.MergeBlockedReasonDraft, "is draft")
-	case current.HasConflicts:
-		return blockedMerge(current.Reference, forge.MergeBlockedReasonConflicts, "has conflicts")
-	case !bypassMergeChecks && current.ReadinessBlocked:
+	case current.ReadinessBlocked:
 		return blockedMerge(current.Reference, forge.MergeBlockedReasonPolicy, current.RawReadiness)
 	default:
 		return nil

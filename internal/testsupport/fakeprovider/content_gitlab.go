@@ -136,5 +136,5 @@ func gitLabContentExistence(wanted bool) string {
 }
 
 func writeGitLabContentError(w http.ResponseWriter, status int, message string) {
-	writeContentJSON(w, status, map[string]any{"message": message})
+	writeContentJSON(w, status, map[string]any{githubKeyMessage: message})
 }

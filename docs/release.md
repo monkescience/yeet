@@ -10,7 +10,7 @@ The release lifecycle has three states:
 | Open pending release | Refreshes the same release branch and PR/MR with newly eligible commits |
 | Merged pending release | Creates the tag and provider release, replaces the pending label with the tagged label, and publishes changelog notes |
 
-With `--auto-merge` or `release.auto_merge`, yeet merges and finalizes in one run. `--auto-merge-force` skips yeet's readiness checks, but provider rules, required checks, approvals, draft state, conflicts, and permissions still apply.
+With `--auto-merge` or `release.auto_merge`, yeet uses the configured auto-merge mode. The default `provider` mode asks GitHub or GitLab to manage the merge and returns when the provider accepts the request. A later run on the base branch finds the merged pending release and publishes it. The `direct` mode checks normal readiness, merges the PR/MR, and publishes in the same run.
 
 ## PR/MR settings
 
@@ -19,6 +19,7 @@ Add only the settings you need.
 ```yaml
 release:
   auto_merge: true
+  auto_merge_mode: provider
   auto_merge_method: squash
   reviewers:
     - alice
@@ -94,19 +95,41 @@ The provider release `name_template` receives the same fields as a single-target
 
 Templates use Go `text/template` without custom functions. Rendered values must be nonempty and single-line. An empty subject template keeps the built-in value. Titles and commit subjects are independent, and existing release titles are regenerated on refresh.
 
+### Auto-merge modes
+
+`auto_merge_mode`, or the one-run `--auto-merge-mode` override, accepts `provider` or `direct`. Selecting a mode does not enable auto-merge. Use `auto_merge: true` or `--auto-merge` to enable the selected mode.
+
+Provider mode is the default. GitHub and GitLab accept the native scheduling request and then enforce their configured checks, approvals, merge queue, or merge train. Acceptance means the request is scheduled or already enabled. It does not mean the PR/MR was merged or the release was published. Yeet does not wait for completion, create a tag, create a provider release, or mark the PR/MR tagged from this path, even if the provider merges immediately.
+
+Provider mode requires native auto-merge to be enabled in the repository and the token identity to have permission to request it. The CI workflow must run `yeet release` again on the base branch after the provider merges. Azure DevOps does not support provider mode. Configure `direct` for Azure DevOps or for workflows that require merge and publication in one run.
+
+GitLab provider mode requires version 17.11 or newer. Yeet checks the server version before requesting scheduling, because older APIs can ignore the `auto_merge` parameter. Supported installations must expose the current `auto_merge` parameter on the [merge request](https://docs.gitlab.com/api/merge_requests/) and [merge train](https://docs.gitlab.com/api/merge_trains/) APIs. GitLab deprecated the former `merge_when_pipeline_succeeds` parameter in 17.11. When merge trains are enabled, yeet uses the dedicated merge train endpoint so scheduling does not depend on normal merge endpoint routing.
+
+GitHub installations must expose the GraphQL auto-merge and merge queue operations with `expectedHeadOid`, `PullRequest.isMergeQueueEnabled`, and `Repository.mergeQueue` configuration. The required fields are documented in the GitHub Enterprise Server 3.17 [repository](https://docs.github.com/en/enterprise-server@3.17/graphql/reference/repos) and [pull request](https://docs.github.com/en/enterprise-server@3.17/graphql/reference/pulls) schemas. This confirms published schema compatibility, not a live integration test. Earlier GitHub Enterprise Server versions have not been verified.
+
+```yaml
+release:
+  auto_merge: true
+  auto_merge_mode: direct
+```
+
+Direct mode always applies normal readiness checks, and provider mode leaves pending checks and approvals for the provider to enforce. Disabling auto-merge stops new scheduling requests but does not cancel a request already registered with the provider.
+
+Existing provider scheduling stays active while yeet refreshes the release branch and PR/MR metadata. After a successful refresh, yeet ensures scheduling is enabled again if the provider canceled it. A failed refresh does not suspend or roll back scheduling, so the provider can merge before metadata updates finish.
+
 ### Merge methods
 
 `auto_merge_method`, or the one-run `--auto-merge-method` override, accepts `auto`, `squash`, `rebase`, or `merge`.
 
 | Provider | `auto` behavior | Provider limitation |
 |---|---|---|
-| GitHub | Tries squash, then rebase, then merge | Selects the first method enabled in repository settings and fails when none are enabled |
-| GitLab | Requests squash unless `squash_option` is `never` | Otherwise keeps the project's configured merge method |
+| GitHub | Tries squash, then rebase, then merge when no queue is required. A required queue follows its configured method | Fails when no method is enabled or an explicit method conflicts with the required queue |
+| GitLab | Requests squash unless `squash_option` is `never`. A required train follows the project's configured method | Fails when an explicit method conflicts with the project or train settings |
 | Azure DevOps | Requests squash | yeet cannot inspect merge-strategy capabilities |
 
-An explicit method asks the provider for that strategy and fails if the provider rejects it.
+An explicit method asks the provider for that strategy and fails if the provider rejects it or cannot guarantee it for the required queue or train.
 
-After a provider accepts a merge, yeet polls until the resulting commit is available. The defaults start at 250 milliseconds, back off to 5 seconds, and stop after 2 minutes. Slow installations can adjust these bounds:
+In direct mode, after a provider accepts a merge, yeet polls until the resulting commit is available. The defaults start at 250 milliseconds, back off to 5 seconds, and stop after 2 minutes. Slow installations can adjust these bounds:
 
 ```yaml
 release:

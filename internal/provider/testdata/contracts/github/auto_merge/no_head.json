@@ -1,0 +1,18 @@
+{
+  "number": 42,
+  "state": "open",
+  "merged": false,
+  "draft": false,
+  "mergeable_state": "blocked",
+  "head": {
+    "sha": "",
+    "ref": "yeet/release-main",
+    "repo": {
+      "full_name": "o/r"
+    }
+  },
+  "base": {
+    "ref": "main"
+  },
+  "node_id": "PR_release"
+}

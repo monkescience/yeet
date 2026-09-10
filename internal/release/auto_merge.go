@@ -5,33 +5,31 @@ import "github.com/monkescience/yeet/internal/config"
 type AutoMergeMode string
 
 const (
-	AutoMergeModeOff    AutoMergeMode = "off"
-	AutoMergeModeNormal AutoMergeMode = "normal"
-	AutoMergeModeForce  AutoMergeMode = "force"
+	AutoMergeModeOff      AutoMergeMode = "off"
+	AutoMergeModeProvider AutoMergeMode = "provider"
+	AutoMergeModeDirect   AutoMergeMode = "direct"
 )
 
 func (o Options) ResolveAutoMerge(cfg config.ReleaseConfig) AutoMergeMode {
 	enabled := cfg.AutoMerge
-	forced := cfg.AutoMergeForce
 
 	if o.AutoMerge != nil {
 		enabled = *o.AutoMerge
-		if !enabled {
-			forced = false
-		}
 	}
 
-	if o.AutoMergeForce != nil {
-		forced = *o.AutoMergeForce
+	if !enabled {
+		return AutoMergeModeOff
 	}
 
-	if forced {
-		return AutoMergeModeForce
+	return AutoMergeMode(o.resolveAutoMergeMode(cfg))
+}
+
+func (o Options) resolveAutoMergeMode(cfg config.ReleaseConfig) config.AutoMergeMode {
+	mode := cfg.AutoMergeMode
+
+	if o.AutoMergeMode != nil {
+		mode = config.AutoMergeMode(*o.AutoMergeMode)
 	}
 
-	if enabled {
-		return AutoMergeModeNormal
-	}
-
-	return AutoMergeModeOff
+	return mode
 }

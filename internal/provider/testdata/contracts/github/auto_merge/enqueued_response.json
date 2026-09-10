@@ -1,0 +1,9 @@
+{
+  "data": {
+    "enqueuePullRequest": {
+      "mergeQueueEntry": {
+        "id": "entry"
+      }
+    }
+  }
+}

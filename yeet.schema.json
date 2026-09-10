@@ -363,13 +363,17 @@
         },
         "auto_merge": {
           "type": "boolean",
-          "description": "Automatically merge release PR/MR and finalize release in the same run.",
+          "description": "Enable the configured auto-merge execution mode.",
           "default": false
         },
-        "auto_merge_force": {
-          "type": "boolean",
-          "description": "Bypass yeet readiness checks for auto-merge attempts. Provider branch rules still apply.",
-          "default": false
+        "auto_merge_mode": {
+          "type": "string",
+          "description": "Execution mode for auto-merge. Provider schedules native auto-merge and returns after acceptance. Direct merges and publishes in the same run after readiness checks pass.",
+          "enum": [
+            "provider",
+            "direct"
+          ],
+          "default": "provider"
         },
         "auto_merge_method": {
           "type": "string",

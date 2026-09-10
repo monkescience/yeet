@@ -14,19 +14,20 @@ import (
 type FailureKind string
 
 const (
-	FailureUnexpected     FailureKind = "unexpected"
-	FailureConfigMissing  FailureKind = "config_missing"
-	FailureConfigInvalid  FailureKind = "config_invalid"
-	FailureAuthentication FailureKind = "authentication"
-	FailureRepository     FailureKind = "repository"
-	FailureHostTrust      FailureKind = "host_trust"
-	FailureCheckout       FailureKind = "checkout"
-	FailureReleaseBranch  FailureKind = "release_branch"
-	FailureReleaseState   FailureKind = "release_state"
-	FailureMergeBlocked   FailureKind = "merge_blocked"
-	FailureMergeTimeout   FailureKind = "merge_timeout"
-	FailureReviewer       FailureKind = "reviewer"
-	FailureLabels         FailureKind = "labels"
+	FailureUnexpected           FailureKind = "unexpected"
+	FailureConfigMissing        FailureKind = "config_missing"
+	FailureConfigInvalid        FailureKind = "config_invalid"
+	FailureAuthentication       FailureKind = "authentication"
+	FailureRepository           FailureKind = "repository"
+	FailureHostTrust            FailureKind = "host_trust"
+	FailureCheckout             FailureKind = "checkout"
+	FailureReleaseBranch        FailureKind = "release_branch"
+	FailureReleaseState         FailureKind = "release_state"
+	FailureMergeBlocked         FailureKind = "merge_blocked"
+	FailureMergeTimeout         FailureKind = "merge_timeout"
+	FailureAutoMergeUnsupported FailureKind = "auto_merge_unsupported"
+	FailureReviewer             FailureKind = "reviewer"
+	FailureLabels               FailureKind = "labels"
 )
 
 // MergeReason identifies why a forge refused to merge a release change.
@@ -104,6 +105,8 @@ func classifyFailureKind(err error) FailureKind {
 		return FailureReleaseState
 	case errors.Is(err, forge.ErrMergeNotFinalized):
 		return FailureMergeTimeout
+	case errors.Is(err, forge.ErrAutoMergeUnsupported):
+		return FailureAutoMergeUnsupported
 	case errors.Is(err, forge.ErrMergeBlocked),
 		errors.Is(err, forge.ErrMergeMethodUnsupported),
 		errors.Is(err, forge.ErrUntrustedReleasePR):

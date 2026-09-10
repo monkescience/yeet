@@ -6,6 +6,9 @@ const (
 	fakeBaseBranch    = "main"
 	fakeMergeSHA      = "6d65726765736861000000000000000000000000"
 	fakeBaseSHA       = "6261736573686100000000000000000000000000"
+	fakeHeadSHA       = "6865616473686100000000000000000000000000"
+	fakeBotLogin      = "yeet-bot"
+	keyStatus         = "status"
 )
 
 const (

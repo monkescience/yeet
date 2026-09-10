@@ -461,10 +461,10 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 	})
 }
 
-func TestReleaseGitLabAutoMergeForce(t *testing.T) {
+func TestReleaseGitLabDirectAutoMergeRejectsDraft(t *testing.T) {
 	t.Parallel()
 
-	t.Run("gitlab --auto-merge-force does not bypass draft state", func(t *testing.T) {
+	t.Run("gitlab direct auto-merge does not bypass draft state", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a gitlab server reporting the MR as draft
@@ -489,10 +489,10 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 			Project:  "group/service",
 		})
 
-		// when: invoking `yeet release --auto-merge --auto-merge-force` against a draft MR
+		// when: invoking direct auto-merge against a draft MR
 		result := binary.RunWithOptions(t,
 			[]string{
-				"release", "--auto-merge", "--auto-merge-force",
+				"release", "--auto-merge", "--auto-merge-mode", "direct",
 				"--config", configPath,
 			},
 			testastic.WithRunWorkDir(repoDir),
@@ -504,7 +504,7 @@ func TestReleaseGitLabAutoMergeForce(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/release/"+
-				"gitlab___auto_merge_force_does_not_bypass_draft_state/stderr.expected.txt",
+				"gitlab_direct_auto_merge_does_not_bypass_draft_state/stderr.expected.txt",
 			result.Stderr,
 		)
 	})
@@ -537,7 +537,7 @@ func TestReleaseGitLabAutoMergeWaitsForAsynchronousAccept(t *testing.T) {
 
 	// when: invoking `yeet release --auto-merge`
 	result := binary.RunWithOptions(t,
-		[]string{"release", "--auto-merge", "--config", configPath},
+		[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 		testastic.WithRunWorkDir(repoDir),
 		testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 	)

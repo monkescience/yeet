@@ -214,6 +214,7 @@ func newPlannedIndependentLifecycle(
 
 	cfg := newIndependentLifecycleConfig(t)
 	cfg.Release.AutoMerge = autoMerge
+	cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 	stub := newProviderStub()
 	err := json.Unmarshal(
 		[]byte(readTestFile(t, "testdata/independent_workflow/commits.input.json")),

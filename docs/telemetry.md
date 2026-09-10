@@ -88,7 +88,7 @@ When `release` successfully reads `.yeet.yaml`, the event can also contain:
 | `Yeet.release.versioning` | `semver`, `calver`, or `mixed` | Prioritize versioning support. |
 | `Yeet.release.dryRun` | `true` or `false` | Understand preview usage. |
 | `Yeet.release.channelsConfigured` | `true` or `false` | Understand prerelease-channel usage. |
-| `Yeet.release.autoMerge` | `off`, `normal`, or `force` | Prioritize auto-merge safety and provider behavior. |
+| `Yeet.release.autoMerge` | `off`, `provider`, or `direct` | Prioritize auto-merge safety and provider behavior. |
 
 No user or session identifier is sent. TelemetryDeck documents that an empty
 [`clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).

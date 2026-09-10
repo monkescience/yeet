@@ -370,13 +370,13 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		testastic.Equal(t, config.AutoMergeMethodAuto, cfg.Release.AutoMergeMethod)
 	})
 
-	t.Run("explicit auto merge false disables configured force", func(t *testing.T) {
+	t.Run("explicit auto merge false disables configured direct mode", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a config with force merge enabled and an explicit auto-merge=false option
+		// given: a config with direct merge enabled and an explicit auto-merge=false option
 		cfg := config.Default()
 		cfg.Release.AutoMerge = true
-		cfg.Release.AutoMergeForce = true
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
 
 		options := Options{
 			AutoMerge: new(false),
@@ -385,30 +385,29 @@ func TestApplyReleaseBehaviorOptions(t *testing.T) {
 		// when: applying options
 		run, err := resolveRun(cfg, "main", options)
 
-		// then: the explicit flag disables both normal and forced auto-merge
+		// then: the explicit flag disables auto-merge
 		testastic.NoError(t, err)
 		testastic.False(t, run.autoMerge.enabled)
-		testastic.False(t, run.autoMerge.force)
 	})
 
-	t.Run("auto merge force implies auto merge", func(t *testing.T) {
+	t.Run("selecting a mode does not enable auto merge", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a config with auto merge disabled and force enabled via options
+		// given: a config with auto merge disabled and direct mode selected via options
 		cfg := config.Default()
 		cfg.Release.AutoMerge = false
 
 		options := Options{
-			AutoMergeForce: new(true),
+			AutoMergeMode: new("direct"),
 		}
 
 		// when: applying options
 		run, err := resolveRun(cfg, "main", options)
 
-		// then: auto merge is enabled by force
+		// then: auto merge remains disabled
 		testastic.NoError(t, err)
-		testastic.True(t, run.autoMerge.enabled)
-		testastic.True(t, run.autoMerge.force)
+		testastic.False(t, run.autoMerge.enabled)
+		testastic.Equal(t, config.AutoMergeModeDirect, run.autoMerge.mode)
 	})
 
 	t.Run("auto merge method is set", func(t *testing.T) {

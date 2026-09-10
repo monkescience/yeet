@@ -4,6 +4,7 @@ package fixture
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -31,6 +32,8 @@ type ConfigOptions struct {
 	PRTitle           string
 	PRTitleGroup      string
 	CommitSubject     string
+	AutoMerge         *bool
+	AutoMergeMode     string
 }
 
 type LabelsOptions struct {
@@ -97,7 +100,9 @@ func writeRelease(b *strings.Builder, opts ConfigOptions) {
 		opts.Labels != nil ||
 		opts.PRTitle != "" ||
 		opts.PRTitleGroup != "" ||
-		opts.CommitSubject != ""
+		opts.CommitSubject != "" ||
+		opts.AutoMerge != nil ||
+		opts.AutoMergeMode != ""
 
 	if !hasReleaseField {
 		return
@@ -108,6 +113,14 @@ func writeRelease(b *strings.Builder, opts ConfigOptions) {
 	writeQuotedScalar(b, "  pr_title: ", opts.PRTitle)
 	writeQuotedScalar(b, "  pr_title_group: ", opts.PRTitleGroup)
 	writeQuotedScalar(b, "  commit_subject: ", opts.CommitSubject)
+
+	if opts.AutoMerge != nil {
+		b.WriteString("  auto_merge: ")
+		b.WriteString(strconv.FormatBool(*opts.AutoMerge))
+		b.WriteString("\n")
+	}
+
+	writeScalar(b, "  auto_merge_mode: ", opts.AutoMergeMode)
 
 	if len(opts.Reviewers) > 0 {
 		b.WriteString("  reviewers:\n")

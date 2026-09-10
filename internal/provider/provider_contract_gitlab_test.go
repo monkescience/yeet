@@ -97,10 +97,10 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabUnsupportedMergeContract(t, w, r)
 		case providerContractTagPaginationLimit:
 			handleGitLabTagPaginationLimitContract(t, w, r, &tagPages)
-		case providerContractForcedMergeUntrusted:
-			handleGitLabForcedMergeUntrustedContract(t, w, r)
-		case providerContractForcedMergeConflicted:
-			handleGitLabForcedMergeConflictedContract(t, w, r)
+		case providerContractMergeUntrustedSource:
+			handleGitLabMergeUntrustedSourceContract(t, w, r)
+		case providerContractMergeConflictedRefused:
+			handleGitLabMergeConflictedRefusedContract(t, w, r)
 		default:
 			failProviderContractHandler(t, fmt.Sprintf("unhandled GitLab contract scenario: %s", scenario))
 		}
@@ -762,11 +762,11 @@ func handleGitLabTagPaginationLimitContract(
 	}})
 }
 
-func handleGitLabForcedMergeUntrustedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitLabMergeUntrustedSourceContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
-		writeJSONFixture(t, w, "contracts/gitlab/forced_merge_untrusted/pr.json")
+		writeJSONFixture(t, w, "contracts/gitlab/merge_untrusted_source/pr.json")
 
 		return
 	}
@@ -774,11 +774,11 @@ func handleGitLabForcedMergeUntrustedContract(t *testing.T, w http.ResponseWrite
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
-func handleGitLabForcedMergeConflictedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitLabMergeConflictedRefusedContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/42" {
-		writeJSONFixture(t, w, "contracts/gitlab/forced_merge_conflicted/pr.json")
+		writeJSONFixture(t, w, "contracts/gitlab/merge_conflicted_refused/pr.json")
 
 		return
 	}
@@ -1169,9 +1169,8 @@ func TestGitLabMergeReleasePRMethods(t *testing.T) {
 
 		// when: merging with squash method
 		_, err := p.MergeReleasePR(context.Background(), 1, forge.MergeReleasePROptions{
-			BypassMergeChecks: false,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodSquash,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodSquash,
 		})
 
 		// then: merge is blocked
@@ -1417,7 +1416,7 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		})
 	}
 
-	t.Run("blocks readiness checks unless force is enabled", func(t *testing.T) {
+	t.Run("blocks readiness checks", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab server reporting MR 8 as opened with a not_approved merge status
@@ -1444,19 +1443,19 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 		testastic.Equal(t, "release PR merge blocked: merge request !8 detailed_merge_status=not_approved", err.Error())
 	})
 
-	t.Run("forces merge and forwards squash option", func(t *testing.T) {
+	t.Run("refuses blocked readiness", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitLab server reporting MR 8 as blocked with squash always enabled at the project level
 		server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8":
-				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/pr.json")
+				writeJSONFixture(t, w, "contracts/gitlab/merge_squash/pr.json")
 			case r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr":
-				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/project.json")
+				writeJSONFixture(t, w, "contracts/gitlab/merge_squash/project.json")
 			case r.Method == http.MethodPut && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests/8/merge":
-				assertJSONRequest(t, r, "contracts/gitlab/forced_merge_squash/merge_request.json")
-				writeJSONFixture(t, w, "contracts/gitlab/forced_merge_squash/result.json")
+				assertJSONRequest(t, r, "contracts/gitlab/merge_squash/merge_request.json")
+				writeJSONFixture(t, w, "contracts/gitlab/merge_squash/result.json")
 			default:
 				fatalUnexpectedProviderRequest(t, "GitLab", r)
 			}
@@ -1464,15 +1463,14 @@ func TestGitLabMergeReleasePR(t *testing.T) {
 
 		p := newGitLabContractProvider(t, server)
 
-		// when: MergeReleasePR is invoked with merge checks bypassed and the squash merge method
+		// when: MergeReleasePR is invoked with the squash merge method
 		_, err := p.MergeReleasePR(context.Background(), 8, forge.MergeReleasePROptions{
-			BypassMergeChecks: true,
-			BaseBranch:        providerContractBaseBranch,
-			Method:            forge.MergeMethodSquash,
+			BaseBranch: providerContractBaseBranch,
+			Method:     forge.MergeMethodSquash,
 		})
 
-		// then: the head SHA is forwarded and the squash flag is set on the merge request
-		testastic.NoError(t, err)
+		// then: repository readiness still blocks the merge
+		testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	})
 }
 

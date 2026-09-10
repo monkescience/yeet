@@ -366,6 +366,11 @@ type releasePRStub struct {
 	markPendingLabels []forge.ReleasePRLabels
 	setLabelPhases    []forge.ReleasePRPhase
 
+	autoMergeNumbers     []int
+	autoMergeOptions     []forge.MergeReleasePROptions
+	autoMergeErr         error
+	autoMergeErrByNumber map[int]error
+
 	mergePRCalls       int
 	mergePRNumbers     []int
 	mergePROptions     []forge.MergeReleasePROptions
@@ -455,6 +460,18 @@ func (s *releasePRStub) FindOpenPendingReleasePRsForBase(
 	string,
 ) ([]*forge.PullRequest, error) {
 	return s.openPending, nil
+}
+
+func (s *releasePRStub) EnsureAutoMerge(_ context.Context, number int, opts forge.MergeReleasePROptions) error {
+	s.sequence.record("EnsureAutoMerge")
+	s.autoMergeNumbers = append(s.autoMergeNumbers, number)
+	s.autoMergeOptions = append(s.autoMergeOptions, opts)
+
+	if s.autoMergeErr != nil {
+		return s.autoMergeErr
+	}
+
+	return s.autoMergeErrByNumber[number]
 }
 
 func (s *releasePRStub) MergeReleasePR(

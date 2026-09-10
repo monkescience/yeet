@@ -23,6 +23,7 @@ type GitHub struct {
 	client        *github.Client
 	repo          repoInfo
 	baseURL       string
+	graphqlURL    string
 	polling       mergePolling
 	releaseBranch string
 
@@ -33,20 +34,26 @@ type GitHub struct {
 }
 
 func NewGitHub(client *github.Client, owner, repo string, options ...MergePollingOption) *GitHub {
-	baseURL := strings.TrimSuffix(client.BaseURL(), "/")
+	apiBaseURL := strings.TrimSuffix(client.BaseURL(), "/")
+	baseURL := apiBaseURL
+	graphqlURL := apiBaseURL + "/graphql"
 
 	// Default github.com API uses api.github.com. Enterprise uses <host>/api/v3.
-	if baseURL == "https://api.github.com" {
+	switch {
+	case baseURL == "https://api.github.com":
 		baseURL = "https://github.com"
-	} else {
-		baseURL = strings.TrimSuffix(baseURL, "/api/v3")
+	case strings.HasSuffix(baseURL, "/api/v3"):
+		enterpriseBaseURL, _ := strings.CutSuffix(baseURL, "/api/v3")
+		graphqlURL = enterpriseBaseURL + "/api/graphql"
+		baseURL = enterpriseBaseURL
 	}
 
 	return &GitHub{
-		client:  client,
-		repo:    repoInfo{Owner: owner, Name: repo},
-		baseURL: baseURL,
-		polling: newMergePolling(options...),
+		client:     client,
+		repo:       repoInfo{Owner: owner, Name: repo},
+		baseURL:    baseURL,
+		graphqlURL: graphqlURL,
+		polling:    newMergePolling(options...),
 	}
 }
 

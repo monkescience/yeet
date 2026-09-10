@@ -457,7 +457,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 
 		// when: running `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
@@ -507,7 +507,7 @@ func TestReleaseAutoMerge(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 
-	t.Run("github --auto-merge tags the release", func(t *testing.T) {
+	t.Run("github configured direct auto-merge tags the release", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a fake GitHub server with a releasable commit
@@ -526,16 +526,18 @@ func TestReleaseAutoMerge(t *testing.T) {
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
-			Provider: "github",
-			Branch:   "main",
-			Host:     "github.com",
-			Owner:    "testorg",
-			Repo:     "testrepo",
+			Provider:      "github",
+			Branch:        "main",
+			Host:          "github.com",
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			AutoMerge:     new(true),
+			AutoMergeMode: "direct",
 		})
 
-		// when: running `yeet release --auto-merge`
+		// when: running `yeet release` with configured direct auto-merge
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
@@ -578,7 +580,7 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 
 		// when: running `yeet release --auto-merge`
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
@@ -708,7 +710,7 @@ func TestReleaseAzureDevOpsFullFlow(t *testing.T) {
 
 		// when: running `yeet release --auto-merge` against the blocked PR
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--config", configPath},
+			[]string{"release", "--auto-merge", "--auto-merge-mode", "direct", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
@@ -2182,7 +2184,7 @@ func TestReleaseCLIFlagsOverrideConfig(t *testing.T) {
 				"release", "--dry-run", "--config", configPath,
 				"--provider", "github", "--owner", "flagorg", "--repo", "flagrepo",
 				"--host", "github.com",
-				"--auto-merge-force",
+				"--auto-merge-mode", "direct",
 				"--auto-merge-method", "squash",
 			},
 			testastic.WithRunWorkDir(repoDir),

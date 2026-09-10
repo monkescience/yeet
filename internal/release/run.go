@@ -25,7 +25,7 @@ type Options struct {
 	RepositoryRepo    *string
 	RepositoryProject *string
 	AutoMerge         *bool
-	AutoMergeForce    *bool
+	AutoMergeMode     *string
 	AutoMergeMethod   *string
 	Channel           *string
 	Targets           []string

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/monkescience/testastic"
 )
 
 type GitLabOptions struct {
@@ -28,6 +30,17 @@ type GitLabOptions struct {
 	ExistingLabels            []string
 	UnlabeledOpenReleaseMR    bool
 	ForeignLabelOpenReleaseMR bool
+	PendingChecks             bool
+	AutoMergeAlreadyEnabled   bool
+	AutoMergeSquash           bool
+	AutoMergeImmediate        bool
+	AutoMergeResponseError    string
+	AutoMergeStatusCodes      []int
+	MergeTrain                bool
+	AssertAutoMergeRequests   bool
+	ExpectedAutoMergeRequests int
+	ForbidPublication         bool
+	Version                   string
 }
 
 // GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
@@ -57,25 +70,64 @@ func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	mux := http.NewServeMux()
 	mergeAccepted := &atomic.Bool{}
 	merged := &atomic.Bool{}
+	autoMergeRequests := &atomic.Int64{}
 
 	registerGitLabHistory(mux, prefix, opts)
+	registerGitLabVersion(mux, opts)
 	registerGitLabMergeBase(mux, prefix, opts)
-	registerGitLabMerge(mux, prefix, opts, mergeAccepted, merged)
+	registerGitLabMerge(t, mux, prefix, opts, mergeAccepted, merged, autoMergeRequests)
 	registerGitLabMembers(mux, prefix, opts)
 	registerGitLabContent(mux, prefix, opts)
 	registerGitLabLabels(t, mux, prefix, opts)
 	registerGitLabReleases(mux, prefix, opts, merged)
-	registerGitLabProject(mux, prefix)
+	registerGitLabProject(mux, prefix, opts)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("fakeprovider/gitlab: unexpected request %s %s", r.Method, r.URL.String())
 		http.Error(w, "unhandled", http.StatusNotImplemented)
 	})
 
-	server := httptest.NewServer(mux)
+	var handler http.Handler = mux
+	if opts.ForbidPublication {
+		handler = forbidGitLabPublication(t, handler, prefix)
+	}
+
+	if opts.AssertAutoMergeRequests {
+		t.Cleanup(func() {
+			testastic.Equal(t, int64(opts.ExpectedAutoMergeRequests), autoMergeRequests.Load())
+		})
+	}
+
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
 	return server
+}
+
+func registerGitLabVersion(mux *http.ServeMux, opts GitLabOptions) {
+	version := opts.Version
+	if version == "" {
+		version = "17.11.0"
+	}
+
+	mux.HandleFunc("GET /api/v4/version", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{"version": version, "revision": "test"})
+	})
+}
+
+func forbidGitLabPublication(t *testing.T, next http.Handler, prefix string) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == prefix+"/releases" {
+			t.Errorf("fakeprovider/gitlab: publication forbidden: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "publication rejected", http.StatusInternalServerError)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func registerGitLabHistory(mux *http.ServeMux, prefix string, opts GitLabOptions) {
@@ -164,18 +216,36 @@ func registerGitLabMergeBase(mux *http.ServeMux, prefix string, opts GitLabOptio
 }
 
 func registerGitLabMerge(
+	t *testing.T,
+	mux *http.ServeMux,
+	prefix string,
+	opts GitLabOptions,
+	mergeAccepted, merged *atomic.Bool,
+	autoMergeRequests *atomic.Int64,
+) {
+	t.Helper()
+
+	mux.HandleFunc("GET "+prefix+"/merge_requests", gitlabMergeRequestListHandler(opts, mergeAccepted, merged))
+	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
+	registerGitLabMergeRequestRead(mux, prefix, opts, mergeAccepted, merged)
+	registerGitLabMergeRequestUpdate(t, mux, prefix, opts)
+	registerGitLabMergeAccept(t, mux, prefix, opts, mergeAccepted, merged, autoMergeRequests)
+	registerGitLabMergeTrain(t, mux, prefix, opts, merged, autoMergeRequests)
+
+	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, gitlabCreatedBranch())
+	})
+	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{gitlabKeyID: "6e6577636f6d6d69747368610000000000000000"})
+	})
+}
+
+func registerGitLabMergeRequestRead(
 	mux *http.ServeMux,
 	prefix string,
 	opts GitLabOptions,
 	mergeAccepted, merged *atomic.Bool,
 ) {
-	mux.HandleFunc(
-		"GET "+prefix+"/merge_requests",
-		gitlabMergeRequestListHandler(opts, mergeAccepted, merged),
-	)
-
-	mux.HandleFunc("POST "+prefix+"/merge_requests", handleGitLabCreateMR)
-
 	mux.HandleFunc("GET "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
 		if opts.AsynchronousMerge && mergeAccepted.Load() {
 			merged.Store(true)
@@ -190,25 +260,180 @@ func registerGitLabMerge(
 			mr["draft"] = true
 		}
 
+		if opts.PendingChecks {
+			mr["detailed_merge_status"] = "checking"
+		}
+
+		if opts.AutoMergeAlreadyEnabled {
+			mr["merge_when_pipeline_succeeds"] = true
+			mr["squash"] = opts.AutoMergeSquash
+			mr["squash_on_merge"] = opts.AutoMergeSquash
+		}
+
 		writeJSON(w, mr)
 	})
+}
 
-	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
+func registerGitLabMergeRequestUpdate(t *testing.T, mux *http.ServeMux, prefix string, opts GitLabOptions) {
+	t.Helper()
+
+	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}", func(w http.ResponseWriter, r *http.Request) {
+		if opts.ForbidPublication {
+			assertGitLabNotTagged(t, r)
+		}
+
 		writeJSON(w, gitlabFakeMR())
 	})
+}
 
-	mux.HandleFunc(
-		"PUT "+prefix+"/merge_requests/{iid}/merge",
-		gitlabMergeAcceptHandler(opts, mergeAccepted, merged),
-	)
+func registerGitLabMergeAccept(
+	t *testing.T,
+	mux *http.ServeMux,
+	prefix string,
+	opts GitLabOptions,
+	mergeAccepted, merged *atomic.Bool,
+	autoMergeRequests *atomic.Int64,
+) {
+	t.Helper()
 
-	mux.HandleFunc("POST "+prefix+"/repository/branches", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, gitlabCreatedBranch())
+	mux.HandleFunc("PUT "+prefix+"/merge_requests/{iid}/merge", func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			AutoMerge bool   `json:"auto_merge"`
+			SHA       string `json:"sha"`
+			Squash    *bool  `json:"squash"`
+		}
+
+		err := json.UnmarshalRead(r.Body, &request)
+		if err != nil {
+			http.Error(w, "invalid merge request", http.StatusBadRequest)
+
+			return
+		}
+
+		if request.AutoMerge {
+			handleGitLabAutoMerge(t, w, opts, merged, autoMergeRequests, request.SHA)
+
+			return
+		}
+
+		gitlabMergeAcceptHandler(opts, mergeAccepted, merged)(w, r)
+	})
+}
+
+func registerGitLabMergeTrain(
+	t *testing.T,
+	mux *http.ServeMux,
+	prefix string,
+	opts GitLabOptions,
+	merged *atomic.Bool,
+	autoMergeRequests *atomic.Int64,
+) {
+	t.Helper()
+
+	mux.HandleFunc("GET "+prefix+"/merge_trains/merge_requests/{iid}", func(w http.ResponseWriter, _ *http.Request) {
+		if opts.AutoMergeAlreadyEnabled {
+			writeJSON(w, gitlabMergeTrain())
+
+			return
+		}
+
+		http.Error(w, "not found", http.StatusNotFound)
 	})
 
-	mux.HandleFunc("POST "+prefix+"/repository/commits", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{gitlabKeyID: "6e6577636f6d6d69747368610000000000000000"})
+	mux.HandleFunc("POST "+prefix+"/merge_trains/merge_requests/{iid}", func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			AutoMerge bool   `json:"auto_merge"`
+			SHA       string `json:"sha"`
+		}
+
+		err := json.UnmarshalRead(r.Body, &request)
+		if err != nil {
+			http.Error(w, "invalid merge train request", http.StatusBadRequest)
+
+			return
+		}
+
+		testastic.True(t, request.AutoMerge)
+
+		handleGitLabAutoMerge(t, w, opts, merged, autoMergeRequests, request.SHA)
 	})
+}
+
+func assertGitLabNotTagged(t *testing.T, r *http.Request) {
+	t.Helper()
+
+	var request struct {
+		AddLabels string `json:"add_labels"`
+	}
+
+	err := json.UnmarshalRead(r.Body, &request)
+	testastic.NoError(t, err)
+
+	if slices.Contains(
+		strings.Split(request.AddLabels, ","),
+		"autorelease: tagged",
+	) {
+		t.Errorf("fakeprovider/gitlab: tagged lifecycle label forbidden: %s %s", r.Method, r.URL.Path)
+	}
+}
+
+func handleGitLabAutoMerge(
+	t *testing.T,
+	w http.ResponseWriter,
+	opts GitLabOptions,
+	merged *atomic.Bool,
+	requests *atomic.Int64,
+	headSHA string,
+) {
+	t.Helper()
+
+	requestNumber := int(requests.Add(1))
+
+	testastic.Equal(t, fakeHeadSHA, headSHA)
+
+	if requestNumber <= len(opts.AutoMergeStatusCodes) && opts.AutoMergeStatusCodes[requestNumber-1] != 0 {
+		http.Error(w, "auto-merge refused", opts.AutoMergeStatusCodes[requestNumber-1])
+
+		return
+	}
+
+	if opts.AutoMergeImmediate {
+		merged.Store(true)
+		writeJSON(w, gitlabMergedPendingMR(opts))
+
+		return
+	}
+
+	if opts.AutoMergeResponseError != "" {
+		mr := gitlabFakeMR()
+		mr["merge_error"] = opts.AutoMergeResponseError
+		mr["auto_merge"] = false
+		writeJSON(w, mr)
+
+		return
+	}
+
+	if opts.MergeTrain {
+		w.WriteHeader(http.StatusCreated)
+		writeJSON(w, []map[string]any{gitlabMergeTrain()})
+
+		return
+	}
+
+	mr := gitlabFakeMR()
+	mr["merge_when_pipeline_succeeds"] = true
+	writeJSON(w, mr)
+}
+
+func gitlabMergeTrain() map[string]any {
+	const fakeMergeTrainID = 7
+
+	return map[string]any{
+		"id":            fakeMergeTrainID,
+		keyStatus:       "idle",
+		"target_branch": fakeBaseBranch,
+		"merge_request": map[string]any{"id": gitlabFakeMRID, "iid": gitlabFakeMRID},
+	}
 }
 
 func gitlabMergeRequestListHandler(
@@ -459,12 +684,13 @@ func registerGitLabReleases(
 	})
 }
 
-func registerGitLabProject(mux *http.ServeMux, prefix string) {
+func registerGitLabProject(mux *http.ServeMux, prefix string, opts GitLabOptions) {
 	mux.HandleFunc("GET "+prefix, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			gitlabKeyID:                             gitlabFakeMRID,
 			"merge_method":                          "merge",
 			"only_allow_merge_if_pipeline_succeeds": false,
+			"merge_trains_enabled":                  opts.MergeTrain,
 		})
 	})
 }
@@ -508,7 +734,7 @@ func gitlabPendingMR(iid int) map[string]any {
 		"target_project_id": gitlabFakeMRID,
 		"draft":             false,
 		"work_in_progress":  false,
-		"sha":               "6865616473686100000000000000000000000000",
+		"sha":               fakeHeadSHA,
 		"merge_commit_sha":  fakeMergeSHA,
 		"labels":            []string{fakePendingReleaseTag},
 	}

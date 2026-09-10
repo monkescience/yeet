@@ -181,7 +181,16 @@ func releaseProfile(cfg *config.Config, opts release.Options, result *release.Re
 		versioning:         releaseVersioning(cfg),
 		dryRun:             boolString(opts.DryRun),
 		channelsConfigured: boolString(len(cfg.Release.Channels) > 0),
-		autoMerge:          string(opts.ResolveAutoMerge(cfg.Release)),
+		autoMerge:          allowedAutoMergeMode(opts.ResolveAutoMerge(cfg.Release)),
+	}
+}
+
+func allowedAutoMergeMode(mode release.AutoMergeMode) string {
+	switch mode {
+	case release.AutoMergeModeOff, release.AutoMergeModeProvider, release.AutoMergeModeDirect:
+		return string(mode)
+	default:
+		return ""
 	}
 }
 

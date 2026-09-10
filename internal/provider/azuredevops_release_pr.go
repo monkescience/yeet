@@ -464,6 +464,14 @@ func (a *AzureDevOps) MergeReleasePR(
 	return driver.run(ctx, opts)
 }
 
+func (a *AzureDevOps) EnsureAutoMerge(
+	_ context.Context,
+	number int,
+	_ forge.MergeReleasePROptions,
+) error {
+	return fmt.Errorf("%w: Azure DevOps pull request #%d requires direct mode", forge.ErrAutoMergeUnsupported, number)
+}
+
 type azureDevOpsMerge struct {
 	provider *AzureDevOps
 	number   int
@@ -881,7 +889,7 @@ func azureDevOpsCompletionResponseCommit(pr *git.GitPullRequest) string {
 }
 
 // Azure DevOps reports conflicts and policy refusals through one enum field, so
-// the two are split here to keep --auto-merge-force from bypassing conflicts.
+// the two are split here because conflict and policy states have different errors.
 func azureDevOpsMergeStatusConflicted(status string) bool {
 	return status == string(git.PullRequestAsyncStatusValues.Conflicts)
 }

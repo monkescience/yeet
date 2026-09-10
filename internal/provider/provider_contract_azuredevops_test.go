@@ -1120,10 +1120,10 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsUnsupportedMergeHandler(t)
 	case providerContractTagPaginationLimit:
 		return azureDevOpsTagPaginationLimitHandler(t)
-	case providerContractForcedMergeUntrusted:
-		return azureDevOpsForcedMergeUntrustedHandler(t)
-	case providerContractForcedMergeConflicted:
-		return azureDevOpsForcedMergeConflictedHandler(t)
+	case providerContractMergeUntrustedSource:
+		return azureDevOpsMergeUntrustedSourceHandler(t)
+	case providerContractMergeConflictedRefused:
+		return azureDevOpsMergeConflictedRefusedHandler(t)
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
 			failProviderContractHandler(
@@ -1737,12 +1737,12 @@ func azureDevOpsTagPaginationLimitHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-func azureDevOpsForcedMergeUntrustedHandler(t *testing.T) http.HandlerFunc {
+func azureDevOpsMergeUntrustedSourceHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			writeJSONFixture(t, w, azureDevOpsContractFixture("forced_merge_untrusted", "pull_request.json"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_untrusted_source", "pull_request.json"))
 
 			return
 		}
@@ -1751,12 +1751,12 @@ func azureDevOpsForcedMergeUntrustedHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-func azureDevOpsForcedMergeConflictedHandler(t *testing.T) http.HandlerFunc {
+func azureDevOpsMergeConflictedRefusedHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI() {
-			writeJSONFixture(t, w, azureDevOpsContractFixture("forced_merge_conflicted", "pull_request.json"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture("merge_conflicted_refused", "pull_request.json"))
 
 			return
 		}

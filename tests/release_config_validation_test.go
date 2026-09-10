@@ -402,6 +402,49 @@ func TestReleaseConfigValidation(t *testing.T) {
 			testastic.AssertFile(t, "testdata/release/"+scenario+"/stderr.expected.txt", result.Stderr)
 		})
 	}
+
+	t.Run("rejects unknown auto-merge mode flag", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a valid release config and an unsupported execution mode
+		configPath := absoluteTestFile(t, "testdata/release/rejects_unknown_auto_merge_mode/input.yaml")
+
+		// when: invoking `yeet release --auto-merge-mode wrongo`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--auto-merge-mode", "wrongo", "--config", configPath},
+			testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+		)
+
+		// then: yeet rejects the unsupported flag value
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/rejects_unknown_auto_merge_mode/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	for _, scenario := range []string{
+		"rejects_unknown_configured_auto_merge_mode",
+		"rejects_removed_auto_merge_force_config",
+	} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a release config with an invalid or removed auto-merge setting
+			configPath := absoluteTestFile(t, "testdata/release/"+scenario+"/input.yaml")
+
+			// when: invoking `yeet release --dry-run`
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+			)
+
+			// then: yeet rejects the config before release work begins
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.AssertFile(t, "testdata/release/"+scenario+"/stderr.expected.txt", result.Stderr)
+		})
+	}
 }
 
 func TestReleaseExplicitConfigDiscovery(t *testing.T) {

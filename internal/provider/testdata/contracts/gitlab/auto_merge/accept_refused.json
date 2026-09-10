@@ -1,0 +1,5 @@
+{
+  "state": "opened",
+  "merge_error": "merge checks did not pass",
+  "merge_when_pipeline_succeeds": false
+}
