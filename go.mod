@@ -19,7 +19,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark/v2 v2.0.1
-	gitlab.com/gitlab-org/api/client-go/v2 v2.62.0
+	gitlab.com/gitlab-org/api/client-go/v2 v2.63.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 )
 
