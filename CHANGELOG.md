@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.13](https://github.com/monkescience/yeet/compare/v0.14.12...v0.14.13) (2026-09-11)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.63.0 (#268) ([8c98109](https://github.com/monkescience/yeet/commit/8c981090d12207612d8b2a5d59caef43c8dc52f8))
+- **deps:** update module github.com/monkescience/testastic to v0.4.6 (#267) ([8292345](https://github.com/monkescience/yeet/commit/8292345479fe5e47dc69285d5bd6b5967c70e48c))
+
 ## [v0.14.12](https://github.com/monkescience/yeet/compare/v0.14.11...v0.14.12) (2026-09-09)
 
 ### Bug Fixes
