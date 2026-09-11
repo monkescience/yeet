@@ -141,8 +141,8 @@ github.com/yuin/goldmark-emoji v1.0.5 h1:EMVWyCGPlXJfUXBXpuMu+ii3TIaxbVBnEX9uaDC
 github.com/yuin/goldmark-emoji v1.0.5/go.mod h1:tTkZEbwu5wkPmgTcitqddVxY9osFZiavD+r4AzQrh1U=
 github.com/yuin/goldmark/v2 v2.0.1 h1:Os0APQLbfXBzA7pc8qF8HBSTO8LOIvhQHX6pEA5/0CY=
 github.com/yuin/goldmark/v2 v2.0.1/go.mod h1:G6M4/qOFtfn01/o14BU1UR2Lo5N3S9Qo7xCuz/sHjGQ=
-gitlab.com/gitlab-org/api/client-go/v2 v2.62.0 h1:FOSaRwz5feHGhJDo4Yk+TLqF4e6cO3Qm4R929hQqUII=
-gitlab.com/gitlab-org/api/client-go/v2 v2.62.0/go.mod h1:LEVRH0wDbXtvsM7WAGlOgR10HCHCol1rZyjWoSeicuY=
+gitlab.com/gitlab-org/api/client-go/v2 v2.63.0 h1:lPZsGn8oISRd/ReeTI4OuHXWO1UXg9fPkLz5/JxK4lA=
+gitlab.com/gitlab-org/api/client-go/v2 v2.63.0/go.mod h1:a8PSqY/h53boJ6FvWTJZH888tdpcj+n2hVUo2NsOi/E=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
 go.yaml.in/yaml/v3 v3.0.5/go.mod h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=
