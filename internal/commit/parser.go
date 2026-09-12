@@ -49,7 +49,7 @@ type BumpMapping map[string]BumpType
 
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
-	`^(?P<type>[a-zA-Z]+)` +
+	`^(?P<type>\p{L}[\p{L}\p{M}]*)` +
 		`(?:\((?P<scope>[^()\r\n]+)\))?` +
 		`(?P<breaking>!)?` +
 		`: (?P<description>\S.*)$`,
@@ -62,11 +62,14 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	}
 
 	lines := strings.Split(rawMessage, "\n")
-	header := strings.TrimSpace(lines[0])
+	header := strings.TrimRightFunc(lines[0], unicode.IsSpace)
 	matches := conventionalCommitPattern.FindStringSubmatch(header)
+	scopeIndex := conventionalCommitPattern.SubexpIndex("scope")
 
-	if matches == nil || (len(lines) > 1 && strings.TrimSpace(lines[1]) != "") {
-		c.Description = header
+	if matches == nil ||
+		(matches[scopeIndex] != "" && strings.TrimSpace(matches[scopeIndex]) == "") ||
+		(len(lines) > 1 && strings.TrimSpace(lines[1]) != "") {
+		c.Description = strings.TrimSpace(header)
 
 		slog.DebugContext(ctx, "commit: invalid message structure, treating as no-bump",
 			slog.String("hash", hash),
@@ -76,7 +79,7 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	}
 
 	c.Type = strings.ToLower(matches[conventionalCommitPattern.SubexpIndex("type")])
-	c.Scope = matches[conventionalCommitPattern.SubexpIndex("scope")]
+	c.Scope = matches[scopeIndex]
 	c.Description = matches[conventionalCommitPattern.SubexpIndex("description")]
 	c.Breaking = matches[conventionalCommitPattern.SubexpIndex("breaking")] == "!"
 
@@ -222,9 +225,7 @@ func isToken(s string) bool {
 }
 
 func isWordChar(ch rune) bool {
-	return (ch >= 'a' && ch <= 'z') ||
-		(ch >= 'A' && ch <= 'Z') ||
-		(ch >= '0' && ch <= '9')
+	return unicode.IsLetter(ch) || unicode.IsMark(ch) || unicode.IsNumber(ch) || ch == '_'
 }
 
 func parseFooter(line string) (Footer, bool) {
