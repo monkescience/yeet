@@ -1,0 +1,12 @@
+provider: github
+branch: main
+changelog:
+  references:
+    footers:
+      Refs: https://tracker.example/{value}
+      refs: https://tracker.example/{value}
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

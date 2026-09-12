@@ -1084,3 +1084,24 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		)
 	})
 }
+
+func TestReferenceCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	// given: one reference rule and footer tokens with different casing
+	gen := changelog.New(
+		changelog.WithSections(map[string]string{"feat": "Features"}),
+		changelog.WithInclude([]string{"feat"}),
+		changelog.WithReferences(changelog.References{Footers: map[string]string{
+			"Refs": "https://first.example/{value}",
+		}}),
+	)
+	c := commit.Parse(t.Context(), "abcdef0", "feat: setup\n\nREFS: 123\nRefs: 456\nrefs: 789")
+
+	// when: rendering the references
+	body := changelog.RenderBody(gen.Generate(t.Context(), "v1.1.0", "", []commit.Commit{c}))
+
+	// then: every spelling uses the same reference rule
+	testastic.Equal(t, "### Features\n\n- setup (abcdef0) ([123](https://first.example/123), "+
+		"[456](https://first.example/456), [789](https://first.example/789))\n", body)
+}

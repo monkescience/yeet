@@ -13,6 +13,9 @@ changelog:
 ```
 
 Those four types are included by default. An included type without a `sections` entry uses the type with its first character capitalized.
+Commit types are matched case-insensitively and normalized to lowercase. Use lowercase type names in
+`include` and `sections`. See [Commit message format](versioning.md#commit-message-format) for the
+required header separator and breaking-change syntax.
 `sections` changes headings or supplies headings for additional included types:
 
 ```yaml
@@ -45,10 +48,38 @@ changelog:
 Section headings must be unique, trimmed, single-line text without leading or closing Markdown `#` markers. Emoji and literal hashes in
 text, such as `C#` and `Release###`, are supported.
 
-Breaking changes appear under `changelog.sections.breaking`, regardless of `include`, using the `BREAKING CHANGE` footer text. Do not add
-`breaking` to `include` because breaking changes are included automatically.
+Breaking changes appear under `changelog.sections.breaking`, regardless of `include`, using a valid
+`BREAKING CHANGE` or `BREAKING-CHANGE` footer's description. With a header `!` and no valid breaking
+footer, the header description is used instead. Trailing whitespace is removed from the rendered
+footer description. Do not add `breaking` to `include` because breaking changes are included automatically.
 The default heading is `⚠ BREAKING CHANGES`. A customized heading and the default heading are both recognized as generated content when a
 release changelog is refreshed.
+
+## Footer parsing
+
+The first valid footer after a blank line starts the footer section. A footer consists of a token
+and either `: ` or ` #`, such as `Reviewed-by: Alice` or `Refs #123`. Tokens use hyphens in place of
+spaces, except for `BREAKING CHANGE`. Breaking footers require the colon-space separator.
+
+Once the footer section starts, subsequent lines and blank-separated paragraphs continue the current
+footer value until another valid footer token and separator appear. This applies to all footer keys,
+including keys without configured reference rules. Markdown code fences do not escape footer syntax.
+
+For example, `Additional context.` belongs to `Reviewed-by`, and both `Refs` and `Closes` are footers:
+
+```text
+fix: update API
+
+Body paragraph.
+
+Reviewed-by: Alice
+
+Additional context.
+
+Refs: #123
+
+Closes #456
+```
 
 ## References
 
@@ -80,6 +111,12 @@ A `Refs: JIRA-456` footer appends:
 ```
 
 Use `{value}` in URL templates. An empty URL keeps plain text. Patterns match substrings, so anchor identifiers with `\b` when they could appear inside a larger token.
+
+Footer reference keys are case-insensitive: `Refs`, `refs`, and `REFS` use the same configured rule.
+Configuration keys that differ only by case are rejected, even when their URL templates are equal.
+Keep a single spelling for each key. This validation also applies after per-target reference rules
+are merged with top-level rules. To override an inherited rule, use exactly the same key spelling
+in the target configuration.
 
 One pattern can cover every project on a Jira host:
 

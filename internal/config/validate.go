@@ -240,6 +240,16 @@ func validateReferencesConfig(path string, references ReferencesConfig) error {
 		}
 	}
 
+	keys := slices.Sorted(maps.Keys(references.Footers))
+	for i, key := range keys {
+		for _, previous := range keys[:i] {
+			if strings.EqualFold(previous, key) {
+				return fmt.Errorf("%w: %s.footers keys %q and %q differ only by case",
+					ErrInvalidConfig, path, previous, key)
+			}
+		}
+	}
+
 	return nil
 }
 

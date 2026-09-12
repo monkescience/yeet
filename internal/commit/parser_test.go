@@ -32,6 +32,26 @@ func TestParseLogging(t *testing.T) {
 	testastic.NotContains(t, logOutput.String(), "private customer incident details")
 }
 
+func TestParseInvalidMessageStructureLogging(t *testing.T) {
+	// given: a conventional header followed by a body without the required blank line
+	var logOutput bytes.Buffer
+
+	previousLogger := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	// when: parsing the invalid message structure
+	parsed := commit.Parse(t.Context(), "structure123", "fix: update API\nBody without separator")
+
+	// then: the diagnostic identifies the structure error without calling the header invalid
+	testastic.False(t, parsed.IsConventional())
+	testastic.Contains(t, logOutput.String(), "commit: invalid message structure, treating as no-bump")
+	testastic.NotContains(t, logOutput.String(), "non-conventional header")
+}
+
 func TestParse(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +120,7 @@ func TestParse(t *testing.T) {
 		}, c.Footers)
 	})
 
-	t.Run("breaking change footer without space", func(t *testing.T) {
+	t.Run("ignores breaking change footer without separator space", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a BREAKING CHANGE footer without a space after the separator
@@ -109,9 +129,9 @@ func TestParse(t *testing.T) {
 		// when: parsing the commit
 		c := commit.Parse(t.Context(), "nos1234", raw)
 
-		// then: the footer is parsed and marks the commit as breaking
-		testastic.True(t, c.Breaking)
-		testastic.SliceEqual(t, []commit.Footer{{Key: "BREAKING CHANGE", Value: "drop legacy API"}}, c.Footers)
+		// then: the malformed footer does not mark the commit as breaking
+		testastic.False(t, c.Breaking)
+		testastic.Empty(t, c.Footers)
 	})
 
 	t.Run("fix commit", func(t *testing.T) {
@@ -150,7 +170,6 @@ func TestParse(t *testing.T) {
 			name string
 			raw  string
 		}{
-			{name: "uppercase type", raw: "FEAT: add authentication"},
 			{name: "empty scope", raw: "fix(): resolve timeout"},
 			{name: "missing separator space", raw: "fix:resolve timeout"},
 			{name: "extra separator spaces", raw: "fix:  resolve timeout"},
@@ -524,4 +543,177 @@ func FuzzParse(f *testing.F) {
 		testastic.Equal(t, strings.ToLower(c.Type), c.Type)
 		testastic.Equal(t, c.Type != "", c.IsConventional())
 	})
+}
+
+func TestParseTypeCase(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"FEAT(Auth)!: remove API", "Feat(Auth)!: remove API", "feat(Auth)!: remove API"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+			// given: a breaking feature with an authored scope and varying type casing
+			// when: parsing the commit
+			parsed := commit.Parse(t.Context(), "case123", raw)
+			// then: type matching is normalized while authored text and the breaking signal survive
+			testastic.Equal(t, "feat", parsed.Type)
+			testastic.Equal(t, "Auth", parsed.Scope)
+			testastic.Equal(t, "remove API", parsed.Description)
+			testastic.True(t, parsed.Breaking)
+		})
+	}
+}
+
+func TestParseStandardFooterBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, token := range []string{"BREAKING CHANGE", "BREAKING-CHANGE"} {
+		t.Run(token, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a multiline breaking description followed by ordinary metadata
+			raw := "fix: remove API\n\n" + token + ": remove API\nMigration instructions.\nReviewed-by: Alice\nrefs #123"
+
+			// when: parsing without any configured reference keys
+			parsed := commit.Parse(t.Context(), "footer123", raw)
+
+			// then: every valid footer terminates the preceding value and preserves its spelling
+			testastic.SliceEqual(t, []commit.Footer{
+				{Key: token, Value: "remove API\nMigration instructions."},
+				{Key: "Reviewed-by", Value: "Alice"},
+				{Key: "refs", Value: "#123"},
+			}, parsed.Footers)
+			testastic.True(t, parsed.Breaking)
+		})
+	}
+}
+
+func TestParseBreakingFooterCode(t *testing.T) {
+	t.Parallel()
+
+	// given: a standard breaking footer with trailer syntax inside a Markdown fence
+	raw := "fix: remove API\n\nBREAKING CHANGE: remove API\n```text\nReviewed-by: Alice\n```\nRefs: #123"
+
+	// when: parsing the standard footer
+	parsed := commit.Parse(t.Context(), "code123", raw)
+
+	// then: Markdown does not escape valid standard footer tokens
+	testastic.SliceEqual(t, []commit.Footer{
+		{Key: "BREAKING CHANGE", Value: "remove API\n```text"},
+		{Key: "Reviewed-by", Value: "Alice\n```"},
+		{Key: "Refs", Value: "#123"},
+	}, parsed.Footers)
+}
+
+func TestParseRejectedBreakingMarkerLogging(t *testing.T) {
+	// given: breaking markers with invalid syntax, lowercase spelling, and prose that resembles a marker
+	var logOutput bytes.Buffer
+
+	previousLogger := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	// when: parsing a commit containing rejected markers and ordinary prose
+	parsed := commit.Parse(t.Context(), "abc1234", "feat: add thing\n\nBREAKING CHANGE:\n"+
+		"breaking-change: remove API\nBREAKING-CHANGE #123\n"+
+		"Breaking changes are listed below\nprivate migration details")
+
+	// then: each rejected marker is logged without copying commit text into the log
+	testastic.Equal(t, false, parsed.Breaking)
+	testastic.Contains(t, logOutput.String(), `"marker":"BREAKING CHANGE"`)
+	testastic.Contains(t, logOutput.String(), `"marker":"breaking-change"`)
+	testastic.Contains(t, logOutput.String(), `"marker":"BREAKING-CHANGE"`)
+	testastic.Equal(t, 3, strings.Count(logOutput.String(), "breaking marker rejected, treating as non-breaking"))
+	testastic.NotContains(t, logOutput.String(), "Breaking changes are listed below")
+	testastic.NotContains(t, logOutput.String(), "private migration details")
+}
+
+func TestParseBlankSeparatedFooters(t *testing.T) {
+	t.Parallel()
+
+	// given: footer values and subsequent footer tokens separated by blank lines
+	raw := "fix: update API\n\nBody paragraph.\n\nReviewed-by: Alice\n\nAdditional context.\n\nRefs: #123\n\nCloses #456"
+
+	// when: parsing the commit
+	parsed := commit.Parse(t.Context(), "blank123", raw)
+
+	// then: the first footer stays metadata and blank continuation lines remain in its value
+	testastic.Equal(t, "Body paragraph.", parsed.Body)
+	testastic.SliceEqual(t, []commit.Footer{
+		{Key: "Reviewed-by", Value: "Alice\n\nAdditional context.\n"},
+		{Key: "Refs", Value: "#123\n"},
+		{Key: "Closes", Value: "#456"},
+	}, parsed.Footers)
+}
+
+func TestParseBreakingFooterValidity(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name     string
+		footer   string
+		breaking bool
+	}{
+		{name: "missing space", footer: "BREAKING CHANGE:remove API"},
+		{name: "hyphen missing space", footer: "BREAKING-CHANGE:remove API"},
+		{name: "hash separator", footer: "BREAKING-CHANGE #123"},
+		{name: "empty", footer: "BREAKING CHANGE:"},
+		{name: "empty after separator", footer: "BREAKING CHANGE: "},
+		{name: "whitespace only", footer: "BREAKING-CHANGE: \n \t\nRefs: #123"},
+		{name: "lowercase marker", footer: "breaking-change: remove API"},
+		{name: "CRLF multiline", footer: "BREAKING CHANGE: \r\nRemove API.", breaking: true},
+		{name: "multiline", footer: "BREAKING CHANGE: \nRemove API.", breaking: true},
+		{name: "hyphen multiline", footer: "BREAKING-CHANGE: \nRemove API.", breaking: true},
+		{name: "valid after empty", footer: "BREAKING CHANGE: \nBREAKING-CHANGE: Remove API.", breaking: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a fix with a breaking marker whose syntax or description varies
+			raw := "fix: update API\n\n" + scenario.footer
+
+			// when: parsing the complete footer values
+			parsed := commit.Parse(t.Context(), "syntax123", raw)
+
+			// then: only valid uppercase markers with a nonempty description signal breaking changes
+			testastic.Equal(t, scenario.breaking, parsed.Breaking)
+
+			for _, footer := range parsed.Footers {
+				if footer.Key == "BREAKING CHANGE" || footer.Key == "BREAKING-CHANGE" {
+					testastic.NotEmpty(t, strings.TrimSpace(footer.Value))
+				}
+			}
+		})
+	}
+}
+
+func TestParseBodySeparator(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name         string
+		message      string
+		conventional bool
+	}{
+		{name: "header only", message: "fix: update API", conventional: true},
+		{name: "body separator", message: "fix: update API\n\nBody.", conventional: true},
+		{name: "CRLF separator", message: "fix: update API\r\n\r\nBody.", conventional: true},
+		{name: "missing body separator", message: "fix: update API\nBody."},
+		{name: "missing separator with bang", message: "fix!: update API\nBody."},
+		{name: "missing footer separator", message: "fix: update API\nBREAKING CHANGE: remove API"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a header followed by an optional body or footer
+			// when: parsing the message structure
+			parsed := commit.Parse(t.Context(), "separator123", scenario.message)
+
+			// then: multiline messages require a blank line after their header
+			testastic.Equal(t, scenario.conventional, parsed.IsConventional())
+			testastic.False(t, parsed.Breaking)
+		})
+	}
 }

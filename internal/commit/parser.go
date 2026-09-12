@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode"
 )
 
 type Commit struct {
@@ -36,13 +38,18 @@ const (
 	bumpRankMajor = 3
 )
 
+const (
+	FooterBreakingChange  = "BREAKING CHANGE"
+	FooterBreakingChanged = "BREAKING-CHANGE"
+)
+
 // BumpMapping defines per-type bump levels.
 // Types not present produce BumpNone. Breaking commits always produce BumpMajor regardless of mapping.
 type BumpMapping map[string]BumpType
 
 // Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
-	`^(?P<type>[a-z]+)` +
+	`^(?P<type>[a-zA-Z]+)` +
 		`(?:\((?P<scope>[^()\r\n]+)\))?` +
 		`(?P<breaking>!)?` +
 		`: (?P<description>\S.*)$`,
@@ -55,17 +62,13 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	}
 
 	lines := strings.Split(rawMessage, "\n")
-	if len(lines) == 0 {
-		return c
-	}
-
 	header := strings.TrimSpace(lines[0])
 	matches := conventionalCommitPattern.FindStringSubmatch(header)
 
-	if matches == nil {
+	if matches == nil || (len(lines) > 1 && strings.TrimSpace(lines[1]) != "") {
 		c.Description = header
 
-		slog.DebugContext(ctx, "commit: non-conventional header, treating as no-bump",
+		slog.DebugContext(ctx, "commit: invalid message structure, treating as no-bump",
 			slog.String("hash", hash),
 		)
 
@@ -78,6 +81,7 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c.Breaking = matches[conventionalCommitPattern.SubexpIndex("breaking")] == "!"
 
 	parseBodyAndFooters(&c, lines[1:])
+	logRejectedBreakingMarkers(ctx, &c, lines[1:])
 
 	return c
 }
@@ -90,9 +94,14 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 			continue
 		}
 
-		if _, isFooter := parseFooter(strings.TrimSpace(line)); isFooter {
-			footerStart = i
+		_, isFooter := parseFooter(strings.TrimLeftFunc(line, unicode.IsSpace))
+		if !isFooter {
+			continue
 		}
+
+		footerStart = i
+
+		break
 	}
 
 	if footerStart == -1 {
@@ -103,19 +112,16 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 
 	c.Body = strings.TrimSpace(strings.Join(lines[:footerStart], "\n"))
 
+	parseFooters(c, lines[footerStart:])
+}
+
+func parseFooters(c *Commit, lines []string) {
 	var continuation strings.Builder
 
-	for _, line := range lines[footerStart:] {
-		trimmed := strings.TrimSpace(line)
-
-		if footer, ok := parseFooter(trimmed); ok {
+	for _, line := range lines {
+		if footer, ok := parseFooter(strings.TrimLeftFunc(line, unicode.IsSpace)); ok {
 			flushContinuation(c.Footers, &continuation)
-
 			c.Footers = append(c.Footers, footer)
-
-			if footer.Key == "BREAKING CHANGE" || footer.Key == "BREAKING-CHANGE" {
-				c.Breaking = true
-			}
 
 			continue
 		}
@@ -124,11 +130,71 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 			continue
 		}
 
-		continuation.WriteString("\n")
-		continuation.WriteString(line)
+		appendContinuation(&continuation, line)
 	}
 
 	flushContinuation(c.Footers, &continuation)
+
+	c.Footers = slices.DeleteFunc(c.Footers, func(footer Footer) bool {
+		return isBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) == ""
+	})
+
+	for _, footer := range c.Footers {
+		setBreaking(c, footer)
+	}
+}
+
+func logRejectedBreakingMarkers(ctx context.Context, c *Commit, lines []string) {
+	if c.Breaking {
+		return
+	}
+
+	for _, line := range lines {
+		marker, found := breakingMarkerToken(line)
+		if !found {
+			continue
+		}
+
+		footer, ok := parseFooter(strings.TrimLeftFunc(line, unicode.IsSpace))
+		if ok && isBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) != "" {
+			continue
+		}
+
+		slog.DebugContext(ctx, "commit: breaking marker rejected, treating as non-breaking",
+			slog.String("hash", c.Hash),
+			slog.String("marker", marker),
+		)
+	}
+}
+
+func breakingMarkerToken(line string) (string, bool) {
+	marker := strings.TrimSpace(line)
+	if before, _, found := strings.Cut(marker, ":"); found {
+		marker = before
+	} else if before, _, found := strings.Cut(marker, " #"); found {
+		marker = before
+	}
+
+	if strings.EqualFold(marker, FooterBreakingChange) || strings.EqualFold(marker, FooterBreakingChanged) {
+		return marker, true
+	}
+
+	return "", false
+}
+
+func appendContinuation(continuation *strings.Builder, line string) {
+	continuation.WriteString("\n")
+	continuation.WriteString(line)
+}
+
+func isBreakingFooter(key string) bool {
+	return key == FooterBreakingChange || key == FooterBreakingChanged
+}
+
+func setBreaking(c *Commit, footer Footer) {
+	if isBreakingFooter(footer.Key) {
+		c.Breaking = true
+	}
 }
 
 func flushContinuation(footers []Footer, continuation *strings.Builder) {
@@ -162,12 +228,14 @@ func isWordChar(ch rune) bool {
 }
 
 func parseFooter(line string) (Footer, bool) {
-	if after, found := strings.CutPrefix(line, "BREAKING CHANGE:"); found {
-		return Footer{Key: "BREAKING CHANGE", Value: strings.TrimPrefix(after, " ")}, true
+	line = strings.TrimSuffix(line, "\r")
+
+	if after, found := strings.CutPrefix(line, FooterBreakingChange+": "); found {
+		return Footer{Key: FooterBreakingChange, Value: after}, true
 	}
 
-	if after, found := strings.CutPrefix(line, "BREAKING-CHANGE:"); found {
-		return Footer{Key: "BREAKING-CHANGE", Value: strings.TrimPrefix(after, " ")}, true
+	if after, found := strings.CutPrefix(line, FooterBreakingChanged+": "); found {
+		return Footer{Key: FooterBreakingChanged, Value: after}, true
 	}
 
 	if parts := strings.SplitN(line, ": ", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format
@@ -175,6 +243,10 @@ func parseFooter(line string) (Footer, bool) {
 	}
 
 	if parts := strings.SplitN(line, " #", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format
+		if isBreakingFooter(parts[0]) {
+			return Footer{}, false
+		}
+
 		return Footer{Key: parts[0], Value: "#" + parts[1]}, true
 	}
 

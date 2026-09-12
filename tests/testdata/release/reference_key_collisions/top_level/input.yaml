@@ -1,0 +1,12 @@
+provider: github
+branch: main
+changelog:
+  references:
+    footers:
+      Refs: https://first.example/{value}
+      refs: https://second.example/{value}
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

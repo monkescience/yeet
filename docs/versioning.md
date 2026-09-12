@@ -2,6 +2,32 @@
 
 yeet uses top-level `versioning`, default `semver`. A monorepo target can override the strategy.
 
+## Commit message format
+
+yeet reads [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) in the form
+`type(scope)!: description`, with an optional scope and `!`. Commit types are case-insensitive:
+`feat:`, `Feat:`, and `FEAT:` all use the `feat` bump rules. Use lowercase types in configuration.
+The authored scope and description retain their case.
+
+A body or footer must be separated from the header by a blank line. If the second line is not
+blank, yeet ignores the entire message for bump calculation and changelog generation, including
+any `!` or `Release-As` signal. This also applies to entries inside commit override blocks.
+For example:
+
+```text
+feat!: replace authentication API
+
+Clients must use the new login endpoint.
+```
+
+A breaking footer must use uppercase `BREAKING CHANGE` or `BREAKING-CHANGE`, followed by a colon,
+a space, and a nonempty description. The description may continue on subsequent lines, including
+when the first line ends immediately after the separator space. Lowercase markers, missing
+separator spaces, and whitespace-only descriptions do not mark a commit as breaking. A valid `!`
+in the header still marks it as breaking even if a footer is malformed.
+
+Use `--verbose` to see diagnostics for rejected message structure and breaking markers.
+
 ## Semantic Versioning (semver)
 
 For versions at or above `1.0.0`:
@@ -27,6 +53,8 @@ These rules also apply to custom types in [Bump types](configuration.md#bump-typ
 A `Release-As` commit footer overrides automatic semver calculation:
 
 ```text
+chore: request a stable release
+
 Release-As: 1.0.0
 ```
 

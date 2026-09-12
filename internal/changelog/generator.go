@@ -300,7 +300,7 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	var refs []string
 
 	for _, f := range c.Footers {
-		pattern, ok := g.references.Footers[f.Key]
+		pattern, ok := g.referencePattern(f.Key)
 		if !ok {
 			continue
 		}
@@ -325,6 +325,16 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 	return strings.Join(refs, ", ")
 }
 
+func (g *Generator) referencePattern(key string) (string, bool) {
+	for configured, pattern := range g.references.Footers {
+		if strings.EqualFold(configured, key) {
+			return pattern, true
+		}
+	}
+
+	return "", false
+}
+
 func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
 	grouped := make(map[string][]commit.Commit)
 
@@ -342,7 +352,7 @@ func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
 func breakingDescription(c commit.Commit) string {
 	for _, f := range c.Footers {
 		if f.Key == "BREAKING CHANGE" || f.Key == "BREAKING-CHANGE" {
-			return f.Value
+			return strings.TrimRightFunc(f.Value, unicode.IsSpace)
 		}
 	}
 
