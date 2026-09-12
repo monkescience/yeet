@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.15.0](https://github.com/monkescience/yeet/compare/v0.14.13...v0.15.0) (2026-09-12)
+
+### ⚠ BREAKING CHANGES
+
+- **commit:** correct Unicode parsing and reject invalid header whitespace ([332215b](https://github.com/monkescience/yeet/commit/332215b1706669735b2232c60433a388d780614d))
+- **commit:** correct conventional footer parsing ([fb66f65](https://github.com/monkescience/yeet/commit/fb66f65a3b23d674e55a70b32212779c57acfdb6))
+
+### Bug Fixes
+
+- **commit:** correct Unicode parsing and reject invalid header whitespace ([332215b](https://github.com/monkescience/yeet/commit/332215b1706669735b2232c60433a388d780614d))
+- **commit:** correct conventional footer parsing ([fb66f65](https://github.com/monkescience/yeet/commit/fb66f65a3b23d674e55a70b32212779c57acfdb6))
+
 ## [v0.14.13](https://github.com/monkescience/yeet/compare/v0.14.12...v0.14.13) (2026-09-11)
 
 ### Bug Fixes
