@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.channels.beta.branch "main" duplicates stable branch
+ERROR invalid configuration: release.channels.beta.branch "main" duplicates stable branch path={{anyString}}

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -13,7 +12,7 @@ import (
 
 func (c *Config) Validate() error {
 	if strings.TrimSpace(c.Branch) == "" {
-		return fmt.Errorf("%w: branch must not be blank", ErrInvalidConfig)
+		return Invalidf("branch must not be blank")
 	}
 
 	_, err := c.TimeLocation()
@@ -106,16 +105,16 @@ func (c *Config) validateReleaseAndTargets() error {
 // TimeLocation resolves Timezone using the same rules enforced by Validate.
 func (c *Config) TimeLocation() (*time.Location, error) {
 	if strings.TrimSpace(c.Timezone) == "" {
-		return nil, fmt.Errorf("%w: timezone must not be blank", ErrInvalidConfig)
+		return nil, Invalidf("timezone must not be blank")
 	}
 
 	if strings.TrimSpace(c.Timezone) != c.Timezone {
-		return nil, fmt.Errorf("%w: timezone must not contain surrounding whitespace", ErrInvalidConfig)
+		return nil, Invalidf("timezone must not contain surrounding whitespace")
 	}
 
 	location, err := time.LoadLocation(c.Timezone)
 	if err != nil {
-		return nil, fmt.Errorf("%w: timezone %q is not a valid IANA location", ErrInvalidConfig, c.Timezone)
+		return nil, Invalidf("timezone %q is not a valid IANA location", c.Timezone)
 	}
 
 	return location, nil
@@ -123,26 +122,23 @@ func (c *Config) TimeLocation() (*time.Location, error) {
 
 func validateNetworkConfig(network NetworkConfig) error {
 	if network.RequestTimeout <= 0 {
-		return fmt.Errorf("%w: network.request_timeout must be greater than zero", ErrInvalidConfig)
+		return Invalidf("network.request_timeout must be greater than zero")
 	}
 
 	if network.Retry.MaxAttempts < 1 {
-		return fmt.Errorf("%w: network.retry.max_attempts must be at least 1", ErrInvalidConfig)
+		return Invalidf("network.retry.max_attempts must be at least 1")
 	}
 
 	if network.Retry.MinBackoff <= 0 {
-		return fmt.Errorf("%w: network.retry.min_backoff must be greater than zero", ErrInvalidConfig)
+		return Invalidf("network.retry.min_backoff must be greater than zero")
 	}
 
 	if network.Retry.MaxBackoff <= 0 {
-		return fmt.Errorf("%w: network.retry.max_backoff must be greater than zero", ErrInvalidConfig)
+		return Invalidf("network.retry.max_backoff must be greater than zero")
 	}
 
 	if network.Retry.MinBackoff > network.Retry.MaxBackoff {
-		return fmt.Errorf(
-			"%w: network.retry.min_backoff must not exceed network.retry.max_backoff",
-			ErrInvalidConfig,
-		)
+		return Invalidf("network.retry.min_backoff must not exceed network.retry.max_backoff")
 	}
 
 	return nil
@@ -154,19 +150,11 @@ func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, targ
 	}
 
 	if target.PreMajorBreakingBumpsMinor != nil {
-		return fmt.Errorf(
-			"%w: targets.%s.pre_major_breaking_bumps_minor has no effect with calver versioning",
-			ErrInvalidConfig,
-			targetID,
-		)
+		return Invalidf("targets.%s.pre_major_breaking_bumps_minor has no effect with calver versioning", targetID)
 	}
 
 	if target.PreMajorFeaturesBumpPatch != nil {
-		return fmt.Errorf(
-			"%w: targets.%s.pre_major_features_bump_patch has no effect with calver versioning",
-			ErrInvalidConfig,
-			targetID,
-		)
+		return Invalidf("targets.%s.pre_major_features_bump_patch has no effect with calver versioning", targetID)
 	}
 
 	return nil
@@ -175,7 +163,7 @@ func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, targ
 func validateCalVerConfig(path string, calver CalVerConfig) error {
 	err := version.ValidateCalVerFormat(calver.Format)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrInvalidConfig, path, err)
+		return InvalidWithCausef(err, "%s: %s", path, validationReason(err))
 	}
 
 	return nil
@@ -189,15 +177,12 @@ func validateVersionFile(configPath string, versionFile VersionFile) error {
 
 func normalizedVersionFile(configPath string, versionFile VersionFile) (VersionFile, error) {
 	if strings.TrimSpace(versionFile.Path) == "" {
-		return VersionFile{}, fmt.Errorf("%w: %s must not contain empty paths", ErrInvalidConfig, configPath)
+		return VersionFile{}, Invalidf("%s must not contain empty paths", configPath)
 	}
 
 	normalizedPath, err := NormalizeRepoFilePath(versionFile.Path)
 	if err != nil {
-		return VersionFile{}, fmt.Errorf(
-			"%w: %s entry %q %v",
-			ErrInvalidConfig,
-			configPath,
+		return VersionFile{}, Invalidf("%s entry %q %v", configPath,
 			versionFile.Path,
 			err,
 		)
@@ -210,12 +195,12 @@ func normalizedVersionFile(configPath string, versionFile VersionFile) (VersionF
 
 func normalizedChangelogFile(configPath string, rawPath string) (string, error) {
 	if strings.TrimSpace(rawPath) == "" {
-		return "", fmt.Errorf("%w: %s must not be empty", ErrInvalidConfig, configPath)
+		return "", Invalidf("%s must not be empty", configPath)
 	}
 
 	normalizedPath, err := NormalizeRepoFilePath(rawPath)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s %v", ErrInvalidConfig, configPath, err)
+		return "", Invalidf("%s %v", configPath, err)
 	}
 
 	return normalizedPath, nil
@@ -224,18 +209,17 @@ func normalizedChangelogFile(configPath string, rawPath string) (string, error) 
 func validateReferencesConfig(path string, references ReferencesConfig) error {
 	for i, pattern := range references.Patterns {
 		if strings.TrimSpace(pattern.Pattern) == "" {
-			return fmt.Errorf("%w: %s.patterns[%d].pattern must not be empty", ErrInvalidConfig, path, i)
+			return Invalidf("%s.patterns[%d].pattern must not be empty", path, i)
 		}
 
 		_, err := regexp.Compile(pattern.Pattern)
 		if err != nil {
-			return fmt.Errorf(
-				"%w: %s.patterns[%d].pattern %q is not a valid regular expression: %v",
-				ErrInvalidConfig,
+			return InvalidWithCausef(err,
+				"%s.patterns[%d].pattern %q is not a valid regular expression: %s",
 				path,
 				i,
 				pattern.Pattern,
-				err,
+				validationReason(err),
 			)
 		}
 	}
@@ -244,8 +228,7 @@ func validateReferencesConfig(path string, references ReferencesConfig) error {
 	for i, key := range keys {
 		for _, previous := range keys[:i] {
 			if strings.EqualFold(previous, key) {
-				return fmt.Errorf("%w: %s.footers keys %q and %q differ only by case",
-					ErrInvalidConfig, path, previous, key)
+				return Invalidf("%s.footers keys %q and %q differ only by case", path, previous, key)
 			}
 		}
 	}
@@ -258,7 +241,7 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 
 	for _, t := range bt.Minor {
 		if strings.TrimSpace(t) == "" {
-			return fmt.Errorf("%w: bump_types.minor must not contain empty strings", ErrInvalidConfig)
+			return Invalidf("bump_types.minor must not contain empty strings")
 		}
 
 		seen[t] = "minor"
@@ -266,11 +249,11 @@ func validateBumpTypes(bt BumpTypesConfig) error {
 
 	for _, t := range bt.Patch {
 		if strings.TrimSpace(t) == "" {
-			return fmt.Errorf("%w: bump_types.patch must not contain empty strings", ErrInvalidConfig)
+			return Invalidf("bump_types.patch must not contain empty strings")
 		}
 
 		if level, exists := seen[t]; exists {
-			return fmt.Errorf("%w: bump_types: type %q appears in both %s and patch", ErrInvalidConfig, t, level)
+			return Invalidf("bump_types: type %q appears in both %s and patch", t, level)
 		}
 	}
 
@@ -315,11 +298,7 @@ func ValidateAutoMergeMode(mode AutoMergeMode) error {
 	switch mode {
 	case AutoMergeModeProvider, AutoMergeModeDirect:
 	default:
-		return fmt.Errorf(
-			"%w: release.auto_merge_mode must be \"provider\" or \"direct\", got %q",
-			ErrInvalidConfig,
-			mode,
-		)
+		return Invalidf("release.auto_merge_mode must be \"provider\" or \"direct\", got %q", mode)
 	}
 
 	return nil
@@ -330,11 +309,7 @@ func ValidateAutoMergeMethod(method AutoMergeMethod) error {
 	switch method {
 	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:
 	default:
-		return fmt.Errorf(
-			"%w: release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", or \"merge\", got %q",
-			ErrInvalidConfig,
-			method,
-		)
+		return Invalidf("release.auto_merge_method must be \"auto\", \"squash\", \"rebase\", or \"merge\", got %q", method)
 	}
 
 	return nil
@@ -342,35 +317,23 @@ func ValidateAutoMergeMethod(method AutoMergeMethod) error {
 
 func validateReleaseMergePolling(polling ReleaseMergePollingConfig) error {
 	if polling.InitialInterval <= 0 {
-		return fmt.Errorf(
-			"%w: release.merge_polling.initial_interval must be greater than zero",
-			ErrInvalidConfig,
-		)
+		return Invalidf("release.merge_polling.initial_interval must be greater than zero")
 	}
 
 	if polling.MaxInterval <= 0 {
-		return fmt.Errorf(
-			"%w: release.merge_polling.max_interval must be greater than zero",
-			ErrInvalidConfig,
-		)
+		return Invalidf("release.merge_polling.max_interval must be greater than zero")
 	}
 
 	if polling.Timeout <= 0 {
-		return fmt.Errorf("%w: release.merge_polling.timeout must be greater than zero", ErrInvalidConfig)
+		return Invalidf("release.merge_polling.timeout must be greater than zero")
 	}
 
 	if polling.InitialInterval > polling.MaxInterval {
-		return fmt.Errorf(
-			"%w: release.merge_polling.initial_interval must not exceed release.merge_polling.max_interval",
-			ErrInvalidConfig,
-		)
+		return Invalidf("release.merge_polling.initial_interval must not exceed release.merge_polling.max_interval")
 	}
 
 	if polling.MaxInterval > polling.Timeout {
-		return fmt.Errorf(
-			"%w: release.merge_polling.max_interval must not exceed release.merge_polling.timeout",
-			ErrInvalidConfig,
-		)
+		return Invalidf("release.merge_polling.max_interval must not exceed release.merge_polling.timeout")
 	}
 
 	return nil
@@ -378,18 +341,15 @@ func validateReleaseMergePolling(polling ReleaseMergePollingConfig) error {
 
 func validateLifecycleLabelName(path, name string) error {
 	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("%w: %s must not be blank", ErrInvalidConfig, path)
+		return Invalidf("%s must not be blank", path)
 	}
 
 	if strings.Contains(name, ",") {
-		return fmt.Errorf("%w: %s %q must not contain a comma", ErrInvalidConfig, path, name)
+		return Invalidf("%s %q must not contain a comma", path, name)
 	}
 
 	if strings.EqualFold(name, "any") || strings.EqualFold(name, "none") {
-		return fmt.Errorf(
-			"%w: %s %q is a reserved label filter value",
-			ErrInvalidConfig,
-			path,
+		return Invalidf("%s %q is a reserved label filter value", path,
 			name,
 		)
 	}
@@ -414,20 +374,13 @@ func validateReleaseLabels(labels ReleaseLabelsConfig) error {
 	}
 
 	if strings.EqualFold(labels.Pending, labels.Tagged) {
-		return fmt.Errorf(
-			"%w: release.labels.pending and release.labels.tagged must differ",
-			ErrInvalidConfig,
-		)
+		return Invalidf("release.labels.pending and release.labels.tagged must differ")
 	}
 
 	if labels.Yeet {
 		for _, lifecycle := range lifecycle {
 			if strings.EqualFold(lifecycle.name, "yeet") {
-				return fmt.Errorf(
-					"%w: %s must differ from the managed yeet label",
-					ErrInvalidConfig,
-					lifecycle.path,
-				)
+				return Invalidf("%s must differ from the managed yeet label", lifecycle.path)
 			}
 		}
 	}
@@ -453,23 +406,16 @@ func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
 
 	for _, extra := range labels.Extra {
 		if strings.TrimSpace(extra) == "" {
-			return fmt.Errorf("%w: release.labels.extra must not contain blank labels", ErrInvalidConfig)
+			return Invalidf("release.labels.extra must not contain blank labels")
 		}
 
 		if strings.Contains(extra, ",") {
-			return fmt.Errorf(
-				"%w: release.labels.extra entry %q must not contain a comma",
-				ErrInvalidConfig,
-				extra,
-			)
+			return Invalidf("release.labels.extra entry %q must not contain a comma", extra)
 		}
 
 		for _, existing := range seen {
 			if strings.EqualFold(extra, existing.name) {
-				return fmt.Errorf(
-					"%w: release.labels.extra entry %q duplicates %s",
-					ErrInvalidConfig,
-					extra,
+				return Invalidf("release.labels.extra entry %q duplicates %s", extra,
 					existing.path,
 				)
 			}
@@ -487,7 +433,7 @@ func validateReleaseExtraLabels(labels ReleaseLabelsConfig) error {
 func validateReleaseReviewers(reviewers []string) error {
 	for _, reviewer := range reviewers {
 		if strings.TrimSpace(reviewer) == "" {
-			return fmt.Errorf("%w: release.reviewers must not contain empty strings", ErrInvalidConfig)
+			return Invalidf("release.reviewers must not contain empty strings")
 		}
 	}
 
@@ -505,10 +451,7 @@ func validateReleaseChannelBranches(stableBranch string, channels map[string]Rel
 			continue
 		}
 
-		return fmt.Errorf(
-			"%w: release.channels.%s.branch %q duplicates stable branch",
-			ErrInvalidConfig,
-			strings.TrimSpace(name),
+		return Invalidf("release.channels.%s.branch %q duplicates stable branch", strings.TrimSpace(name),
 			branch,
 		)
 	}
@@ -530,14 +473,11 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 
 		branch := strings.TrimSpace(channel.Branch)
 		if branch == "" {
-			return fmt.Errorf("%w: release.channels.%s.branch must not be empty", ErrInvalidConfig, channelName)
+			return Invalidf("release.channels.%s.branch must not be empty", channelName)
 		}
 
 		if otherChannel, exists := seenBranches[branch]; exists {
-			return fmt.Errorf(
-				"%w: release.channels.%s.branch %q duplicates release.channels.%s.branch",
-				ErrInvalidConfig,
-				channelName,
+			return Invalidf("release.channels.%s.branch %q duplicates release.channels.%s.branch", channelName,
 				branch,
 				otherChannel,
 			)
@@ -547,19 +487,22 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 
 		prerelease := strings.TrimSpace(channel.Prerelease)
 		if prerelease == "" {
-			return fmt.Errorf("%w: release.channels.%s.prerelease must not be empty", ErrInvalidConfig, channelName)
+			return Invalidf("release.channels.%s.prerelease must not be empty", channelName)
 		}
 
 		err = version.ValidatePrereleaseIdentifier(prerelease)
 		if err != nil {
-			return fmt.Errorf("%w: release.channels.%s.prerelease: %v", ErrInvalidConfig, channelName, err)
+			return InvalidWithCausef(
+				err,
+				"release.channels.%s.prerelease %q must be a valid semver prerelease identifier: %s",
+				channelName,
+				prerelease,
+				validationReason(err),
+			)
 		}
 
 		if otherChannel, exists := seenPrereleaseIDs[prerelease]; exists {
-			return fmt.Errorf(
-				"%w: release.channels.%s.prerelease %q duplicates release.channels.%s.prerelease",
-				ErrInvalidConfig,
-				channelName,
+			return Invalidf("release.channels.%s.prerelease %q duplicates release.channels.%s.prerelease", channelName,
 				prerelease,
 				otherChannel,
 			)
@@ -579,11 +522,11 @@ func validateReleaseChannels(channels map[string]ReleaseChannelConfig) error {
 func validateReleaseChannelName(name string) (string, error) {
 	channelName := strings.TrimSpace(name)
 	if channelName == "" {
-		return "", fmt.Errorf("%w: release.channels keys must not be empty", ErrInvalidConfig)
+		return "", Invalidf("release.channels keys must not be empty")
 	}
 
 	if strings.EqualFold(channelName, "stable") {
-		return "", fmt.Errorf("%w: release.channels.%s must not use reserved name stable", ErrInvalidConfig, channelName)
+		return "", Invalidf("release.channels.%s must not use reserved name stable", channelName)
 	}
 
 	return channelName, nil
@@ -595,15 +538,12 @@ func validateReleaseChannelChangelogFile(channelName, changelogFile string) erro
 	}
 
 	if strings.TrimSpace(changelogFile) == "" {
-		return fmt.Errorf("%w: release.channels.%s.changelog_file must not be blank", ErrInvalidConfig, channelName)
+		return Invalidf("release.channels.%s.changelog_file must not be blank", channelName)
 	}
 
 	_, err := NormalizeRepoFilePath(changelogFile)
 	if err != nil {
-		return fmt.Errorf(
-			"%w: release.channels.%s.changelog_file %v",
-			ErrInvalidConfig,
-			channelName,
+		return Invalidf("release.channels.%s.changelog_file %v", channelName,
 			err,
 		)
 	}

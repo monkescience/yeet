@@ -268,7 +268,7 @@ func detectType(host string) (string, error) {
 		return providerNameAzureDevOps, nil
 	}
 
-	return "", fmt.Errorf("%w: %s", ErrUnsupportedHost, host)
+	return "", &UnsupportedHostError{Host: host}
 }
 
 func isAzureDevOpsHost(host string) bool {

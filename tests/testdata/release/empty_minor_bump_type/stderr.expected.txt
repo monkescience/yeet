@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: bump_types.minor must not contain empty strings
+ERROR invalid configuration: bump_types.minor must not contain empty strings path={{anyString}}

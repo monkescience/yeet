@@ -1,0 +1,2 @@
+ERROR provider request failed unit=target:api phase=reconciliation status=422 provider=github method=POST path=/api/v3/repos/testorg/testrepo/pulls hint="check the requested resource state and provider validation rules"
+ERROR provider request failed unit=target:web phase=reconciliation status=422 provider=github method=POST path=/api/v3/repos/testorg/testrepo/pulls hint="check the requested resource state and provider validation rules"

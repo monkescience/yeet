@@ -340,12 +340,17 @@ func parse(data []byte) (*Config, error) {
 
 	err := yaml.Unmarshal(data, &instance)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
+		return nil, InvalidWithCausef(err, "%s", describeDecodeFailure(err))
 	}
 
 	err = validateAgainstSchema(instance)
+
+	var deferredValidationErr *ValidationError
 	if err != nil {
-		return nil, err
+		deferredValidationErr, _ = errors.AsType[*ValidationError](err)
+		if deferredValidationErr == nil || !deferredValidationErr.deferToDecoder {
+			return nil, err
+		}
 	}
 
 	cfg := Default()
@@ -355,7 +360,11 @@ func parse(data []byte) (*Config, error) {
 
 	err = decoder.Decode(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse config: %v", ErrInvalidConfig, err)
+		if _, single := singleLoadError(err); single && deferredValidationErr != nil {
+			return nil, InvalidWithCausef(err, "%s", deferredValidationErr.Problem)
+		}
+
+		return nil, InvalidWithCausef(err, "%s", describeDecodeFailure(err))
 	}
 
 	err = validateRepositorySubsection(&cfg.Repository, cfg.Provider)

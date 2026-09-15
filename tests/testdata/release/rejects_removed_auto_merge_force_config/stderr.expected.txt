@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: parse config: yaml: construct errors: line 4: field auto_merge_force not found in type config.ReleaseConfig
+ERROR invalid configuration: release contains unknown field "auto_merge_force" path={{anyString}} line=4 column=3 cause="yaml constructor at 4:3"

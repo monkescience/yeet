@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.default.path must be repo-relative
+ERROR invalid configuration: targets.default.path must be repo-relative path={{anyString}}

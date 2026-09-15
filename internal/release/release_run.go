@@ -94,11 +94,11 @@ func resolveRunChannel(
 		return nil
 	}
 
-	return fmt.Errorf(
+	return &SelectionError{Branch: currentBranch, cause: fmt.Errorf(
 		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
 		errUnconfiguredReleaseBranch,
 		currentBranch,
-	)
+	)}
 }
 
 func resolveExplicitRunChannel(
@@ -111,18 +111,18 @@ func resolveExplicitRunChannel(
 
 	channel, exists := cfg.Release.Channels[channelName]
 	if !exists {
-		return fmt.Errorf("%w: %q", errUnknownReleaseChannel, channelName)
+		return &SelectionError{Channel: channelName, cause: fmt.Errorf("%w: %q", errUnknownReleaseChannel, channelName)}
 	}
 
 	channelBranch := strings.TrimSpace(channel.Branch)
 	if !options.DryRun && currentBranch != channelBranch {
-		return fmt.Errorf(
+		return &SelectionError{Channel: channelName, Branch: currentBranch, ExpectedBranch: channelBranch, cause: fmt.Errorf(
 			"%w: channel %q must run on branch %q, got %q",
 			errUnconfiguredReleaseBranch,
 			channelName,
 			channelBranch,
 			currentBranch,
-		)
+		)}
 	}
 
 	return selectRunChannel(run, channelName, channel)
@@ -139,12 +139,8 @@ func selectRunChannel(run *releaseRun, name string, channel config.ReleaseChanne
 
 	changelogFile, err := config.NormalizeRepoFilePath(channel.ChangelogFile)
 	if err != nil {
-		return fmt.Errorf(
-			"%w: release.channels.%s.changelog_file %v",
-			config.ErrInvalidConfig,
-			run.channelName,
-			err,
-		)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.InvalidWithCausef(err, "release.channels.%s.changelog_file is invalid", run.channelName)
 	}
 
 	run.changelogFile = changelogFile
@@ -166,10 +162,8 @@ func (r releaseRun) withChannelChangelogs(
 	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
 	for targetID, target := range targets {
 		if !versionStrategyForResolvedTarget(target).strategy.SupportsPrerelease() {
-			return nil, fmt.Errorf(
-				"%w: prerelease channel %q supports semver targets only. Target %q uses %q",
-				config.ErrInvalidConfig,
-				r.channelName,
+			//nolint:wrapcheck // config supplies the typed validation context.
+			return nil, config.Invalidf("prerelease channel %q supports semver targets only. Target %q uses %q", r.channelName,
 				targetID,
 				target.Versioning,
 			)

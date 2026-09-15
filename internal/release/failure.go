@@ -2,15 +2,18 @@ package release
 
 import (
 	"errors"
+	"fmt"
 	"os"
+
+	"github.com/go-git/go-git/v6"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
+	"github.com/monkescience/yeet/internal/version"
 )
 
-// FailureKind identifies the operational category of a release failure.
 type FailureKind string
 
 const (
@@ -28,6 +31,7 @@ const (
 	FailureAutoMergeUnsupported FailureKind = "auto_merge_unsupported"
 	FailureReviewer             FailureKind = "reviewer"
 	FailureLabels               FailureKind = "labels"
+	FailureFileConflict         FailureKind = "file_conflict"
 )
 
 // MergeReason identifies why a forge refused to merge a release change.
@@ -49,6 +53,9 @@ type Failure struct { //nolint:errname // the selected release interface is inte
 	configPath  string
 	mergeReason MergeReason
 	cause       error
+	unit        string
+	phase       string
+	failures    []*Failure
 }
 
 func (f *Failure) Error() string {
@@ -71,6 +78,24 @@ func (f *Failure) MergeReason() MergeReason {
 	return f.mergeReason
 }
 
+func (f *Failure) Unit() string { return f.unit }
+
+func (f *Failure) Phase() string { return f.phase }
+
+func (f *Failure) Failures() []*Failure { return f.failures }
+
+type unitError struct {
+	unit  string
+	phase string
+	cause error
+}
+
+func (e *unitError) Error() string {
+	return fmt.Sprintf("release unit %q %s: %s", e.unit, e.phase, e.cause)
+}
+
+func (e *unitError) Unwrap() error { return e.cause }
+
 func classifyFailure(configPath string, err error) *Failure {
 	failure := &Failure{
 		kind:       classifyFailureKind(err),
@@ -82,7 +107,87 @@ func classifyFailure(configPath string, err error) *Failure {
 		failure.mergeReason = classifyMergeReason(err)
 	}
 
+	failure.failures = classifyIndependentFailures(configPath, err, "", "")
+	if len(failure.failures) == 0 {
+		failure.failures = []*Failure{failure}
+	}
+
 	return failure
+}
+
+func classifyIndependentFailures(configPath string, err error, unit, phase string) []*Failure {
+	if nested, ok := err.(*unitError); ok { //nolint:errorlint // inspect each node before traversing all joined causes
+		return classifyIndependentFailures(configPath, nested.cause, nested.unit, nested.phase)
+	}
+
+	if isSemanticFailure(err) {
+		return classifyIndependentFailure(configPath, err, unit, phase)
+	}
+
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var failures []*Failure
+		for _, cause := range joined.Unwrap() {
+			failures = append(failures, classifyIndependentFailures(configPath, cause, unit, phase)...)
+		}
+
+		return failures
+	}
+
+	cause := errors.Unwrap(err)
+	if cause != nil && isIndependentAggregate(cause) {
+		return classifyIndependentFailures(configPath, cause, unit, phase)
+	}
+
+	return classifyIndependentFailure(configPath, err, unit, phase)
+}
+
+func classifyIndependentFailure(configPath string, err error, unit, phase string) []*Failure {
+	failure := &Failure{
+		kind:       classifyFailureKind(err),
+		configPath: configPath,
+		cause:      err,
+		unit:       unit,
+		phase:      phase,
+	}
+
+	if failure.kind == FailureMergeBlocked {
+		failure.mergeReason = classifyMergeReason(err)
+	}
+
+	return []*Failure{failure}
+}
+
+func isSemanticFailure(err error) bool {
+	switch err.(type) { //nolint:errorlint // preserve this wrapper before traversing its causes
+	case *config.ValidationError,
+		*history.CheckoutError,
+		*provider.SetupError,
+		*provider.MergeNotFinalizedError,
+		*SelectionError,
+		*VersionFileError,
+		*CommitOverrideError,
+		*FileConflictError,
+		*PendingReleaseError,
+		*version.ReleaseAsError,
+		*ManifestError:
+		return true
+	default:
+		return false
+	}
+}
+
+func isIndependentAggregate(err error) bool {
+	if _, ok := err.(*unitError); ok { //nolint:errorlint // inspect this node before recursively checking causes
+		return true
+	}
+
+	if _, ok := err.(interface{ Unwrap() []error }); ok {
+		return true
+	}
+
+	cause := errors.Unwrap(err)
+
+	return cause != nil && isIndependentAggregate(cause)
 }
 
 func classifyFailureKind(err error) FailureKind {
@@ -103,6 +208,8 @@ func classifyFailureKind(err error) FailureKind {
 		return FailureReleaseBranch
 	case errors.Is(err, ErrMultiplePendingReleasePRs):
 		return FailureReleaseState
+	case errors.Is(err, errConflictingFileUpdate):
+		return FailureFileConflict
 	case errors.Is(err, forge.ErrMergeNotFinalized):
 		return FailureMergeTimeout
 	case errors.Is(err, forge.ErrAutoMergeUnsupported):
@@ -127,7 +234,8 @@ func classifyFailureKind(err error) FailureKind {
 }
 
 func isRepositoryFailure(err error) bool {
-	return errors.Is(err, provider.ErrUnsupportedProvider) ||
+	return errors.Is(err, git.ErrRepositoryNotExists) ||
+		errors.Is(err, provider.ErrUnsupportedProvider) ||
 		errors.Is(err, provider.ErrUnknownRemote) ||
 		errors.Is(err, provider.ErrUnsupportedHost) ||
 		errors.Is(err, provider.ErrGitRemoteNotFound) ||

@@ -46,7 +46,10 @@ func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA strin
 
 	err = validateAzureDevOpsRefUpdateResults(name, results)
 	if err != nil {
-		return fmt.Errorf("create branch %q: %w", name, err)
+		return &BranchUpdateError{
+			Branch: name, Problem: azureBranchUpdateProblem(results),
+			Err: fmt.Errorf("create branch %q: %w", name, err),
+		}
 	}
 
 	slog.DebugContext(ctx, "azure devops: created branch",
@@ -255,7 +258,10 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 
 	err = validateAzureDevOpsRefUpdateResults(branch, results)
 	if err != nil {
-		return "", fmt.Errorf("reset branch %q to base: %w", branch, err)
+		return "", &BranchUpdateError{
+			Branch: branch, Problem: azureBranchUpdateProblem(results),
+			Err: fmt.Errorf("reset branch %q to base: %w", branch, err),
+		}
 	}
 
 	return baseTip, nil

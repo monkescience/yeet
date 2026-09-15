@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: invalid config: release.pr_title: field is unavailable: .Nope
+ERROR invalid configuration: release.pr_title contains an unavailable template field: .Nope path={{anyString}}

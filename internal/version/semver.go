@@ -146,7 +146,8 @@ func (s *SemVer) SupportsPrerelease() bool {
 func (s *SemVer) NormalizeReleaseAs(value string) (string, error) {
 	parsed, err := semver.StrictNewVersion(value)
 	if err != nil {
-		return "", fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, value, err)
+		return "", releaseAsError(value, "", "requested version is not valid semver",
+			fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, value, err))
 	}
 
 	return parsed.String(), nil
@@ -234,25 +235,30 @@ func (s *SemVer) nextPrerelease(
 func (s *SemVer) applyReleaseAs(current, releaseAs string) (string, commit.BumpType, error) {
 	target, err := semver.StrictNewVersion(releaseAs)
 	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, releaseAs, err)
+		return "", commit.BumpNone, releaseAsError(releaseAs, current, "requested version is not valid semver",
+			fmt.Errorf("%w: invalid version %q: %v", ErrInvalidReleaseAs, releaseAs, err))
 	}
 
 	if target.Prerelease() != "" || target.Metadata() != "" {
-		return "", commit.BumpNone, fmt.Errorf("%w: %q must be a stable version", ErrInvalidReleaseAs, releaseAs)
+		return "", commit.BumpNone, releaseAsError(releaseAs, current, "requested version must be stable",
+			fmt.Errorf("%w: %q must be a stable version", ErrInvalidReleaseAs, releaseAs))
 	}
 
 	currentVersion, err := semver.StrictNewVersion(current)
 	if err != nil {
-		return "", commit.BumpNone, fmt.Errorf("%w: parse current version %q: %v", ErrInvalidReleaseAs, current, err)
+		return "", commit.BumpNone, releaseAsError(releaseAs, current, "current version is not valid semver",
+			fmt.Errorf("%w: parse current version %q: %v", ErrInvalidReleaseAs, current, err))
 	}
 
 	if !target.GreaterThan(currentVersion) {
-		return "", commit.BumpNone, fmt.Errorf(
-			"%w: %s must be greater than current version %s",
-			ErrInvalidReleaseAs,
-			target.String(),
-			currentVersion.String(),
-		)
+		return "", commit.BumpNone, releaseAsError(target.String(), currentVersion.String(),
+			"requested version is not newer than the current version",
+			fmt.Errorf(
+				"%w: %s must be greater than current version %s",
+				ErrInvalidReleaseAs,
+				target.String(),
+				currentVersion.String(),
+			))
 	}
 
 	return target.String(), inferBump(currentVersion, target), nil
@@ -326,4 +332,23 @@ func inferBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
 	}
 
 	return commit.BumpPatch
+}
+
+type ReleaseAsError struct {
+	Requested string
+	Current   string
+	Problem   string
+	cause     error
+}
+
+func (e *ReleaseAsError) Error() string { return e.cause.Error() }
+
+func (e *ReleaseAsError) Unwrap() error { return e.cause }
+
+func releaseAsError(requested, current, problem string, cause error) error {
+	return &ReleaseAsError{Requested: requested, Current: current, Problem: problem, cause: cause}
+}
+
+func NewReleaseAsError(requested, current, problem string, cause error) error {
+	return releaseAsError(requested, current, problem, cause)
 }

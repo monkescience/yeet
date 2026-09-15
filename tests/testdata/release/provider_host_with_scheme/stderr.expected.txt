@@ -1,1 +1,1 @@
-release failed: provider host trust validation failed. Align the configured host, Git remote, and provider URL override: provider setup failed: invalid provider host: "https://github.example" must be a bare hostname without scheme, credentials, or path
+ERROR provider host could not be trusted: provider host is invalid provider=github host=https://github.example remote=origin hint="align the configured host, git remote, and provider url override"

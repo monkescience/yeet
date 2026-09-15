@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file VERSION.txt: apply markers: unclosed x-yeet-start block: started at line 1
+ERROR could not update version file: version marker block has no end marker target=default path=VERSION.txt hint="check the file and its version_files configuration"

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: version_files format must be "markers" or "json", got "toml"
+ERROR invalid configuration: version_files format must be "markers" or "json", got "toml" path={{anyString}}

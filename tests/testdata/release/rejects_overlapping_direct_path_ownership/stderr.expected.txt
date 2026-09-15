@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: direct path ownership overlaps between targets.api and targets.services
+ERROR invalid configuration: direct path ownership overlaps between targets.api and targets.services path={{anyString}}

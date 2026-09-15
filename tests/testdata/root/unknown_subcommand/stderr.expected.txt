@@ -1,1 +1,1 @@
-unknown command "nope-not-a-command" for "yeet"
+ERROR unknown command command=yeet argument=nope-not-a-command hint="run yeet --help"

@@ -68,9 +68,6 @@ func TestTracer(t *testing.T) {
 			"attempt":              float64(2),
 			"request_id":           "request-123",
 			"rate_limit_remaining": "4999",
-			"rate_limit_reset":     "",
-			"retry_after":          "",
-			"transport_error":      "",
 		})
 
 		for _, private := range []string{"fake-sensitive", "private request body", "private response body"} {
@@ -111,18 +108,14 @@ func TestTracer(t *testing.T) {
 		// then: the failure category is logged without the raw error or query
 		testastic.ErrorIs(t, err, context.DeadlineExceeded)
 		assertTraceEvent(t, logOutput.Bytes(), map[string]any{
-			"level":                "DEBUG",
-			"msg":                  "http request completed",
-			"provider":             "github",
-			"method":               http.MethodGet,
-			"path":                 "/repos/acme/private",
-			"status":               float64(0),
-			"attempt":              float64(1),
-			"request_id":           "",
-			"rate_limit_remaining": "",
-			"rate_limit_reset":     "",
-			"retry_after":          "",
-			"transport_error":      "timeout",
+			"level":           "DEBUG",
+			"msg":             "http request completed",
+			"provider":        "github",
+			"method":          http.MethodGet,
+			"path":            "/repos/acme/private",
+			"status":          float64(0),
+			"attempt":         float64(1),
+			"transport_error": "timeout",
 		})
 		testastic.NotContains(t, logOutput.String(), "fake-sensitive")
 	})

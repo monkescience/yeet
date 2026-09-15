@@ -1,1 +1,1 @@
-unknown flag: --auto-merge-force
+ERROR unknown flag command="yeet release" flag=auto-merge-force hint="run yeet release --help"

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release does not match the config schema
+ERROR invalid configuration: release does not match the config schema path={{anyString}}

@@ -1,1 +1,1 @@
-release failed: unexpected failure: invalid release-as footer: "2.0.0-rc.1" must be a stable version
+ERROR invalid release version override: requested version must be stable field=Release-As requested=2.0.0-rc.1 current=1.0.0 hint="use a stable version newer than the current version"

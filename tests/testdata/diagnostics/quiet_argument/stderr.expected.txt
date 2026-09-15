@@ -1,0 +1,1 @@
+ERROR unexpected argument command="yeet version" argument=Unexpected hint="run yeet version --help"

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.all.includes entry "bundle" must refer to a path target in v1
+ERROR invalid configuration: targets.all.includes entry "bundle" must refer to a path target in v1 path={{anyString}}

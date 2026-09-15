@@ -1,0 +1,16 @@
+{
+  "number": 101,
+  "state": "closed",
+  "merged": true,
+  "merged_at": "2026-01-01T00:00:00Z",
+  "html_url": "https://example.test/pulls/101",
+  "merge_commit_sha": "deadbeef",
+  "head": {
+    "ref": "yeet/release-main-target-api-21f150df25",
+    "sha": "deadbeef",
+    "repo": {"full_name": "testorg/testrepo"}
+  },
+  "base": {"ref": "main"},
+  "labels": [{"name": "autorelease: pending"}],
+  "body": "<!-- yeet-release-manifest\n{not-json}\n-->"
+}

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: changelog.references.footers keys "Refs" and "refs" differ only by case
+ERROR invalid configuration: changelog.references.footers keys "Refs" and "refs" differ only by case path={{anyString}}

@@ -1,3 +1,2 @@
-INFO  release analysis complete targets=1
-INFO  created release PR url=https://example.test/mr/42
-release failed: provider-managed auto-merge is unsupported. Check provider prerequisites, or use --auto-merge-mode direct: schedule release PR #42 https://example.test/mr/42: provider-managed auto-merge unsupported: GitLab 17.10.9 is older than required version 17.11.0
+INFO  created release pull request url=https://example.test/mr/42
+ERROR provider-managed auto-merge is unsupported hint="check provider prerequisites or use --auto-merge-mode direct"

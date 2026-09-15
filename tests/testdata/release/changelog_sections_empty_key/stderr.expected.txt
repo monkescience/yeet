@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: changelog.sections keys must not be empty
+ERROR invalid configuration: changelog.sections keys must not be empty path={{anyString}}

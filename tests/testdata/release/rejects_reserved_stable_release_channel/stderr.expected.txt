@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.channels.stable must not use reserved name stable
+ERROR invalid configuration: release.channels.stable must not use reserved name stable path={{anyString}}

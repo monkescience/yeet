@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: calver.format: invalid version: calver format must include a year token: "MM.DD"
+ERROR invalid configuration: calver.format: calver format must include a year token: "MM.DD" path={{anyString}}

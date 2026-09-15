@@ -1,1 +1,1 @@
-release failed: unexpected failure: conflicting release-as footers: "2.0.0" and "3.0.0"
+ERROR conflicting release version overrides: two commits request different Release-As versions field=Release-As requested=3.0.0 current=2.0.0 hint="use the same Release-As version for commits in this release"

@@ -317,7 +317,7 @@ func (p *releasePublisher) markReleasePRTagged(ctx context.Context, pullRequest 
 		return err
 	}
 
-	slog.InfoContext(ctx, "marked release PR tagged", slog.String("url", pullRequest.URL))
+	slog.InfoContext(ctx, "marked release pull request tagged", slog.String("url", pullRequest.URL))
 
 	return nil
 }

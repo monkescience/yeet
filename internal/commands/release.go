@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -186,11 +185,7 @@ func runRelease(
 ) (*release.Result, error) {
 	result, err := release.Run(ctx, configPath, options)
 	if err != nil {
-		if failure, ok := errors.AsType[*release.Failure](err); ok {
-			return result, wrapReleaseFailure(failure)
-		}
-
-		return result, fmt.Errorf("release failed: unexpected failure: %w", err)
+		return result, err //nolint:wrapcheck // the release failure carries its own diagnostic facts
 	}
 
 	err = handleReleaseResult(ctx, output, result, options.DryRun)
@@ -221,86 +216,4 @@ func handleReleaseResult(ctx context.Context, output io.Writer, result *release.
 	slog.InfoContext(ctx, "no release needed")
 
 	return nil
-}
-
-func wrapReleaseFailure(failure *release.Failure) error {
-	message := releaseFailureMessage(failure.Kind(), failure.ConfigPath(), failure.MergeReason())
-
-	return fmt.Errorf("%s: %w", message, failure)
-}
-
-func releaseFailureMessage(kind release.FailureKind, configPath string, mergeReason release.MergeReason) string {
-	const unexpectedFailureMessage = "release failed: unexpected failure"
-
-	switch kind {
-	case release.FailureConfigMissing:
-		return fmt.Sprintf(
-			"release failed: configuration file %q was not found. Run `yeet init` or pass --config",
-			configPath,
-		)
-	case release.FailureConfigInvalid:
-		return fmt.Sprintf(
-			"release failed: configuration file %q is invalid. Fix the reported values",
-			configPath,
-		)
-	case release.FailureAuthentication:
-		return "release failed: provider authentication is unavailable. " +
-			"Export a reported token environment variable"
-	case release.FailureRepository:
-		return "release failed: repository resolution failed. " +
-			"Check provider settings and the configured Git remote"
-	case release.FailureHostTrust:
-		return "release failed: provider host trust validation failed. " +
-			"Align the configured host, Git remote, and provider URL override"
-	case release.FailureCheckout:
-		return "release failed: the local checkout is unusable or stale. " +
-			"Check out and fetch the configured release branch"
-	case release.FailureReleaseBranch:
-		return "release failed: the release branch or prerelease channel is invalid. " +
-			"Use the configured branch or channel"
-	case release.FailureReleaseState:
-		return "release failed: multiple pending release changes were found. " +
-			"Close or relabel stale pending release changes"
-	case release.FailureMergeBlocked:
-		return mergeBlockedMessage(mergeReason)
-	case release.FailureMergeTimeout:
-		return "release failed: merge finalization timed out. Inspect provider state before retrying"
-	case release.FailureAutoMergeUnsupported:
-		return "release failed: provider-managed auto-merge is unsupported. " +
-			"Check provider prerequisites, or use --auto-merge-mode direct"
-	case release.FailureReviewer:
-		return "release failed: release reviewers could not be applied. " +
-			"Check identity, membership, permissions, and provider limits"
-	case release.FailureLabels:
-		return "release failed: release labels are missing, mismatched, or rejected. " +
-			"Restore or create the configured labels"
-	case release.FailureUnexpected:
-		return unexpectedFailureMessage
-	default:
-		return unexpectedFailureMessage
-	}
-}
-
-func mergeBlockedMessage(reason release.MergeReason) string {
-	switch reason {
-	case release.MergeReasonConflicts:
-		return "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch"
-	case release.MergeReasonDraft:
-		return "release failed: merge is blocked because the release pull request or merge request is a draft. " +
-			"Mark it ready to merge"
-	case release.MergeReasonClosed:
-		return "release failed: merge is blocked because the release pull request or merge request is closed. " +
-			"Reopen it, or let the next run open a new one"
-	case release.MergeReasonPolicy:
-		return "release failed: merge is blocked by repository policy. Satisfy required approvals and checks"
-	case release.MergeReasonMethod:
-		return "release failed: merge is blocked by the requested method. Enable it in the forge settings, " +
-			"or choose another --auto-merge-method"
-	case release.MergeReasonProvider:
-		return "release failed: the provider refused the merge. Resolve the reported provider failure before retrying"
-	case release.MergeReasonUnknown:
-		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness"
-	default:
-		return "release failed: merge readiness is unknown. Resolve pull request or merge request readiness"
-	}
 }

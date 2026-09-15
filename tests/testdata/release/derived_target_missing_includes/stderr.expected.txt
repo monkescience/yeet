@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.root.includes must not be empty
+ERROR invalid configuration: targets.root.includes must not be empty path={{anyString}}

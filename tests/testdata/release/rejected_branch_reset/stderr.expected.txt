@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update release branch files: reset branch "yeet/release-main" to base: ref update failed: branch policy rejected the update
+ERROR could not update release branch: branch update was rejected by policy provider=azuredevops branch=yeet/release-main hint="check branch policies and token permissions in the provider"

@@ -94,7 +94,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 	}
 
 	if len(scanned.MissingRefs) > 0 {
-		slog.WarnContext(ctx, "shared history scan: refs unreachable from branch",
+		slog.WarnContext(ctx, "some release refs are unreachable from branch",
 			slog.String("branch", a.core.run.baseBranch),
 			slog.Any("missing_refs", scanned.MissingRefs),
 		)

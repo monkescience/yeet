@@ -3,6 +3,7 @@ package commands //nolint:testpackage // validates unexported release helpers di
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"go.yaml.in/yaml/v4"
 )
@@ -30,16 +32,14 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running release with the invalid config
 		err := executeRootCommand(t, "release")
 
-		// then: the CLI categorizes the failure as configuration-related
+		// then: the release failure retains typed configuration facts
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: configuration file \""+filepath.Join(tempDir, config.DefaultFile)+
-				"\" is invalid. Fix the reported values: load release config: load config: invalid config: "+
-				"versioning must be "+
-				"\"semver\" or \"calver\", got \"broken\"",
-			err.Error(),
-		)
+		failure := assertReleaseFailure(t, err, release.FailureConfigInvalid, filepath.Join(tempDir, config.DefaultFile))
+
+		var validationErr *config.ValidationError
+		testastic.True(t, errors.As(failure, &validationErr))
+		testastic.Equal(t, "versioning must be \"semver\" or \"calver\", got \"broken\"", validationErr.Problem)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
 	t.Run("loads config from a nested directory", func(t *testing.T) {
@@ -67,15 +67,14 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running release from the nested directory
 		err = executeRootCommand(t, "release")
 
-		// then: the ancestor config is loaded instead of reporting a missing file
+		// then: the ancestor config is loaded and its invalid fact is preserved
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: configuration file \""+configPath+"\" is invalid. Fix the reported values: "+
-				"load release config: load config: invalid config: versioning must be \"semver\" or "+
-				"\"calver\", got \"broken\"",
-			err.Error(),
-		)
+		failure := assertReleaseFailure(t, err, release.FailureConfigInvalid, configPath)
+
+		var validationErr *config.ValidationError
+		testastic.True(t, errors.As(failure, &validationErr))
+		testastic.Equal(t, "versioning must be \"semver\" or \"calver\", got \"broken\"", validationErr.Problem)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
 
 	t.Run("provider flag overrides unsupported host auto detection", func(t *testing.T) {
@@ -99,15 +98,15 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running release with an explicit github provider override
 		err := executeRootCommand(t, "release", "--provider", "github")
 
-		// then: repository resolution succeeds and provider setup uses the override
+		// then: repository resolution succeeds and missing-token identity is retained
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: provider authentication is unavailable. Export a reported token environment "+
-				"variable: provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment "+
-				"variable is required",
-			err.Error(),
-		)
+		failure := assertReleaseFailure(t, err, release.FailureAuthentication, filepath.Join(tempDir, config.DefaultFile))
+
+		var tokenErr *provider.MissingTokenError
+		testastic.True(t, errors.As(failure, &tokenErr))
+		testastic.Equal(t, "github", tokenErr.Provider)
+		testastic.SliceEqual(t, []string{"GITHUB_TOKEN", "GH_TOKEN"}, tokenErr.Variables)
+		testastic.ErrorIs(t, err, provider.ErrMissingToken)
 	})
 
 	t.Run("repository flags override configured provider and coordinates", func(t *testing.T) {
@@ -128,20 +127,21 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running release with explicit github targeting flags
 		err := executeRootCommand(t, "release", "--provider", "github", "--owner", "platform", "--repo", "yeet")
 
-		// then: the github override wins
+		// then: the github override wins and missing-token identity is retained
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: provider authentication is unavailable. Export a reported token environment "+
-				"variable: provider setup failed: missing auth token: GITHUB_TOKEN or GH_TOKEN environment "+
-				"variable is required",
-			err.Error(),
-		)
+		failure := assertReleaseFailure(t, err, release.FailureAuthentication, filepath.Join(tempDir, config.DefaultFile))
+
+		var tokenErr *provider.MissingTokenError
+		testastic.True(t, errors.As(failure, &tokenErr))
+		testastic.Equal(t, "github", tokenErr.Provider)
+		testastic.SliceEqual(t, []string{"GITHUB_TOKEN", "GH_TOKEN"}, tokenErr.Variables)
+		testastic.ErrorIs(t, err, provider.ErrMissingToken)
 	})
 
 	t.Run("rejects Azure Pipelines non-branch ref without channels", func(t *testing.T) {
 		// given: a tag-triggered Azure Pipeline and a stable-only release config
-		t.Chdir(t.TempDir())
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
 		clearBranchEnv(t)
 		t.Setenv("BUILD_SOURCEBRANCH", "refs/tags/v1.2.3")
 		writeTestConfig(t, func(cfg *config.Config) {})
@@ -149,19 +149,15 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running a mutating release
 		err := executeRootCommand(t, "release")
 
-		// then: the non-branch ref is rejected before stable release fallback
+		// then: the non-branch ref is classified as a release-branch failure
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: the release branch or prerelease channel is invalid. Use the configured branch "+
-				"or channel: resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"",
-			err.Error(),
-		)
+		_ = assertReleaseFailure(t, err, release.FailureReleaseBranch, filepath.Join(tempDir, config.DefaultFile))
 	})
 
 	t.Run("rejects GitHub Actions non-branch ref without channels", func(t *testing.T) {
 		// given: a tag-triggered GitHub workflow and a stable-only release config
-		t.Chdir(t.TempDir())
+		tempDir := t.TempDir()
+		t.Chdir(tempDir)
 		clearBranchEnv(t)
 		t.Setenv("GITHUB_REF", "refs/tags/v1.2.3")
 		t.Setenv("GITHUB_REF_NAME", "v1.2.3")
@@ -170,14 +166,9 @@ func TestReleaseCommand(t *testing.T) {
 		// when: running a mutating release
 		err := executeRootCommand(t, "release")
 
-		// then: the non-branch ref is rejected before stable release fallback
+		// then: the non-branch ref is classified as a release-branch failure
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: the release branch or prerelease channel is invalid. Use the configured branch "+
-				"or channel: resolve current branch: ci ref is not a branch: \"refs/tags/v1.2.3\"",
-			err.Error(),
-		)
+		_ = assertReleaseFailure(t, err, release.FailureReleaseBranch, filepath.Join(tempDir, config.DefaultFile))
 	})
 
 	t.Run("conflicting repository flags fail as invalid release options", func(t *testing.T) {
@@ -201,16 +192,26 @@ func TestReleaseCommand(t *testing.T) {
 			"yeet",
 		)
 
-		// then: the override set is rejected before repository resolution
+		// then: the override set is rejected with typed configuration facts
 		testastic.Error(t, err)
-		testastic.Equal(
-			t,
-			"release failed: configuration file \""+filepath.Join(tempDir, config.DefaultFile)+
-				"\" is invalid. Fix the reported values: invalid release options: invalid config: "+
-				"--owner/--repo are not valid for provider gitlab. Use --project",
-			err.Error(),
-		)
+		failure := assertReleaseFailure(t, err, release.FailureConfigInvalid, filepath.Join(tempDir, config.DefaultFile))
+
+		var validationErr *config.ValidationError
+		testastic.True(t, errors.As(failure, &validationErr))
+		testastic.Equal(t, "--owner/--repo are not valid for provider gitlab. Use --project", validationErr.Problem)
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 	})
+}
+
+func assertReleaseFailure(t *testing.T, err error, kind release.FailureKind, configPath string) *release.Failure {
+	t.Helper()
+
+	var failure *release.Failure
+	testastic.True(t, errors.As(err, &failure))
+	testastic.Equal(t, kind, failure.Kind())
+	testastic.Equal(t, configPath, failure.ConfigPath())
+
+	return failure
 }
 
 func TestHandleReleaseResult(t *testing.T) {
@@ -315,7 +316,7 @@ func TestHandleReleaseResult(t *testing.T) {
 	})
 }
 
-func TestReleaseFailureMessage(t *testing.T) {
+func TestReleaseCategoryDiagnostic(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -323,87 +324,93 @@ func TestReleaseFailureMessage(t *testing.T) {
 		kind       release.FailureKind
 		configPath string
 		reason     release.MergeReason
-		expected   string
+		message    string
+		hint       string
 	}{
 		{
 			name:       "missing config",
 			kind:       release.FailureConfigMissing,
 			configPath: ".yeet.yaml",
-			expected:   "release failed: configuration file \".yeet.yaml\" was not found. Run `yeet init` or pass --config",
+			message:    "configuration file was not found",
+			hint:       "run yeet init or pass --config",
 		},
 		{
 			name:       "invalid config",
 			kind:       release.FailureConfigInvalid,
 			configPath: "config/release.yaml",
-			expected:   "release failed: configuration file \"config/release.yaml\" is invalid. Fix the reported values",
+			message:    "invalid configuration",
+			hint:       "fix the reported configuration values",
 		},
 		{
-			name:     "authentication",
-			kind:     release.FailureAuthentication,
-			expected: "release failed: provider authentication is unavailable. Export a reported token environment variable",
+			name:    "authentication",
+			kind:    release.FailureAuthentication,
+			message: "missing authentication token",
 		},
 		{
-			name:     "repository",
-			kind:     release.FailureRepository,
-			expected: "release failed: repository resolution failed. Check provider settings and the configured Git remote",
+			name:    "repository",
+			kind:    release.FailureRepository,
+			message: "could not resolve repository",
+			hint:    "check provider settings and the configured git remote",
 		},
 		{
-			name: "host trust",
-			kind: release.FailureHostTrust,
-			expected: "release failed: provider host trust validation failed. Align the configured host, " +
-				"Git remote, and provider URL override",
+			name:    "host trust",
+			kind:    release.FailureHostTrust,
+			message: "provider host could not be trusted",
+			hint:    "align the configured host, git remote, and provider url override",
 		},
 		{
-			name: "checkout",
-			kind: release.FailureCheckout,
-			expected: "release failed: the local checkout is unusable or stale. Check out and fetch the " +
-				"configured release branch",
+			name:    "checkout",
+			kind:    release.FailureCheckout,
+			message: "local checkout cannot be used for release",
+			hint:    "fetch full history and check out the current remote release branch",
 		},
 		{
-			name: "release branch",
-			kind: release.FailureReleaseBranch,
-			expected: "release failed: the release branch or prerelease channel is invalid. Use the configured " +
-				"branch or channel",
+			name:    "release branch",
+			kind:    release.FailureReleaseBranch,
+			message: "invalid release branch or channel",
+			hint:    "use a configured branch or channel",
 		},
 		{
-			name: "release state",
-			kind: release.FailureReleaseState,
-			expected: "release failed: multiple pending release changes were found. Close or relabel stale " +
-				"pending release changes",
+			name:    "release state",
+			kind:    release.FailureReleaseState,
+			message: "multiple pending release pull requests",
+			hint:    "close or relabel stale pending release pull requests",
 		},
 		{
-			name:     "merge blocked",
-			kind:     release.FailureMergeBlocked,
-			reason:   release.MergeReasonPolicy,
-			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and checks",
+			name:    "merge blocked",
+			kind:    release.FailureMergeBlocked,
+			reason:  release.MergeReasonPolicy,
+			message: "merge is blocked by repository policy",
+			hint:    "satisfy required approvals and checks",
 		},
 		{
-			name:     "merge timeout",
-			kind:     release.FailureMergeTimeout,
-			expected: "release failed: merge finalization timed out. Inspect provider state before retrying",
+			name:    "merge timeout",
+			kind:    release.FailureMergeTimeout,
+			message: "merge finalization timed out",
+			hint:    "inspect provider state before retrying",
 		},
 		{
-			name: "auto-merge unsupported",
-			kind: release.FailureAutoMergeUnsupported,
-			expected: "release failed: provider-managed auto-merge is unsupported. " +
-				"Check provider prerequisites, or use --auto-merge-mode direct",
+			name:    "auto-merge unsupported",
+			kind:    release.FailureAutoMergeUnsupported,
+			message: "provider-managed auto-merge is unsupported",
+			hint:    "check provider prerequisites or use --auto-merge-mode direct",
 		},
 		{
-			name: "reviewer",
-			kind: release.FailureReviewer,
-			expected: "release failed: release reviewers could not be applied. Check identity, membership, " +
-				"permissions, and provider limits",
+			name:    "reviewer",
+			kind:    release.FailureReviewer,
+			message: "release reviewer could not be applied",
+			hint:    "check reviewer identity, membership, permissions, and provider limits",
 		},
 		{
-			name: "labels",
-			kind: release.FailureLabels,
-			expected: "release failed: release labels are missing, mismatched, or rejected. Restore or create " +
-				"the configured labels",
+			name:    "labels",
+			kind:    release.FailureLabels,
+			message: "release labels could not be applied",
+			hint:    "restore or create the configured labels",
 		},
 		{
-			name:     "unexpected",
-			kind:     release.FailureUnexpected,
-			expected: "release failed: unexpected failure",
+			name:    "unexpected",
+			kind:    release.FailureUnexpected,
+			message: "release could not be completed",
 		},
 	}
 
@@ -411,62 +418,68 @@ func TestReleaseFailureMessage(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			// given: a release-owned failure kind and its expected command diagnostic
+			// given: a release-owned failure kind and its expected diagnostic facts
 
-			// when: formatting it for CLI output
-			actual := releaseFailureMessage(testCase.kind, testCase.configPath, testCase.reason)
+			// when: selecting its diagnostic category
+			actual := releaseCategoryDiagnostic(testCase.kind, testCase.reason)
 
-			// then: the command owns the exact problem and remediation text
-			testastic.Equal(t, testCase.expected, actual)
+			// then: the command provides the expected message and recovery hint
+			testastic.Equal(t, testCase.message, actual.message)
+			testastic.Equal(t, testCase.hint, actual.hint)
 		})
 	}
 }
 
-func TestMergeBlockedMessage(t *testing.T) {
+func TestMergeDiagnostic(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name     string
-		reason   release.MergeReason
-		expected string
+		name    string
+		reason  release.MergeReason
+		message string
+		hint    string
 	}{
 		{
-			name:     "conflicts",
-			reason:   release.MergeReasonConflicts,
-			expected: "release failed: merge is blocked by conflicts. Resolve conflicts on the release branch",
+			name:    "conflicts",
+			reason:  release.MergeReasonConflicts,
+			message: "merge is blocked by conflicts",
+			hint:    "resolve conflicts on the release branch",
 		},
 		{
-			name:   "draft",
-			reason: release.MergeReasonDraft,
-			expected: "release failed: merge is blocked because the release pull request or merge request is a " +
-				"draft. Mark it ready to merge",
+			name:    "draft",
+			reason:  release.MergeReasonDraft,
+			message: "release pull request is a draft",
+			hint:    "mark the release pull request ready to merge",
 		},
 		{
-			name:   "closed",
-			reason: release.MergeReasonClosed,
-			expected: "release failed: merge is blocked because the release pull request or merge request is " +
-				"closed. Reopen it, or let the next run open a new one",
+			name:    "closed",
+			reason:  release.MergeReasonClosed,
+			message: "release pull request is closed",
+			hint:    "reopen it or let the next run open a new one",
 		},
 		{
-			name:     "policy",
-			reason:   release.MergeReasonPolicy,
-			expected: "release failed: merge is blocked by repository policy. Satisfy required approvals and checks",
+			name:    "policy",
+			reason:  release.MergeReasonPolicy,
+			message: "merge is blocked by repository policy",
+			hint:    "satisfy required approvals and checks",
 		},
 		{
-			name:   "method",
-			reason: release.MergeReasonMethod,
-			expected: "release failed: merge is blocked by the requested method. Enable it in the forge settings, " +
-				"or choose another --auto-merge-method",
+			name:    "method",
+			reason:  release.MergeReasonMethod,
+			message: "merge method is unavailable",
+			hint:    "enable the method in the provider settings or choose another --auto-merge-method",
 		},
 		{
-			name:     "provider",
-			reason:   release.MergeReasonProvider,
-			expected: "release failed: the provider refused the merge. Resolve the reported provider failure before retrying",
+			name:    "provider",
+			reason:  release.MergeReasonProvider,
+			message: "provider refused the merge",
+			hint:    "inspect the release pull request in the provider",
 		},
 		{
-			name:     "unknown",
-			reason:   release.MergeReasonUnknown,
-			expected: "release failed: merge readiness is unknown. Resolve pull request or merge request readiness",
+			name:    "unknown",
+			reason:  release.MergeReasonUnknown,
+			message: "merge readiness is unknown",
+			hint:    "inspect the release pull request in the provider",
 		},
 	}
 
@@ -476,11 +489,12 @@ func TestMergeBlockedMessage(t *testing.T) {
 
 			// given: a release-owned merge refusal reason
 
-			// when: formatting its CLI remediation
-			actual := mergeBlockedMessage(testCase.reason)
+			// when: selecting its diagnostic category
+			actual := mergeDiagnostic(testCase.reason)
 
-			// then: the command gives reason-specific remediation
-			testastic.Equal(t, testCase.expected, actual)
+			// then: the command gives reason-specific facts and remediation
+			testastic.Equal(t, testCase.message, actual.message)
+			testastic.Equal(t, testCase.hint, actual.hint)
 		})
 	}
 }

@@ -1,3 +1,2 @@
-INFO  release analysis complete targets=1
-INFO  updating existing release PR url=https://example.test/mr/42
-release failed: merge is blocked by the requested method. Enable it in the forge settings, or choose another --auto-merge-method: schedule release PR #42 https://example.test/mr/42: release PR merge blocked: merge method "rebase" incompatible with project merge_method=merge
+INFO  updating existing release pull request url=https://example.test/mr/42
+ERROR merge method is unavailable: merge method "rebase" incompatible with project merge_method=merge hint="enable the method in the provider settings or choose another --auto-merge-method"

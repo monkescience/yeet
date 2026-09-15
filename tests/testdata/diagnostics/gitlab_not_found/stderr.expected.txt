@@ -1,0 +1,1 @@
+ERROR provider request failed status=404 provider=gitlab hint="check the repository and resource exist and the token can access them"

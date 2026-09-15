@@ -60,11 +60,12 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 	}
 
 	return &forge.PullRequest{
-		Number: pr.GetNumber(),
-		Title:  pr.GetTitle(),
-		Body:   pr.GetBody(),
-		URL:    pr.GetHTMLURL(),
-		Branch: opts.ReleaseBranch,
+		Number:    pr.GetNumber(),
+		Reference: gitHubPullRequestReference(pr.GetNumber()),
+		Title:     pr.GetTitle(),
+		Body:      pr.GetBody(),
+		URL:       pr.GetHTMLURL(),
+		Branch:    opts.ReleaseBranch,
 	}, nil
 }
 
@@ -86,7 +87,11 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 		}
 
 		if !isCollaborator {
-			return fmt.Errorf("%w: %q is not a repository collaborator", forge.ErrReviewerNotFound, reviewer)
+			return &ReviewerError{
+				Reviewer: reviewer,
+				Problem:  "reviewer is not a repository collaborator",
+				Err:      fmt.Errorf("%w: %q is not a repository collaborator", forge.ErrReviewerNotFound, reviewer),
+			}
 		}
 	}
 
@@ -155,7 +160,7 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		options.Head = g.repo.Owner + ":" + expectedBranch
 	}
 
-	slog.DebugContext(ctx, "github: listing open pending release PRs",
+	slog.DebugContext(ctx, "github: listing open pending release pull requests",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -202,6 +207,7 @@ func (g *GitHub) findOpenPendingReleasePRs(
 
 			pendingPRs = append(pendingPRs, &forge.PullRequest{
 				Number:            pr.GetNumber(),
+				Reference:         gitHubPullRequestReference(pr.GetNumber()),
 				Title:             pr.GetTitle(),
 				Body:              pr.GetBody(),
 				URL:               pr.GetHTMLURL(),
@@ -216,7 +222,7 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "github: listed open pending release PRs", slog.Int("count", len(pendingPRs)))
+	slog.DebugContext(ctx, "github: listed open pending release pull requests", slog.Int("count", len(pendingPRs)))
 
 	return pendingPRs, nil
 }
@@ -255,7 +261,7 @@ func (g *GitHub) FindMergedReleasePR(
 	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
-	slog.DebugContext(ctx, "github: listing merged release PRs",
+	slog.DebugContext(ctx, "github: listing merged release pull requests",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -286,6 +292,7 @@ func (g *GitHub) FindMergedReleasePR(
 
 	found := &forge.PullRequest{
 		Number:         full.GetNumber(),
+		Reference:      gitHubPullRequestReference(full.GetNumber()),
 		Title:          full.GetTitle(),
 		Body:           full.GetBody(),
 		URL:            full.GetHTMLURL(),
@@ -293,7 +300,7 @@ func (g *GitHub) FindMergedReleasePR(
 		MergeCommitSHA: full.GetMergeCommitSHA(),
 	}
 
-	slog.DebugContext(ctx, "github: found merged release PR",
+	slog.DebugContext(ctx, "github: found merged release pull request",
 		slog.Int("pr_number", found.Number),
 		slog.String("url", found.URL),
 		slog.String("merge_sha", found.MergeCommitSHA),

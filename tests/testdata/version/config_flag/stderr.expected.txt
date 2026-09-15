@@ -1,1 +1,1 @@
-unknown flag: --config
+ERROR unknown flag command="yeet version" flag=config hint="run yeet version --help"

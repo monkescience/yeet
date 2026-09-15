@@ -262,7 +262,10 @@ func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
 
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
-			slog.WarnContext(ctx, "invalid changelog reference pattern, skipping",
+			slog.WarnContext(ctx, "skipping invalid changelog reference pattern",
+				slog.String("pattern", p.Pattern),
+			)
+			slog.DebugContext(ctx, "changelog reference pattern did not compile",
 				slog.String("pattern", p.Pattern),
 				slog.Any("error", err),
 			)

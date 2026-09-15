@@ -1,9 +1,4 @@
-INFO  release analysis complete targets=2
-INFO  reconciling release unit unit=target:api phase=reconcile
-INFO  created release PR url=https://example.test/pulls/42
-INFO  reconciling release unit unit=target:web phase=reconcile
-INFO  created release PR url=https://example.test/pulls/42
-INFO  auto-merging release unit unit=target:api phase=auto_merge
-INFO  auto-merging release unit unit=target:web phase=auto_merge
-INFO  provider accepted release PR auto-merge number=42 url=https://example.test/pulls/42
-release failed: the provider refused the merge. Resolve the reported provider failure before retrying: release unit "target:api" auto-merge: schedule release PR #42 https://example.test/pulls/42: enable auto-merge for pull request #42: release PR merge blocked: github GraphQL request: POST {{anyString}}: 422 auto-merge refused []
+INFO  created release pull request url=https://example.test/pulls/42
+INFO  created release pull request url=https://example.test/pulls/42
+INFO  provider accepted pull request auto-merge number=42 url=https://example.test/pulls/42
+ERROR provider refused the merge: github GraphQL request: POST http://127.0.0.1:{{regex `\d+`}}/api/graphql: 422 auto-merge refused [] unit=target:api phase=auto-merge hint="inspect the release pull request in the provider"

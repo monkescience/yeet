@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: release labels are missing, mismatched, or rejected. Restore or create the configured labels: create release PR: release PR label does not exist: extra label "needs-review"
+ERROR configured release label does not exist label=needs-review role=extra hint="create the label in the provider or remove it from the configuration"

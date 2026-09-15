@@ -1,0 +1,1 @@
+ERROR merge finalization timed out unit=target:default phase=auto-merge pull_request="merge request !42" timeout=250ms hint="inspect provider state before retrying" cause="operation timed out"

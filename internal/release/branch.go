@@ -27,7 +27,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 	if githubRef != "" {
 		githubBranch, isBranch := strings.CutPrefix(githubRef, "refs/heads/")
 		if !isBranch || githubBranch == "" {
-			return "", fmt.Errorf("%w: %q", errCINonBranchRef, githubRef)
+			return "", &SelectionError{Ref: githubRef, cause: fmt.Errorf("%w: %q", errCINonBranchRef, githubRef)}
 		}
 
 		return githubBranch, nil
@@ -44,7 +44,7 @@ func currentGitBranch(ctx context.Context) (string, error) {
 	if azureRef != "" {
 		azureBranch, isBranch := strings.CutPrefix(azureRef, "refs/heads/")
 		if !isBranch || azureBranch == "" {
-			return "", fmt.Errorf("%w: %q", errCINonBranchRef, azureRef)
+			return "", &SelectionError{Ref: azureRef, cause: fmt.Errorf("%w: %q", errCINonBranchRef, azureRef)}
 		}
 
 		return azureBranch, nil

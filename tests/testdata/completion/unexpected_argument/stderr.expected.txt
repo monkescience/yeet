@@ -1,1 +1,1 @@
-unknown command "unexpected" for "yeet completion zsh"
+ERROR unexpected argument command="yeet completion zsh" argument=unexpected hint="run yeet completion zsh --help"

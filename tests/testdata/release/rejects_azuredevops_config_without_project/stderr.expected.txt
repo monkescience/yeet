@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.azuredevops.project is required
+ERROR invalid configuration: repository.azuredevops.project is required path={{anyString}}

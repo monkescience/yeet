@@ -42,7 +42,8 @@ func (c *CalVer) SupportsPrerelease() bool {
 }
 
 func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
-	return "", fmt.Errorf("%w: calver targets do not support %q", ErrInvalidReleaseAs, value)
+	return "", releaseAsError(value, "", "calver targets do not support Release-As",
+		fmt.Errorf("%w: calver targets do not support %q", ErrInvalidReleaseAs, value))
 }
 
 // NextRelease ignores releaseAs and prereleaseIdentifier: this scheme supports

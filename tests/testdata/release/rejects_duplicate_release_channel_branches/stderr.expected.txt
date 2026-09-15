@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.channels.rc.branch "prerelease" duplicates release.channels.beta.branch
+ERROR invalid configuration: release.channels.rc.branch "prerelease" duplicates release.channels.beta.branch path={{anyString}}

@@ -86,17 +86,21 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 
 	for _, versionFile := range target.VersionFiles {
 		if _, isChangelog := changelogFiles[versionFile.Path]; isChangelog {
-			return fmt.Errorf("%w: %s", errConflictingFileUpdate, versionFile.Path)
+			return fileConflictError(versionFile.Path, nil,
+				fmt.Errorf("%w: %s", errConflictingFileUpdate, versionFile.Path))
 		}
 
 		content, exists, fileErr := u.versionFileContent(ctx, files, versionFile.Path)
 		if fileErr != nil {
-			return fileErr
+			return &VersionFileError{Target: target.ID, Path: versionFile.Path, cause: fileErr}
 		}
 
 		updatedContent, changed, markerErr := applyVersionFile(content, nextVersion, scheme, versionFile)
 		if markerErr != nil {
-			return fmt.Errorf("update version file %s: %w", versionFile.Path, markerErr)
+			return &VersionFileError{
+				Target: target.ID, Path: versionFile.Path,
+				cause: fmt.Errorf("update version file %s: %w", versionFile.Path, markerErr),
+			}
 		}
 
 		if !changed {
@@ -105,7 +109,7 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 			continue
 		}
 
-		slog.DebugContext(ctx, "versionfile: rewrote",
+		slog.DebugContext(ctx, "rewrote version file",
 			slog.String("path", versionFile.Path),
 			slog.String("format", string(versionFile.Format)),
 			slog.String("next_version", nextVersion),
@@ -169,7 +173,8 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 ) (forge.FileUpdate, error) {
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
 		if _, isChangelog := changelogFiles[target.Changelog.File]; !isChangelog {
-			return forge.FileUpdate{}, fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File)
+			return forge.FileUpdate{}, fileConflictError(target.Changelog.File, nil,
+				fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File))
 		}
 
 		existing.Content = changelog.PrependEntry(existing.Content, changelogEntry)

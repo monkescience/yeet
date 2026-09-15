@@ -1083,7 +1083,7 @@ func TestValidate(t *testing.T) {
 		testastic.Equal(
 			t,
 			"invalid config: changelog.references.patterns[0].pattern \"[invalid\" is not a valid "+
-				"regular expression: error parsing regexp: missing closing ]: `[invalid`",
+				"regular expression: missing closing ]: `[invalid`",
 			err.Error(),
 		)
 	})
@@ -1140,7 +1140,7 @@ func TestValidate(t *testing.T) {
 		testastic.Equal(
 			t,
 			"invalid config: targets.app.changelog.references.patterns[0].pattern \"(unclosed\" is not "+
-				"a valid regular expression: error parsing regexp: missing closing ): `(unclosed`",
+				"a valid regular expression: missing closing ): `(unclosed`",
 			err.Error(),
 		)
 	})
@@ -1766,8 +1766,8 @@ func TestValidate(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(
 			t,
-			"invalid config: release.channels.beta.prerelease: invalid semver prerelease identifier "+
-				"\"not valid!\": invalid prerelease string",
+			"invalid config: release.channels.beta.prerelease \"not valid!\" must be a valid semver "+
+				"prerelease identifier: invalid semver prerelease identifier \"not valid!\": invalid prerelease string",
 			err.Error(),
 		)
 	})
@@ -2619,8 +2619,7 @@ func TestPreMajorOptions(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(
 			t,
-			"invalid config: calver.format: invalid version: calver format only supports dots as "+
-				"separators: \"YYYY.QQ.MICRO\"",
+			"invalid config: calver.format: calver format only supports dots as separators: \"YYYY.QQ.MICRO\"",
 			err.Error(),
 		)
 	})
@@ -2650,8 +2649,7 @@ func TestPreMajorOptions(t *testing.T) {
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
 		testastic.Equal(
 			t,
-			"invalid config: targets.app.calver.format: invalid version: calver format must include "+
-				"MICRO: \"YYYY.0M\"",
+			"invalid config: targets.app.calver.format: calver format must include MICRO: \"YYYY.0M\"",
 			err.Error(),
 		)
 	})

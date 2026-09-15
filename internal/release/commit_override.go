@@ -24,7 +24,7 @@ type commitOverrideResult struct {
 
 func commitOverrideMessages(
 	ctx context.Context,
-	body string,
+	commit, body string,
 	knownTypes map[string]struct{},
 ) ([]string, bool, error) {
 	start := strings.Index(body, commitOverrideStartMarker)
@@ -36,17 +36,30 @@ func commitOverrideMessages(
 
 	end := strings.Index(body[start:], commitOverrideEndMarker)
 	if end == -1 {
-		return nil, true, fmt.Errorf("%w: missing %s marker", errInvalidCommitOverride, commitOverrideEndMarker)
+		return nil, true, &CommitOverrideError{
+			Commit:        commit,
+			Problem:       "override block has no end marker",
+			MissingMarker: commitOverrideEndMarker,
+			cause:         fmt.Errorf("%w: missing %s marker", errInvalidCommitOverride, commitOverrideEndMarker),
+		}
 	}
 
 	block := strings.TrimSpace(body[start : start+end])
 	if block == "" {
-		return nil, true, fmt.Errorf("%w: empty override block", errInvalidCommitOverride)
+		return nil, true, &CommitOverrideError{
+			Commit:  commit,
+			Problem: "override block is empty",
+			cause:   fmt.Errorf("%w: empty override block", errInvalidCommitOverride),
+		}
 	}
 
 	messages := splitCommitOverrideMessages(ctx, block, knownTypes)
 	if len(messages) == 0 {
-		return nil, true, fmt.Errorf("%w: empty override block", errInvalidCommitOverride)
+		return nil, true, &CommitOverrideError{
+			Commit:  commit,
+			Problem: "override block is empty",
+			cause:   fmt.Errorf("%w: empty override block", errInvalidCommitOverride),
+		}
 	}
 
 	return messages, true, nil

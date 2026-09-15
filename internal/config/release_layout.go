@@ -3,7 +3,6 @@ package config
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -166,10 +165,9 @@ func (l ReleaseLayout) validateFileOwnership(targets map[string]ResolvedTarget) 
 		for _, path := range paths {
 			previous, exists := owners[path]
 			if exists && previous != unitID {
-				return fmt.Errorf(
-					"%w: release units %q and %q both write %q, "+
+				return Invalidf(
+					"release units %q and %q both write %q, "+
 						"configure separate files or place the targets in one atomic group",
-					ErrInvalidConfig,
 					previous,
 					unitID,
 					path,
@@ -205,18 +203,11 @@ func validateReleaseGroupMode(release ReleaseConfig) error {
 	switch release.PullRequestMode {
 	case PullRequestModeCombined:
 		if len(release.Groups) > 0 {
-			return fmt.Errorf(
-				"%w: release.groups is only valid when release.pull_request_mode is %q",
-				ErrInvalidConfig,
-				PullRequestModeIndependent,
-			)
+			return Invalidf("release.groups is only valid when release.pull_request_mode is %q", PullRequestModeIndependent)
 		}
 	case PullRequestModeIndependent:
 	default:
-		return fmt.Errorf(
-			"%w: release.pull_request_mode must be %q or %q, got %q",
-			ErrInvalidConfig,
-			PullRequestModeCombined,
+		return Invalidf("release.pull_request_mode must be %q or %q, got %q", PullRequestModeCombined,
 			PullRequestModeIndependent,
 			release.PullRequestMode,
 		)
@@ -233,37 +224,27 @@ func validateReleaseGroup(
 ) error {
 	name := strings.TrimSpace(rawName)
 	if name == "" {
-		return fmt.Errorf("%w: release.groups keys must not be empty", ErrInvalidConfig)
+		return Invalidf("release.groups keys must not be empty")
 	}
 
 	if len(group.Targets) == 0 {
-		return fmt.Errorf("%w: release.groups.%s.targets must not be empty", ErrInvalidConfig, name)
+		return Invalidf("release.groups.%s.targets must not be empty", name)
 	}
 
 	for _, rawTargetID := range group.Targets {
 		targetID := strings.TrimSpace(rawTargetID)
 		if targetID == "" {
-			return fmt.Errorf(
-				"%w: release.groups.%s.targets must not contain empty target IDs",
-				ErrInvalidConfig,
-				name,
-			)
+			return Invalidf("release.groups.%s.targets must not contain empty target IDs", name)
 		}
 
 		if _, exists := targets[targetID]; !exists {
-			return fmt.Errorf(
-				"%w: release.groups.%s.targets contains unknown target %q",
-				ErrInvalidConfig,
-				name,
+			return Invalidf("release.groups.%s.targets contains unknown target %q", name,
 				targetID,
 			)
 		}
 
 		if previous, exists := membership[targetID]; exists {
-			return fmt.Errorf(
-				"%w: target %q belongs to both release.groups.%s and release.groups.%s",
-				ErrInvalidConfig,
-				targetID,
+			return Invalidf("target %q belongs to both release.groups.%s and release.groups.%s", targetID,
 				previous,
 				name,
 			)

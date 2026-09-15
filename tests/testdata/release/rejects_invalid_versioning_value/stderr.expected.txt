@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: versioning must be "semver" or "calver", got "bogus"
+ERROR invalid configuration: versioning must be "semver" or "calver", got "bogus" path={{anyString}}

@@ -108,13 +108,19 @@ func needsPendingLabel(
 // name a lifecycle yeet is not configured for, which means renamed configuration
 // rather than an interrupted run. reference carries the forge's own wording.
 func releasePRLabelMismatch(reference, branch, pendingLabel string) error {
-	return fmt.Errorf(
-		"%w: trusted %s on branch %q is missing configured pending label %q",
-		forge.ErrReleasePRLabelMismatch,
-		reference,
-		branch,
-		pendingLabel,
-	)
+	return &LabelError{
+		Label:     pendingLabel,
+		Role:      "pending",
+		Reference: reference,
+		Branch:    branch,
+		Err: fmt.Errorf(
+			"%w: trusted %s on branch %q is missing configured pending label %q",
+			forge.ErrReleasePRLabelMismatch,
+			reference,
+			branch,
+			pendingLabel,
+		),
+	}
 }
 
 // labelDefinitions is the forge half of label preparation: reading a label
@@ -228,7 +234,11 @@ func (d labelDefinitions) validateExisting(ctx context.Context, name, role strin
 		return err
 	}
 
-	return fmt.Errorf("%w: %s label %q", forge.ErrReleasePRLabelMissing, role, name)
+	return &LabelError{
+		Label: name,
+		Role:  role,
+		Err:   fmt.Errorf("%w: %s label %q", forge.ErrReleasePRLabelMissing, role, name),
+	}
 }
 
 func (d labelDefinitions) ensure(ctx context.Context, name, color, description string) error {

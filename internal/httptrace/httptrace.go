@@ -49,13 +49,15 @@ func (t *Tracer) Interceptor(next http.RoundTripper) http.RoundTripper {
 				responseHeaders = response.Header
 			}
 
-			slog.DebugContext(request.Context(), "http request completed",
+			attrs := []slog.Attr{
 				slog.String("provider", t.provider),
 				slog.String("method", request.Method),
 				slog.String("path", sanitizedPath(request)),
 				slog.Int("status", status),
 				slog.Int64("duration_ms", time.Since(started).Milliseconds()),
 				slog.Int("attempt", attempt),
+			}
+			attrs = appendPresent(attrs,
 				slog.String("request_id", firstHeader(responseHeaders,
 					"X-GitHub-Request-Id", "X-Request-Id", "X-VSS-E2EID", "X-TFS-Session")),
 				slog.String("rate_limit_remaining", firstHeader(responseHeaders,
@@ -65,10 +67,22 @@ func (t *Tracer) Interceptor(next http.RoundTripper) http.RoundTripper {
 				slog.String("retry_after", firstHeader(responseHeaders, "Retry-After")),
 				slog.String("transport_error", transportErrorKind(err)),
 			)
+
+			slog.LogAttrs(request.Context(), slog.LevelDebug, "http request completed", attrs...)
 		}
 
 		return response, err //nolint:wrapcheck // preserve concrete transport error types for retry policy
 	})
+}
+
+func appendPresent(attrs []slog.Attr, values ...slog.Attr) []slog.Attr {
+	for _, attr := range values {
+		if attr.Value.String() != "" {
+			attrs = append(attrs, attr)
+		}
+	}
+
+	return attrs
 }
 
 func (t *Tracer) requestAttempt(request *http.Request) int {

@@ -51,13 +51,16 @@ func TestReleaseAsOverride(t *testing.T) {
 			commits,
 		)
 
-		// then: no version is overridden and neither footer is dropped in silence
+		// then: no version is overridden and each ignored footer retains typed logging context
 		testastic.NoError(t, err)
 		testastic.Equal(t, "", override)
-		testastic.Equal(t, 2, strings.Count(logs.String(), "ignoring Release-As footer"))
+		testastic.Equal(t, 2, strings.Count(logs.String(), "ignoring unsupported release override"))
 		testastic.Contains(t, logs.String(), "abc1234")
 		testastic.Contains(t, logs.String(), "def5678")
 		testastic.Contains(t, logs.String(), "calver")
+		testastic.Contains(t, logs.String(), "field=Release-As")
+		testastic.Contains(t, logs.String(), "value=2.0.0")
+		testastic.Contains(t, logs.String(), "value=3.0.0")
 	})
 
 	t.Run("honours the footer on a semver target", func(t *testing.T) {

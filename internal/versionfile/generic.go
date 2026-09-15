@@ -55,6 +55,21 @@ var (
 	ErrInvalidScheme = errors.New("invalid versioning scheme")
 )
 
+type MarkerError struct {
+	Name        string
+	Suggestions []string
+	Line        int
+	Err         error
+}
+
+func (e *MarkerError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *MarkerError) Unwrap() error {
+	return e.Err
+}
+
 var versionPattern = regexp.MustCompile(`\d+(?:\.\d+)+(?:-[\w.]+)?(?:\+[-\w.]+)?`)
 
 var majorPattern = regexp.MustCompile(`\d+\b`)
@@ -325,14 +340,57 @@ func (p *markerParser) checkAllowed(scope markerScope, lineNo int) error {
 		return nil
 	}
 
-	return fmt.Errorf(
-		"%w: %q at line %d is not valid for %s (%s)",
-		ErrMarkerSchemeMismatch,
-		"x-yeet-"+string(scope),
-		lineNo,
-		p.schemeDescription(),
-		p.suggestion(scope),
-	)
+	name := "x-yeet-" + string(scope)
+	suggestions := p.markerSuggestions(scope)
+
+	return &MarkerError{
+		Name:        name,
+		Suggestions: suggestions,
+		Line:        lineNo,
+		Err: fmt.Errorf(
+			"%w: %q at line %d is not valid for %s (%s)",
+			ErrMarkerSchemeMismatch,
+			name,
+			lineNo,
+			p.schemeDescription(),
+			p.describeSuggestions(scope, suggestions),
+		),
+	}
+}
+
+func (p *markerParser) markerSuggestions(scope markerScope) []string {
+	if p.scheme.kind == schemeCalVer {
+		switch scope {
+		case markerScopeMajor:
+			return []string{"x-yeet-year"}
+		case markerScopeMinor:
+			if p.scheme.calver.HasWeek() {
+				return []string{"x-yeet-week"}
+			}
+
+			if p.scheme.calver.HasMonth() {
+				return []string{"x-yeet-month"}
+			}
+		case markerScopePatch:
+			return []string{"x-yeet-micro"}
+		case markerScopeVersion, markerScopeYear, markerScopeMonth, markerScopeWeek, markerScopeDay, markerScopeMicro:
+		}
+
+		return nil
+	}
+
+	switch scope {
+	case markerScopeYear:
+		return []string{"x-yeet-major"}
+	case markerScopeMonth, markerScopeWeek:
+		return []string{"x-yeet-minor"}
+	case markerScopeDay, markerScopeMicro:
+		return []string{"x-yeet-patch"}
+	case markerScopeVersion, markerScopeMajor, markerScopeMinor, markerScopePatch:
+		return nil
+	default:
+		return nil
+	}
 }
 
 func (p *markerParser) schemeDescription() string {
@@ -343,51 +401,37 @@ func (p *markerParser) schemeDescription() string {
 	return "semver"
 }
 
-func (p *markerParser) suggestion(scope markerScope) string {
+func (p *markerParser) describeSuggestions(scope markerScope, suggestions []string) string {
 	if p.scheme.kind == schemeCalVer {
-		return calVerSuggestion(scope, p.scheme.calver)
+		return calVerSuggestion(scope, suggestions)
 	}
 
-	return semVerSuggestion(scope)
+	return semVerSuggestion(suggestions)
 }
 
-func semVerSuggestion(scope markerScope) string {
-	switch scope {
-	case markerScopeYear:
-		return `use "x-yeet-major"`
-	case markerScopeMonth, markerScopeWeek:
-		return `use "x-yeet-minor"`
-	case markerScopeDay, markerScopeMicro:
-		return `use "x-yeet-patch"`
-	case markerScopeVersion, markerScopeMajor, markerScopeMinor, markerScopePatch:
-		return `valid scopes are "version", "major", "minor", "patch"`
-	default:
-		return `valid scopes are "version", "major", "minor", "patch"`
+func semVerSuggestion(suggestions []string) string {
+	if len(suggestions) > 0 {
+		return `use "` + suggestions[0] + `"`
 	}
+
+	return `valid scopes are "version", "major", "minor", "patch"`
 }
 
-func calVerSuggestion(scope markerScope, calver *version.CalVerScheme) string {
+func calVerSuggestion(scope markerScope, suggestions []string) string {
+	if len(suggestions) > 0 {
+		return `use "` + suggestions[0] + `"`
+	}
+
 	switch scope {
-	case markerScopeMajor:
-		return `use "x-yeet-year"`
 	case markerScopeMinor:
-		switch {
-		case calver.HasWeek():
-			return `use "x-yeet-week"`
-		case calver.HasMonth():
-			return `use "x-yeet-month"`
-		default:
-			return `the configured calver format has no addressable second segment`
-		}
-	case markerScopePatch:
-		return `use "x-yeet-micro"`
+		return `the configured calver format has no addressable second segment`
 	case markerScopeMonth:
 		return `the configured calver format has no month token`
 	case markerScopeWeek:
 		return `the configured calver format has no week token`
 	case markerScopeDay:
 		return `the configured calver format has no day token`
-	case markerScopeVersion, markerScopeYear, markerScopeMicro:
+	case markerScopeVersion, markerScopeYear, markerScopeMicro, markerScopeMajor, markerScopePatch:
 		return `check the configured calver format`
 	default:
 		return `check the configured calver format`

@@ -1,0 +1,1 @@
+ERROR invalid flag value command="yeet version" flag=verbose value=Perhaps hint="use true or false"

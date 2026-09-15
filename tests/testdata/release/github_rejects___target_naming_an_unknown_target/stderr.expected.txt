@@ -1,1 +1,1 @@
-release failed: unexpected failure: unknown target: nope
+ERROR unknown release target target=nope hint="select a target configured in targets"

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: version_files must not contain empty paths
+ERROR invalid configuration: version_files must not contain empty paths path={{anyString}}

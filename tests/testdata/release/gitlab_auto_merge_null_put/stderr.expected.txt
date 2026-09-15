@@ -1,3 +1,2 @@
-INFO  release analysis complete targets=1
-INFO  created release PR url=https://example.test/mr/42
-release failed: the provider refused the merge. Resolve the reported provider failure before retrying: schedule release PR #42 https://example.test/mr/42: release PR merge blocked: merge request !42 auto-merge returned no merge request
+INFO  created release pull request url=https://example.test/mr/42
+ERROR provider refused the merge: auto-merge returned no merge request pull_request="merge request !42" hint="inspect the release pull request in the provider"

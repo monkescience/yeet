@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.auto_merge_method must be "auto", "squash", "rebase", or "merge", got "wrongo"
+ERROR invalid configuration: release.auto_merge_method must be "auto", "squash", "rebase", or "merge", got "wrongo" path={{anyString}}

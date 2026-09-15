@@ -182,6 +182,29 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "/version", cfg.VersionFiles[0].JSONPointer)
 	})
 
+	t.Run("version file mapping preserves ignored extra fields", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a version file mapping with an extra field the custom decoder ignores
+		data := []byte(`version_files:
+  - path: VERSION
+    format: markers
+    ignored: true
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+`)
+
+		// when: parsing the config
+		cfg, err := parse(data)
+
+		// then: parsing retains the baseline custom mapping behavior
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []VersionFile{{Path: "VERSION", Format: VersionFileFormatMarkers}}, cfg.VersionFiles)
+	})
+
 	t.Run("json version file requires json pointer", func(t *testing.T) {
 		t.Parallel()
 

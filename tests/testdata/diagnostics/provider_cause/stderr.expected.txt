@@ -1,0 +1,1 @@
+ERROR provider request failed status=403 provider=github method=GET path=/api/v3/repos/testorg/testrepo/commits/heads/main request_id=[redacted] hint="check token permissions, repository access, and provider policy"

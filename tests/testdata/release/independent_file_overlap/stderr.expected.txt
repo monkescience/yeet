@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release units "target:api" and "target:web" both write "CHANGELOG.md", configure separate files or place the targets in one atomic group
+ERROR invalid configuration: release units "target:api" and "target:web" both write "CHANGELOG.md", configure separate files or place the targets in one atomic group path={{anyString}}

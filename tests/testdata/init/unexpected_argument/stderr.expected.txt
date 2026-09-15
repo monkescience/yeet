@@ -1,1 +1,1 @@
-unknown command "unexpected" for "yeet init"
+ERROR unexpected argument command="yeet init" argument=unexpected hint="run yeet init --help"

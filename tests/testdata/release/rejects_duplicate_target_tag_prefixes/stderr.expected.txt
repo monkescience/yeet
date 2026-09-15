@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.worker.tag_prefix "service-v" duplicates targets.api.tag_prefix
+ERROR invalid configuration: targets.worker.tag_prefix "service-v" duplicates targets.api.tag_prefix path={{anyString}}

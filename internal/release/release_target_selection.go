@@ -35,7 +35,10 @@ func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelect
 
 		target, exists := core.targets[normalizedTargetID]
 		if !exists {
-			return releaseSelection{}, fmt.Errorf("%w: %s", errUnknownTarget, normalizedTargetID)
+			return releaseSelection{}, &SelectionError{
+				Target: normalizedTargetID,
+				cause:  fmt.Errorf("%w: %s", errUnknownTarget, normalizedTargetID),
+			}
 		}
 
 		selectedTargets[normalizedTargetID] = target

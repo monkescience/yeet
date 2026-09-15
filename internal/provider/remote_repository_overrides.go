@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
@@ -22,7 +21,7 @@ func validateOverriddenRepositoryFields(
 	}
 
 	fieldError := func(path, field, message string) error {
-		return fmt.Errorf("%w: %s.%s %s", config.ErrInvalidConfig, path, field, message)
+		return config.Invalidf("%s.%s %s", path, field, message)
 	}
 
 	if overrides.Host != nil && *overrides.Host != "" && strings.TrimSpace(*overrides.Host) == "" {
@@ -67,17 +66,13 @@ func validateGitHubOverrideFields(
 	}
 
 	if (owner == "") != (repo == "") {
-		return fmt.Errorf(
-			"%w: repository.github.owner and repository.github.repo must be set together",
-			config.ErrInvalidConfig,
-		)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.github.owner and repository.github.repo must be set together")
 	}
 
 	if project != "" && owner != "" && repo != "" && project != owner+"/"+repo {
-		return fmt.Errorf(
-			"%w: repository.github.project must match repository.github.owner/repo",
-			config.ErrInvalidConfig,
-		)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.github.project must match repository.github.owner/repo")
 	}
 
 	if strings.Contains(owner, "/") {
@@ -132,15 +127,18 @@ func validateAzureOverrideFields(
 	}
 
 	if organization == "" {
-		return fmt.Errorf("%w: repository.azuredevops.organization is required", config.ErrInvalidConfig)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.azuredevops.organization is required")
 	}
 
 	if project == "" {
-		return fmt.Errorf("%w: repository.azuredevops.project is required", config.ErrInvalidConfig)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.azuredevops.project is required")
 	}
 
 	if repo == "" {
-		return fmt.Errorf("%w: repository.azuredevops.repo is required", config.ErrInvalidConfig)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.azuredevops.repo is required")
 	}
 
 	return nil
@@ -183,11 +181,8 @@ func validateRepositoryOverrides(cfg *config.Config, overrides RepositoryOverrid
 		}
 
 		if section != "" {
-			return fmt.Errorf(
-				"%w: repository.%s set but provider is auto. Set an explicit provider",
-				config.ErrInvalidConfig,
-				section,
-			)
+			//nolint:wrapcheck // config supplies the typed validation context.
+			return config.Invalidf("repository.%s set but provider is auto. Set an explicit provider", section)
 		}
 	}
 
@@ -201,16 +196,15 @@ func validateRepositoryOverrides(cfg *config.Config, overrides RepositoryOverrid
 	}
 
 	if overrides.Remote != nil && strings.TrimSpace(*overrides.Remote) == "" {
-		return fmt.Errorf("%w: repository.remote must not be empty", config.ErrInvalidConfig)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository.remote must not be empty")
 	}
 
 	hasCoordinates := overrides.Host != nil || overrides.Owner != nil ||
 		overrides.Repo != nil || overrides.Project != nil
 	if provider == config.ProviderAuto && hasCoordinates {
-		return fmt.Errorf(
-			"%w: repository field flags require an explicit --provider (auto cannot route them)",
-			config.ErrInvalidConfig,
-		)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("repository field flags require an explicit --provider (auto cannot route them)")
 	}
 
 	return validateRepositoryOverrideRouting(provider, overrides)
@@ -223,17 +217,13 @@ func validateRepositoryOverrideRouting(
 	switch provider {
 	case config.ProviderGitLab:
 		if overrides.Owner != nil || overrides.Repo != nil {
-			return fmt.Errorf(
-				"%w: --owner/--repo are not valid for provider gitlab. Use --project",
-				config.ErrInvalidConfig,
-			)
+			//nolint:wrapcheck // config supplies the typed validation context.
+			return config.Invalidf("--owner/--repo are not valid for provider gitlab. Use --project")
 		}
 	case config.ProviderAzureDevOps:
 		if overrides.Owner != nil {
-			return fmt.Errorf(
-				"%w: --owner is not valid for provider azuredevops",
-				config.ErrInvalidConfig,
-			)
+			//nolint:wrapcheck // config supplies the typed validation context.
+			return config.Invalidf("--owner is not valid for provider azuredevops")
 		}
 	case config.ProviderAuto, config.ProviderGitHub:
 	}
@@ -246,11 +236,8 @@ func validateOverrideProvider(provider config.ProviderType) error {
 	case config.ProviderAuto, config.ProviderGitHub, config.ProviderGitLab, config.ProviderAzureDevOps:
 		return nil
 	default:
-		return fmt.Errorf(
-			"%w: provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got %q",
-			config.ErrInvalidConfig,
-			provider,
-		)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return config.Invalidf("provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got %q", provider)
 	}
 }
 

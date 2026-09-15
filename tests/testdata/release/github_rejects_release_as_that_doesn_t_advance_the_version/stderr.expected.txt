@@ -1,1 +1,1 @@
-release failed: unexpected failure: invalid release-as footer: 1.0.0 must be greater than current version 2.0.0
+ERROR invalid release version override: requested version is not newer than the current version field=Release-As requested=1.0.0 current=2.0.0 hint="use a stable version newer than the current version"

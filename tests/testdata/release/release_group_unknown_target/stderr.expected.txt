@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.groups.backend.targets contains unknown target "missing"
+ERROR invalid configuration: release.groups.backend.targets contains unknown target "missing" path={{anyString}}

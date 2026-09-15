@@ -87,14 +87,21 @@ func releaseManifestMarker(manifest releaseManifest) (string, error) {
 func releaseManifestFromPullRequest(pullRequest *forge.PullRequest) (releaseManifest, error) {
 	manifest, ok, err := releaseManifestFromBody(pullRequest.Body)
 	if !ok && err == nil {
-		return releaseManifest{}, fmt.Errorf(
-			"%w: missing manifest marker in pull request #%d",
+		err = fmt.Errorf(
+			"%w: missing manifest marker in %s",
 			errInvalidReleaseManifest,
-			pullRequest.Number,
+			pullRequestReference(pullRequest),
 		)
 	}
 
-	return manifest, err
+	if err != nil {
+		return releaseManifest{}, &ManifestError{
+			Reference: pullRequestReference(pullRequest),
+			cause:     err,
+		}
+	}
+
+	return manifest, nil
 }
 
 func releaseManifestFromBody(body string) (releaseManifest, bool, error) {

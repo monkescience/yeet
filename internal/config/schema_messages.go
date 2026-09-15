@@ -20,18 +20,19 @@ type schemaRule struct {
 }
 
 const (
-	keywordRequired      = "required"
-	keywordEnum          = "enum"
-	keywordConst         = "const"
-	keywordType          = "type"
-	keywordMinLength     = "minLength"
-	keywordPattern       = "pattern"
-	keywordMinItems      = "minItems"
-	keywordMinProperties = "minProperties"
-	keywordMinimum       = "minimum"
-	keywordPropertyNames = "propertyNames"
-	keywordUniqueItems   = "uniqueItems"
-	keywordNot           = "not"
+	keywordRequired             = "required"
+	keywordEnum                 = "enum"
+	keywordConst                = "const"
+	keywordType                 = "type"
+	keywordMinLength            = "minLength"
+	keywordPattern              = "pattern"
+	keywordMinItems             = "minItems"
+	keywordMinProperties        = "minProperties"
+	keywordMinimum              = "minimum"
+	keywordPropertyNames        = "propertyNames"
+	keywordAdditionalProperties = "additionalProperties"
+	keywordUniqueItems          = "uniqueItems"
+	keywordNot                  = "not"
 
 	anySegment  = "*"
 	releaseNode = "release"
@@ -443,6 +444,27 @@ func fallbackMessage(found violation) string {
 	return indexed(found.location) + " does not match the config schema"
 }
 
+func additionalPropertiesMessage(found violation) string {
+	properties, ok := found.detail.(*kind.AdditionalProperties)
+	if !ok || len(properties.Properties) == 0 {
+		return "config contains an unknown field"
+	}
+
+	fields := slices.Clone(properties.Properties)
+	slices.Sort(fields)
+
+	if len(fields) == 1 {
+		return fmt.Sprintf("%s contains unknown field %q", schemaContainer(found.location), fields[0])
+	}
+
+	quoted := make([]string, len(fields))
+	for index, field := range fields {
+		quoted[index] = strconv.Quote(field)
+	}
+
+	return fmt.Sprintf("%s contains unknown fields %s", schemaContainer(found.location), strings.Join(quoted, ", "))
+}
+
 func dotted(location []string) string {
 	return strings.Join(location, ".")
 }
@@ -529,4 +551,12 @@ func validateJSONPointerSyntax(pointer string) error {
 	}
 
 	return nil
+}
+
+func schemaContainer(location []string) string {
+	if len(location) == 0 {
+		return "config"
+	}
+
+	return indexed(location)
 }

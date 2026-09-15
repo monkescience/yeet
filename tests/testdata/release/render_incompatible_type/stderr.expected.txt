@@ -1,0 +1,1 @@
+ERROR invalid configuration: render release.pr_title: execute template: template: release.pr_title:1:15: executing "release.pr_title" at <7>: expected string; found 7 path={{anyString}}

@@ -26,7 +26,7 @@ func Initialize(ctx context.Context, path string) error {
 
 	_, statErr := os.Stat(resolvedPath)
 	if statErr == nil {
-		return fmt.Errorf("%w: %s", ErrExists, resolvedPath)
+		return newFileError(resolvedPath, ErrExists)
 	}
 
 	content := renderInitial(deriveTargetName(resolvedPath))

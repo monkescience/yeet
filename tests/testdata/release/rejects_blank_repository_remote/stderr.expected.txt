@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.remote must not be empty
+ERROR invalid configuration: repository.remote must not be empty path={{anyString}}

@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: repository.github set but provider is auto. Set an explicit provider
+ERROR invalid configuration: repository.github set but provider is auto. Set an explicit provider path={{anyString}}

@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: release reviewers could not be applied. Check identity, membership, permissions, and provider limits: create release PR: reviewer not found: "ghost" is not a project member
+ERROR release reviewer could not be applied: reviewer is not a project member reviewer=ghost hint="check reviewer identity, membership, permissions, and provider limits"

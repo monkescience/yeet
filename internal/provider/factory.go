@@ -167,11 +167,10 @@ func (s forgeSpec) resolveToken() (forgeToken, error) {
 		}
 	}
 
-	return forgeToken{}, fmt.Errorf(
-		"%w: %s environment variable is required",
-		ErrMissingToken,
-		strings.Join(s.tokenEnvVars, " or "),
-	)
+	return forgeToken{}, &MissingTokenError{
+		Provider:  s.providerName,
+		Variables: append([]string(nil), s.tokenEnvVars...),
+	}
 }
 
 func (s forgeSpec) endpointOverride() string {

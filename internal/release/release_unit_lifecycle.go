@@ -76,6 +76,7 @@ func (l *releaseUnitLifecycle) finalize(
 
 	for _, release := range outcome.releases {
 		slog.InfoContext(ctx, "finalized release",
+			slog.String("target", release.TargetID),
 			slog.String("tag", release.Release.TagName),
 			slog.String("url", release.Release.URL),
 		)
@@ -151,12 +152,12 @@ func (l *releaseUnitLifecycle) logReleaseAnalysis(ctx context.Context, units []r
 	}
 
 	if targetCount == 0 {
-		slog.InfoContext(ctx, "no releasable commits found")
+		slog.DebugContext(ctx, "no releasable commits found")
 
 		return
 	}
 
-	slog.InfoContext(ctx, "release analysis complete", slog.Int("targets", targetCount))
+	slog.DebugContext(ctx, "release analysis complete", slog.Int("targets", targetCount))
 }
 
 func (l *releaseUnitLifecycle) preflight(ctx context.Context, units []releaseUnit) error {
@@ -216,13 +217,16 @@ func (l *releaseUnitLifecycle) validateNoIncompatibleOpenReleasePR(ctx context.C
 			matchErr = fmt.Errorf("%w: stale release unit %q", errInvalidReleaseManifest, unit.ID)
 		}
 
-		errList = append(errList, fmt.Errorf(
-			"%w: incompatible release PR #%d %s: %v, merge it under the old configuration or close or relabel it",
-			ErrMultiplePendingReleasePRs,
-			pullRequest.Number,
-			pullRequest.URL,
-			matchErr,
-		))
+		errList = append(errList, &PendingReleaseError{
+			References: []string{pullRequestReference(pullRequest)},
+			cause: fmt.Errorf(
+				"%w: incompatible release %s %s: %v, merge it under the old configuration or close or relabel it",
+				ErrMultiplePendingReleasePRs,
+				pullRequestReference(pullRequest),
+				pullRequest.URL,
+				matchErr,
+			),
+		})
 	}
 
 	return errors.Join(errList...)
@@ -272,9 +276,8 @@ func (l *releaseUnitLifecycle) reconcile(
 
 	for index, unit := range units {
 		if l.core.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
-			slog.InfoContext(ctx, "reconciling release unit",
+			slog.DebugContext(ctx, "reconciling release unit",
 				slog.String("unit", unit.ID),
-				slog.String("phase", "reconcile"),
 			)
 		}
 
@@ -316,9 +319,8 @@ func (l *releaseUnitLifecycle) autoMergeUnits(
 		}
 
 		if l.core.cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
-			slog.InfoContext(ctx, "auto-merging release unit",
+			slog.DebugContext(ctx, "auto-merging release unit",
 				slog.String("unit", unitOutcome.unit),
-				slog.String("phase", "auto_merge"),
 			)
 		}
 
@@ -423,9 +425,8 @@ func (l *releaseUnitLifecycle) finalizeIndependent(
 			continue
 		}
 
-		slog.InfoContext(ctx, "finalizing release unit",
+		slog.DebugContext(ctx, "finalizing release unit",
 			slog.String("unit", unit.ID),
-			slog.String("phase", "finalize"),
 		)
 
 		releases, finalizeErr := l.publisher.finalizeMergedPullRequest(ctx, pullRequest, unit)
@@ -450,7 +451,7 @@ func (l *releaseUnitLifecycle) unitError(unitID, phase string, err error) error 
 		return err
 	}
 
-	return fmt.Errorf("release unit %q %s: %w", unitID, phase, err)
+	return &unitError{unit: unitID, phase: phase, cause: err}
 }
 
 func matchReleaseUnit(
@@ -483,12 +484,17 @@ func matchReleaseUnit(
 
 func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {
 	prReferences := make([]string, 0, len(pendingPRs))
+	described := make([]string, 0, len(pendingPRs))
 
 	for _, pendingPR := range pendingPRs {
-		prReferences = append(prReferences, fmt.Sprintf("#%d %s", pendingPR.Number, pendingPR.URL))
+		prReferences = append(prReferences, pullRequestReference(pendingPR))
+		described = append(described, fmt.Sprintf("%s %s", pullRequestReference(pendingPR), pendingPR.URL))
 	}
 
-	return fmt.Errorf("%w: %s", ErrMultiplePendingReleasePRs, strings.Join(prReferences, ", "))
+	return &PendingReleaseError{
+		References: prReferences,
+		cause:      fmt.Errorf("%w: %s", ErrMultiplePendingReleasePRs, strings.Join(described, ", ")),
+	}
 }
 
 func (l *releaseUnitLifecycle) createOrUpdate(
@@ -612,7 +618,7 @@ func (l *releaseUnitLifecycle) render(
 	}
 
 	if rendered.NotesOmitted {
-		slog.WarnContext(ctx, "omitted release notes from PR body to fit provider limit",
+		slog.WarnContext(ctx, "omitted release notes from pull request body to fit provider limit",
 			slog.Int("limit", rendered.bodyLimit),
 			slog.Int("body_length", utf8.RuneCountInString(rendered.PROptions.Body)),
 		)
@@ -629,7 +635,7 @@ func (l *releaseUnitLifecycle) adoptUnlabeledReleasePR(ctx context.Context, exis
 		return nil
 	}
 
-	slog.InfoContext(ctx, "adopting unlabelled release PR", slog.String("url", existing.URL))
+	slog.InfoContext(ctx, "adopting unlabeled pull request", slog.String("url", existing.URL))
 
 	err := l.labels.opened(ctx, existing.Number)
 	if err != nil {
@@ -800,7 +806,7 @@ func (l *releaseUnitLifecycle) autoMerge(
 			return nil, fmt.Errorf("schedule release PR #%d %s: %w", pullRequest.Number, pullRequest.URL, err)
 		}
 
-		slog.InfoContext(ctx, "provider accepted release PR auto-merge",
+		slog.InfoContext(ctx, "provider accepted pull request auto-merge",
 			slog.Int("number", pullRequest.Number), slog.String("url", pullRequest.URL))
 
 		return nil, nil
@@ -816,7 +822,7 @@ func (l *releaseUnitLifecycle) autoMerge(
 		return nil, fmt.Errorf("merge release PR: %w", err)
 	}
 
-	slog.InfoContext(ctx, "merged release PR", slog.String("url", pullRequest.URL))
+	slog.InfoContext(ctx, "merged release pull request", slog.String("url", pullRequest.URL))
 
 	releases, err := l.publisher.ensureReleasesForPlans(ctx, plans, releaseNames, strings.TrimSpace(mergeSHA))
 	if err != nil {
@@ -839,7 +845,7 @@ func (l *releaseUnitLifecycle) updateExisting(
 	commitSubject string,
 	plans []TargetPlan,
 ) (*forge.PullRequest, error) {
-	slog.InfoContext(ctx, "updating existing release PR", slog.String("url", existing.URL))
+	slog.InfoContext(ctx, "updating existing release pull request", slog.String("url", existing.URL))
 
 	// The branch is written before the body, because the manifest marker in the
 	// body is authoritative for finalization. A failure between the two then
@@ -885,7 +891,7 @@ func (l *releaseUnitLifecycle) createNew(
 		return nil, err
 	}
 
-	slog.InfoContext(ctx, "created release PR", slog.String("url", pr.URL))
+	slog.InfoContext(ctx, "created release pull request", slog.String("url", pr.URL))
 
 	return pr, nil
 }

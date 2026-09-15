@@ -66,7 +66,7 @@ func validateAgainstSchema(instance any) error {
 
 	validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
 	if !ok {
-		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+		return InvalidWithCausef(err, "config does not match the config schema")
 	}
 
 	violations := collectViolations(validationErr, instance, schemaNode{})
@@ -74,7 +74,29 @@ func validateAgainstSchema(instance any) error {
 		return nil
 	}
 
-	return fmt.Errorf("%w: %s", ErrInvalidConfig, describeViolations(violations))
+	primary, deferred := splitAdditionalPropertyViolations(violations)
+	if len(primary) > 0 {
+		return Invalidf("%s", describeViolations(primary))
+	}
+
+	return deferredValidationError(describeViolations(deferred))
+}
+
+func splitAdditionalPropertyViolations(violations []violation) ([]violation, []violation) {
+	primary := make([]violation, 0, len(violations))
+	deferred := make([]violation, 0, len(violations))
+
+	for _, violation := range violations {
+		if violation.keyword == keywordAdditionalProperties {
+			deferred = append(deferred, violation)
+
+			continue
+		}
+
+		primary = append(primary, violation)
+	}
+
+	return primary, deferred
 }
 
 func collectViolations(node *jsonschema.ValidationError, instance any, parent schemaNode) []violation {
@@ -115,9 +137,11 @@ func leafViolations(node *jsonschema.ValidationError, instance any, parent schem
 			value:    valueAt(instance, location),
 		}}
 	case *kind.AdditionalProperties:
-		// The strict YAML decode names the offending key and its Go type, which
-		// reads better than anything the schema output can give.
-		return nil
+		return []violation{{
+			location: node.InstanceLocation,
+			keyword:  keywordAdditionalProperties,
+			detail:   detail,
+		}}
 	case *kind.Required:
 		missing := make([]violation, 0, len(detail.Missing))
 		for _, property := range detail.Missing {
@@ -247,6 +271,10 @@ func describeViolations(violations []violation) string {
 				return rule.message(found)
 			}
 		}
+	}
+
+	if violations[0].keyword == keywordAdditionalProperties {
+		return additionalPropertiesMessage(violations[0])
 	}
 
 	return fallbackMessage(violations[0])

@@ -1,1 +1,1 @@
-release failed: unexpected failure: parse commit override for "e8a011f2f9efdd6f1a6e09d964d3f7637dcbead3": invalid commit override: missing END_COMMIT_OVERRIDE marker
+ERROR invalid commit override: override block has no end marker commit=e8a011f2f9efdd6f1a6e09d964d3f7637dcbead3 marker=END_COMMIT_OVERRIDE hint="close the override block with END_COMMIT_OVERRIDE"

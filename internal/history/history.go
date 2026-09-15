@@ -22,6 +22,42 @@ var ErrCheckoutUnusable = errors.New("local checkout cannot serve release histor
 
 var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
 
+const (
+	CheckoutProblemShallow        = "checkout is shallow"
+	CheckoutProblemShallowUnknown = "checkout shallow state is unavailable"
+	CheckoutProblemNoRepository   = "git repository is unavailable"
+	CheckoutProblemNoHead         = "checkout head is unavailable"
+	CheckoutProblemOtherBranch    = "checkout is on another branch"
+	CheckoutProblemBehindRemote   = "checkout does not match remote branch"
+	CheckoutProblemTagUnavailable = "release tag is unavailable in checkout"
+)
+
+type CheckoutError struct {
+	Problem       string
+	Branch        string
+	CurrentBranch string
+	Ref           string
+	LocalHead     string
+	RemoteHead    string
+	Err           error
+}
+
+func (e *CheckoutError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrCheckoutUnusable, e.Problem)
+}
+
+func (e *CheckoutError) Is(target error) bool {
+	return target == ErrCheckoutUnusable
+}
+
+func (e *CheckoutError) Unwrap() error {
+	return e.Err
+}
+
+func checkoutError(problem string, err error) error {
+	return &CheckoutError{Problem: problem, Err: err}
+}
+
 // CommitEntry is one commit in a release range.
 type CommitEntry struct {
 	Hash    string
@@ -222,7 +258,10 @@ func (s *Source) remoteBoundaries(
 		}
 
 		if !exists {
-			return nil, fmt.Errorf("%w: tag %q is not present in the remote tag list", ErrCheckoutUnusable, ref)
+			return nil, &CheckoutError{
+				Problem: CheckoutProblemTagUnavailable,
+				Ref:     ref,
+			}
 		}
 
 		boundary, valid := plumbing.FromHex(remoteCommit)
@@ -258,39 +297,37 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 		DetectDotGit: true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: no git repository found. Run yeet inside a full checkout of branch %q (%v)",
-			ErrCheckoutUnusable, s.branch, err,
-		)
+		return nil, &CheckoutError{
+			Problem: CheckoutProblemNoRepository,
+			Branch:  s.branch,
+			Err:     err,
+		}
 	}
 
 	shallows, err := repo.Storer.Shallow()
 	if err != nil {
-		return nil, fmt.Errorf("%w: shallow state unreadable (%v)", ErrCheckoutUnusable, err)
+		return nil, checkoutError(CheckoutProblemShallowUnknown, err)
 	}
 
 	if len(shallows) > 0 {
-		return nil, fmt.Errorf(
-			"%w: checkout is shallow. Fetch the full history "+
-				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, "+
-				"fetchDepth: 0 on Azure Pipelines)",
-			ErrCheckoutUnusable,
-		)
+		return nil, checkoutError(CheckoutProblemShallow, nil)
 	}
 
+	return s.validateLocalHead(ctx, repo)
+}
+
+func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*localHistory, error) {
 	head, err := repo.Head()
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot resolve HEAD (%v)", ErrCheckoutUnusable, err)
+		return nil, checkoutError(CheckoutProblemNoHead, err)
 	}
 
-	// A checkout of another branch must never be analyzed, even when its tip
-	// happens to be known to the remote. Detached heads (the common CI shape)
-	// are validated purely by the hash comparison below.
 	if head.Name().IsBranch() && head.Name().Short() != s.branch {
-		return nil, fmt.Errorf(
-			"%w: checkout is on branch %q. Check out release branch %q",
-			ErrCheckoutUnusable, head.Name().Short(), s.branch,
-		)
+		return nil, &CheckoutError{
+			Problem:       CheckoutProblemOtherBranch,
+			Branch:        s.branch,
+			CurrentBranch: head.Name().Short(),
+		}
 	}
 
 	remoteHead, err := s.remote.GetBranchHead(ctx, s.branch)
@@ -299,11 +336,12 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 	}
 
 	if !strings.EqualFold(head.Hash().String(), strings.TrimSpace(remoteHead)) {
-		return nil, fmt.Errorf(
-			"%w: local HEAD %s does not match the remote head %s of branch %q. "+
-				"Pull the latest commits before releasing",
-			ErrCheckoutUnusable, head.Hash(), strings.TrimSpace(remoteHead), s.branch,
-		)
+		return nil, &CheckoutError{
+			Problem:    CheckoutProblemBehindRemote,
+			Branch:     s.branch,
+			LocalHead:  head.Hash().String(),
+			RemoteHead: strings.TrimSpace(remoteHead),
+		}
 	}
 
 	return newLocalHistory(repo, head.Hash()), nil

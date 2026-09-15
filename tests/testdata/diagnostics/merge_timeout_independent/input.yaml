@@ -1,0 +1,20 @@
+provider: gitlab
+branch: main
+repository:
+  gitlab:
+    host: gitlab.com
+    project: group/service
+release:
+  pull_request_mode: independent
+  branch_template: yeet/release-main
+  auto_merge: true
+  auto_merge_mode: direct
+  merge_polling:
+    initial_interval: 10ms
+    max_interval: 10ms
+    timeout: 250ms
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

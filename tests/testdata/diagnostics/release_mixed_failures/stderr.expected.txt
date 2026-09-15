@@ -1,0 +1,2 @@
+ERROR release pull request has an invalid manifest pull_request="pull request #101" hint="restore the release manifest in the pull request body"
+ERROR configured release label does not exist unit=target:web phase=finalization label="autorelease: tagged" role=tagged hint="create the label in the provider or remove it from the configuration"

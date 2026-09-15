@@ -20,6 +20,7 @@ type AzureOptions struct {
 	ReleaseBranchHeadSHA      string
 	ReleaseBranchMissing      bool
 	RefUpdateFailure          string
+	RefUpdateStatus           string
 	LatestTag                 string
 	ExtraTags                 []string
 	BoundarySHA               string
@@ -487,14 +488,19 @@ const azureKeySuccess = "success"
 func azureUpdateRefsHandler(opts AzureOptions, branchCreated *atomic.Bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		if opts.RefUpdateFailure != "" {
+			result := map[string]any{
+				gitlabKeyName:    "refs/heads/" + fakeReleaseBranch,
+				azureKeyObjectID: fakeBaseSHA,
+				azureKeySuccess:  false,
+				"customMessage":  opts.RefUpdateFailure,
+			}
+			if opts.RefUpdateStatus != "" {
+				result["updateStatus"] = opts.RefUpdateStatus
+			}
+
 			writeJSON(w, map[string]any{
 				azureKeyCount: 1,
-				azureKeyValue: []map[string]any{{
-					gitlabKeyName:    "refs/heads/" + fakeReleaseBranch,
-					azureKeyObjectID: fakeBaseSHA,
-					azureKeySuccess:  false,
-					"customMessage":  opts.RefUpdateFailure,
-				}},
+				azureKeyValue: []map[string]any{result},
 			})
 
 			return

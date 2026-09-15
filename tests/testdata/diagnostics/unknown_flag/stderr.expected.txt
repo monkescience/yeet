@@ -1,0 +1,1 @@
+ERROR unknown flag command="yeet version" flag=UnknownFlag hint="run yeet version --help"

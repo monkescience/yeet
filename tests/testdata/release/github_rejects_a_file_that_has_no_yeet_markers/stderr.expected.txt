@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file VERSION.txt: apply markers: file has no yeet markers
+ERROR could not update version file: file has no yeet version markers target=default path=VERSION.txt hint="check the file and its version_files configuration"

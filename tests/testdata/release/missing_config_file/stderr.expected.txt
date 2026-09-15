@@ -1,1 +1,1 @@
-release failed: configuration file ".yeet.yaml" was not found. Run `yeet init` or pass --config: load release config: stat .yeet.yaml: file does not exist
+ERROR configuration file was not found path=.yeet.yaml hint="run yeet init or pass --config"

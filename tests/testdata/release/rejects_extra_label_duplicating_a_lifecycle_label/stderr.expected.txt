@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.labels.extra entry "autorelease: pending" duplicates release.labels.pending
+ERROR invalid configuration: release.labels.extra entry "autorelease: pending" duplicates release.labels.pending path={{anyString}}

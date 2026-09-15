@@ -23,7 +23,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		// given: a pull request body without override markers
 
 		// when: parsing the body for commit overrides
-		messages, ok, err := commitOverrideMessages(t.Context(), "plain pull request body", knownTypes)
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", "plain pull request body", knownTypes)
 
 		// then: no override is reported
 		testastic.NoError(t, err)
@@ -38,7 +38,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		body := readTestFile(t, "testdata/commit_override_messages/extracts_multiple_conventional_messages/body.input.md")
 
 		// when: parsing the override body
-		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", body, knownTypes)
 
 		// then: both messages are returned in order
 		testastic.NoError(t, err)
@@ -60,7 +60,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		)
 
 		// when: parsing the override body
-		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", body, knownTypes)
 
 		// then: the message keeps its subject prefix and the body and footer are preserved
 		testastic.NoError(t, err)
@@ -82,7 +82,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		)
 
 		// when: parsing the override body
-		messages, ok, err := commitOverrideMessages(t.Context(), body, knownTypes)
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", body, knownTypes)
 
 		// then: the footer stays attached instead of becoming a second commit
 		testastic.NoError(t, err)
@@ -101,7 +101,7 @@ func TestCommitOverrideMessages(t *testing.T) {
 		// given: an override body without its end marker
 
 		// when: parsing the override body
-		_, _, err := commitOverrideMessages(t.Context(), "BEGIN_COMMIT_OVERRIDE\nfix: patch bug", knownTypes)
+		_, _, err := commitOverrideMessages(t.Context(), "abc1234", "BEGIN_COMMIT_OVERRIDE\nfix: patch bug", knownTypes)
 
 		// then: the missing end marker is reported as an invalid override
 		testastic.Error(t, err)

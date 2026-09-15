@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: release labels are missing, mismatched, or rejected. Restore or create the configured labels: find pending release PRs: release PR lifecycle label mismatch: trusted merge request !42 on branch "yeet/release-main" is missing configured pending label "autorelease: pending"
+ERROR release pull request is missing its configured lifecycle label label="autorelease: pending" role=pending pull_request="merge request !42" branch=yeet/release-main hint="restore the configured label or close the pull request"

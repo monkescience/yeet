@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -31,7 +30,7 @@ func (c *Config) ResolvedTargets(ctx context.Context) (map[string]ResolvedTarget
 
 func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 	if len(c.Targets) == 0 {
-		return nil, fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
+		return nil, Invalidf("targets must not be empty")
 	}
 
 	resolved := make(map[string]ResolvedTarget, len(c.Targets))
@@ -45,7 +44,7 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 		}
 
 		if _, exists := resolved[resolvedTarget.ID]; exists {
-			return nil, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
+			return nil, Invalidf("target IDs must be unique and non-empty")
 		}
 
 		resolved[resolvedTarget.ID] = resolvedTarget
@@ -62,7 +61,7 @@ func (c *Config) resolveTargets() (map[string]ResolvedTarget, error) {
 func (c *Config) resolveTarget(id string, target Target) (ResolvedTarget, error) {
 	targetID := strings.TrimSpace(id)
 	if targetID == "" {
-		return ResolvedTarget{}, fmt.Errorf("%w: target IDs must be unique and non-empty", ErrInvalidConfig)
+		return ResolvedTarget{}, Invalidf("target IDs must be unique and non-empty")
 	}
 
 	targetType, err := resolveTargetType(targetID, target.Type)
@@ -106,10 +105,7 @@ func resolveTargetType(targetID string, value TargetType) (TargetType, error) {
 		return value, nil
 	}
 
-	return "", fmt.Errorf(
-		"%w: targets.%s.type must be %q or %q, got %q",
-		ErrInvalidConfig,
-		targetID,
+	return "", Invalidf("targets.%s.type must be %q or %q, got %q", targetID,
 		TargetTypePath,
 		TargetTypeDerived,
 		value,
@@ -123,7 +119,7 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved *Reso
 	}
 
 	if resolved.TagPrefix == "" {
-		return fmt.Errorf("%w: targets.%s.tag_prefix must not be empty", ErrInvalidConfig, targetID)
+		return Invalidf("targets.%s.tag_prefix must not be empty", targetID)
 	}
 
 	err = validateTargetVersioning(targetID, *resolved)
@@ -160,10 +156,7 @@ func validateResolvedTargetConfig(targetID string, target Target, resolved *Reso
 
 func validateTargetVersioning(targetID string, target ResolvedTarget) error {
 	if target.Versioning != VersioningSemver && target.Versioning != VersioningCalVer {
-		return fmt.Errorf(
-			"%w: targets.%s.versioning must be %q or %q, got %q",
-			ErrInvalidConfig,
-			targetID,
+		return Invalidf("targets.%s.versioning must be %q or %q, got %q", targetID,
 			VersioningSemver,
 			VersioningCalVer,
 			target.Versioning,
@@ -175,16 +168,13 @@ func validateTargetVersioning(targetID string, target ResolvedTarget) error {
 
 func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
 	if len(changelog.Include) == 0 {
-		return fmt.Errorf("%w: targets.%s.changelog.include must not be empty", ErrInvalidConfig, targetID)
+		return Invalidf("targets.%s.changelog.include must not be empty", targetID)
 	}
 
 	seen := make(map[string]struct{}, len(changelog.Include))
 	for _, commitType := range changelog.Include {
 		if _, exists := seen[commitType]; exists {
-			return fmt.Errorf(
-				"%w: targets.%s.changelog.include contains duplicate %q",
-				ErrInvalidConfig,
-				targetID,
+			return Invalidf("targets.%s.changelog.include contains duplicate %q", targetID,
 				commitType,
 			)
 		}
@@ -229,10 +219,7 @@ func validateConfiguredChangelogHeadings(
 	for _, commitType := range commitTypes {
 		problem := changelogHeadingProblem(headingsByCommitType[commitType])
 		if problem != "" {
-			return nil, fmt.Errorf(
-				"%w: %s.%s %s",
-				ErrInvalidConfig,
-				configPath,
+			return nil, Invalidf("%s.%s %s", configPath,
 				commitType,
 				problem,
 			)
@@ -264,10 +251,7 @@ func validateIncludedChangelogHeadings(
 
 	for _, commitType := range include {
 		if commitType == "breaking" {
-			return fmt.Errorf(
-				"%w: %s.include must not contain %q because breaking changes are included automatically",
-				ErrInvalidConfig,
-				configPath,
+			return Invalidf("%s.include must not contain %q because breaking changes are included automatically", configPath,
 				commitType,
 			)
 		}
@@ -280,10 +264,7 @@ func validateIncludedChangelogHeadings(
 
 		problem := changelogHeadingProblem(heading)
 		if problem != "" {
-			return fmt.Errorf(
-				"%w: %s.include entry %q produces a section heading that %s",
-				ErrInvalidConfig,
-				configPath,
+			return Invalidf("%s.include entry %q produces a section heading that %s", configPath,
 				commitType,
 				problem,
 			)
@@ -301,10 +282,7 @@ func validateIncludedChangelogHeadings(
 }
 
 func duplicateChangelogHeadingError(configPath, heading, firstCommitType, secondCommitType string) error {
-	return fmt.Errorf(
-		"%w: %s headings must be unique: %q is used by %q and %q",
-		ErrInvalidConfig,
-		configPath,
+	return Invalidf("%s headings must be unique: %q is used by %q and %q", configPath,
 		heading,
 		firstCommitType,
 		secondCommitType,
@@ -374,7 +352,7 @@ func resolveTargetPaths(targetID string, targetType TargetType, target Target) (
 	if targetType == TargetTypePath || strings.TrimSpace(target.Path) != "" {
 		normalizedPath, err := normalizeRepoPath(target.Path)
 		if err != nil {
-			return "", nil, fmt.Errorf("%w: targets.%s.path %v", ErrInvalidConfig, targetID, err)
+			return "", nil, Invalidf("targets.%s.path %v", targetID, err)
 		}
 
 		targetPath = normalizedPath
@@ -384,7 +362,7 @@ func resolveTargetPaths(targetID string, targetType TargetType, target Target) (
 	for _, excludePath := range target.ExcludePaths {
 		normalizedExcludePath, err := normalizeRepoPath(excludePath)
 		if err != nil {
-			return "", nil, fmt.Errorf("%w: targets.%s.exclude_paths contains %v", ErrInvalidConfig, targetID, err)
+			return "", nil, Invalidf("targets.%s.exclude_paths contains %v", targetID, err)
 		}
 
 		excludePaths = append(excludePaths, normalizedExcludePath)
@@ -393,10 +371,7 @@ func resolveTargetPaths(targetID string, targetType TargetType, target Target) (
 	if targetPath != "." {
 		for _, excludePath := range excludePaths {
 			if !RepoPathContains(targetPath, excludePath) {
-				return "", nil, fmt.Errorf(
-					"%w: targets.%s.exclude_paths entry %q must be inside %q",
-					ErrInvalidConfig,
-					targetID,
+				return "", nil, Invalidf("targets.%s.exclude_paths entry %q must be inside %q", targetID,
 					excludePath,
 					targetPath,
 				)
@@ -410,20 +385,16 @@ func resolveTargetPaths(targetID string, targetType TargetType, target Target) (
 func validateTargetShape(target ResolvedTarget) error {
 	if target.Type == TargetTypePath {
 		if target.Path == "" {
-			return fmt.Errorf("%w: targets.%s.path must not be empty", ErrInvalidConfig, target.ID)
+			return Invalidf("targets.%s.path must not be empty", target.ID)
 		}
 
 		if len(target.Includes) > 0 {
-			return fmt.Errorf(
-				"%w: targets.%s.includes is only valid for derived targets",
-				ErrInvalidConfig,
-				target.ID,
-			)
+			return Invalidf("targets.%s.includes is only valid for derived targets", target.ID)
 		}
 	}
 
 	if target.Type == TargetTypeDerived && len(target.Includes) == 0 {
-		return fmt.Errorf("%w: targets.%s.includes must not be empty", ErrInvalidConfig, target.ID)
+		return Invalidf("targets.%s.includes must not be empty", target.ID)
 	}
 
 	return nil
@@ -515,7 +486,7 @@ func mergeCalVerConfig(defaultConfig, overrideConfig CalVerConfig) CalVerConfig 
 
 func validateResolvedTargets(targets map[string]ResolvedTarget) error {
 	if len(targets) == 0 {
-		return fmt.Errorf("%w: targets must not be empty", ErrInvalidConfig)
+		return Invalidf("targets must not be empty")
 	}
 
 	err := validateUniqueTagPrefixes(targets)
@@ -537,10 +508,7 @@ func validateUniqueTagPrefixes(targets map[string]ResolvedTarget) error {
 	for _, id := range slices.Sorted(maps.Keys(targets)) {
 		target := targets[id]
 		if otherID, exists := tagPrefixes[target.TagPrefix]; exists {
-			return fmt.Errorf(
-				"%w: targets.%s.tag_prefix %q duplicates targets.%s.tag_prefix",
-				ErrInvalidConfig,
-				id,
+			return Invalidf("targets.%s.tag_prefix %q duplicates targets.%s.tag_prefix", id,
 				target.TagPrefix,
 				otherID,
 			)
@@ -564,19 +532,13 @@ func validateDerivedIncludes(targets map[string]ResolvedTarget) error {
 
 			includedTarget, exists := targets[normalizedIncludeID]
 			if !exists {
-				return fmt.Errorf(
-					"%w: targets.%s.includes entry %q does not refer to a defined target",
-					ErrInvalidConfig,
-					id,
+				return Invalidf("targets.%s.includes entry %q does not refer to a defined target", id,
 					normalizedIncludeID,
 				)
 			}
 
 			if includedTarget.Type != TargetTypePath {
-				return fmt.Errorf(
-					"%w: targets.%s.includes entry %q must refer to a path target in v1",
-					ErrInvalidConfig,
-					id,
+				return Invalidf("targets.%s.includes entry %q must refer to a path target in v1", id,
 					normalizedIncludeID,
 				)
 			}
@@ -607,10 +569,7 @@ func validateDirectPathOwnership(targets map[string]ResolvedTarget) error {
 				continue
 			}
 
-			return fmt.Errorf(
-				"%w: direct path ownership overlaps between targets.%s and targets.%s",
-				ErrInvalidConfig,
-				leftTarget.ID,
+			return Invalidf("direct path ownership overlaps between targets.%s and targets.%s", leftTarget.ID,
 				rightTarget.ID,
 			)
 		}
@@ -646,10 +605,7 @@ func validateTargetVersionFileOwnership(targets map[string]Target) error {
 
 			otherID, exists := versionFileOwners[normalizedVersionFilePath]
 			if exists && otherID != targetID {
-				return fmt.Errorf(
-					"%w: targets.%s.version_files entry %q duplicates targets.%s.version_files entry",
-					ErrInvalidConfig,
-					targetID,
+				return Invalidf("targets.%s.version_files entry %q duplicates targets.%s.version_files entry", targetID,
 					normalizedVersionFilePath,
 					otherID,
 				)

@@ -1,0 +1,16 @@
+{
+  "number": 102,
+  "state": "closed",
+  "merged": true,
+  "merged_at": "2026-01-01T00:00:00Z",
+  "html_url": "https://example.test/pulls/102",
+  "merge_commit_sha": "deadbeef",
+  "head": {
+    "ref": "yeet/release-main-target-web-1355f0b5d0",
+    "sha": "deadbeef",
+    "repo": {"full_name": "testorg/testrepo"}
+  },
+  "base": {"ref": "main"},
+  "labels": [{"name": "autorelease: pending"}],
+  "body": "<!-- yeet-release-manifest\n{\"unit\":\"target:web\",\"base_branch\":\"main\",\"configured_targets\":[{\"id\":\"web\",\"type\":\"path\"}],\"targets\":[{\"id\":\"web\",\"type\":\"path\",\"tag\":\"web-v2.0.1\",\"changelog_file\":\"web/CHANGELOG.md\"}]}\n-->"
+}

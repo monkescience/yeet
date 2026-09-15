@@ -110,10 +110,12 @@ func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget,
 				continue
 			}
 
-			slog.WarnContext(ctx, "ignoring Release-As footer unsupported by this versioning strategy",
+			slog.WarnContext(ctx, "ignoring unsupported release override",
+				slog.String("target", target.ID),
 				slog.String("commit", c.Hash),
 				slog.String("versioning", string(target.Versioning)),
-				slog.String("release_as", strings.TrimSpace(footer.Value)),
+				slog.String("field", "Release-As"),
+				slog.String("value", strings.TrimSpace(footer.Value)),
 			)
 		}
 	}
@@ -146,7 +148,13 @@ func detectReleaseAs(strategy version.Strategy, commits []commit.Commit) (string
 			}
 
 			if releaseAsVersion != normalizedCandidate {
-				return "", fmt.Errorf("%w: %q and %q", errConflictingReleaseAs, releaseAsVersion, normalizedCandidate)
+				//nolint:wrapcheck // version supplies the typed release-as context.
+				return "", version.NewReleaseAsError(
+					normalizedCandidate,
+					releaseAsVersion,
+					"two commits request different Release-As versions",
+					fmt.Errorf("%w: %q and %q", errConflictingReleaseAs, releaseAsVersion, normalizedCandidate),
+				)
 			}
 		}
 	}

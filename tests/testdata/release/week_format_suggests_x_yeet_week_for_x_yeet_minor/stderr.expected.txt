@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file VERSION.txt: apply markers: yeet marker scope not valid for configured scheme: "x-yeet-minor" at line 1 is not valid for calver format "YYYY.WW.MICRO" (use "x-yeet-week")
+ERROR could not update version file: version marker does not match the versioning scheme target=default path=VERSION.txt marker=x-yeet-minor line=1 hint="use x-yeet-week for the configured versioning scheme"

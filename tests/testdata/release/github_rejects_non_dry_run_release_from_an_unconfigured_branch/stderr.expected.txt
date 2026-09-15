@@ -1,1 +1,1 @@
-release failed: the release branch or prerelease channel is invalid. Use the configured branch or channel: invalid release options: branch is not configured for releases: "feature/random". Configure it as branch or release.channels.<name>.branch, or run --dry-run
+ERROR invalid release branch or channel branch=feature/random hint="use a configured branch or channel"

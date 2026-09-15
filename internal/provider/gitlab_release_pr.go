@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -72,11 +73,12 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 	)
 
 	return &forge.PullRequest{
-		Number: int(mr.IID),
-		Title:  mr.Title,
-		Body:   mr.Description,
-		URL:    mr.WebURL,
-		Branch: opts.ReleaseBranch,
+		Number:    int(mr.IID),
+		Reference: gitLabMergeRequestReference(int(mr.IID)),
+		Title:     mr.Title,
+		Body:      mr.Description,
+		URL:       mr.WebURL,
+		Branch:    opts.ReleaseBranch,
 	}, nil
 }
 
@@ -151,7 +153,11 @@ func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int6
 	}
 
 	if !found {
-		return 0, fmt.Errorf("%w: %q is not a project member", forge.ErrReviewerNotFound, username)
+		return 0, &ReviewerError{
+			Reviewer: username,
+			Problem:  "reviewer is not a project member",
+			Err:      fmt.Errorf("%w: %q is not a project member", forge.ErrReviewerNotFound, username),
+		}
 	}
 
 	return id, nil
@@ -175,11 +181,15 @@ func verifyGitLabReviewers(usernames []string, requestedIDs []int64, applied []*
 	}
 
 	if len(missing) > 0 {
-		return fmt.Errorf(
-			"%w: %v (multiple merge request reviewers require GitLab Premium or Ultimate)",
-			forge.ErrReviewerNotApplied,
-			missing,
-		)
+		return &ReviewerError{
+			Reviewers: slices.Clone(missing),
+			Problem:   "multiple reviewers require GitLab Premium or Ultimate",
+			Err: fmt.Errorf(
+				"%w: %v (multiple merge request reviewers require GitLab Premium or Ultimate)",
+				forge.ErrReviewerNotApplied,
+				missing,
+			),
+		}
 	}
 
 	return nil
@@ -260,7 +270,7 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		options.SourceBranch = new(sourceBranch)
 	}
 
-	slog.DebugContext(ctx, "gitlab: listing open pending release MRs",
+	slog.DebugContext(ctx, "gitlab: listing open pending release merge requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -314,6 +324,7 @@ func (g *GitLab) findOpenPendingReleasePRs(
 
 			pendingMRs = append(pendingMRs, &forge.PullRequest{
 				Number:            int(mr.IID),
+				Reference:         gitLabMergeRequestReference(int(mr.IID)),
 				Title:             mr.Title,
 				Body:              mr.Description,
 				URL:               mr.WebURL,
@@ -328,7 +339,7 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "gitlab: listed open pending release MRs", slog.Int("count", len(pendingMRs)))
+	slog.DebugContext(ctx, "gitlab: listed open pending release merge requests", slog.Int("count", len(pendingMRs)))
 
 	return pendingMRs, nil
 }
@@ -375,7 +386,7 @@ func (g *GitLab) FindMergedReleasePR(
 		PerPage:      gitLabPageSize,
 	}
 
-	slog.DebugContext(ctx, "gitlab: searching merged release MRs",
+	slog.DebugContext(ctx, "gitlab: searching merged release merge requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -448,6 +459,7 @@ func (g *GitLab) FindMergedReleasePR(
 
 	found := &forge.PullRequest{
 		Number:         int(bestMR.IID),
+		Reference:      gitLabMergeRequestReference(int(bestMR.IID)),
 		Title:          bestMR.Title,
 		Body:           bestMR.Description,
 		URL:            bestMR.WebURL,
@@ -455,7 +467,7 @@ func (g *GitLab) FindMergedReleasePR(
 		MergeCommitSHA: gitLabMergeCommitSHA(ctx, bestMR),
 	}
 
-	slog.DebugContext(ctx, "gitlab: found merged release MR",
+	slog.DebugContext(ctx, "gitlab: found merged release merge request",
 		slog.Int("iid", found.Number),
 		slog.String("url", found.URL),
 		slog.String("merge_sha", found.MergeCommitSHA),
@@ -546,7 +558,7 @@ func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRe
 		return commitSHA
 	}
 
-	slog.WarnContext(ctx, "gitlab: merged MR has no merge, squash, or source commit SHA",
+	slog.WarnContext(ctx, "gitlab merged request has no merge, squash, or source commit hash",
 		slog.Int64("iid", mergeRequest.IID))
 
 	return ""
@@ -768,13 +780,19 @@ func validateGitLabReleasePRLabels(labels forge.ReleasePRLabels) error {
 
 		for _, existing := range scoped {
 			if strings.EqualFold(existing.scope, scope) {
-				return fmt.Errorf(
-					"%w: labels %q and %q share GitLab scope %s",
-					errGitLabReleasePRLabelsInvalid,
-					existing.name,
-					name,
-					scope,
-				)
+				return &LabelError{
+					Label:    name,
+					Role:     "extra",
+					Scope:    scope,
+					Conflict: existing.name,
+					Err: fmt.Errorf(
+						"%w: labels %q and %q share GitLab scope %s",
+						errGitLabReleasePRLabelsInvalid,
+						existing.name,
+						name,
+						scope,
+					),
+				}
 			}
 		}
 

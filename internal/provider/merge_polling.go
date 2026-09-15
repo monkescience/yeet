@@ -92,7 +92,7 @@ func (p mergePolling) awaitMergedCommit(
 				return "", fmt.Errorf("wait for %s: %w", reference, ctx.Err())
 			}
 
-			return "", p.notFinalized(reference)
+			return "", p.notFinalizedFrom(reference, waitCtx.Err())
 		case <-time.After(interval):
 		}
 
@@ -100,26 +100,26 @@ func (p mergePolling) awaitMergedCommit(
 	}
 }
 
-func (p mergePolling) notFinalized(reference string) error {
-	return fmt.Errorf("%w: %s after %s", forge.ErrMergeNotFinalized, reference, p.timeout)
-}
-
 // notFinalizedFrom keeps the cause that ended the wait alongside the sentinel,
 // so a forge that went unreachable stays distinguishable from a slow one.
 func (p mergePolling) notFinalizedFrom(reference string, cause error) error {
-	return &mergeNotFinalizedError{reference: reference, timeout: p.timeout, cause: cause}
+	return &MergeNotFinalizedError{reference: reference, timeout: p.timeout, cause: cause}
 }
 
-type mergeNotFinalizedError struct {
+type MergeNotFinalizedError struct {
 	cause     error
 	reference string
 	timeout   time.Duration
 }
 
-func (e *mergeNotFinalizedError) Error() string {
+func (e *MergeNotFinalizedError) Reference() string { return e.reference }
+
+func (e *MergeNotFinalizedError) Timeout() time.Duration { return e.timeout }
+
+func (e *MergeNotFinalizedError) Error() string {
 	return fmt.Sprintf("%s: %s after %s: %s", forge.ErrMergeNotFinalized, e.reference, e.timeout, e.cause)
 }
 
-func (e *mergeNotFinalizedError) Unwrap() []error {
+func (e *MergeNotFinalizedError) Unwrap() []error {
 	return []error{forge.ErrMergeNotFinalized, e.cause}
 }

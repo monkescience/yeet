@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: calver.format: invalid version: calver format only supports dots as separators: "NOPE"
+ERROR invalid configuration: calver.format: calver format only supports dots as separators: "NOPE" path={{anyString}}

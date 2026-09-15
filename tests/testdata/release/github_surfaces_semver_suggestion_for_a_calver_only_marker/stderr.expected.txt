@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file VERSION.txt: apply markers: yeet marker scope not valid for configured scheme: "x-yeet-year" at line 1 is not valid for semver (use "x-yeet-major")
+ERROR could not update version file: version marker does not match the versioning scheme target=default path=VERSION.txt marker=x-yeet-year line=1 hint="use x-yeet-major for the configured versioning scheme"

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,7 +15,6 @@ import (
 func main() {
 	err := run()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -27,5 +25,5 @@ func run() error {
 
 	manager := telemetry.New(build.Version())
 
-	return commands.NewRoot(manager).ExecuteContext(ctx) //nolint:wrapcheck // preserve user-facing error verbatim
+	return commands.Execute(ctx, manager) //nolint:wrapcheck // commands report and preserve the failure
 }

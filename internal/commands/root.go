@@ -1,12 +1,12 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
 
-	charmlog "charm.land/log/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/spf13/cobra"
 
@@ -25,6 +25,10 @@ type bootstrapOptions struct {
 func NewRoot(manager *telemetry.Manager) *cobra.Command {
 	options := &bootstrapOptions{}
 
+	return newRoot(options, manager)
+}
+
+func newRoot(options *bootstrapOptions, manager *telemetry.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   build.ServiceName,
 		Short: "Automate releases based on conventional commits",
@@ -58,8 +62,30 @@ the configured tagged lifecycle label.`,
 	cmd.InitDefaultCompletionCmd()
 	setExampleForSubcommand(cmd, "completion", `  yeet completion zsh
   yeet completion bash > /usr/local/etc/bash_completion.d/yeet`)
+	annotateArgumentErrors(cmd)
 
 	return cmd
+}
+
+func Execute(ctx context.Context, manager *telemetry.Manager) error {
+	options := &bootstrapOptions{}
+	root := newRoot(options, manager) //nolint:contextcheck // cobra passes ctx to callbacks through ExecuteContextC
+
+	cmd, err := root.ExecuteContextC(ctx)
+	if err == nil {
+		return nil
+	}
+
+	if cmd.CalledAs() == "" {
+		_, remaining, _ := root.Find(os.Args[1:])
+		_ = cmd.ParseFlags(remaining)
+		err = &argumentError{values: cmd.Flags().Args(), unknownCommand: true, cause: err}
+	}
+
+	options.setLogger(cmd)
+	reportCommandError(ctx, cmd, err)
+
+	return err
 }
 
 func setExampleForSubcommand(root *cobra.Command, name string, example string) {
@@ -73,29 +99,26 @@ func setExampleForSubcommand(root *cobra.Command, name string, example string) {
 }
 
 func (o *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
+	o.setLogger(cmd)
+
 	if o.verbose && o.quiet {
 		return errVerboseQuietConflict
 	}
 
-	level := charmlog.InfoLevel
+	return nil
+}
+
+func (o *bootstrapOptions) setLogger(cmd *cobra.Command) {
+	level := slog.LevelInfo
 	if o.verbose {
-		level = charmlog.DebugLevel
+		level = slog.LevelDebug
 	}
 
 	if o.quiet {
-		level = charmlog.WarnLevel
+		level = slog.LevelWarn
 	}
 
-	logger := charmlog.NewWithOptions(cmd.ErrOrStderr(), charmlog.Options{
-		Level:           level,
-		ReportTimestamp: false,
-	})
-
-	logger.SetColorProfile(resolveColorProfile(cmd.ErrOrStderr(), o.noColor))
-
-	slog.SetDefault(slog.New(logger))
-
-	return nil
+	slog.SetDefault(newDiagnosticLogger(cmd.ErrOrStderr(), level, o.noColor))
 }
 
 // resolveColorProfile picks the color profile for an output stream based on

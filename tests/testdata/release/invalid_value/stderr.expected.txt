@@ -1,1 +1,1 @@
-release failed: unexpected failure: invalid release-as footer: invalid version "not-a-version": invalid semantic version
+ERROR invalid release version override: requested version is not valid semver field=Release-As requested=not-a-version hint="use a stable version newer than the current version"

@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file broken.json: apply json pointer: invalid json
+ERROR could not update version file: file contains invalid json target=default path=broken.json hint="check the file and its version_files configuration"

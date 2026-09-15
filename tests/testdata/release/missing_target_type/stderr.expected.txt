@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.default.type must be "path" or "derived", got ""
+ERROR invalid configuration: targets.default.type must be "path" or "derived", got "" path={{anyString}}

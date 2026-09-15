@@ -83,9 +83,8 @@ func effectiveReleaseBranchTemplateSource(cfg *config.Config) string {
 }
 
 func duplicateReleaseBranchError(owner, unit, existing string) error {
-	return fmt.Errorf(
-		"%w: rendered %s for %s unit %q duplicates %s, use .Unit to disambiguate release units",
-		config.ErrInvalidConfig,
+	//nolint:wrapcheck // config supplies the typed validation context.
+	return config.Invalidf("rendered %s for %s unit %q duplicates %s, use .Unit to disambiguate release units",
 		releaseBranchTemplateName,
 		owner,
 		unit,
@@ -103,7 +102,8 @@ func releaseBranchOwner(owner, unit string) string {
 
 func newReleaseBranchTemplate(source string) (*template.Template, error) {
 	if strings.TrimSpace(source) == "" {
-		return nil, fmt.Errorf("%w: %s must not be blank", config.ErrInvalidConfig, releaseBranchTemplateName)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return nil, config.Invalidf("%s must not be blank", releaseBranchTemplateName)
 	}
 
 	fields := map[string]struct{}{
@@ -122,36 +122,38 @@ func renderReleaseBranch(tmpl *template.Template, baseBranch, channel, unit stri
 		Unit:    strings.TrimSpace(unit),
 	})
 	if err != nil {
-		return "", fmt.Errorf("%w: render %s: %v", config.ErrInvalidConfig, releaseBranchTemplateName, err)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.InvalidWithCausef(err, "render %s: %s",
+			releaseBranchTemplateName, releaseTemplateReason(releaseBranchTemplateName, err))
 	}
 
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
-		return "", fmt.Errorf("%w: rendered %s must not be empty", config.ErrInvalidConfig, releaseBranchTemplateName)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must not be empty", releaseBranchTemplateName)
 	}
 
 	if strings.ContainsAny(branch, "\r\n") {
-		return "", fmt.Errorf("%w: rendered %s must be one line", config.ErrInvalidConfig, releaseBranchTemplateName)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must be one line", releaseBranchTemplateName)
 	}
 
 	if branch == strings.TrimSpace(baseBranch) {
-		return "", fmt.Errorf(
-			"%w: rendered %s must differ from base branch %q",
-			config.ErrInvalidConfig,
-			releaseBranchTemplateName,
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must differ from base branch %q", releaseBranchTemplateName,
 			baseBranch,
 		)
 	}
 
 	if branch == "HEAD" {
-		return "", fmt.Errorf("%w: rendered %s must not be HEAD", config.ErrInvalidConfig, releaseBranchTemplateName)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must not be HEAD", releaseBranchTemplateName)
 	}
 
 	err = plumbing.NewBranchReferenceName(branch).Validate()
 	if err != nil {
-		return "", fmt.Errorf(
-			"%w: rendered %s %q is not a valid git branch: %v",
-			config.ErrInvalidConfig,
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.InvalidWithCausef(err, "rendered %s %q is not a valid git branch: %s",
 			releaseBranchTemplateName,
 			branch,
 			err,

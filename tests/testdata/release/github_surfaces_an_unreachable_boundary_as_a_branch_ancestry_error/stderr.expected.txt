@@ -1,1 +1,1 @@
-release failed: unexpected failure: previous release ref "v1.0.0" is not reachable from release branch "main" for target "default". Verify the latest tag or release and branch ancestry: commit boundary not found: ref "v1.0.0" is not reachable from branch "main"
+ERROR release history boundary is not reachable from branch ref=v1.0.0 branch=main target=default hint="check the release tag and branch ancestry"

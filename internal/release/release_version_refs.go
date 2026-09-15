@@ -168,6 +168,6 @@ func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref 
 		ref,
 		a.core.run.baseBranch,
 		target.ID,
-		&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.run.baseBranch},
+		&forge.CommitBoundaryNotFoundError{Ref: ref, Branch: a.core.run.baseBranch, Target: target.ID},
 	)
 }

@@ -40,13 +40,19 @@ func validateProviderHostTrust(
 
 	err := validateHostFormat(host)
 	if err != nil {
-		return err
+		return &SetupError{
+			Host:     host,
+			Provider: repository.Provider,
+			Remote:   repository.Remote,
+			Problem:  "provider host is invalid",
+			Err:      err,
+		}
 	}
 
 	if spec, known := forgeSpecs[repository.Provider]; known && spec.endpointOverride() == "" {
 		err = validateConfiguredAPIHost(repository.APIURL, host)
 		if err != nil {
-			return err
+			return hostTrustError(repository, host, err)
 		}
 	}
 
@@ -59,21 +65,70 @@ func validateProviderHostTrust(
 		return nil
 	}
 
+	return validateRemoteHostTrust(ctx, repository, getRemoteURL)
+}
+
+func validateRemoteHostTrust(
+	ctx context.Context,
+	repository *repositoryDescriptor,
+	getRemoteURL gitRemoteURLGetter,
+) error {
+	host := strings.TrimSpace(repository.Host)
+
 	remoteURL, err := getRemoteURL(ctx, repository.Remote)
 	if err != nil {
-		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
+		setup := hostTrustError(
+			repository,
+			host,
+			&untrustedHostError{host: host, remote: repository.Remote, cause: err},
+		)
+		setup.Problem = "git remote could not be read"
+		setup.Hint = "check that the local repository has the configured git remote"
+
+		diagnosis := setupProblem(err)
+		if diagnosis.hint != "" {
+			setup.Problem, setup.Hint = diagnosis.problem, diagnosis.hint
+		}
+
+		return setup
 	}
 
 	detected, err := parseRemote(remoteURL)
 	if err != nil {
-		return &untrustedHostError{host: host, remote: repository.Remote, cause: err}
+		setup := hostTrustError(
+			repository,
+			host,
+			&untrustedHostError{host: host, remote: repository.Remote, cause: err},
+		)
+		setup.Problem = "git remote url is invalid"
+		setup.Hint = "check the configured git remote url"
+
+		return setup
 	}
 
 	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
-		return fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host)
+		setup := hostTrustError(
+			repository,
+			host,
+			fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host),
+		)
+		setup.RemoteHost = detected.Host
+		setup.Problem = "provider host does not match git remote host"
+
+		return setup
 	}
 
 	return nil
+}
+
+func hostTrustError(repository *repositoryDescriptor, host string, err error) *SetupError {
+	return &SetupError{
+		Host:     host,
+		Remote:   repository.Remote,
+		Provider: repository.Provider,
+		Problem:  "provider host is not trusted",
+		Err:      err,
+	}
 }
 
 func validateConfiguredAPIHost(apiURL, repositoryHost string) error {

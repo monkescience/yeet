@@ -1,23 +1,8 @@
 # Troubleshooting
 
-Every release error starts with `release failed`, followed by an operational category and a recommended action. The original cause remains attached for debug logging.
-
-| Error prefix or category | Action |
-|---|---|
-| `configuration file "<path>" was not found` | Run `yeet init` or pass the intended `--config` path |
-| `configuration file "<path>" is invalid` | Fix the reported fields and values before rerunning |
-| `provider authentication is unavailable` | Export one of the token variables named in the cause |
-| `repository resolution failed` | Check the provider setting, repository overrides, and Git remote |
-| `provider host trust validation failed` | Align the configured host, Git remote, and provider URL override |
-| `the local checkout is unusable or stale` | Fetch full history and check out the current remote release branch |
-| `the release branch or prerelease channel is invalid` | Run on a configured branch or select a configured channel |
-| `multiple pending release changes were found` | Close or relabel stale pending releases until only one remains for the base branch |
-| `merge is blocked` | Resolve the reported conflict, draft state, closure, policy, method, permission, or provider refusal |
-| `merge finalization timed out` | Inspect the provider state before retrying |
-| `provider-managed auto-merge is unsupported` | Check provider prerequisites, or select `--auto-merge-mode direct` |
-| `release reviewers could not be applied` | Check identity, membership, permissions, and provider limits |
-| `release labels are missing, mismatched, or rejected` | Use the decision table below |
-| `unexpected failure` | Enable verbose logging and diagnose the preserved original cause |
+Follow the recovery advice in the error message first. The sections below cover auto-merge and
+release label problems that may need additional steps. Use `--verbose` when you need the operations
+leading up to a failure and the underlying error the provider or the checkout reported.
 
 ## Auto-merge
 
@@ -43,7 +28,9 @@ yeet stores no lifecycle label history, so it cannot infer a renamed pending or 
 
 ## Logging
 
-Use `--verbose` or `-v` for debug logs. Use `--quiet` for warnings and errors only. Combining them is invalid. `--no-color` disables color, while the standard `NO_COLOR`, `CLICOLOR`, and `CLICOLOR_FORCE` variables apply when the flag is absent.
+Use `--verbose` or `-v` for debug logs. Use `--quiet` for warnings and errors only. Combining them
+is invalid. `--no-color` disables color, while the standard `NO_COLOR`, `CLICOLOR`, and
+`CLICOLOR_FORCE` variables apply when the flag is absent.
 
 ## Related documentation
 

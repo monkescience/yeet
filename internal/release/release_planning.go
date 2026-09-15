@@ -62,7 +62,7 @@ func (a *releaseAnalyzer) commitOverride(
 		return cached, nil
 	}
 
-	messages, found, err := commitOverrideMessages(ctx, entry.Message, a.overrideTypes)
+	messages, found, err := commitOverrideMessages(ctx, hash, entry.Message, a.overrideTypes)
 	if err != nil {
 		return commitOverrideResult{}, fmt.Errorf("parse commit override for %q: %w", hash, err)
 	}

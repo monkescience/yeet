@@ -19,6 +19,7 @@ type Release struct {
 
 type PullRequest struct {
 	Number            int
+	Reference         string
 	Title             string
 	Body              string
 	URL               string
@@ -169,6 +170,7 @@ var (
 type CommitBoundaryNotFoundError struct {
 	Ref    string
 	Branch string
+	Target string
 }
 
 func (e *CommitBoundaryNotFoundError) Error() string {

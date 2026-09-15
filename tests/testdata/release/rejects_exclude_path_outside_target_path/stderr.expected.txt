@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: targets.api.exclude_paths entry "services/web" must be inside "services/api"
+ERROR invalid configuration: targets.api.exclude_paths entry "services/web" must be inside "services/api" path={{anyString}}

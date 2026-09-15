@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: changelog.references.patterns[0].pattern must not be empty
+ERROR invalid configuration: changelog.references.patterns[0].pattern must not be empty path={{anyString}}

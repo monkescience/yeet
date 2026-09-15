@@ -15,7 +15,7 @@ func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		testastic.Equal(t, "/api/v4/projects/group%2Fprivate/repository/tags", request.URL.EscapedPath())
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("X-Request-Id", "gitlab-request-123")
+		w.Header().Set("X-Request-ID", "gitlab-request-123")
 		_, err := w.Write([]byte("[]"))
 		testastic.NoError(t, err)
 	}))
@@ -42,18 +42,14 @@ func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
 	// then: the SDK request passes through the sanitized HTTP logger
 	testastic.NoError(t, err)
 	assertProviderTraceEvent(t, &logOutput, map[string]any{
-		"level":                "DEBUG",
-		"msg":                  "http request completed",
-		"provider":             providerNameGitLab,
-		"method":               http.MethodGet,
-		"path":                 "/api/v4/projects/group%2Fprivate/repository/tags",
-		"status":               float64(http.StatusOK),
-		"attempt":              float64(1),
-		"request_id":           "gitlab-request-123",
-		"rate_limit_remaining": "",
-		"rate_limit_reset":     "",
-		"retry_after":          "",
-		"transport_error":      "",
+		"level":      "DEBUG",
+		"msg":        "http request completed",
+		"provider":   providerNameGitLab,
+		"method":     http.MethodGet,
+		"path":       "/api/v4/projects/group%2Fprivate/repository/tags",
+		"status":     float64(http.StatusOK),
+		"attempt":    float64(1),
+		"request_id": "gitlab-request-123",
 	})
 	testastic.NotContains(t, logOutput.String(), "fake-token")
 }

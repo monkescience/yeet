@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: target IDs must be unique and non-empty
+ERROR invalid configuration: target IDs must be unique and non-empty path={{anyString}}

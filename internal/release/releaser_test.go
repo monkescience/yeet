@@ -1566,10 +1566,15 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 	testastic.ErrorIs(t, err, ErrMultiplePendingReleasePRs)
 	testastic.Equal(
 		t,
-		"multiple pending release PRs found: #1 https://example.com/pr/1, #2 "+
-			"https://example.com/pr/2",
+		"multiple pending release PRs found: pull request #1 https://example.com/pr/1, "+
+			"pull request #2 https://example.com/pr/2",
 		err.Error(),
 	)
+
+	var pending *PendingReleaseError
+
+	testastic.True(t, errors.As(err, &pending))
+	testastic.SliceEqual(t, []string{"pull request #1", "pull request #2"}, pending.References)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.updatePRCalls)
 }

@@ -1,3 +1,2 @@
-INFO  release analysis complete targets=1
-INFO  created release PR url=https://example.test/mr/42
-release failed: merge is blocked because the release pull request or merge request is a draft. Mark it ready to merge: merge release PR: release PR merge blocked: merge request !42 is draft
+INFO  created release pull request url=https://example.test/mr/42
+ERROR release pull request is a draft pull_request="merge request !42" hint="mark the release pull request ready to merge"

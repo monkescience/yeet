@@ -1,1 +1,1 @@
-release failed: unexpected failure: parse release manifest: jsontext: invalid character 'o' in literal null (expecting 'u') after offset 2
+ERROR release pull request has an invalid manifest pull_request="pull request #42" hint="restore the release manifest in the pull request body"

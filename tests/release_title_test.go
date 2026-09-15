@@ -104,6 +104,61 @@ func TestReleaseTitleTemplates(t *testing.T) {
 		})
 	})
 
+	parseFailures := []struct {
+		name     string
+		scenario string
+		template string
+	}{
+		{name: "unclosed action", scenario: "invalid_template_syntax", template: "ship {{"},
+		{name: "unexpected end", scenario: "template_unexpected_end", template: "{{ if .Branch }}ship"},
+		{
+			name: "private unterminated quoted string", scenario: "template_unterminated_quoted_string",
+			template: `{{ printf "private-template-value }}`,
+		},
+		{
+			name: "private unterminated raw quoted string", scenario: "template_unterminated_raw_quoted_string",
+			template: "{{ printf `private-template-value }}",
+		},
+		{
+			name: "private undefined function", scenario: "template_undefined_function",
+			template: "{{ privateTemplateFunction }}",
+		},
+	}
+	for _, failure := range parseFailures {
+		t.Run("reports "+failure.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a PR title template with invalid syntax
+
+			// when: parsing the template during a dry-run release
+
+			// then: the safe parser reason is reported without template contents
+			assertReleaseTitleRejected(t, failure.scenario, fixture.ConfigOptions{PRTitle: failure.template})
+		})
+	}
+
+	renderFailures := []struct {
+		name     string
+		scenario string
+		template string
+	}{
+		{name: "index out of range", scenario: "render_failure", template: "ship {{ index .Branch 99 }}"},
+		{name: "incompatible type", scenario: "render_incompatible_type", template: "ship {{ printf 7 }}"},
+		{name: "function failure", scenario: "render_function_failure", template: "ship {{ len 7 }}"},
+	}
+	for _, failure := range renderFailures {
+		t.Run("reports "+failure.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a PR title template that fails during execution
+
+			// when: rendering the template during a dry-run release
+
+			// then: the safe render reason is reported without template contents
+			assertReleaseTitleRejected(t, failure.scenario, fixture.ConfigOptions{PRTitle: failure.template})
+		})
+	}
+
 	t.Run("rejects a pr title that renders empty", func(t *testing.T) {
 		t.Parallel()
 

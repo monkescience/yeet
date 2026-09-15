@@ -1,3 +1,2 @@
-INFO  release analysis complete targets=1
-INFO  created release PR url=https://example.test/mr/42
-INFO  provider accepted release PR auto-merge number=42 url=https://example.test/mr/42
+INFO  created release pull request url=https://example.test/mr/42
+INFO  provider accepted pull request auto-merge number=42 url=https://example.test/mr/42

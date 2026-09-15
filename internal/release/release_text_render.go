@@ -226,9 +226,8 @@ func (t *releaseText) releasePRBody(
 
 	body = joinPRBodyParts(header, prBodyOmittedNotice, marker, footer)
 	if bodyLength := utf8.RuneCountInString(body); bodyLength > limit {
-		return "", false, fmt.Errorf(
-			"%w: release PR body requires %d characters after omitting release notes, limit is %d",
-			config.ErrInvalidConfig,
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", false, config.Invalidf("release PR body requires %d characters after omitting release notes, limit is %d",
 			bodyLength,
 			limit,
 		)

@@ -1,2 +1,1 @@
-INFO  release analysis complete targets=1
-release failed: unexpected failure: update version file manifest.json: apply json pointer: json pointer not found
+ERROR could not update version file: json pointer was not found target=default path=manifest.json hint="check the file and its version_files configuration"

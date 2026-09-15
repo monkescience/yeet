@@ -167,7 +167,7 @@ func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("X-VSS-E2EID", "azure-request-123")
+		w.Header().Set("X-Vss-E2eid", "azure-request-123")
 		_, err := w.Write([]byte(`{
 			"count": 2,
 			"value": [{
@@ -201,7 +201,7 @@ func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
 		"GET /platform/release-tools/_apis/git/repositories/yeet/refs",
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-VSS-E2EID", "azure-git-request-456")
+			w.Header().Set("X-Vss-E2eid", "azure-git-request-456")
 			_, err := w.Write([]byte(`{"count":0,"value":[]}`))
 			testastic.NoError(t, err)
 		},
@@ -246,18 +246,14 @@ func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
 	testastic.NoError(t, err)
 	testastic.Equal(t, int32(2), attempts.Load())
 	assertProviderTraceEvent(t, &logOutput, map[string]any{
-		"level":                "DEBUG",
-		"msg":                  "http request completed",
-		"provider":             providerNameAzureDevOps,
-		"method":               http.MethodGet,
-		"path":                 "/platform/release-tools/_apis/git/repositories/yeet/refs",
-		"status":               float64(http.StatusOK),
-		"attempt":              float64(1),
-		"request_id":           "azure-git-request-456",
-		"rate_limit_remaining": "",
-		"rate_limit_reset":     "",
-		"retry_after":          "",
-		"transport_error":      "",
+		"level":      "DEBUG",
+		"msg":        "http request completed",
+		"provider":   providerNameAzureDevOps,
+		"method":     http.MethodGet,
+		"path":       "/platform/release-tools/_apis/git/repositories/yeet/refs",
+		"status":     float64(http.StatusOK),
+		"attempt":    float64(1),
+		"request_id": "azure-git-request-456",
 	})
 	testastic.NotContains(t, logOutput.String(), "fake-token")
 }

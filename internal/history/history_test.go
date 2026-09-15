@@ -562,7 +562,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 	})
 
-	t.Run("shallow checkout fails naming the fetch-depth fix", func(t *testing.T) {
+	t.Run("shallow checkout is reported as a shallow checkout problem", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository marked shallow
@@ -580,13 +580,12 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		// then: the run fails before any remote validation
 		testastic.Error(t, err)
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
-		testastic.Equal(
-			t,
-			"local checkout cannot serve release history: checkout is shallow. Fetch the full history "+
-				"(fetch-depth: 0 on GitHub Actions, GIT_DEPTH \"0\" on GitLab CI, fetchDepth: 0 on Azure "+
-				"Pipelines)",
-			err.Error(),
-		)
+		testastic.Equal(t, "local checkout cannot serve release history: checkout is shallow", err.Error())
+
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemShallow, checkout.Problem)
 		testastic.Equal(t, 0, remote.branchHeadCalls)
 	})
 
@@ -607,12 +606,17 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 		testastic.Equal(
 			t,
-			"local checkout cannot serve release history: local HEAD "+
-				"8ef653648bf61273f097a29668e6d5ed4134a2cc does not match the remote head "+
-				"1111111111111111111111111111111111111111 of branch \"main\". Pull the latest commits "+
-				"before releasing",
+			"local checkout cannot serve release history: checkout does not match remote branch",
 			err.Error(),
 		)
+
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemBehindRemote, checkout.Problem)
+		testastic.Equal(t, "8ef653648bf61273f097a29668e6d5ed4134a2cc", checkout.LocalHead)
+		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
+		testastic.Equal(t, fixtureBranch, checkout.Branch)
 	})
 
 	t.Run("checkout of another branch fails even at the same commit", func(t *testing.T) {
@@ -633,10 +637,16 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
 		testastic.Equal(
 			t,
-			"local checkout cannot serve release history: checkout is on branch \"feature\". Check out "+
-				"release branch \"main\"",
+			"local checkout cannot serve release history: checkout is on another branch",
 			err.Error(),
 		)
+
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemOtherBranch, checkout.Problem)
+		testastic.Equal(t, "feature", checkout.CurrentBranch)
+		testastic.Equal(t, fixtureBranch, checkout.Branch)
 	})
 
 	t.Run("remote head lookup failure propagates", func(t *testing.T) {

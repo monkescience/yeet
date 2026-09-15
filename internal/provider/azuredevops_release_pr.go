@@ -69,17 +69,15 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts forge.ReleasePRO
 	)
 
 	return &forge.PullRequest{
-		Number: prNumber,
-		Title:  derefString(created.Title),
-		Body:   derefString(created.Description),
-		URL:    a.pullRequestWebURL(prNumber),
-		Branch: opts.ReleaseBranch,
+		Number:    prNumber,
+		Reference: azureDevOpsPullRequestReference(prNumber),
+		Title:     derefString(created.Title),
+		Body:      derefString(created.Description),
+		URL:       a.pullRequestWebURL(prNumber),
+		Branch:    opts.ReleaseBranch,
 	}, nil
 }
 
-// resolveReviewers maps reviewer names (email, display name, or account name)
-// to identity GUIDs via the identity search API, since the pull request API
-// only accepts reviewers by GUID.
 func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]git.IdentityRefWithVote, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -104,16 +102,28 @@ func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]g
 		}
 
 		if identities == nil || len(*identities) == 0 {
-			return nil, fmt.Errorf("%w: %q", forge.ErrReviewerNotFound, name)
+			return nil, &ReviewerError{
+				Reviewer: name,
+				Problem:  "reviewer identity was not found",
+				Err:      fmt.Errorf("%w: %q", forge.ErrReviewerNotFound, name),
+			}
 		}
 
 		if len(*identities) > 1 {
-			return nil, fmt.Errorf("%w: %q matches %d identities", forge.ErrReviewerAmbiguous, name, len(*identities))
+			return nil, &ReviewerError{
+				Reviewer: name,
+				Problem:  fmt.Sprintf("reviewer matches %d identities", len(*identities)),
+				Err:      fmt.Errorf("%w: %q matches %d identities", forge.ErrReviewerAmbiguous, name, len(*identities)),
+			}
 		}
 
 		resolved := (*identities)[0]
 		if resolved.Id == nil {
-			return nil, fmt.Errorf("%w: %q resolved without an id", forge.ErrReviewerNotFound, name)
+			return nil, &ReviewerError{
+				Reviewer: name,
+				Problem:  "reviewer identity resolved without an id",
+				Err:      fmt.Errorf("%w: %q resolved without an id", forge.ErrReviewerNotFound, name),
+			}
 		}
 
 		reviewers = append(reviewers, git.IdentityRefWithVote{Id: new(resolved.Id.String())})
@@ -182,7 +192,7 @@ func (a *AzureDevOps) findOpenPendingReleasePRs(
 	baseBranch, pendingLabel, expectedBranch string,
 	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
-	slog.DebugContext(ctx, "azure devops: listing open pending release PRs",
+	slog.DebugContext(ctx, "azure devops: listing open pending release pull requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -240,6 +250,7 @@ func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
 
 		pending = append(pending, &forge.PullRequest{
 			Number:            number,
+			Reference:         azureDevOpsPullRequestReference(number),
 			Title:             derefString(pr.Title),
 			Body:              derefString(pr.Description),
 			URL:               a.pullRequestWebURL(number),
@@ -248,7 +259,7 @@ func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
 		})
 	}
 
-	slog.DebugContext(ctx, "azure devops: listed open pending release PRs", slog.Int("count", len(pending)))
+	slog.DebugContext(ctx, "azure devops: listed open pending release pull requests", slog.Int("count", len(pending)))
 
 	return pending, nil
 }
@@ -274,7 +285,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(a.releaseBranch, baseBranch, expectedBranches)
-	slog.DebugContext(ctx, "azure devops: searching merged release PRs",
+	slog.DebugContext(ctx, "azure devops: searching merged release pull requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -303,6 +314,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 	number := derefInt(full.PullRequestId)
 	result := &forge.PullRequest{
 		Number:         number,
+		Reference:      azureDevOpsPullRequestReference(number),
 		Title:          derefString(full.Title),
 		Body:           derefString(full.Description),
 		URL:            a.pullRequestWebURL(number),
@@ -310,7 +322,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		MergeCommitSHA: azureDevOpsCompletedMergeCommit(full),
 	}
 
-	slog.DebugContext(ctx, "azure devops: found merged release PR",
+	slog.DebugContext(ctx, "azure devops: found merged release pull request",
 		slog.Int("pr_number", result.Number),
 		slog.String("url", result.URL),
 		slog.String("merge_sha", result.MergeCommitSHA),

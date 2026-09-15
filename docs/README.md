@@ -11,7 +11,7 @@ Start with what you want to accomplish. Each guide includes the configuration an
 | Release multiple packages from a monorepo | Define path and derived targets in [Configuration](configuration.md#targets). |
 | Control version bumps and changelog sections | Choose a strategy in [Versioning](versioning.md), then configure [Changelog generation](changelog-generation.md). |
 | Customize release PRs, reviewers, or prerelease channels | Use [Release PRs and MRs](release.md) for lifecycle and provider behavior. |
-| Recover from a failed release | Match the error prefix or label state in [Troubleshooting](troubleshooting.md). |
+| Recover from a failed release | Find recovery steps for auto-merge and release labels in [Troubleshooting](troubleshooting.md). |
 | Verify a downloaded archive or container image | Check signatures and provenance with [Artifact verification](verification.md). |
 | See or disable the anonymous analytics | Review the payload and opt-out options in [Telemetry](telemetry.md). |
 | Move from release-please | Follow the ordered [Migration guide](migrate-from-release-please.md). |

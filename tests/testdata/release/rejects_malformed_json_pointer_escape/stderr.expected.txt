@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: version_files json_pointer: contains invalid escape
+ERROR invalid configuration: version_files json_pointer: contains invalid escape path={{anyString}}

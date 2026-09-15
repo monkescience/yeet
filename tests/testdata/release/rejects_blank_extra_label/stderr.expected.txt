@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: release.labels.extra must not contain blank labels
+ERROR invalid configuration: release.labels.extra must not contain blank labels path={{anyString}}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"text/template"
 	"text/template/parse"
@@ -18,6 +19,18 @@ const (
 )
 
 var errReleaseTitleFieldUnavailable = errors.New("field is unavailable")
+
+type releaseTitleFieldError struct {
+	reference string
+}
+
+func (e *releaseTitleFieldError) Error() string {
+	return fmt.Sprintf("%s: %s", errReleaseTitleFieldUnavailable, e.reference)
+}
+
+func (e *releaseTitleFieldError) Unwrap() error {
+	return errReleaseTitleFieldUnavailable
+}
 
 type singleReleaseTitleData struct {
 	Branch  string
@@ -106,20 +119,26 @@ func parseReleaseTextTemplate(
 ) (*template.Template, error) {
 	tmpl, err := template.New(name).Parse(source)
 	if err != nil {
-		return nil, fmt.Errorf("%w: parse %s: %v", config.ErrInvalidConfig, name, err)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return nil, config.InvalidWithCausef(err, "parse %s: %s", name, releaseTemplateReason(name, err))
 	}
 
 	for _, parsed := range tmpl.Templates() {
-		err = validateReleaseTextNode(parsed.Root, allowedFields)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s: %v", config.ErrInvalidConfig, name, err)
+		fieldErr := validateReleaseTextNode(parsed.Root, allowedFields)
+		if fieldErr == nil {
+			continue
 		}
+
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return nil, config.InvalidWithCausef(
+			fieldErr, "%s contains an unavailable template field: %s", name, fieldErr.reference,
+		)
 	}
 
 	return tmpl, nil
 }
 
-func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{}) error {
+func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{}) *releaseTitleFieldError {
 	if node == nil {
 		return nil
 	}
@@ -159,7 +178,7 @@ func validateReleaseTextNode(node parse.Node, allowedFields map[string]struct{})
 		}
 
 		if len(typed.Field) > 0 {
-			return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, typed.String())
+			return &releaseTitleFieldError{reference: "." + strings.Join(typed.Field, ".")}
 		}
 	case *parse.IfNode:
 		return validateReleaseTextBranch(typed.Pipe, typed.List, typed.ElseList, allowedFields)
@@ -178,25 +197,25 @@ func validateReleaseTextField(
 	ident []string,
 	reference string,
 	allowedFields map[string]struct{},
-) error {
+) *releaseTitleFieldError {
 	if len(ident) != 1 {
-		return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, reference)
+		return &releaseTitleFieldError{reference: reference}
 	}
 
 	if _, ok := allowedFields[ident[0]]; !ok {
-		return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, reference)
+		return &releaseTitleFieldError{reference: reference}
 	}
 
 	return nil
 }
 
-func validateReleaseTextVariable(typed *parse.VariableNode, allowedFields map[string]struct{}) error {
+func validateReleaseTextVariable(typed *parse.VariableNode, allowedFields map[string]struct{}) *releaseTitleFieldError {
 	if len(typed.Ident) == 1 {
 		return nil
 	}
 
 	if len(typed.Ident) != 2 || typed.Ident[0] != "$" {
-		return fmt.Errorf("%w: %s", errReleaseTitleFieldUnavailable, typed.String())
+		return &releaseTitleFieldError{reference: strings.Join(typed.Ident, ".")}
 	}
 
 	return validateReleaseTextField(typed.Ident[1:], typed.String(), allowedFields)
@@ -206,7 +225,7 @@ func validateReleaseTextBranch(
 	pipe *parse.PipeNode,
 	list, elseList *parse.ListNode,
 	allowedFields map[string]struct{},
-) error {
+) *releaseTitleFieldError {
 	err := validateReleaseTextNode(pipe, allowedFields)
 	if err != nil {
 		return err
@@ -293,7 +312,8 @@ func (t *releaseText) releaseTemplatedSubject(
 func renderReleaseTitle(tmpl *template.Template, data any) (string, error) {
 	title, err := executeReleaseTextTemplate(tmpl, data)
 	if err != nil {
-		return "", fmt.Errorf("%w: render %s: %v", config.ErrInvalidConfig, tmpl.Name(), err)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.InvalidWithCausef(err, "render %s: %s", tmpl.Name(), releaseTemplateReason(tmpl.Name(), err))
 	}
 
 	return validateRenderedReleaseTitle(tmpl.Name(), title)
@@ -302,14 +322,33 @@ func renderReleaseTitle(tmpl *template.Template, data any) (string, error) {
 func validateRenderedReleaseTitle(name, title string) (string, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return "", fmt.Errorf("%w: rendered %s must not be empty", config.ErrInvalidConfig, name)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must not be empty", name)
 	}
 
 	if strings.ContainsAny(title, "\r\n") {
-		return "", fmt.Errorf("%w: rendered %s must be one line", config.ErrInvalidConfig, name)
+		//nolint:wrapcheck // config supplies the typed validation context.
+		return "", config.Invalidf("rendered %s must be one line", name)
 	}
 
 	return title, nil
+}
+
+func releaseTemplateReason(name string, err error) string {
+	reason := strings.TrimPrefix(err.Error(), "template: ")
+	reason = strings.TrimSpace(strings.TrimPrefix(reason, name+":"))
+
+	line, rest, found := strings.Cut(reason, ":")
+	if !found {
+		return reason
+	}
+
+	_, convErr := strconv.Atoi(strings.TrimSpace(line))
+	if convErr != nil {
+		return reason
+	}
+
+	return fmt.Sprintf("line %s: %s", strings.TrimSpace(line), strings.TrimSpace(rest))
 }
 
 func executeReleaseTextTemplate(tmpl *template.Template, data any) (string, error) {

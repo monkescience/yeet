@@ -1,1 +1,1 @@
-release failed: configuration file "{{anyString}}" is invalid. Fix the reported values: load release config: load config: invalid config: version_files json_pointer requires format "json"
+ERROR invalid configuration: version_files json_pointer requires format "json" path={{anyString}}

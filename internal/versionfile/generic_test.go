@@ -1,6 +1,7 @@
 package versionfile_test
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -239,6 +240,13 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 
 		// then: the scope/scheme mismatch surfaces with a suggested replacement
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
+
+		var markerErr *versionfile.MarkerError
+
+		testastic.True(t, errors.As(err, &markerErr))
+		testastic.Equal(t, "x-yeet-day", markerErr.Name)
+		testastic.DeepEqual(t, []string{"x-yeet-patch"}, markerErr.Suggestions)
+		testastic.Equal(t, 1, markerErr.Line)
 		testastic.False(t, changed)
 		testastic.Equal(t, content, updated)
 		testastic.Equal(

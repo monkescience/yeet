@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -190,57 +191,94 @@ func TestReleaseAzureRepositoryState(t *testing.T) {
 		testastic.Equal(t, "", result.Stdout)
 	})
 
-	t.Run("reports a rejected release branch reset", func(t *testing.T) {
-		t.Parallel()
+	for _, test := range []struct {
+		name    string
+		status  string
+		problem string
+		flag    string
+	}{
+		{name: "policy", status: "rejectedByPolicy", problem: "branch update was rejected by policy"},
+		{
+			name: "policy verbose", status: "rejectedByPolicy",
+			problem: "branch update was rejected by policy", flag: "--verbose",
+		},
+		{name: "policy quiet", status: "rejectedByPolicy", problem: "branch update was rejected by policy", flag: "--quiet"},
+		{name: "force push", status: "forcePushRequired", problem: "branch update requires force-push permission"},
+		{name: "write permission", status: "writePermissionRequired", problem: "branch update requires write permission"},
+		{name: "create permission", status: "createBranchPermissionRequired", problem: "branch creation requires permission"},
+		{name: "stale branch", status: "staleOldObjectId", problem: "branch changed before the update completed"},
+		{name: "locked", status: "locked", problem: "branch is locked"},
+		{name: "missing status", problem: "provider rejected the branch update"},
+		{name: "unknown status", status: "private-sdk-status", problem: "provider rejected the branch update"},
+	} {
+		t.Run("reports a rejected release branch reset/"+test.name, func(t *testing.T) {
+			t.Parallel()
 
-		// given: Azure rejects the attempted release branch reset.
-		repoDir, shas := fixture.WriteRepoWithHistory(
-			t,
-			"https://dev.azure.com/contoso/platform/_git/yeet",
-			"main",
-			[]fixture.RepoCommit{
-				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
-				{Message: "feat: add a thing"},
-			},
-		)
+			// given: Azure rejects the attempted release branch reset.
+			repoDir, shas := fixture.WriteRepoWithHistory(
+				t,
+				"https://dev.azure.com/contoso/platform/_git/yeet",
+				"main",
+				[]fixture.RepoCommit{
+					{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+					{Message: "feat: add a thing"},
+				},
+			)
 
-		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
-			Organization:         "contoso",
-			Project:              "platform",
-			Repo:                 "yeet",
-			LatestTag:            "v1.0.0",
-			BoundarySHA:          shas[0],
-			BranchHeadSHA:        shas[1],
-			ReleaseBranchHeadSHA: "7374616c6572656c656173656272616e63687368",
-			RefUpdateFailure:     "branch policy rejected the update",
+			server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+				Organization:         "contoso",
+				Project:              "platform",
+				Repo:                 "yeet",
+				LatestTag:            "v1.0.0",
+				BoundarySHA:          shas[0],
+				BranchHeadSHA:        shas[1],
+				ReleaseBranchHeadSHA: "7374616c6572656c656173656272616e63687368",
+				RefUpdateFailure:     "private-sdk-response",
+				RefUpdateStatus:      test.status,
+			})
+
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider:     "azuredevops",
+				Branch:       "main",
+				Host:         "dev.azure.com",
+				Organization: "contoso",
+				Project:      "platform",
+				Repo:         "yeet",
+			})
+
+			args := []string{"release", "--config", configPath}
+			if test.flag != "" {
+				args = append(args, test.flag)
+			}
+
+			// when: refreshing the release pull request.
+			result := binary.RunWithOptions(
+				t,
+				args,
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+			)
+
+			// then: the diagnostic identifies the branch and safe reason, and the response text stays in debug records.
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.Equal(t, "", result.Stdout)
+			testastic.Contains(t, result.Stderr,
+				"ERROR could not update release branch: "+test.problem+
+					" provider=azuredevops branch=yeet/release-main")
+			testastic.NotContains(t, withoutDebugDiagnostics(result.Stderr), "private-sdk-response")
+			testastic.NotContains(t, result.Stderr, "private-sdk-status")
+
+			if test.status != "rejectedByPolicy" {
+				return
+			}
+
+			for line := range strings.SplitSeq(result.Stderr, "\n") {
+				if strings.HasPrefix(line, "ERROR ") {
+					testastic.AssertFile(t, "testdata/release/rejected_branch_reset/stderr.expected.txt", line+"\n")
+				}
+			}
 		})
-
-		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
-			Provider:     "azuredevops",
-			Branch:       "main",
-			Host:         "dev.azure.com",
-			Organization: "contoso",
-			Project:      "platform",
-			Repo:         "yeet",
-		})
-
-		// when: refreshing the release pull request.
-		result := binary.RunWithOptions(
-			t,
-			[]string{"release", "--config", configPath},
-			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
-		)
-
-		// then: yeet exits with the provider's branch policy error.
-		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Equal(t, "", result.Stdout)
-		testastic.AssertFile(
-			t,
-			"testdata/release/rejected_branch_reset/stderr.expected.txt",
-			result.Stderr,
-		)
-	})
+	}
 
 	t.Run("resolves configured reviewers before creating the pull request", func(t *testing.T) {
 		t.Parallel()
