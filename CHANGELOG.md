@@ -1,5 +1,33 @@
 # Changelog
 
+## [v0.16.0](https://github.com/monkescience/yeet/compare/v0.15.0...v0.16.0) (2026-09-15)
+
+### Migration Notes
+
+Auto-merge now defaults to provider-managed scheduling on GitHub and GitLab. Enable native
+auto-merge and ensure CI runs `yeet release` on the base branch after merge to publish the release.
+
+To keep merging and publishing in one run, set this in `.yeet.yaml` (required for auto-merge on
+Azure DevOps):
+
+```yaml
+release:
+  auto_merge: true
+  auto_merge_mode: direct
+```
+
+Remove `--auto-merge-force` and `release.auto_merge_force`, which are no longer supported.
+Direct mode always checks merge readiness. See [auto-merge modes](docs/release.md#auto-merge-modes)
+for provider prerequisites and CLI options.
+
+### ⚠ BREAKING CHANGES
+
+- default auto-merge to provider-managed scheduling ([4c26d7e](https://github.com/monkescience/yeet/commit/4c26d7e26dbb9134501d92ac30aa41dce4937c30))
+
+### Features
+
+- default auto-merge to provider-managed scheduling ([4c26d7e](https://github.com/monkescience/yeet/commit/4c26d7e26dbb9134501d92ac30aa41dce4937c30))
+
 ## [v0.15.0](https://github.com/monkescience/yeet/compare/v0.14.13...v0.15.0) (2026-09-12)
 
 ### ⚠ BREAKING CHANGES
