@@ -71,8 +71,6 @@ func assertProviderTraceEvent(
 	testastic.DeepEqual(t, expected, actual)
 }
 
-// fastRetryClient keeps the production attempt bound while shortening the waits
-// so a real retry test finishes in milliseconds.
 func fastRetryClient(t *testing.T) *http.Client {
 	t.Helper()
 

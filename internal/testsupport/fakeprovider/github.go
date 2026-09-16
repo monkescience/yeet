@@ -1,6 +1,3 @@
-// Package fakeprovider exposes httptest-backed provider stubs that yeet
-// blackbox tests point at via the GITHUB_URL / GITLAB_URL / AZURE_DEVOPS_URL
-// env vars.
 package fakeprovider
 
 import (
@@ -61,7 +58,6 @@ type GitHubOptions struct {
 	ForbidPublication             bool
 }
 
-// GitHubPullRequestExpectation describes one pull request creation expected by the fake server.
 type GitHubPullRequestExpectation struct {
 	Title      string
 	Head       string
@@ -205,7 +201,6 @@ func (e *githubPullRequestExpectations) matchCreate(
 	return expectation, true
 }
 
-// GitHubCommit is a tiny subset of the GitHub commit payload that yeet reads.
 type GitHubCommit struct {
 	SHA              string
 	Message          string
@@ -230,7 +225,6 @@ const (
 	githubChangelog    = "CHANGELOG.md"
 )
 
-// NewGitHub starts the GitHub REST fake and registers its cleanup with t.
 func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
 	t.Helper()
 
@@ -567,9 +561,6 @@ func registerGitHubHistory(mux *http.ServeMux, prefix string, opts GitHubOptions
 
 	mux.HandleFunc("GET "+prefix+"/compare/{spec...}", githubCompareHandler(opts))
 
-	// The wildcard also serves GetBranchHead's two-segment "heads/{branch}"
-	// ref, which resolves to the newest fake commit. The more specific
-	// "/commits/{sha}/pulls" route still wins for PR-body lookups.
 	mux.HandleFunc("GET "+prefix+"/commits/{ref...}", func(w http.ResponseWriter, r *http.Request) {
 		ref := r.PathValue("ref")
 
@@ -622,7 +613,6 @@ func githubTagsHandler(opts GitHubOptions) http.HandlerFunc {
 	}
 }
 
-// githubCompareHandler returns commits ahead of the boundary, oldest first.
 func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		base, _, _ := strings.Cut(r.PathValue("spec"), "...")
@@ -636,13 +626,12 @@ func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
 
 		ahead, reachable := githubCommitsAhead(opts.Commits, boundarySHA)
 		if !reachable {
-			// Boundary exists but is not an ancestor of the branch.
 			writeJSON(w, githubComparisonPayload(nil, 0, "diverged"))
 
 			return
 		}
 
-		slices.Reverse(ahead) // compare returns oldest-first
+		slices.Reverse(ahead)
 
 		if opts.PaginateCommits && r.URL.Query().Get("page") != "2" {
 			w.Header().Set("Link", `<https://api.github.com/?page=2>; rel="next"`)
@@ -669,9 +658,6 @@ func githubResolveRefSHA(ref string, opts GitHubOptions) (string, bool) {
 	return "", false
 }
 
-// githubCommitsAhead returns the commits ahead of the boundary in the
-// newest-first list (the boundary commit and anything older are dropped). A
-// boundary absent from the list models an off-branch ref: not reachable.
 func githubCommitsAhead(commits []GitHubCommit, boundarySHA string) ([]GitHubCommit, bool) {
 	for idx, c := range commits {
 		if c.SHA == boundarySHA {

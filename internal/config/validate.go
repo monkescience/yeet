@@ -102,7 +102,6 @@ func (c *Config) validateReleaseAndTargets() error {
 	return nil
 }
 
-// TimeLocation resolves Timezone using the same rules enforced by Validate.
 func (c *Config) TimeLocation() (*time.Location, error) {
 	if strings.TrimSpace(c.Timezone) == "" {
 		return nil, Invalidf("timezone must not be blank")
@@ -304,7 +303,6 @@ func ValidateAutoMergeMode(mode AutoMergeMode) error {
 	return nil
 }
 
-// ValidateAutoMergeMethod reports whether method is supported by release providers.
 func ValidateAutoMergeMethod(method AutoMergeMethod) error {
 	switch method {
 	case AutoMergeMethodAuto, AutoMergeMethodSquash, AutoMergeMethodRebase, AutoMergeMethodMerge:

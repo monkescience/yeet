@@ -34,7 +34,6 @@ const (
 	FailureFileConflict         FailureKind = "file_conflict"
 )
 
-// MergeReason identifies why a forge refused to merge a release change.
 type MergeReason string
 
 const (
@@ -47,7 +46,6 @@ const (
 	MergeReasonUnknown   MergeReason = "unknown"
 )
 
-// Failure is the complete error interface returned by Run.
 type Failure struct { //nolint:errname // the selected release interface is intentionally named Failure
 	kind        FailureKind
 	configPath  string

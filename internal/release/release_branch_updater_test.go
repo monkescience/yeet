@@ -21,7 +21,6 @@ const updateFilesCommitSubject = "commit subject"
 
 var errUnexpectedHistoryScan = errors.New("release branch update must not scan commit history")
 
-// baseFileSource rejects history scans because an empty range would falsely report success.
 type baseFileSource struct {
 	files  releaseFileProvider
 	branch string

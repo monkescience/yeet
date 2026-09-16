@@ -35,7 +35,6 @@ type AzureOptions struct {
 	Reviewers                 map[string]string
 }
 
-// AzureCommit is a tiny subset of the Azure DevOps commit payload yeet reads.
 type AzureCommit struct {
 	SHA     string
 	Message string
@@ -48,7 +47,6 @@ var azureResourceLocations []byte
 //go:embed testdata/resource_areas_empty.json
 var azureResourceAreasEmpty []byte
 
-// NewAzure starts the Azure DevOps REST fake and registers its cleanup with t.
 func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	t.Helper()
 
@@ -170,10 +168,6 @@ func azureCommitsHandler(opts AzureOptions) http.HandlerFunc {
 	}
 }
 
-// azureCommitsSince returns the commits ahead of the boundary commit in the
-// newest-first list. The fixtures place the boundary commit at the tail, so
-// this drops it (and anything older). A boundary absent from the list is
-// treated as older than every listed commit.
 func azureCommitsSince(commits []AzureCommit, boundarySHA string) []AzureCommit {
 	for idx, c := range commits {
 		if c.SHA == boundarySHA {
@@ -575,10 +569,6 @@ func azureResolveRefSHA(ref string, opts AzureOptions) (string, bool) {
 		return fakeBaseSHA, true
 	}
 
-	// fakeMergeSHA stands in for the merge-commit SHA returned by the merged-PR
-	// fixtures. Real Azure DevOps would short-circuit a hex SHA via
-	// isAzureDevOpsCommitSHA. The fake recognises it here so finalize flows
-	// can resolve their tag target.
 	if ref == fakeMergeSHA {
 		return fakeMergeSHA, true
 	}

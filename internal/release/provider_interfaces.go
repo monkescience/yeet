@@ -9,9 +9,6 @@ import (
 
 type versionHistoryProvider interface {
 	ListTags(ctx context.Context) ([]string, error)
-	// GetCommitsSinceRefs resolves each ref to a boundary commit. knownTags
-	// supplies boundaries for refs the forge cannot be asked about yet, which is
-	// how a run scans from a tag it published itself.
 	GetCommitsSinceRefs(
 		ctx context.Context,
 		refs []string,

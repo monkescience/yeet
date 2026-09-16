@@ -1243,6 +1243,5 @@ func failProviderContractHandler(t *testing.T, message string) {
 
 	testastic.StringEmpty(t, message)
 
-	// Goexit stops the handler without calling FailNow outside the test goroutine.
 	runtime.Goexit()
 }

@@ -45,9 +45,6 @@ func foldTagRefs[T any](
 	return refs, nil
 }
 
-// findRefByName resolves one ref by its full name. Azure DevOps ref filters
-// match a prefix, so every page is read and the full name compared here, or a
-// sibling such as "refs/heads/main2" answers for "refs/heads/main".
 func findRefByName(ctx context.Context, fetch pageFetcher[git.GitRef], want string) (git.GitRef, bool, error) {
 	var found git.GitRef
 

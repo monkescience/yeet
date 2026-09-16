@@ -43,11 +43,8 @@ const (
 	FooterBreakingChanged = "BREAKING-CHANGE"
 )
 
-// BumpMapping defines per-type bump levels.
-// Types not present produce BumpNone. Breaking commits always produce BumpMajor regardless of mapping.
 type BumpMapping map[string]BumpType
 
-// Format: type(scope)!: description.
 var conventionalCommitPattern = regexp.MustCompile(
 	`^(?P<type>\p{L}[\p{L}\p{M}]*)` +
 		`(?:\((?P<scope>[^()\r\n]+)\))?` +
@@ -55,7 +52,6 @@ var conventionalCommitPattern = regexp.MustCompile(
 		`: (?P<description>\S.*)$`,
 )
 
-// Parse returns a Commit with an empty Type when the message is not conventional.
 func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c := Commit{
 		Hash: hash,
@@ -284,7 +280,6 @@ func commitBump(c Commit, mapping BumpMapping) BumpType {
 	return BumpNone
 }
 
-// CompareBump orders bump types by severity: none < patch < minor < major.
 func CompareBump(a, b BumpType) int {
 	return bumpOrder(a) - bumpOrder(b)
 }

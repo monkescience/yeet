@@ -12,8 +12,6 @@ import (
 	"github.com/monkescience/yeet/internal/history"
 )
 
-// When there is a single root-path target with no excludes, all commits belong to it
-// and path data is unnecessary, avoiding N+1 per-commit API calls.
 func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
 	if len(targets) != 1 {
 		return true

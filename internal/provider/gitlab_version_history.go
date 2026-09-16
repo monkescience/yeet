@@ -50,9 +50,6 @@ func (g *GitLab) tagPages(ctx context.Context, handle func(*gitlab.Tag) (bool, e
 	)
 }
 
-// GetBranchHead returns the commit SHA branch currently points at. The
-// branches API only resolves branch names, so a tag with the same name cannot
-// shadow it.
 func (g *GitLab) GetBranchHead(ctx context.Context, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {

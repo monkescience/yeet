@@ -23,7 +23,6 @@ type releaseText struct {
 	titles  *releaseTitleTemplates
 }
 
-// RenderedRelease contains every rendered value used to publish a release wave.
 type RenderedRelease struct {
 	PROptions     forge.ReleasePROptions
 	CommitSubject string

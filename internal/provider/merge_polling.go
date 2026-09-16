@@ -18,11 +18,8 @@ type mergePolling struct {
 	timeout     time.Duration
 }
 
-// MergePollingOption tunes how long a provider waits for a forge to finalize a
-// merge it has already accepted.
 type MergePollingOption func(*mergePolling)
 
-// WithMergePolling sets the poll intervals and overall wait budget.
 func WithMergePolling(initialInterval, maxInterval, timeout time.Duration) MergePollingOption {
 	return func(polling *mergePolling) {
 		if initialInterval > 0 {
@@ -54,10 +51,6 @@ func newMergePolling(options ...MergePollingOption) mergePolling {
 	return polling
 }
 
-// awaitMergedCommit calls resolve until it reports the commit an accepted merge
-// produced on the base branch. resolve returns an empty SHA while the forge is
-// still finalizing, and an error once the outcome is terminal. reference carries
-// the forge's own wording so error text stays provider-specific.
 func (p mergePolling) awaitMergedCommit(
 	ctx context.Context,
 	reference string,
@@ -100,8 +93,6 @@ func (p mergePolling) awaitMergedCommit(
 	}
 }
 
-// notFinalizedFrom keeps the cause that ended the wait alongside the sentinel,
-// so a forge that went unreachable stays distinguishable from a slow one.
 func (p mergePolling) notFinalizedFrom(reference string, cause error) error {
 	return &MergeNotFinalizedError{reference: reference, timeout: p.timeout, cause: cause}
 }

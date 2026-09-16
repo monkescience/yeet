@@ -111,7 +111,6 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 	}
 
 	if len(markers) > 1 {
-		// Changelog content is untrusted, so duplicate markers must fail closed.
 		return releaseManifest{}, true, fmt.Errorf("%w: multiple manifest markers in body", errInvalidReleaseManifest)
 	}
 

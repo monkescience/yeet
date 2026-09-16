@@ -26,9 +26,6 @@ func (g *GitHub) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 	return refs, nil
 }
 
-// GetBranchHead returns the commit SHA branch currently points at. The
-// "heads/" prefix pins the lookup to the branch namespace so a tag with the
-// same name cannot shadow it.
 func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {

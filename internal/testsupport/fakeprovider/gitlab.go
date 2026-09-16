@@ -43,7 +43,6 @@ type GitLabOptions struct {
 	Version                   string
 }
 
-// GitLabCommit is a tiny subset of the GitLab commit payload that yeet reads.
 type GitLabCommit struct {
 	SHA              string
 	Message          string
@@ -60,7 +59,6 @@ const (
 	gitlabStateOpened = "opened"
 )
 
-// NewGitLab starts the GitLab REST fake and registers its cleanup with t.
 func NewGitLab(t *testing.T, opts GitLabOptions) *httptest.Server {
 	t.Helper()
 
@@ -574,7 +572,6 @@ func registerGitLabContent(mux *http.ServeMux, prefix string, opts GitLabOptions
 	mux.HandleFunc(
 		"GET "+prefix+"/repository/files/{path...}",
 		func(w http.ResponseWriter, r *http.Request) {
-			// Strip a trailing "/raw" suffix from the path captured by the wildcard.
 			path := r.PathValue("path")
 			if len(path) > len("/raw") && path[len(path)-len("/raw"):] == "/raw" {
 				path = path[:len(path)-len("/raw")]
@@ -821,9 +818,6 @@ func gitlabResolveRefSHA(ref string, opts GitLabOptions) (string, bool) {
 	return "", false
 }
 
-// gitlabCommitsSince returns the commits ahead of the boundary in the
-// newest-first list (the boundary commit and anything older are dropped). A
-// boundary absent from the list is treated as older than every listed commit.
 func gitlabCommitsSince(commits []GitLabCommit, boundarySHA string) []GitLabCommit {
 	for idx, c := range commits {
 		if c.SHA == boundarySHA {

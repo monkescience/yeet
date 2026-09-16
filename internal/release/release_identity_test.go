@@ -10,8 +10,6 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// Markers every parser case starts from, written out rather than rendered, so
-// a change to the writer cannot move the input and the expectation together.
 const (
 	singleTargetManifestMarker = "<!-- yeet-release-manifest\n" +
 		`{"base_branch":"main","targets":` +

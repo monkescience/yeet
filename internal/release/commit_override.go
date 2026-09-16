@@ -85,9 +85,6 @@ func splitCommitOverrideMessages(ctx context.Context, block string, knownTypes m
 	return messages
 }
 
-// knownCommitTypes is the vocabulary the override splitter uses to tell a real
-// conventional header from a footer trailer like "Closes: #45" (which would
-// otherwise be split into a spurious commit).
 func knownCommitTypes(cfg *config.Config) map[string]struct{} {
 	types := make(map[string]struct{})
 

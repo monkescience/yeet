@@ -82,11 +82,6 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 	}, nil
 }
 
-// resolveReviewerIDs resolves usernames against project members (including
-// inherited group members) instead of the instance-wide users API: on
-// gitlab.com an instance-wide lookup resolves almost any typo to some
-// unrelated account, and GitLab silently drops reviewer IDs that cannot read
-// the merge request instead of failing.
 func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]int64, error) {
 	if len(usernames) == 0 {
 		return nil, nil
@@ -108,9 +103,6 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 	return ids, nil
 }
 
-// findProjectMemberID picks the exact username match: the members query
-// parameter is a fuzzy search over name and username, so the wanted member can
-// sit behind any number of looser matches.
 func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int64, error) {
 	options := &gitlab.ListProjectMembersOptions{
 		PerPage: gitLabPageSize,
@@ -163,9 +155,6 @@ func (g *GitLab) findProjectMemberID(ctx context.Context, username string) (int6
 	return id, nil
 }
 
-// verifyGitLabReviewers guards against GitLab silently applying fewer
-// reviewers than requested: the create API drops IDs without read access, and
-// the Free tier truncates the list to a single reviewer, both without error.
 func verifyGitLabReviewers(usernames []string, requestedIDs []int64, applied []*gitlab.BasicUser) error {
 	appliedIDs := make(map[int64]struct{}, len(applied))
 	for _, user := range applied {
@@ -195,8 +184,6 @@ func verifyGitLabReviewers(usernames []string, requestedIDs []int64, applied []*
 	return nil
 }
 
-// MaxPRBodyLength reports no enforced limit: GitLab accepts merge request
-// descriptions far larger than the release notes yeet generates.
 func (g *GitLab) MaxPRBodyLength() int {
 	return 0
 }
@@ -513,8 +500,6 @@ func (g *GitLab) PreflightReleasePRTagging(ctx context.Context, taggedLabel stri
 	return wrapReleasePRLabelsError(g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged"))
 }
 
-// applyLabels sends additions and removals in one atomic update, so the anchor
-// can never land without the rest or be dropped on its own.
 func (g *GitLab) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
 	addLabels := gitlab.LabelOptions(labelsAnchoredFirst(anchor, add))
 	removeLabels := gitlab.LabelOptions(remove)
@@ -634,8 +619,6 @@ func (m *gitLabMerge) execute(
 		gitlab.WithContext(ctx),
 	)
 	if err != nil {
-		// GitLab answers a conflicting or already closed merge request with 405
-		// rather than a body explaining itself.
 		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
 			return "", false, gitLabAcceptRefused(current.Reference, err.Error())
 		}
@@ -647,8 +630,6 @@ func (m *gitLabMerge) execute(
 		return "", true, nil
 	}
 
-	// MergeError is free-form English with no SDK constants, so it is reported
-	// verbatim rather than matched on.
 	if mergeError := strings.TrimSpace(merged.MergeError); mergeError != "" {
 		return "", false, gitLabAcceptRefused(current.Reference, mergeError)
 	}
@@ -664,8 +645,6 @@ func (m *gitLabMerge) execute(
 		}
 	}
 
-	// Fast-forward projects populate no merge or squash commit, so the source tip
-	// only becomes the release ref once GitLab reports the MR merged.
 	return "", true, nil
 }
 
@@ -709,9 +688,6 @@ func isTrustedGitLabReleasePR(
 		isGitLabSameProject(sourceProjectID, targetProjectID)
 }
 
-// validateReleasePRLabels runs before the merge request exists, so a label
-// configuration GitLab or yeet rejects cannot leave an unlabelled merge request
-// behind.
 func (g *GitLab) validateReleasePRLabels(ctx context.Context, labels forge.ReleasePRLabels) error {
 	err := validateGitLabReleasePRLabels(labels)
 	if err != nil {

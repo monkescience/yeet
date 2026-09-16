@@ -43,9 +43,6 @@ type UnitResult struct {
 	Error       error
 }
 
-// FinalizedRelease pairs a published release with the target it belongs to and
-// the commit it was cut from, neither of which the forge's release object
-// carries.
 type FinalizedRelease struct {
 	TargetID  string
 	CommitSHA string
@@ -80,8 +77,6 @@ type versionStrategy struct {
 	prefix   string
 }
 
-// newReleaseCore resolves everything a run can determine from configuration
-// alone, so target selection can be checked before any source is opened.
 func newReleaseCore(
 	ctx context.Context,
 	cfg *config.Config,

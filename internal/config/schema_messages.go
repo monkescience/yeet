@@ -10,9 +10,6 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
-// schemaRule renders one shape violation in the wording validate.go used before
-// the schema took the rule over. The table is ordered so that a config breaking
-// several rules reports the same one it reported when Go owned them all.
 type schemaRule struct {
 	path    []string
 	keyword string
@@ -37,8 +34,6 @@ const (
 	anySegment  = "*"
 	releaseNode = "release"
 
-	// versionFileEntryDepth is the distance from a version file property back to
-	// the version_files collection that validate.go named in its messages.
 	versionFileEntryDepth = 2
 )
 
@@ -266,8 +261,6 @@ func labelRules(path []string) []schemaRule {
 	}
 }
 
-// entryRules covers a string array whose blank entries and padded entries carry
-// different wording, the way validate.go phrased extra labels and reviewers.
 func entryRules(path []string, blankSuffix, entryPrefix string) []schemaRule {
 	item := append(slices.Clone(path), anySegment)
 	blank := containerRule(item, keywordMinLength, blankSuffix)
@@ -363,8 +356,6 @@ func indexedRule(path []string, keyword, suffix string) schemaRule {
 	}
 }
 
-// containerRule reports against the collection holding the offending entry,
-// which is how validate.go worded rules on array items and nested objects.
 func containerRule(path []string, keyword, suffix string) schemaRule {
 	depth := 0
 
@@ -477,8 +468,6 @@ func container(location []string, depth int) string {
 	return dotted(location[:len(location)-depth])
 }
 
-// indexed renders array positions the way validate.go did, as patterns[0]
-// rather than patterns.0.
 func indexed(location []string) string {
 	rendered := strings.Builder{}
 

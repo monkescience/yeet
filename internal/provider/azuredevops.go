@@ -34,11 +34,6 @@ type AzureDevOps struct {
 	clientErr  error
 }
 
-// NewAzureDevOps constructs the provider client.
-// baseURL must be the host-level base (e.g. https://dev.azure.com or a
-// self-hosted host). The collection segment is appended internally. collection
-// defaults to organization on cloud deployments. The supplied httpClient is
-// used for resource discovery and Git API requests.
 func NewAzureDevOps(
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
@@ -109,9 +104,6 @@ func (a *AzureDevOps) PathPrefix() string {
 	return ""
 }
 
-// CompareURL builds the branch-compare URL.
-// Azure DevOps uses query parameters with prefixed version refs: GC for commit
-// SHAs, GT for tag names.
 func (a *AzureDevOps) CompareURL(fromRef, toRef string) string {
 	query := url.Values{}
 	query.Set("baseVersion", azureDevOpsCompareRef(fromRef))
@@ -128,8 +120,6 @@ func azureDevOpsCompareRef(ref string) string {
 	return "GT" + ref
 }
 
-// Construction performs an HTTP roundtrip to fetch resource areas, which is why
-// it cannot happen in NewAzureDevOps (no context available there).
 func (a *AzureDevOps) client(ctx context.Context) (git.Client, error) {
 	a.clientOnce.Do(func() {
 		gitClient, err := newAzureDevOpsGitClient(ctx, a.conn, a.httpClient)
@@ -206,8 +196,6 @@ func newAzureDevOpsGitClient(
 	return &git.ClientImpl{Client: *client}, nil
 }
 
-// The SDK wraps non-2xx responses in azuredevops.WrappedError with a
-// StatusCode pointer. Returns 0 if no status code is available.
 func azureDevOpsStatusCode(err error) int {
 	if err == nil {
 		return 0

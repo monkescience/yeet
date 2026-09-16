@@ -60,9 +60,6 @@ func analyze(
 	return plans, nil
 }
 
-// scanHistory runs the ordered pass the whole analysis depends on: list tags,
-// then resolve every target boundary the shared scan can cover in one range
-// request. Its result carries the phase outputs the planning pass reads.
 func (a *releaseAnalyzer) scanHistory(
 	ctx context.Context,
 	selection releaseSelection,
@@ -91,9 +88,6 @@ func (a *releaseAnalyzer) scanHistory(
 	return scan, nil
 }
 
-// withExtraTags folds in tags this run published itself. They come from the
-// operation that created them, so they are known even when a forge tag listing
-// has not caught up yet.
 func withExtraTags(tags []string, extraTags []forge.TagRef) []string {
 	if len(extraTags) == 0 {
 		return tags

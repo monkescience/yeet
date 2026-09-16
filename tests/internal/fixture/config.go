@@ -1,4 +1,3 @@
-// Package fixture writes on-disk artifacts for blackbox tests.
 package fixture
 
 import (

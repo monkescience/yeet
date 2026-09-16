@@ -70,8 +70,6 @@ type resolvedAzureDevOpsRepository struct {
 
 func (*resolvedAzureDevOpsRepository) providerName() string { return providerNameAzureDevOps }
 
-// forgeToken records which environment variable supplied the token, because
-// Azure DevOps authenticates a pipeline system token differently from a PAT.
 type forgeToken struct {
 	envVar string
 	value  string
@@ -270,8 +268,6 @@ func newGitLabProvider(
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
 ) (forge.Provider, error) {
-	// client-go owns its own retryablehttp layer, so it takes the traced inner
-	// client and the same bounds rather than a second retrying round tripper.
 	opts := []gitlab.ClientOptionFunc{
 		gitlab.WithHTTPClient(httpClient.HTTPClient),
 		gitlab.WithRequestLogHook(httpClient.RequestLogHook),

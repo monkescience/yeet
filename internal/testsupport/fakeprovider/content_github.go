@@ -16,8 +16,6 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-// NewGitHubContentProvider returns a real GitHub adapter wired to a stateful
-// content fake over content.
 func NewGitHubContentProvider(t *testing.T, content *RepoContent) forge.Provider {
 	t.Helper()
 
@@ -35,8 +33,6 @@ func NewGitHubContentProvider(t *testing.T, content *RepoContent) forge.Provider
 	return provider.NewGitHub(client, ContentOwner, ContentRepo)
 }
 
-// gitHubContentState holds the tree and commit objects a push travels through,
-// because GitHub commits a branch in four requests rather than one.
 type gitHubContentState struct {
 	mu          sync.Mutex
 	branchBySHA map[string]string

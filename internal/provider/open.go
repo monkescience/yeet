@@ -14,10 +14,6 @@ type openDependencies struct {
 	create       func(resolvedRepository, providerSettings) (forge.Provider, error)
 }
 
-// RepositoryOverrides carries command-level repository facts without
-// mutating the loaded configuration. A nil field means that the command did
-// not provide an override, while a non-nil pointer preserves an explicitly
-// empty value.
 type RepositoryOverrides struct {
 	Provider *string
 	Remote   *string

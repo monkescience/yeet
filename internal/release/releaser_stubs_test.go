@@ -191,7 +191,6 @@ type providerStub struct {
 	*releasePublishingStub
 }
 
-// SetReleasePRLabels resolves the embedded method conflict while preserving phase-specific call recording.
 func (s *providerStub) SetReleasePRLabels(
 	ctx context.Context,
 	number int,

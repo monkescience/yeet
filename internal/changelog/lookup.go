@@ -6,13 +6,8 @@ import (
 	"strings"
 )
 
-// ErrEntryNotFound reports that a changelog holds no entry for a tag.
 var ErrEntryNotFound = errors.New("changelog entry not found")
 
-// EntryByTag returns the raw text of the entry a changelog holds for a tag,
-// bounded by the next release heading. The slice is returned verbatim because
-// its consumers publish it as release notes, and re-rendering it would reformat
-// entries this process did not write.
 func EntryByTag(document, tag string) (string, error) {
 	index := newMarkdownIndex(document)
 

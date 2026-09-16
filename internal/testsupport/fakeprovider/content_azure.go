@@ -11,8 +11,6 @@ import (
 	"github.com/monkescience/yeet/internal/provider"
 )
 
-// NewAzureContentProvider returns a real Azure DevOps adapter wired to a
-// stateful content fake over content.
 func NewAzureContentProvider(t *testing.T, content *RepoContent) forge.Provider {
 	t.Helper()
 
@@ -97,8 +95,6 @@ func azureContentRefs(w http.ResponseWriter, content *RepoContent, filter string
 	})
 }
 
-// azureContentUpdateRefs answers the branch reset without moving any blob,
-// because Azure DevOps commits the content in the push that follows.
 func azureContentUpdateRefs(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 

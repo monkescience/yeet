@@ -69,10 +69,6 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 	}, nil
 }
 
-// validateReviewers runs before the pull request is created: a reviewer
-// failure after creation would leave an unlabeled PR that
-// FindOpenPendingReleasePRs cannot pick up, wedging every subsequent run.
-// GitHub only accepts collaborators as reviewers.
 func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) error {
 	if len(reviewers) == 0 {
 		return nil
@@ -98,8 +94,6 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 	return nil
 }
 
-// MaxPRBodyLength reports no enforced limit: GitHub accepts pull request bodies
-// far larger than the release notes yeet generates.
 func (g *GitHub) MaxPRBodyLength() int {
 	return 0
 }
@@ -429,8 +423,6 @@ func (g *GitHub) PreflightReleasePRTagging(ctx context.Context, taggedLabel stri
 	return wrapReleasePRLabelsError(g.labelDefinitions().validateExisting(ctx, taggedLabel, "tagged"))
 }
 
-// applyLabels sends every addition in one request, which puts the anchor on the
-// pull request before any removal is attempted.
 func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
 	err := g.addIssueLabels(ctx, number, labelsAnchoredFirst(anchor, add))
 	if err != nil {
@@ -516,8 +508,6 @@ func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method fo
 		slog.String("merge_sha", result.GetSHA()),
 	)
 
-	// GitHub occasionally reports a merge without its commit SHA, most often when
-	// reading a pull request that merged moments earlier.
 	mergeSHA := strings.TrimSpace(result.GetSHA())
 
 	return mergeSHA, mergeSHA == "", nil

@@ -8,7 +8,6 @@ import (
 
 const dateLayout = "2006-01-02"
 
-// Entry is one release's worth of changelog, structured until it is rendered.
 type Entry struct {
 	Version       string
 	Date          time.Time
@@ -19,8 +18,6 @@ type Entry struct {
 	OwnedHeadings []string
 }
 
-// Section is a level-3 heading and its lines. Nested sections carry the child
-// targets of a derived entry; nesting depth does not map to heading level.
 type Section struct {
 	Heading        string
 	Lines          []string
@@ -28,7 +25,6 @@ type Section struct {
 	includedTarget bool
 }
 
-// Render writes an entry as changelog Markdown.
 func Render(entry Entry) string {
 	var sb strings.Builder
 
@@ -43,7 +39,6 @@ func Render(entry Entry) string {
 	return sb.String()
 }
 
-// RenderBody writes an entry without its release heading.
 func RenderBody(entry Entry) string {
 	if len(entry.Intro) == 0 && len(entry.Outro) == 0 {
 		return renderSections(entry.Sections)
@@ -69,8 +64,6 @@ func RenderBody(entry Entry) string {
 	return strings.Join(blocks, "\n\n") + "\n"
 }
 
-// RenderSections writes a run of sections without an entry heading, for callers
-// that frame them in something other than a changelog entry.
 func RenderSections(sections []Section) string {
 	return renderSections(sections)
 }
@@ -79,9 +72,6 @@ func renderFreeform(lines []string) string {
 	return strings.Join(trimBlankEdges(lines), "\n")
 }
 
-// PrependEntry splices a rendered entry into a changelog document. A document
-// that does not open with a level-one heading is not one this package wrote, so
-// its text is carried below the new entry rather than treated as a preamble.
 func PrependEntry(existing, newEntry string) string {
 	if strings.TrimSpace(existing) == "" {
 		return Prepend("", newEntry)
@@ -96,7 +86,6 @@ func PrependEntry(existing, newEntry string) string {
 	return Prepend("", combined)
 }
 
-// DirectSections keeps the sections that belong directly to an entry.
 func DirectSections(sections []Section) []Section {
 	direct := make([]Section, 0, len(sections))
 
@@ -109,11 +98,6 @@ func DirectSections(sections []Section) []Section {
 	return direct
 }
 
-// DerivedEntry nests child entries under a parent's own sections. Every heading
-// the parent may own is recorded, not only the children present now, so a child
-// that released in an earlier wave is never mistaken for a hand-written
-// addition on a later merge. The compare URL is dropped because only the caller
-// knows which ref the wave it is rendering compares against.
 func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entry {
 	sections := make([]Section, 0, len(direct.Sections)+len(children))
 	sections = append(sections, direct.Sections...)
@@ -135,8 +119,6 @@ func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entr
 	return derived
 }
 
-// Prepend splices a rendered entry into an existing changelog at the first
-// release heading, copying everything already in the file through verbatim.
 func Prepend(existing, newEntry string) string {
 	const header = "# Changelog\n\n"
 
@@ -246,9 +228,6 @@ func renderSections(sections []Section) string {
 	return sb.String()
 }
 
-// A section carrying child targets closes with a blank line of its own. Every
-// changelog yeet has published for a derived target contains that spacing, so
-// it is part of the format rather than an artifact of how it was written.
 func sectionSeparator(previous Section) string {
 	if len(previous.Sections) > 0 {
 		return "\n\n"

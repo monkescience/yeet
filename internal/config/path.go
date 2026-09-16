@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-// RepoPathContains reports whether candidatePath is inside basePath using
-// repo-relative forward-slash semantics. A basePath of "." contains everything.
 func RepoPathContains(basePath, candidatePath string) bool {
 	if basePath == "." {
 		return true
@@ -47,7 +45,6 @@ func normalizeRepoPath(rawPath string) (string, error) {
 	return normalizedPath, nil
 }
 
-// NormalizeRepoFilePath returns a canonical repo-relative file path.
 func NormalizeRepoFilePath(rawPath string) (string, error) {
 	normalizedPath, err := normalizeRepoPath(rawPath)
 	if err != nil {

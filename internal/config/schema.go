@@ -15,9 +15,6 @@ import (
 	yeet "github.com/monkescience/yeet"
 )
 
-// schemaID matches the $id inside yeet.schema.json. It identifies the document
-// rather than locating it, so it stays constant across releases while the URL
-// yeet init writes moves with the version.
 const schemaID = "https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json"
 
 var compiledSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
@@ -106,8 +103,6 @@ func collectViolations(node *jsonschema.ValidationError, instance any, parent sc
 	case *kind.OneOf:
 		causes = oneOfBranch(node, instance)
 	case *kind.PropertyNames:
-		// The nested cause validates the key on its own and carries no instance
-		// location, so the offending object is only nameable from this node.
 		causes = nil
 	}
 
@@ -163,10 +158,6 @@ func leafViolations(node *jsonschema.ValidationError, instance any, parent schem
 	}
 }
 
-// propertyNamesLocation rebuilds the instance path of a propertyNames failure.
-// The library assigns that error the validator's live location slice, which has
-// moved on by the time the error is read, so the path is walked back from the
-// nearest ancestor whose location was copied.
 func propertyNamesLocation(parent schemaNode, schemaURL string) []string {
 	suffix, found := strings.CutPrefix(schemaURL, parent.schemaURL)
 	if !found {
@@ -194,8 +185,6 @@ func resolvedSchemaURL(node *jsonschema.ValidationError) string {
 	return node.SchemaURL
 }
 
-// oneOfBranch keeps only the branch the user wrote in, so a malformed path
-// target does not also report every rule of a derived target.
 func oneOfBranch(node *jsonschema.ValidationError, instance any) []*jsonschema.ValidationError {
 	const firstBranch, secondBranch = 0, 1
 

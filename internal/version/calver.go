@@ -30,13 +30,10 @@ type CalVer struct {
 	Now    func() time.Time
 }
 
-// SupportsReleaseAs reports false: a calendar version is derived from the clock,
-// so an explicit version override has nothing to act on.
 func (c *CalVer) SupportsReleaseAs() bool {
 	return false
 }
 
-// SupportsPrerelease reports false: prerelease channels are a semver construct.
 func (c *CalVer) SupportsPrerelease() bool {
 	return false
 }
@@ -46,8 +43,6 @@ func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
 		fmt.Errorf("%w: calver targets do not support %q", ErrInvalidReleaseAs, value))
 }
 
-// NextRelease ignores releaseAs and prereleaseIdentifier: this scheme supports
-// neither, and callers are expected to ask before offering them.
 func (c *CalVer) NextRelease(
 	current string,
 	bump commit.BumpType,
@@ -94,8 +89,6 @@ func (c *CalVer) Current(tag string) (string, error) {
 	return format.render(parts), nil
 }
 
-// Next advances MICRO for every non-none bump because conventional bump
-// severity does not map to CalVer calendar components.
 func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 	if bump == commit.BumpNone {
 		return current, nil
@@ -132,7 +125,6 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 	return format.render(nowParts), nil
 }
 
-// InitialVersion returns an empty string since calver starts from the current date.
 func (c *CalVer) InitialVersion() string {
 	return ""
 }
@@ -223,7 +215,6 @@ type calverTokenSpec struct {
 }
 
 var calverTokenSpecs = []calverTokenSpec{
-	// Overlapping tokens must stay longest-first so YYYY wins before YY.
 	{text: string(calverTokenMicro), token: calverTokenMicro},
 	{text: string(calverTokenYearFull), token: calverTokenYearFull},
 	{text: string(calverTokenYearShort), token: calverTokenYearShort},
@@ -497,7 +488,6 @@ func (f calverFormat) partsFromTime(t time.Time) calverParts {
 	}
 }
 
-// ordinalWeek numbers seven-day periods from January 1, not ISO weeks.
 func ordinalWeek(t time.Time) int {
 	return ((t.YearDay() - 1) / weekDays) + 1
 }

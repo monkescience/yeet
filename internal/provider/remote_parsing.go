@@ -42,9 +42,6 @@ func parseRemote(remoteURL string) (*repositoryDescriptor, error) {
 
 var remoteURLUserinfoPattern = regexp.MustCompile(`://[^/@]+@`)
 
-// redactRemoteURL hides the entire userinfo because tokens appear both as
-// password (user:token@) and as username (token@), and must never reach
-// error output or CI logs.
 func redactRemoteURL(remoteURL string) string {
 	return remoteURLUserinfoPattern.ReplaceAllString(remoteURL, "://***@")
 }
@@ -106,14 +103,6 @@ func splitProjectPath(project string) (string, string) {
 	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1]
 }
 
-// parseAzureDevOpsRemote handles ADO URL shapes that the generic parser cannot:
-//   - https://dev.azure.com/{org}/{project}/_git/{repo}
-//   - https://{org}@dev.azure.com/{org}/{project}/_git/{repo}
-//   - https://{org}.visualstudio.com/{project}/_git/{repo}
-//   - git@ssh.dev.azure.com:v3/{org}/{project}/{repo}
-//
-// Returns ErrUnknownRemote when the URL is not an ADO remote so callers can fall
-// through to the generic parsers.
 func parseAzureDevOpsRemote(remoteURL string) (*repositoryDescriptor, error) {
 	parsed, err := parseAzureDevOpsHTTPRemote(remoteURL)
 	if err == nil {
@@ -203,11 +192,6 @@ func azureDevOpsDescriptorFromLegacySegments(host string, segments []string) (*r
 	}, nil
 }
 
-// azureDevOpsAPIHost resolves the host the Azure DevOps API is served from. The
-// legacy {org}.visualstudio.com form carries the organization in the subdomain
-// while the API takes it as the first path segment, so keeping the subdomain
-// would append the organization a second time
-// (https://{org}.visualstudio.com/{org}/_apis) and 404.
 func azureDevOpsAPIHost(host string) string {
 	host = strings.TrimSpace(host)
 	if host == "" || strings.HasSuffix(strings.ToLower(host), azureDevOpsLegacyHostSuffix) {

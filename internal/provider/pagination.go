@@ -66,8 +66,6 @@ func paginateByCursor[T any, C comparable](
 	return paginationLimitExceeded(resource)
 }
 
-// paginateAzureDevOpsBySkip walks Azure DevOps $skip/$top APIs. After the page
-// limit, one empty probe distinguishes exact capacity from overflow.
 func paginateAzureDevOpsBySkip[T any](
 	ctx context.Context,
 	resource string,

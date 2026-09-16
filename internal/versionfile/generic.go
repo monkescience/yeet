@@ -38,21 +38,13 @@ var allMarkerScopes = []markerScope{
 }
 
 var (
-	// ErrUnclosedBlockMarker is returned when an x-yeet-start-* block has no matching x-yeet-end.
-	ErrUnclosedBlockMarker = errors.New("unclosed x-yeet-start block")
-	// ErrNestedBlockMarker is returned when an x-yeet-start-* appears inside an already-open block.
-	ErrNestedBlockMarker = errors.New("nested x-yeet-start inside open block")
-	// ErrMarkerNoMatch is returned when an inline marker's line has no value matching the expected pattern.
-	ErrMarkerNoMatch = errors.New("yeet marker on line without matching version pattern")
-	// ErrNoMarkersFound is returned when a configured version file has no yeet markers at all.
-	ErrNoMarkersFound = errors.New("file has no yeet markers")
-	// ErrMarkerSchemeMismatch is returned when a marker's scope is not valid for the
-	// configured versioning scheme (or, for CalVer, not present in the configured format).
+	ErrUnclosedBlockMarker  = errors.New("unclosed x-yeet-start block")
+	ErrNestedBlockMarker    = errors.New("nested x-yeet-start inside open block")
+	ErrMarkerNoMatch        = errors.New("yeet marker on line without matching version pattern")
+	ErrNoMarkersFound       = errors.New("file has no yeet markers")
 	ErrMarkerSchemeMismatch = errors.New("yeet marker scope not valid for configured scheme")
-	// ErrInvalidNextVersion is returned when the next version cannot be parsed under the configured scheme.
-	ErrInvalidNextVersion = errors.New("invalid next version")
-	// ErrInvalidScheme is returned when marker replacement receives an incomplete versioning scheme.
-	ErrInvalidScheme = errors.New("invalid versioning scheme")
+	ErrInvalidNextVersion   = errors.New("invalid next version")
+	ErrInvalidScheme        = errors.New("invalid versioning scheme")
 )
 
 type MarkerError struct {
@@ -76,9 +68,6 @@ var majorPattern = regexp.MustCompile(`\d+\b`)
 
 var minorPatchPattern = regexp.MustCompile(`\b\d+\b`)
 
-// commentPrefix requires a real comment opener (not arbitrary text like
-// backticks or list markers) before a yeet marker. This keeps prose mentions
-// of marker names in READMEs from being interpreted as live markers.
 const commentPrefix = `(?:#+|//+|/\*+|--+|;+|<!--)[ \t]*`
 
 var scopeAlternation = buildScopeAlternation()
@@ -98,9 +87,6 @@ func buildScopeAlternation() string {
 	return "(" + strings.Join(parts, "|") + ")"
 }
 
-// Scheme tells ApplyGenericMarkers which marker scopes are valid and how to
-// extract token values from the next-version string. Use SemVerScheme or
-// CalVerScheme to construct.
 type Scheme struct {
 	kind   schemeKind
 	calver *version.CalVerScheme
@@ -117,17 +103,10 @@ func SemVerScheme() Scheme {
 	return Scheme{kind: schemeSemVer}
 }
 
-// CalVerScheme returns the scheme for CalVer repositories using the given
-// compiled CalVer format. The compiled format is reused across files so the
-// caller pays the compilation cost once per target.
 func CalVerScheme(calver *version.CalVerScheme) Scheme {
 	return Scheme{kind: schemeCalVer, calver: calver}
 }
 
-// ApplyGenericMarkers applies yeet marker-based version replacements to file content.
-// It returns the updated content, whether anything changed, and an error describing any
-// structural problem (unclosed/nested blocks, inline markers without a matching pattern,
-// markers with a scope not valid for the scheme, or a file with no markers at all).
 func ApplyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bool, error) {
 	if content == "" {
 		return content, false, nil
@@ -313,9 +292,6 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 	return line, nil
 }
 
-// processBlockLine substitutes values inside an open block. Block markers
-// intentionally tolerate non-matching lines (e.g. yaml structure). Only the
-// inline marker form requires a numeric value on the marker line itself.
 func (p *markerParser) processBlockLine(line string, lineNo int) (string, error) {
 	if _, isNested := markerScopeFromLine(line, blockStartPattern); isNested {
 		return line, fmt.Errorf(

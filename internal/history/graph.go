@@ -23,8 +23,6 @@ type localHistory struct {
 
 type branchGraph struct {
 	nodes map[plumbing.Hash]*graphNode
-	// order holds every reachable commit newest-first: committer time
-	// descending, traversal index ascending as the tie breaker.
 	order []plumbing.Hash
 }
 
@@ -98,9 +96,6 @@ func (l *localHistory) hydratePaths(ctx context.Context, hashes []plumbing.Hash)
 	return nil
 }
 
-// refRange returns the hashes reachable from head but not from ref's
-// boundary, newest-first. The empty ref means the complete history. A
-// boundary outside the branch graph reports the ref as unreachable.
 func (l *localHistory) refRange(
 	graph *branchGraph,
 	ref string,
@@ -207,9 +202,6 @@ func (l *localHistory) branchGraph(ctx context.Context) (*branchGraph, error) {
 	return l.graph, nil
 }
 
-// ancestorSet returns every commit reachable from boundary, boundary included.
-// The set is intentionally scoped to one range calculation. Retaining one set
-// per boundary makes memory grow with the commit count multiplied by ref count.
 func ancestorSet(graph *branchGraph, boundary plumbing.Hash) map[plumbing.Hash]struct{} {
 	set := make(map[plumbing.Hash]struct{})
 	pending := []plumbing.Hash{boundary}
@@ -232,9 +224,6 @@ func ancestorSet(graph *branchGraph, boundary plumbing.Hash) map[plumbing.Hash]s
 	return set
 }
 
-// commitPaths diffs the commit against its first parent (or the empty tree
-// for a root commit) with rename detection, recording both the old and the
-// new path of every file change, deduplicated in encounter order.
 func (l *localHistory) commitPaths(ctx context.Context, hash plumbing.Hash) ([]string, error) {
 	commit, err := l.repo.CommitObject(hash)
 	if err != nil {

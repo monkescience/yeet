@@ -28,17 +28,13 @@ type Generator struct {
 	compiledPatterns []compiledPattern
 }
 
-// Option configures a Generator.
 type Option func(*Generator)
 
-// References configures how commit text is linked to an issue tracker.
 type References struct {
 	Patterns []ReferencePattern
 	Footers  map[string]string
 }
 
-// ReferencePattern links every match of Pattern to URL, with "{value}" in URL
-// replaced by the matched text.
 type ReferencePattern struct {
 	Pattern string
 	URL     string
@@ -49,7 +45,6 @@ type compiledPattern struct {
 	url string
 }
 
-// New builds a changelog Generator from the given options.
 func New(opts ...Option) *Generator {
 	g := &Generator{}
 	for _, opt := range opts {
@@ -59,37 +54,30 @@ func New(opts ...Option) *Generator {
 	return g
 }
 
-// WithSections maps commit types to changelog section headings.
 func WithSections(sections map[string]string) Option {
 	return func(g *Generator) { g.sections = sections }
 }
 
-// WithInclude sets the commit types included in the changelog, in order.
 func WithInclude(include []string) Option {
 	return func(g *Generator) { g.include = include }
 }
 
-// WithRepoURL sets the repository URL used to link commit hashes.
 func WithRepoURL(repoURL string) Option {
 	return func(g *Generator) { g.repoURL = repoURL }
 }
 
-// WithPathPrefix sets the provider-specific path prefix inserted into commit links.
 func WithPathPrefix(pathPrefix string) Option {
 	return func(g *Generator) { g.pathPrefix = pathPrefix }
 }
 
-// WithCompareURL sets the function that builds the version-compare URL.
 func WithCompareURL(compareURL func(fromRef, toRef string) string) Option {
 	return func(g *Generator) { g.compareURL = compareURL }
 }
 
-// WithReferences sets the reference linking configuration.
 func WithReferences(references References) Option {
 	return func(g *Generator) { g.references = references }
 }
 
-// WithDate uses one captured release date instead of reading the clock during generation.
 func WithDate(date time.Time) Option {
 	return func(g *Generator) { g.date = date }
 }
@@ -129,10 +117,6 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 	return entry
 }
 
-// OwnedHeadings returns every heading this generator could emit, which is a
-// larger set than the headings any single entry does emit. A heading the
-// generator owns but left out was dropped on purpose, while an unknown heading
-// was added by a human.
 func (g *Generator) OwnedHeadings() []string {
 	breakingHeading := g.breakingHeading()
 	headings := make([]string, 0, len(g.sections)+len(g.include)+1)
@@ -362,8 +346,6 @@ func breakingDescription(c commit.Commit) string {
 	return c.Description
 }
 
-// Order is load-bearing: strip control chars before escaping, else a control byte
-// splitting "<!--" evades the escaper and the strip reassembles the manifest marker.
 func sanitizeCommitText(s string) string {
 	stripped := strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\r' {

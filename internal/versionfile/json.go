@@ -19,7 +19,6 @@ var (
 	ErrJSONPointerNonString = errors.New("json pointer does not resolve to a string")
 )
 
-// ApplyJSONPointer updates the string value addressed by an RFC 6901 JSON Pointer.
 func ApplyJSONPointer(content, nextVersion, pointer string) (string, bool, error) {
 	path, err := parseJSONPointer(pointer)
 	if err != nil {
@@ -203,7 +202,6 @@ func stringTokenStart(data []byte, end int) (int, error) {
 		return 0, ErrInvalidJSON
 	}
 
-	// Decoder.InputOffset points after the closing quote. An even backslash run identifies an unescaped opener.
 	for i := end - jsonStringQuoteCount; i >= 0; i-- {
 		if data[i] != '"' || hasOddBackslashesBefore(data, i) {
 			continue

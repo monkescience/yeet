@@ -7,16 +7,8 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// mergeState is a forge pull request reduced to the fields the merge policy
-// needs, in one vocabulary. Normalising into it is where forge differences get
-// named instead of buried in three adapters.
 type mergeState struct {
-	// Reference is the forge's own wording for the request, such as
-	// "pull request #42" or "merge request !42". It reaches error text verbatim.
-	Reference string
-	// RawReadiness is the forge's own readiness expression, such as
-	// "mergeable_state=blocked". It reaches error text verbatim and the driver
-	// never interprets it.
+	Reference        string
 	RawReadiness     string
 	MergeCommitSHA   string
 	HeadSHA          string
@@ -37,13 +29,6 @@ type mergeRefusal struct {
 	detail string
 }
 
-// forgeMerge is the per-forge half of the merge path: normalising the forge's
-// pull request, resolving the merge method its capability model accepts, and
-// issuing the merge itself.
-//
-// execute reports pending when the forge accepted the merge but has not applied
-// it, which is what sends the driver into the polling loop. A forge whose API
-// reveals a refusal immediately returns an error instead.
 type forgeMerge[M any] interface {
 	state(ctx context.Context) (mergeState, error)
 	resolveMethod(ctx context.Context, requested forge.MergeMethod) (M, error)

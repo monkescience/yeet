@@ -2,11 +2,6 @@ package changelog
 
 import "strings"
 
-// Merge carries hand-written sections from a foreign entry into a freshly
-// generated one. A foreign section survives when its heading is neither
-// regenerated nor owned by the generator and its lines are not already in the
-// generated entry. Survivors keep their position relative to the next
-// generated section.
 func Merge(generated, foreign Entry) Entry {
 	foreign = extractOutro(generated, foreign)
 
@@ -84,9 +79,6 @@ func splitOutro(lines []string) ([]string, []string, bool) {
 	return nil, nil, false
 }
 
-// flattenSections projects nested child targets onto one level. A child target
-// heading and a section heading are both level 3, so the flat form is what the
-// two sides of a merge have in common.
 func flattenSections(sections []Section) []Section {
 	return flattenSectionsFromTarget(sections, false)
 }

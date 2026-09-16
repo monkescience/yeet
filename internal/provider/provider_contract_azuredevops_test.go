@@ -1028,7 +1028,6 @@ func TestAzureDevOpsLifecycleLabelRemovalMatchesCaseInsensitively(t *testing.T) 
 	testastic.True(t, deleted.Load())
 }
 
-// Azure's SDK performs lazy bootstrap requests before scenario-specific calls.
 func newAzureDevOpsContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
 	t.Helper()
 
@@ -1454,7 +1453,6 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 	}
 }
 
-// Azure DevOps creates label definitions on attachment, so registry state does not apply.
 func newAzureDevOpsContractLabelHandler(
 	t *testing.T,
 	store *providerContractLabelStore,

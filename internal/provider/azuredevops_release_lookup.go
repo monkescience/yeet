@@ -158,8 +158,6 @@ func (a *AzureDevOps) azureDevOpsAnnotatedTagRelease(
 	}
 }
 
-// The query string trips charmlog's logfmt quoting, which Azure pipeline logs
-// then mis-linkify by appending the closing quote as %22. Manual copy works.
 func (a *AzureDevOps) tagWebURL(tag string) string {
 	query := url.Values{}
 	query.Set("version", "GT"+tag)

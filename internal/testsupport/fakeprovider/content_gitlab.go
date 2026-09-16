@@ -14,8 +14,6 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 )
 
-// NewGitLabContentProvider returns a real GitLab adapter wired to a stateful
-// content fake over content.
 func NewGitLabContentProvider(t *testing.T, content *RepoContent) forge.Provider {
 	t.Helper()
 

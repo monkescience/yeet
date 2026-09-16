@@ -9,26 +9,22 @@ import (
 	"sync"
 	"time"
 
-	retryablehttp "github.com/hashicorp/go-retryablehttp"
+	"github.com/hashicorp/go-retryablehttp"
 )
 
-// Tracer logs sanitized metadata for HTTP attempts.
 type Tracer struct {
 	provider string
 	attempts sync.Map
 }
 
-// New constructs an HTTP tracer for a provider.
 func New(provider string) *Tracer {
 	return &Tracer{provider: provider}
 }
 
-// RequestHook records retry attempt numbers from retryablehttp.
 func (t *Tracer) RequestHook(_ retryablehttp.Logger, request *http.Request, retry int) {
 	t.attempts.Store(request, retry+1)
 }
 
-// Interceptor wraps a transport with sanitized debug logging.
 func (t *Tracer) Interceptor(next http.RoundTripper) http.RoundTripper {
 	if next == nil {
 		next = http.DefaultTransport

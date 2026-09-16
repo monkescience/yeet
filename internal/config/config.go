@@ -173,10 +173,6 @@ type ResolvedTarget struct {
 	Includes                   []string
 }
 
-// RepositoryConfig holds the git remote name plus exactly one provider
-// sub-section. The sub-section that may be set is determined by the
-// top-level Provider field: setting a sub-section that does not match
-// Provider is a validation error.
 type RepositoryConfig struct {
 	Remote      string                       `yaml:"remote"`
 	GitHub      *GitHubRepositoryConfig      `yaml:"github,omitempty"`

@@ -1,6 +1,3 @@
-// Package history reads release commits and base-branch files from a complete
-// local checkout whose HEAD matches the remote release branch. It never
-// mutates the checkout, and the provider remains authoritative for remote data.
 package history
 
 import (
@@ -17,7 +14,6 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// ErrCheckoutUnusable marks a checkout that cannot reliably serve release history.
 var ErrCheckoutUnusable = errors.New("local checkout cannot serve release history")
 
 var errRemoteTagMetadata = errors.New("remote tag metadata invalid")
@@ -58,32 +54,22 @@ func checkoutError(problem string, err error) error {
 	return &CheckoutError{Problem: problem, Err: err}
 }
 
-// CommitEntry is one commit in a release range.
 type CommitEntry struct {
 	Hash    string
 	Message string
 	Paths   []string
 }
 
-// CommitHistory is the result of resolving one or more release ranges.
 type CommitHistory struct {
-	// EntriesByRef contains each reachable commit range in newest-first order.
 	EntriesByRef map[string][]CommitEntry
-	// MissingRefs contains refs that do not exist or are unreachable from the branch.
-	MissingRefs []string
+	MissingRefs  []string
 }
 
-// Remote provides authoritative tag targets and the branch head used to
-// validate the local checkout.
 type Remote interface {
 	ListTagRefs(ctx context.Context) ([]forge.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 }
 
-// Source resolves commit ranges and file content from a validated local checkout.
-//
-// Source is not safe for concurrent use. The release analyzer issues history
-// calls sequentially.
 type Source struct {
 	remote Remote
 	branch string
@@ -95,8 +81,6 @@ type Source struct {
 	remoteTagCommits map[string]string
 }
 
-// Open returns a history source backed by an eligible repository at dir or one
-// of its parents.
 func Open(ctx context.Context, remote Remote, branch, dir string) (*Source, error) {
 	s := &Source{remote: remote, branch: branch, dir: dir}
 
@@ -115,8 +99,6 @@ func Open(ctx context.Context, remote Remote, branch, dir string) (*Source, erro
 	return s, nil
 }
 
-// ListTags returns remote tag names and caches their commit targets for later
-// boundary validation.
 func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	tags, _, err := s.loadRemoteTags(ctx)
 	if err != nil {
@@ -126,8 +108,6 @@ func (s *Source) ListTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-// GetFile reads a blob from the validated local HEAD commit. Working-tree
-// changes are intentionally ignored so release inputs match the remote branch.
 func (s *Source) GetFile(ctx context.Context, path string) (string, error) {
 	err := ctx.Err()
 	if err != nil {
@@ -156,10 +136,6 @@ func (s *Source) GetFile(ctx context.Context, path string) (string, error) {
 	return content, nil
 }
 
-// GetCommitsSinceRefs returns exact per-ref ranges from the local commit graph.
-// knownTags carries boundaries the caller already knows, which is how a run
-// scans from a tag it published itself: the forge tag listing is eventually
-// consistent, so it cannot be asked about that tag yet.
 func (s *Source) GetCommitsSinceRefs(
 	ctx context.Context,
 	refs []string,

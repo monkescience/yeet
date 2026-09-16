@@ -12,9 +12,6 @@ import (
 	"github.com/monkescience/yeet/internal/history"
 )
 
-// historyScan holds the outputs of one ordered history pass: the tag list every
-// ref order derives from, the boundaries the shared range request resolved, and
-// the reachability and range results later per-target lookups reuse.
 type historyScan struct {
 	tags         []string
 	extraTags    []forge.TagRef
@@ -24,10 +21,6 @@ type historyScan struct {
 	commits      map[string][]history.CommitEntry
 }
 
-// sharedHistoryTopRefsLimit caps how many of each target's ordered refs the
-// shared scan resolves up front. Three covers the realistic "latest tag was a
-// hotfix on a release branch" fall-back depth. Rarer cases fall through to the
-// per-target lookup, which walks the full ref list.
 const sharedHistoryTopRefsLimit = 3
 
 type targetHistory struct {
@@ -54,9 +47,6 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 
 		refs := a.versionHistoryRefs(scan, target)
 
-		// Targets with no version refs need an unbounded scan, which disables
-		// the provider's early-termination heuristic. Excluding them keeps the
-		// shared scan bounded. They fall through to the per-target slow path.
 		if len(refs) == 0 {
 			continue
 		}

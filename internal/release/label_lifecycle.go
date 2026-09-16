@@ -8,9 +8,6 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// labelLifecycle owns which phase a release PR is in. Callers name what happened
-// to the pull request and never which labels that implies, so the label protocol
-// lives entirely on the forge side of the provider seam.
 type labelLifecycle struct {
 	setter releasePRLabelSetter
 	labels forge.ReleasePRLabels

@@ -627,9 +627,6 @@ func (l *releaseUnitLifecycle) render(
 	return rendered, nil
 }
 
-// adoptUnlabeledReleasePR recovers a release PR that was created but never
-// labelled, which happens when a run is interrupted between CreateReleasePR and
-// MarkReleasePRPending.
 func (l *releaseUnitLifecycle) adoptUnlabeledReleasePR(ctx context.Context, existing *forge.PullRequest) error {
 	if !existing.NeedsPendingLabel {
 		return nil
@@ -707,9 +704,6 @@ type changelogEdits struct {
 	PREntry changelog.Entry
 }
 
-// preserveTargetChangelogEdits merges whatever a human already wrote into the
-// release branch's changelog back over a plan's generated entries. It reports
-// false when the branch holds nothing to carry forward.
 func (l *releaseUnitLifecycle) preserveTargetChangelogEdits(
 	ctx context.Context,
 	branch, changelogFile, previousTag string,
@@ -752,9 +746,6 @@ func (l *releaseUnitLifecycle) releaseBranchChangelog(ctx context.Context, branc
 	})
 }
 
-// changelogEntryForRefresh falls back to the manifest tag only while that tag
-// is still an unpublished draft. Once it matches the released boundary its
-// entry belongs to a shipped release and must not seed the next one.
 func changelogEntryForRefresh(changelogBody, nextTag, previousTag, releasedRef string) (string, bool, error) {
 	entry, err := changelog.EntryByTag(changelogBody, nextTag)
 	if err == nil {
@@ -847,12 +838,6 @@ func (l *releaseUnitLifecycle) updateExisting(
 ) (*forge.PullRequest, error) {
 	slog.InfoContext(ctx, "updating existing release pull request", slog.String("url", existing.URL))
 
-	// The branch is written before the body, because the manifest marker in the
-	// body is authoritative for finalization. A failure between the two then
-	// leaves newer content under an older manifest, so a merge inside the window
-	// publishes the older tag and the next run re-plans the newer version from
-	// it. The reverse order advertises tags and files the branch does not carry,
-	// which does not self-heal.
 	err := l.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject)
 	if err != nil {
 		return nil, err

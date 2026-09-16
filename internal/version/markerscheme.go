@@ -1,8 +1,5 @@
 package version
 
-// MarkerToken names the addressable components of a parsed version string.
-// Marker-based version-file updaters use these to look up the rendered value
-// for a given file marker (e.g. x-yeet-month).
 type MarkerToken string
 
 const (
@@ -13,14 +10,10 @@ const (
 	MarkerTokenMicro MarkerToken = "micro"
 )
 
-// CalVerScheme is a compiled CalVer format ready to extract per-token values
-// from a version string. Construct via NewCalVerScheme. Treat as opaque.
 type CalVerScheme struct {
 	format calverFormat
 }
 
-// NewCalVerScheme compiles the format once and returns a reusable scheme.
-// The empty string compiles to DefaultCalVerFormat.
 func NewCalVerScheme(format string) (*CalVerScheme, error) {
 	if format == "" {
 		format = DefaultCalVerFormat
@@ -50,10 +43,6 @@ func (s *CalVerScheme) HasDay() bool {
 	return s.format.hasDay
 }
 
-// MarkerValues parses a CalVer-shaped version string and returns rendered
-// strings for each addressable token, keyed by canonical token name.
-// Widths match the format's tokens (e.g. 0M zero-pads to 2). Tokens not
-// present in the format are absent from the map.
 func (s *CalVerScheme) MarkerValues(version string) (map[MarkerToken]string, error) {
 	parts, err := s.format.parse(version)
 	if err != nil {

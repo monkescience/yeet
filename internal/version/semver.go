@@ -10,45 +10,28 @@ import (
 )
 
 var (
-	ErrInvalidVersion = errors.New("invalid version")
-	// ErrInvalidReleaseAs and ErrConflictingReleaseAs report a Release-As footer
-	// a scheme cannot honour. Their wording is user facing.
+	ErrInvalidVersion       = errors.New("invalid version")
 	ErrInvalidReleaseAs     = errors.New("invalid release-as footer")
 	ErrConflictingReleaseAs = errors.New("conflicting release-as footers")
 )
 
 var _ Strategy = (*SemVer)(nil)
 
-// Strategy is one versioning scheme. Beyond reading and advancing a version it
-// answers which release controls it supports, so release version decisions do
-// not branch on the scheme.
 type Strategy interface {
 	Current(tag string) (string, error)
 	Less(leftVersion, rightVersion, leftRef, rightRef string) bool
 	InitialVersion() string
-	// SupportsReleaseAs reports whether a Release-As footer can override the
-	// next version. A scheme that says no has its footers ignored.
 	SupportsReleaseAs() bool
-	// SupportsPrerelease reports whether the scheme can run a prerelease channel.
 	SupportsPrerelease() bool
-	// NormalizeReleaseAs canonicalizes a Release-As footer value, wrapping
-	// ErrInvalidReleaseAs when the value is not one this scheme accepts.
 	NormalizeReleaseAs(value string) (string, error)
-	// NextRelease resolves the version a release takes, honouring a Release-As
-	// override and a prerelease channel where the scheme supports them. It
-	// reports false when nothing is due.
 	NextRelease(
 		current string,
 		bump commit.BumpType,
 		releaseAs, prereleaseIdentifier string,
 	) (string, commit.BumpType, bool, error)
-	// PrereleaseAllowed reports whether a version belongs to the release channel
-	// named by identifier. An empty identifier admits stable versions only.
 	PrereleaseAllowed(version, identifier string) bool
 }
 
-// ValidatePrereleaseIdentifier reports whether identifier can name a prerelease
-// channel.
 func ValidatePrereleaseIdentifier(identifier string) error {
 	_, err := semver.StrictNewVersion("1.0.0-" + identifier)
 	if err != nil {

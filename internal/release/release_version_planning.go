@@ -28,8 +28,6 @@ func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrat
 			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
 		}
 	default:
-		// Config validation admits semver and calver only. Keep the fallback
-		// non-nil so callers can report an invalid resolved target without panicking.
 		strategy = calVerStrategy(target)
 	}
 
@@ -85,9 +83,6 @@ func (a *releaseAnalyzer) nextVersionPlan(
 	)
 }
 
-// releaseAsOverride reads the version a Release-As footer asks for. A scheme
-// that cannot honour the footer has every commit carrying one reported, so the
-// override is never dropped in silence.
 func releaseAsOverride(
 	ctx context.Context,
 	strategy version.Strategy,

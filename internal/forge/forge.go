@@ -1,5 +1,3 @@
-// Package forge defines the models, method contracts, and stable errors shared
-// by release workflows and concrete forge adapters.
 package forge
 
 import (
@@ -44,7 +42,6 @@ type ReleasePRLabels struct {
 	Extra   []string
 }
 
-// ReleasePRPhase is the lifecycle phase a release pull request should carry.
 type ReleasePRPhase int
 
 const (
@@ -72,19 +69,14 @@ const (
 type MergeReleasePROptions struct {
 	BaseBranch    string
 	ReleaseBranch string
-	// Method is best effort because the three forges expose unrelated
-	// capability models. Adapters validate only what their forge exposes.
-	Method MergeMethod
+	Method        MergeMethod
 }
 
-// FileUpdate holds new content and whether the file exists on the base branch.
 type FileUpdate struct {
 	Content string
 	Exists  bool
 }
 
-// TagRef identifies a remote tag and the commit it resolves to. CommitSHA is
-// the peeled commit hash for annotated tags.
 type TagRef struct {
 	Name      string
 	CommitSHA string
@@ -93,7 +85,6 @@ type TagRef struct {
 //nolint:interfacebloat // intentional aggregate. granular interfaces live consumer-side in package release.
 type Provider interface {
 	ListTagRefs(ctx context.Context) ([]TagRef, error)
-	// GetBranchHead wraps ErrRefNotFound when the branch does not exist.
 	GetBranchHead(ctx context.Context, branch string) (string, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
@@ -118,26 +109,14 @@ type Provider interface {
 		baseBranch, pendingLabel string,
 		expectedBranches ...string,
 	) ([]*PullRequest, error)
-	// EnsureAutoMerge asks the forge to merge the request when its requirements
-	// pass. It returns once the forge accepts or already satisfies the request.
 	EnsureAutoMerge(ctx context.Context, number int, opts MergeReleasePROptions) error
-	// MergeReleasePR returns the commit produced on the base branch. It is
-	// idempotent for an already merged request. It returns ErrUntrustedReleasePR,
-	// ErrMergeBlocked as a *MergeBlockedError, ErrMergeMethodUnsupported, or
-	// ErrMergeNotFinalized for its promised operational failures.
 	MergeReleasePR(ctx context.Context, number int, opts MergeReleasePROptions) (string, error)
-	// SetReleasePRLabels mutates only the configured managed label set. The
-	// lifecycle label for the requested phase is attached first.
 	SetReleasePRLabels(ctx context.Context, number int, labels ReleasePRLabels, phase ReleasePRPhase) error
-	// PreflightReleasePRTagging checks known prerequisites without mutation.
 	PreflightReleasePRTagging(ctx context.Context, taggedLabel string) error
-	// MaxPRBodyLength returns zero when the forge has no known limit.
 	MaxPRBodyLength() int
 	GetFile(ctx context.Context, branch, path string) (string, error)
-	// UpdateFiles resets branch from base and writes one commit with all changes.
 	UpdateFiles(ctx context.Context, branch, base string, files map[string]FileUpdate, message string) error
 	RepoURL() string
-	// PathPrefix returns the provider-specific prefix for commit URLs.
 	PathPrefix() string
 	CompareURL(fromRef, toRef string) string
 }
@@ -205,7 +184,6 @@ const (
 	MergeBlockedReasonUnknown   MergeBlockedReason = "unknown"
 )
 
-// MergeBlockedError reports why a forge refused to merge a release pull request.
 type MergeBlockedError struct {
 	Reference string
 	Reason    MergeBlockedReason

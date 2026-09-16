@@ -136,8 +136,6 @@ const azureDevOpsMaxFileBytes = 10 << 20
 
 var errAzureDevOpsFileTooLarge = errors.New("file exceeds size limit")
 
-// readAzureDevOpsFileBody bounds the response read because GetItemText streams
-// the raw body without a size limit, unlike the GitHub and GitLab SDKs.
 func readAzureDevOpsFileBody(body io.Reader, path, branch string) (string, error) {
 	contents, err := io.ReadAll(io.LimitReader(body, azureDevOpsMaxFileBytes+1))
 	if err != nil {
@@ -209,9 +207,6 @@ func (a *AzureDevOps) UpdateFiles(
 	return nil
 }
 
-// Points the release branch ref at the base branch tip so each release rewrite
-// produces a single commit on top of base, mirroring GitHub and GitLab.
-// Returns the resulting branch tip (i.e. the base tip).
 func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string) (string, error) {
 	baseTip, err := a.branchTipSHA(ctx, base)
 	if err != nil {

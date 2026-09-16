@@ -123,7 +123,6 @@ func derivedChangelogEntry(
 
 	compareTarget := nextTag
 	if mode == derivedChangelogPreview {
-		// The future tag does not exist while the release pull request is open.
 		compareTarget = prCompareRef
 	}
 

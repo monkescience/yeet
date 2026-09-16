@@ -5,12 +5,6 @@ import (
 	"time"
 )
 
-// ParseEntry reads a rendered changelog entry back into structure. It is the
-// one seam foreign text enters: an entry read off a release branch, written by
-// an older version of yeet, hand-edited, or imported from another tool.
-//
-// Freeform text before the first level-3 section is recovered as the intro.
-// Level-3 headings inside fenced code blocks remain part of that freeform text.
 func ParseEntry(text string) Entry {
 	document := newMarkdownIndex(text)
 	lines := document.lines

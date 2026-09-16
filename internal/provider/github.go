@@ -38,7 +38,6 @@ func NewGitHub(client *github.Client, owner, repo string, options ...MergePollin
 	baseURL := apiBaseURL
 	graphqlURL := apiBaseURL + "/graphql"
 
-	// Default github.com API uses api.github.com. Enterprise uses <host>/api/v3.
 	switch {
 	case baseURL == "https://api.github.com":
 		baseURL = "https://github.com"

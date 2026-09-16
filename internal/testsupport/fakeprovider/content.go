@@ -23,7 +23,6 @@ func writeContentJSON(w http.ResponseWriter, status int, payload any) {
 	_, _ = w.Write(body)
 }
 
-// Payload keys and change types repeated across the content fakes.
 const (
 	contentKeyPath        = "path"
 	contentKeyTree        = "tree"
@@ -31,8 +30,6 @@ const (
 	contentChangeTypeAdd  = "add"
 )
 
-// Coordinates the content fakes are reachable at, so a caller can point a real
-// adapter at one without restating them.
 const (
 	ContentOwner        = "o"
 	ContentRepo         = "r"
@@ -42,13 +39,6 @@ const (
 	ContentAzureRepo    = "contoso-repo"
 )
 
-// RepoContent is branch-and-blob state shared by the three content fakes, so a
-// test can seed a base branch, run any forge adapter against it, and read back
-// the result in one vocabulary.
-//
-// It models force-update-from-base, which is what all three adapters do: the
-// updated branch is the base branch plus the commit's changes, never whatever
-// the branch held before.
 type RepoContent struct {
 	mu       sync.Mutex
 	branches map[string]map[string]string
@@ -58,8 +48,6 @@ type RepoContent struct {
 	nextTip  int
 }
 
-// ContentCommit is one accepted write, with paths in the order the forge
-// received them.
 type ContentCommit struct {
 	Branch  string
 	Base    string
@@ -67,7 +55,6 @@ type ContentCommit struct {
 	Paths   []string
 }
 
-// ContentRead is one blob read.
 type ContentRead struct {
 	Branch string
 	Path   string
@@ -79,7 +66,6 @@ type contentChange struct {
 	exists  bool
 }
 
-// NewRepoContent returns content whose base branch exists and is empty.
 func NewRepoContent(baseBranch string) *RepoContent {
 	content := &RepoContent{
 		branches: map[string]map[string]string{},
@@ -94,7 +80,6 @@ func NewRepoContent(baseBranch string) *RepoContent {
 	return content
 }
 
-// Seed puts a blob on a branch before any adapter runs.
 func (c *RepoContent) Seed(branch, path, content string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,7 +92,6 @@ func (c *RepoContent) Seed(branch, path, content string) {
 	files[path] = content
 }
 
-// File returns a blob without recording a read.
 func (c *RepoContent) File(branch, path string) (string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -117,7 +101,6 @@ func (c *RepoContent) File(branch, path string) (string, bool) {
 	return content, exists
 }
 
-// Commits returns the accepted writes in order.
 func (c *RepoContent) Commits() []ContentCommit {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -125,7 +108,6 @@ func (c *RepoContent) Commits() []ContentCommit {
 	return slices.Clone(c.commits)
 }
 
-// Reads returns the blob reads in order.
 func (c *RepoContent) Reads() []ContentRead {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -187,9 +169,6 @@ func (c *RepoContent) branchAtTip(sha string) (string, bool) {
 	return "", false
 }
 
-// mismatchedChange reports the first change whose exists flag contradicts the
-// base branch. GitLab picks create versus update from it and Azure DevOps add
-// versus edit, and both APIs reject the wrong one.
 func (c *RepoContent) mismatchedChange(base string, changes []contentChange) (contentChange, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

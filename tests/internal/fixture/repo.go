@@ -13,7 +13,6 @@ import (
 	"github.com/monkescience/testastic"
 )
 
-// WriteRepo creates an empty temporary repository with remoteURL as origin.
 func WriteRepo(t *testing.T, remoteURL string) string {
 	t.Helper()
 
@@ -31,16 +30,13 @@ func WriteRepo(t *testing.T, remoteURL string) string {
 	return dir
 }
 
-// RepoCommit describes one commit in a scripted fixture repository.
 type RepoCommit struct {
 	Message string
 	Files   map[string]string
 	Tag     string
-	// Branch creates the commit on a side branch, then restores the release branch.
-	Branch string
+	Branch  string
 }
 
-// WriteRepoWithHistory creates deterministic commits and returns their SHAs in order.
 func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []RepoCommit) (string, []string) {
 	t.Helper()
 
@@ -75,7 +71,6 @@ func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []Repo
 
 		files := commit.Files
 		if len(files) == 0 {
-			// go-git rejects empty commits, so use the message as deterministic content.
 			files = map[string]string{"history.txt": commit.Message + "\n"}
 		}
 
@@ -99,7 +94,6 @@ func WriteRepoWithHistory(t *testing.T, remoteURL, branch string, commits []Repo
 	return dir, shas
 }
 
-// WriteRepoWithTaggedHistory creates a tagged base and one feature commit.
 func WriteRepoWithTaggedHistory(t *testing.T, remoteURL, branch, tag string) (string, string, string) {
 	t.Helper()
 
@@ -146,7 +140,6 @@ func commitFiles(
 	return hash
 }
 
-// AddInsteadOfRewrite adds a git `url.<base>.insteadOf` rewrite rule to repoDir.
 func AddInsteadOfRewrite(t *testing.T, repoDir string, baseURL string, insteadOf string) {
 	t.Helper()
 

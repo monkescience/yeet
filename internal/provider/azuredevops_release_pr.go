@@ -16,10 +16,6 @@ import (
 
 const azureDevOpsPRPageSize = 100
 
-// azureDevOpsMaxPRBodyLength is Azure DevOps's hard limit on pull request
-// descriptions. The REST API rejects a longer body with "a description for a
-// pull request must not be longer than 4000 characters".
-// Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/update
 const azureDevOpsMaxPRBodyLength = 4000
 
 var _ forgeMerge[git.GitPullRequestMergeStrategy] = (*azureDevOpsMerge)(nil)
@@ -543,8 +539,6 @@ func (m *azureDevOpsMerge) execute(
 		slog.String("strategy", string(strategy)),
 	)
 
-	// The completion response can carry a provisional commit while the merge
-	// status is still queued, so only a succeeded merge status is trusted.
 	if mergeSHA := azureDevOpsCompletionResponseCommit(merged); mergeSHA != "" {
 		return mergeSHA, false, nil
 	}
@@ -649,8 +643,6 @@ func (a *AzureDevOps) isTrustedOpenPRForBase(
 		a.isConfiguredRepository(pullRequest.Repository)
 }
 
-// Azure DevOps addresses a repository by either name or id, so the configured
-// value is compared against both.
 func (a *AzureDevOps) isConfiguredRepository(repository *git.GitRepository) bool {
 	configured := strings.TrimSpace(a.repo)
 	if repository == nil || configured == "" {
@@ -665,9 +657,6 @@ func (a *AzureDevOps) isConfiguredRepository(repository *git.GitRepository) bool
 	return repository.Id != nil && strings.EqualFold(repository.Id.String(), configured)
 }
 
-// SetReleasePRLabels has no definition step to run first: Azure DevOps creates a
-// tag definition when a label is attached and exposes no project-scoped or
-// repository-scoped pull request label listing to check one against.
 func (a *AzureDevOps) SetReleasePRLabels(
 	ctx context.Context,
 	number int,
@@ -683,9 +672,6 @@ func (a *AzureDevOps) PreflightReleasePRTagging(context.Context, string) error {
 	return nil
 }
 
-// applyLabels attaches one label per request, since Azure DevOps has no bulk
-// label API. The anchor goes first and fails the whole call, and everything
-// after it is best effort so a single rejected label cannot strand the rest.
 func (a *AzureDevOps) applyLabels(ctx context.Context, number int, anchor string, add, remove []string) error {
 	err := a.attachPullRequestLabel(ctx, number, anchor)
 	if err != nil {
@@ -900,8 +886,6 @@ func azureDevOpsCompletionResponseCommit(pr *git.GitPullRequest) string {
 	return azureDevOpsMergeCommit(pr)
 }
 
-// Azure DevOps reports conflicts and policy refusals through one enum field, so
-// the two are split here because conflict and policy states have different errors.
 func azureDevOpsMergeStatusConflicted(status string) bool {
 	return status == string(git.PullRequestAsyncStatusValues.Conflicts)
 }

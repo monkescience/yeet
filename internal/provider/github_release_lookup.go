@@ -96,8 +96,6 @@ func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
 	return true, nil
 }
 
-// Creates an annotated tag carrying the release body so the changelog lives in
-// portable git data, mirroring release-please behavior.
 func (g *GitHub) ensureAnnotatedTag(ctx context.Context, tagName, ref, message string) error {
 	if strings.TrimSpace(tagName) == "" {
 		return forge.ErrEmptyTagName

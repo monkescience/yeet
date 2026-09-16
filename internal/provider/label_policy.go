@@ -10,19 +10,12 @@ import (
 	"github.com/monkescience/yeet/internal/forge"
 )
 
-// labelChange is the managed-set diff for one phase. The anchor is attached
-// before anything else and fail-fast, so an interrupted run still leaves a pull
-// request the next run can find. The remaining additions are best effort.
 type labelChange struct {
 	anchor string
 	add    []string
 	remove []string
 }
 
-// managedLabelChange diffs within the managed set only, which is Pending,
-// Tagged, Yeet and Extra. Every other label on the pull request is left where it
-// is, so a phase is idempotent for the managed set and says nothing about the
-// rest.
 func managedLabelChange(labels forge.ReleasePRLabels, phase forge.ReleasePRPhase) labelChange {
 	if phase == forge.ReleasePRPhaseTagged {
 		return labelChange{
@@ -43,9 +36,6 @@ func managedLabelChange(labels forge.ReleasePRLabels, phase forge.ReleasePRPhase
 	}
 }
 
-// labelsAnchoredFirst orders the additions with the anchor at the front, so a
-// forge attaching the whole set in one request keeps the ordering guarantee a
-// forge attaching them one by one gets from the parameter.
 func labelsAnchoredFirst(anchor string, add []string) []string {
 	return append([]string{anchor}, add...)
 }
@@ -58,11 +48,6 @@ const (
 	releasePRLabelsMismatched
 )
 
-// labelMatch reports whether a label found on a pull request is the configured
-// one. GitHub and Azure DevOps fold case. GitLab must not: it treats labels
-// differing only by case as distinct and filters them server side, so a
-// case-insensitive client-side match would disagree with the server and let yeet
-// open a second release merge request on the same branch.
 type labelMatch func(found, configured string) bool
 
 func foldedLabelMatch(found, configured string) bool {
@@ -87,9 +72,6 @@ func classifyReleasePRLabels(found []string, pendingLabel string, match labelMat
 	return releasePRLabelsAdoptable
 }
 
-// needsPendingLabel reports whether a trusted release pull request has yet to be
-// given its pending label. It fails when the labels found name a lifecycle yeet
-// is not configured for. reference carries the forge's own wording.
 func needsPendingLabel(
 	found []string,
 	pendingLabel string,
@@ -104,9 +86,6 @@ func needsPendingLabel(
 	return state == releasePRLabelsAdoptable, nil
 }
 
-// releasePRLabelMismatch reports a trusted release pull request whose labels
-// name a lifecycle yeet is not configured for, which means renamed configuration
-// rather than an interrupted run. reference carries the forge's own wording.
 func releasePRLabelMismatch(reference, branch, pendingLabel string) error {
 	return &LabelError{
 		Label:     pendingLabel,
@@ -123,12 +102,6 @@ func releasePRLabelMismatch(reference, branch, pendingLabel string) error {
 	}
 }
 
-// labelDefinitions is the forge half of label preparation: reading a label
-// definition, creating one, and telling a definition that is absent apart from a
-// lookup that failed. get and create own their own error wrapping, so the forge
-// names the operation and this decides what to do about it. Azure DevOps exposes
-// no definition API, so it supplies no labelDefinitions at all rather than a
-// stubbed one.
 type labelDefinitions struct {
 	get        func(ctx context.Context, name string) error
 	create     func(ctx context.Context, name, color, description string) error
@@ -170,8 +143,6 @@ func (d labelDefinitions) cacheKey(name string) string {
 	return d.normalize(name)
 }
 
-// prepare limits definition work to labels the requested phase owns. Tagged
-// finalization cannot depend on creation-only labels that it does not mutate.
 func (d labelDefinitions) prepare(
 	ctx context.Context,
 	labels forge.ReleasePRLabels,
@@ -201,9 +172,6 @@ func (d labelDefinitions) prepare(
 	return d.ensure(ctx, labels.Tagged, releaseLabelTaggedColor, releaseLabelTaggedDescription)
 }
 
-// validateExtras runs before the pull request exists as well as before the
-// labels are applied, so an unknown extra label fails the run while nothing has
-// been mutated yet.
 func (d labelDefinitions) validateExtras(ctx context.Context, names []string) error {
 	for _, name := range names {
 		err := d.validateExisting(ctx, name, "extra")

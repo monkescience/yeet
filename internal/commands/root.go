@@ -121,13 +121,6 @@ func (o *bootstrapOptions) setLogger(cmd *cobra.Command) {
 	slog.SetDefault(newDiagnosticLogger(cmd.ErrOrStderr(), level, o.noColor))
 }
 
-// resolveColorProfile picks the color profile for an output stream based on
-// the explicit --no-color flag, the destination writer's TTY-ness, and
-// standard env vars (NO_COLOR, CLICOLOR, CLICOLOR_FORCE, TERM, COLORTERM).
-// When noColor is set, all color sequences are stripped. Text decoration
-// like bold/faint is preserved (per the NO_COLOR spec). Otherwise the
-// profile follows colorprofile.Detect, which strips everything for
-// non-TTY destinations such as pipes, files, and CI.
 func resolveColorProfile(out io.Writer, noColor bool) colorprofile.Profile {
 	if noColor {
 		return colorprofile.Ascii
