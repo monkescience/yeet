@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.16.1](https://github.com/monkescience/yeet/compare/v0.16.0...v0.16.1) (2026-09-19)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v3 (#280) ([3317fa9](https://github.com/monkescience/yeet/commit/3317fa9e70ebcec78634519c4b980e929c0472cd))
+- **release:** enhance error diagnostics with structured data ([3b39765](https://github.com/monkescience/yeet/commit/3b397655a1d19a36620da748a8bca080fd73fc77))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.64.0 (#279) ([2e1caed](https://github.com/monkescience/yeet/commit/2e1caedf2d4572780ea57d368a43679edb3f2822))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.0.2 (#275) ([514ad8a](https://github.com/monkescience/yeet/commit/514ad8a3a5af4d49a4694b7ac09ce696f2ace996))
+- **deps:** update module github.com/monkescience/testastic to v0.4.7 (#274) ([2f2c3a3](https://github.com/monkescience/yeet/commit/2f2c3a3235a76edf639b8d3b9342e987997516dc))
+
 ## [v0.16.0](https://github.com/monkescience/yeet/compare/v0.15.0...v0.16.0) (2026-09-15)
 
 ### Migration Notes
