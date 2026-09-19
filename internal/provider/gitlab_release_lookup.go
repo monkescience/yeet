@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/monkescience/yeet/internal/forge"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-github/v91/github"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 type RequestDetails struct {

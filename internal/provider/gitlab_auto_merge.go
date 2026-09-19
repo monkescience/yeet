@@ -8,7 +8,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/forge"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 var gitLabAutoMergeMinimumVersion = semver.MustParse("17.11.0")

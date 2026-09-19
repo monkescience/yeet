@@ -11,7 +11,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 func NewGitLabContentProvider(t *testing.T, content *RepoContent) forge.Provider {

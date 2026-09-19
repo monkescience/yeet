@@ -11,7 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/provider"
-	gitlabapi "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlabapi "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 const (
