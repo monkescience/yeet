@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-git/go-git/v6"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 type MissingTokenError struct {

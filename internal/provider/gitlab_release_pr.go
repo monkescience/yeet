@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/monkescience/yeet/internal/forge"
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 const gitlabMergeRequestOpenedState = "opened"
