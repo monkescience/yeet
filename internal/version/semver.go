@@ -318,20 +318,28 @@ func inferBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
 }
 
 type ReleaseAsError struct {
-	Requested string
-	Current   string
-	Problem   string
-	cause     error
+	Requested   string
+	Current     string
+	Conflicting string
+	Problem     string
+	cause       error
 }
 
 func (e *ReleaseAsError) Error() string { return e.cause.Error() }
 
 func (e *ReleaseAsError) Unwrap() error { return e.cause }
 
-func releaseAsError(requested, current, problem string, cause error) error {
+func releaseAsError(requested, current, problem string, cause error) *ReleaseAsError {
 	return &ReleaseAsError{Requested: requested, Current: current, Problem: problem, cause: cause}
 }
 
 func NewReleaseAsError(requested, current, problem string, cause error) error {
 	return releaseAsError(requested, current, problem, cause)
+}
+
+func NewConflictingReleaseAsError(requested, current, conflicting, problem string, cause error) error {
+	err := releaseAsError(requested, current, problem, cause)
+	err.Conflicting = conflicting
+
+	return err
 }
