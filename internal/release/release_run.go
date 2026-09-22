@@ -94,7 +94,7 @@ func resolveRunChannel(
 		return nil
 	}
 
-	return &SelectionError{Branch: currentBranch, cause: fmt.Errorf(
+	return &SelectionError{Branch: currentBranch, Problem: "branch is not configured for releases", cause: fmt.Errorf(
 		"%w: %q. Configure it as branch or release.channels.<name>.branch, or run --dry-run",
 		errUnconfiguredReleaseBranch,
 		currentBranch,

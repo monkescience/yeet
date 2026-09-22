@@ -1,0 +1,1 @@
+ERROR release writes conflict on one file: file is configured as both a changelog and version file conflict=changelog_version file_path=api/CHANGELOG.md units=target:api hint="configure different paths for the changelog and version file"

@@ -83,6 +83,56 @@ func TestReleaseIndependentBoundaries(t *testing.T) {
 		)
 	})
 
+	t.Run("grouped incompatible version writes report the version-file remedy", func(t *testing.T) {
+		t.Parallel()
+
+		repoDir, shas := writeIndependentMonorepoHistory(t)
+		opts := independentGitHubOptions(shas)
+		opts.FailOnMutation = true
+		server := fakeprovider.NewGitHub(t, opts)
+		configPath := absoluteTestFile(t, "testdata/release/incompatible_grouped_version_writes/input.yaml")
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.NotContains(t, result.Stderr, "atomic group")
+		testastic.AssertFile(
+			t,
+			"testdata/release/incompatible_grouped_version_writes/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("changelog reused as a version file reports the path remedy", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target whose changelog file is also listed as a version file
+		repoDir, shas := writeIndependentMonorepoHistory(t)
+		opts := independentGitHubOptions(shas)
+		opts.FailOnMutation = true
+		server := fakeprovider.NewGitHub(t, opts)
+		configPath := absoluteTestFile(t, "testdata/release/changelog_is_also_a_version_file/input.yaml")
+
+		// when: planning the release
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the conflict names the file and how to separate the two roles
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/changelog_is_also_a_version_file/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
 	t.Run("later unit is attempted after an earlier provider failure", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,1 +1,1 @@
-ERROR invalid release branch or channel branch=feature/random hint="use a configured branch or channel"
+ERROR invalid release branch or channel: branch is not configured for releases branch=feature/random hint="configure branch or release.channels.<name>.branch, or run --dry-run"

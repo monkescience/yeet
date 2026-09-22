@@ -190,6 +190,8 @@ func isIndependentAggregate(err error) bool {
 
 func classifyFailureKind(err error) FailureKind {
 	switch {
+	case errors.Is(err, history.ErrCheckoutUnusable):
+		return FailureCheckout
 	case errors.Is(err, os.ErrNotExist):
 		return FailureConfigMissing
 	case errors.Is(err, config.ErrInvalidConfig):
@@ -198,8 +200,6 @@ func classifyFailureKind(err error) FailureKind {
 		return FailureAuthentication
 	case errors.Is(err, provider.ErrInvalidHost), errors.Is(err, provider.ErrUntrustedHost):
 		return FailureHostTrust
-	case errors.Is(err, history.ErrCheckoutUnusable):
-		return FailureCheckout
 	case errors.Is(err, errUnconfiguredReleaseBranch),
 		errors.Is(err, errUnknownReleaseChannel),
 		errors.Is(err, errCINonBranchRef):

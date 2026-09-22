@@ -3,6 +3,7 @@ package integration_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	git "github.com/go-git/go-git/v6"
@@ -324,4 +325,86 @@ func TestReleaseLocalHistory(t *testing.T) {
 			result.Stderr,
 		)
 	})
+
+	t.Run("empty repository reports the missing head in verbose diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		repoDir := fixture.WriteRepo(t, "https://github.com/acme/repo.git")
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			BranchHeadSHA: "1111111111111111111111111111111111111111",
+		})
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		assertDiagnosticFragments(
+			t,
+			"testdata/release/empty_repository_reports_the_missing_head/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("malformed git config reports controlled parse details in verbose diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		repoDir, _, _ := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+		err := os.WriteFile(filepath.Join(repoDir, ".git", "config"), []byte("[core\n"), 0o600)
+		testastic.NoError(t, err)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "acme",
+			Repo:        "repo",
+			LatestTag:   "v1.0.0",
+			BoundarySHA: "2222222222222222222222222222222222222222",
+		})
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		assertDiagnosticFragments(
+			t,
+			"testdata/release/malformed_git_config_reports_controlled_parse_details/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
+		testastic.NotContains(t, result.Stderr, "read config:")
+	})
+}
+
+func assertDiagnosticFragments(t *testing.T, path, actual string) {
+	t.Helper()
+
+	for line := range strings.SplitSeq(strings.TrimSpace(readTestFile(t, path)), "\n") {
+		testastic.Contains(t, actual, line)
+	}
 }

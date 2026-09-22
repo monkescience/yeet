@@ -1,1 +1,1 @@
-ERROR could not update version file: file has no yeet version markers target=default path=VERSION.txt hint="check the file and its version_files configuration"
+ERROR could not update version file: file has no yeet version markers target=default file_path=VERSION.txt hint="check the file and its version_files configuration"

@@ -1,1 +1,1 @@
-ERROR could not update version file: json pointer was not found target=default path=manifest.json hint="check the file and its version_files configuration"
+ERROR could not update version file: json pointer was not found target=default file_path=manifest.json hint="check the file and its version_files configuration"

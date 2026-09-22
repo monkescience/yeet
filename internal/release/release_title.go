@@ -335,7 +335,8 @@ func validateRenderedReleaseTitle(name, title string) (string, error) {
 }
 
 func releaseTemplateReason(name string, err error) string {
-	reason := strings.TrimPrefix(err.Error(), "template: ")
+	reason := strings.TrimPrefix(err.Error(), "execute template: ")
+	reason = strings.TrimPrefix(reason, "template: ")
 	reason = strings.TrimSpace(strings.TrimPrefix(reason, name+":"))
 
 	line, rest, found := strings.Cut(reason, ":")
@@ -348,7 +349,45 @@ func releaseTemplateReason(name string, err error) string {
 		return reason
 	}
 
-	return fmt.Sprintf("line %s: %s", strings.TrimSpace(line), strings.TrimSpace(rest))
+	return fmt.Sprintf("line %s%s", strings.TrimSpace(line), releaseTemplateExecutionReason(rest))
+}
+
+func releaseTemplateExecutionReason(reason string) string {
+	reason = strings.TrimSpace(reason)
+
+	column, execution, found := strings.Cut(reason, ":")
+	if !found {
+		return ": " + reason
+	}
+
+	_, err := strconv.Atoi(strings.TrimSpace(column))
+	if err != nil {
+		return ": " + reason
+	}
+
+	position := " column " + strings.TrimSpace(column)
+
+	execution = strings.TrimSpace(execution)
+	if !strings.HasPrefix(execution, "executing ") {
+		return position + ": " + execution
+	}
+
+	return position + ": " + releaseTemplateActionReason(execution)
+}
+
+func releaseTemplateActionReason(execution string) string {
+	const actionPrefix = " at <"
+
+	actionStart := strings.Index(execution, actionPrefix)
+
+	actionEnd := strings.LastIndex(execution, ">: ")
+	if actionStart < 0 || actionEnd < actionStart {
+		return "template execution failed"
+	}
+
+	action := execution[actionStart+len(actionPrefix)-1 : actionEnd+1]
+
+	return action + ": " + strings.TrimSpace(execution[actionEnd+3:])
 }
 
 func executeReleaseTextTemplate(tmpl *template.Template, data any) (string, error) {

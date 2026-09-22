@@ -57,12 +57,12 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 	t.Run("github calver auto-merge updates VERSION.txt with markers", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a calver project with version_files and a feat commit
+		// given: a calver project with version_files and an unsupported Release-As footer
 		files := map[string]string{"VERSION.txt": "2025.05.0 # x-yeet-version\n"}
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release", Tag: "v2025.05.0"},
-				{Message: "feat: add a thing", Files: files},
+				{Message: "feat: add a thing\n\nRelease-As: 2.0.0", Files: files},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -92,8 +92,10 @@ func TestReleaseExistingPRPerProvider(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: yeet runs the calver auto-merge flow and exits 0
+		// then: yeet completes the release and explains how to resolve the ignored override
 		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stderr,
+			`hint="remove the Release-As footer for this target, only semver supports it"`)
 	})
 }
 

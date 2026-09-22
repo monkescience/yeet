@@ -8,16 +8,31 @@ import (
 
 type SelectionError struct {
 	Target         string
+	IncludedBy     string
 	Branch         string
 	ExpectedBranch string
 	Channel        string
 	Ref            string
+	Problem        string
 	cause          error
 }
 
 func (e *SelectionError) Error() string { return e.cause.Error() }
 
 func (e *SelectionError) Unwrap() error { return e.cause }
+
+func unknownTargetError(target, includedBy string) error {
+	detail := target
+	if includedBy != "" {
+		detail = fmt.Sprintf("%s (included by %s)", target, includedBy)
+	}
+
+	return &SelectionError{
+		Target:     target,
+		IncludedBy: includedBy,
+		cause:      fmt.Errorf("%w: %s", errUnknownTarget, detail),
+	}
+}
 
 type VersionFileError struct {
 	Target string
@@ -40,18 +55,33 @@ func (e *CommitOverrideError) Error() string { return e.cause.Error() }
 
 func (e *CommitOverrideError) Unwrap() error { return e.cause }
 
+type FileConflictKind string
+
+const (
+	FileConflictAcrossUnits          FileConflictKind = "across_units"
+	FileConflictIncompatibleVersions FileConflictKind = "incompatible_versions"
+	FileConflictChangelogVersion     FileConflictKind = "changelog_version"
+)
+
 type FileConflictError struct {
-	Units []string
-	Path  string
-	cause error
+	Kind   FileConflictKind
+	Units  []string
+	Target string
+	Path   string
+	cause  error
 }
 
 func (e *FileConflictError) Error() string { return e.cause.Error() }
 
 func (e *FileConflictError) Unwrap() error { return e.cause }
 
-func fileConflictError(path string, units []string, cause error) error {
-	return &FileConflictError{Units: units, Path: path, cause: cause}
+func fileConflictError(
+	kind FileConflictKind,
+	path, target string,
+	units []string,
+	cause error,
+) error {
+	return &FileConflictError{Kind: kind, Units: units, Target: target, Path: path, cause: cause}
 }
 
 func pullRequestReference(pullRequest *forge.PullRequest) string {
@@ -64,6 +94,11 @@ func pullRequestReference(pullRequest *forge.PullRequest) string {
 
 type PendingReleaseError struct {
 	References []string
+	URLs       []string
+	Unit       string
+	Branch     string
+	Problem    string
+	Hint       string
 	cause      error
 }
 

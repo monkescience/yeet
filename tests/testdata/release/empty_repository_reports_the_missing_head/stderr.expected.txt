@@ -1,0 +1,2 @@
+ERROR local checkout cannot be used for release: checkout head is unavailable hint="create or fetch a commit and check out the configured release branch"
+DEBUG failure detail failure=checkout cause="git reference was not found"

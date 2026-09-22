@@ -1,0 +1,1 @@
+ERROR invalid configuration: version_files[0] contains unknown field "ignored" path={{anyString}}

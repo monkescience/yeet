@@ -40,7 +40,7 @@ func (u *releaseBranchUpdater) updateFiles(
 	for _, plan := range plans {
 		target, exists := r.targets[plan.ID]
 		if !exists {
-			return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
+			return unknownTargetError(plan.ID, "")
 		}
 
 		changelogContent, err := u.releaseChangelogFileContent(
@@ -86,7 +86,7 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 
 	for _, versionFile := range target.VersionFiles {
 		if _, isChangelog := changelogFiles[versionFile.Path]; isChangelog {
-			return fileConflictError(versionFile.Path, nil,
+			return fileConflictError(FileConflictChangelogVersion, versionFile.Path, targetID, nil,
 				fmt.Errorf("%w: %s", errConflictingFileUpdate, versionFile.Path))
 		}
 
@@ -173,7 +173,8 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 ) (forge.FileUpdate, error) {
 	if existing, exists := pendingFiles[target.Changelog.File]; exists {
 		if _, isChangelog := changelogFiles[target.Changelog.File]; !isChangelog {
-			return forge.FileUpdate{}, fileConflictError(target.Changelog.File, nil,
+			return forge.FileUpdate{}, fileConflictError(
+				FileConflictChangelogVersion, target.Changelog.File, target.ID, nil,
 				fmt.Errorf("%w: %s", errConflictingFileUpdate, target.Changelog.File))
 		}
 

@@ -1,0 +1,1 @@
+ERROR release writes conflict on one file: release unit writes incompatible versions to one file conflict=incompatible_versions file_path=VERSION.txt units=group:apps hint="configure separately addressable version files"

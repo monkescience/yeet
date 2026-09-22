@@ -2,6 +2,7 @@
 package release
 
 import (
+	"errors"
 	"slices"
 	"testing"
 
@@ -166,6 +167,17 @@ func TestPlanReleaseUnits(t *testing.T) {
 
 		// then: planning rejects the ambiguous write before branch mutation
 		testastic.ErrorIs(t, err, errConflictingFileUpdate)
+
+		var conflict *FileConflictError
+
+		testastic.True(t, errors.As(err, &conflict))
+
+		if conflict != nil {
+			testastic.Equal(t, FileConflictIncompatibleVersions, conflict.Kind)
+			testastic.Equal(t, "VERSION.txt", conflict.Path)
+			testastic.SliceEqual(t, []string{"group:apps"}, conflict.Units)
+		}
+
 		testastic.AssertFile(
 			t,
 			"testdata/release_units/incompatible_grouped_version_writes/error.expected.txt",

@@ -2,7 +2,6 @@ package release
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -35,10 +34,7 @@ func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelect
 
 		target, exists := core.targets[normalizedTargetID]
 		if !exists {
-			return releaseSelection{}, &SelectionError{
-				Target: normalizedTargetID,
-				cause:  fmt.Errorf("%w: %s", errUnknownTarget, normalizedTargetID),
-			}
+			return releaseSelection{}, unknownTargetError(normalizedTargetID, "")
 		}
 
 		selectedTargets[normalizedTargetID] = target
@@ -53,7 +49,7 @@ func selectTargets(core *releaseCore, selectedTargetIDs []string) (releaseSelect
 		for _, includeID := range target.Includes {
 			includedTarget, exists := core.targets[includeID]
 			if !exists {
-				return releaseSelection{}, fmt.Errorf("%w: %s (included by %s)", errUnknownTarget, includeID, normalizedTargetID)
+				return releaseSelection{}, unknownTargetError(includeID, normalizedTargetID)
 			}
 
 			pathTargetsToAnalyze[includeID] = includedTarget

@@ -192,4 +192,44 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 			result.Stderr,
 		)
 	})
+
+	t.Run("github reports malformed remote tag metadata", func(t *testing.T) {
+		t.Parallel()
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: next release"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"v1.0.0": "not-a-commit"},
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/malformed_remote_tag_metadata/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
 }

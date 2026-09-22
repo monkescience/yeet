@@ -857,6 +857,12 @@ func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
 
 		// then: target validation fails before provider reads or mutations
 		testastic.ErrorIs(t, err, errUnknownTarget)
+
+		var selection *SelectionError
+
+		testastic.True(t, errors.As(err, &selection))
+		testastic.Equal(t, "missing", selection.Target)
+		testastic.Equal(t, "", selection.IncludedBy)
 		testastic.Equal(t, (*Result)(nil), result)
 		testastic.Equal(t, 0, stub.findMergedPRCalls)
 		testastic.Equal(t, 0, stub.createReleaseCalls)
@@ -1575,6 +1581,7 @@ func TestReleaseFailsOnMultiplePendingPRs(t *testing.T) {
 
 	testastic.True(t, errors.As(err, &pending))
 	testastic.SliceEqual(t, []string{"pull request #1", "pull request #2"}, pending.References)
+	testastic.SliceEqual(t, []string{"https://example.com/pr/1", "https://example.com/pr/2"}, pending.URLs)
 	testastic.Equal(t, 0, stub.createPRCalls)
 	testastic.Equal(t, 0, stub.updatePRCalls)
 }

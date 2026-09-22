@@ -1,1 +1,1 @@
-ERROR multiple pending release pull requests pending="pull request !42, pull request !43" hint="close or relabel stale pending release pull requests"
+ERROR multiple pending release pull requests pending="pull request !42, pull request !43" urls="http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42, http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/43" hint="close or relabel stale pending release pull requests"

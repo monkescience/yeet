@@ -236,6 +236,17 @@ func TestUpdateReleaseBranchFiles(t *testing.T) {
 
 				// then: the collision is reported instead of prepending markdown into the version file
 				testastic.ErrorIs(t, err, errConflictingFileUpdate)
+
+				var conflict *FileConflictError
+
+				testastic.True(t, errors.As(err, &conflict))
+
+				if conflict != nil {
+					testastic.Equal(t, FileConflictChangelogVersion, conflict.Kind)
+					testastic.Equal(t, "web", conflict.Target)
+					testastic.Equal(t, "shared.md", conflict.Path)
+				}
+
 				testastic.Equal(t, 0, len(content.Commits()))
 			})
 

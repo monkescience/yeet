@@ -214,6 +214,13 @@ func TestIndependentReleaseWorkflow(t *testing.T) {
 			"testdata/independent_workflow/legacy_combined_request/error.expected.txt",
 			err.Error(),
 		)
+
+		var pending *PendingReleaseError
+
+		testastic.True(t, errors.As(err, &pending))
+		testastic.Equal(t, "release manifest does not match the current configuration", pending.Problem)
+		testastic.Equal(t, "", pending.Unit)
+		testastic.Equal(t, "yeet/release-main", pending.Branch)
 		testastic.Equal(t, 0, stub.updateFilesCalls)
 		testastic.Equal(t, 0, stub.createPRCalls)
 	})

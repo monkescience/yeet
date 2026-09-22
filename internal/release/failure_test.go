@@ -28,6 +28,14 @@ func TestClassifyFailure(t *testing.T) {
 		{name: "repository", cause: provider.ErrUnknownRemote, kind: FailureRepository},
 		{name: "host trust", cause: provider.ErrUntrustedHost, kind: FailureHostTrust},
 		{name: "checkout", cause: history.ErrCheckoutUnusable, kind: FailureCheckout},
+		{
+			name: "checkout with missing filesystem entry",
+			cause: &history.CheckoutError{
+				Problem: history.CheckoutProblemNoRepository,
+				Err:     os.ErrNotExist,
+			},
+			kind: FailureCheckout,
+		},
 		{name: "release branch", cause: errUnconfiguredReleaseBranch, kind: FailureReleaseBranch},
 		{name: "release state", cause: ErrMultiplePendingReleasePRs, kind: FailureReleaseState},
 		{

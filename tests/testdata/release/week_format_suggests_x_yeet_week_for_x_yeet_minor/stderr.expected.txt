@@ -1,1 +1,1 @@
-ERROR could not update version file: version marker does not match the versioning scheme target=default path=VERSION.txt marker=x-yeet-minor line=1 hint="use x-yeet-week for the configured versioning scheme"
+ERROR could not update version file: version marker does not match the versioning scheme target=default file_path=VERSION.txt marker=x-yeet-minor line=1 hint="use x-yeet-week for the configured versioning scheme"

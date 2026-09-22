@@ -1,1 +1,1 @@
-ERROR invalid configuration: render release.pr_title: execute template: template: release.pr_title:1:8: executing "release.pr_title" at <index .Branch 99>: error calling index: index out of range: 99 path={{anyString}}
+ERROR invalid configuration: render release.pr_title: line 1 column 8: <index .Branch 99>: error calling index: index out of range: 99 path={{anyString}}

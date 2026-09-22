@@ -212,24 +212,41 @@ func (l *releaseUnitLifecycle) validateNoIncompatibleOpenReleasePR(ctx context.C
 			}
 		}
 
-		unit, _, matchErr := matchReleaseUnit(pullRequest, configuredUnits)
-		if matchErr == nil {
-			matchErr = fmt.Errorf("%w: stale release unit %q", errInvalidReleaseManifest, unit.ID)
-		}
-
-		errList = append(errList, &PendingReleaseError{
-			References: []string{pullRequestReference(pullRequest)},
-			cause: fmt.Errorf(
-				"%w: incompatible release %s %s: %v, merge it under the old configuration or close or relabel it",
-				ErrMultiplePendingReleasePRs,
-				pullRequestReference(pullRequest),
-				pullRequest.URL,
-				matchErr,
-			),
-		})
+		errList = append(errList, incompatiblePendingReleaseError(pullRequest, configuredUnits))
 	}
 
 	return errors.Join(errList...)
+}
+
+func incompatiblePendingReleaseError(pullRequest *forge.PullRequest, configuredUnits []releaseUnit) error {
+	unit, _, matchErr := matchReleaseUnit(pullRequest, configuredUnits)
+	problem := "release manifest does not match the current configuration"
+	unitID := ""
+
+	if matchErr == nil {
+		problem = "release unit is no longer configured"
+		unitID = unit.ID
+		matchErr = fmt.Errorf("%w: stale release unit %q", errInvalidReleaseManifest, unit.ID)
+	}
+
+	const remedy = "merge it under the old configuration, or close or relabel it"
+
+	return &PendingReleaseError{
+		References: []string{pullRequestReference(pullRequest)},
+		URLs:       []string{pullRequest.URL},
+		Unit:       unitID,
+		Branch:     strings.TrimSpace(pullRequest.Branch),
+		Problem:    problem,
+		Hint:       remedy,
+		cause: fmt.Errorf(
+			"%w: incompatible release %s %s: %v, %s",
+			ErrMultiplePendingReleasePRs,
+			pullRequestReference(pullRequest),
+			pullRequest.URL,
+			matchErr,
+			remedy,
+		),
+	}
 }
 
 func (l *releaseUnitLifecycle) validateExistingUnitManifests(
@@ -484,15 +501,18 @@ func matchReleaseUnit(
 
 func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {
 	prReferences := make([]string, 0, len(pendingPRs))
+	urls := make([]string, 0, len(pendingPRs))
 	described := make([]string, 0, len(pendingPRs))
 
 	for _, pendingPR := range pendingPRs {
 		prReferences = append(prReferences, pullRequestReference(pendingPR))
+		urls = append(urls, pendingPR.URL)
 		described = append(described, fmt.Sprintf("%s %s", pullRequestReference(pendingPR), pendingPR.URL))
 	}
 
 	return &PendingReleaseError{
 		References: prReferences,
+		URLs:       urls,
 		cause:      fmt.Errorf("%w: %s", ErrMultiplePendingReleasePRs, strings.Join(described, ", ")),
 	}
 }
@@ -671,7 +691,7 @@ func (l *releaseUnitLifecycle) preserveExistingChangelogEdits(
 
 		target, exists := r.targets[plan.ID]
 		if !exists {
-			return plans, fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
+			return plans, unknownTargetError(plan.ID, "")
 		}
 
 		changelogFile := target.Changelog.File

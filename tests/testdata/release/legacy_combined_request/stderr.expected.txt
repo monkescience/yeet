@@ -1,1 +1,1 @@
-ERROR multiple pending release pull requests pending="pull request #42" hint="close or relabel stale pending release pull requests"
+ERROR pending release pull request is incompatible: release unit is no longer configured pending="pull request #42" urls=https://example.test/pulls/42 unit=combined branch=yeet/release-main hint="merge it under the old configuration, or close or relabel it"

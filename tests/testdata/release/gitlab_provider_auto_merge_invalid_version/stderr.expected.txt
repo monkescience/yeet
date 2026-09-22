@@ -1,2 +1,2 @@
 INFO  created release pull request url=https://example.test/mr/42
-ERROR provider-managed auto-merge is unsupported hint="check provider prerequisites or use --auto-merge-mode direct"
+ERROR provider-managed auto-merge is unsupported: provider version is invalid provider=gitlab version=unknown hint="check provider prerequisites or use --auto-merge-mode direct"

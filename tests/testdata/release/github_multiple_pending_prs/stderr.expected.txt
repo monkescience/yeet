@@ -1,1 +1,1 @@
-ERROR multiple pending release pull requests pending="pull request #43, pull request #44" hint="close or relabel stale pending release pull requests"
+ERROR multiple pending release pull requests pending="pull request #43, pull request #44" urls="https://example.test/pulls/43, https://example.test/pulls/44" hint="close or relabel stale pending release pull requests"

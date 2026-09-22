@@ -1,1 +1,1 @@
-ERROR conflicting release version overrides: two commits request different Release-As versions field=Release-As requested=3.0.0 current=2.0.0 hint="use the same Release-As version for commits in this release"
+ERROR conflicting release version overrides: two commits request different Release-As versions field=Release-As requested=3.0.0 current=1.0.0 conflicts_with=2.0.0 hint="use the same Release-As version for commits in this release"

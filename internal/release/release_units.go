@@ -178,7 +178,7 @@ func validateReleaseUnitFileOwnership(
 		for _, plan := range unit.Plans {
 			target, exists := targets[plan.ID]
 			if !exists {
-				return fmt.Errorf("%w: %s", errUnknownTarget, plan.ID)
+				return unknownTargetError(plan.ID, "")
 			}
 
 			unitPaths[target.Changelog.File] = struct{}{}
@@ -189,7 +189,7 @@ func validateReleaseUnitFileOwnership(
 
 		for path := range unitPaths {
 			if previous, exists := owners[path]; exists && previous != unit.ID {
-				return fileConflictError(path, []string{previous, unit.ID}, fmt.Errorf(
+				return fileConflictError(FileConflictAcrossUnits, path, "", []string{previous, unit.ID}, fmt.Errorf(
 					"%w: release units %q and %q both write %q, configure separate files or place the targets in one atomic group",
 					errConflictingFileUpdate,
 					previous,
@@ -230,12 +230,13 @@ func validateReleaseUnitFileEffects(targets map[string]config.ResolvedTarget, un
 
 			for _, existing := range versionEffects[versionFile.Path] {
 				if versionFileEffectsConflict(existing, effect) {
-					return fileConflictError(versionFile.Path, []string{unit.ID}, fmt.Errorf(
-						"%w: release unit %q has incompatible version writes to %q, configure separately addressable version files",
-						errConflictingFileUpdate,
-						unit.ID,
-						versionFile.Path,
-					))
+					return fileConflictError(
+						FileConflictIncompatibleVersions, versionFile.Path, "", []string{unit.ID}, fmt.Errorf(
+							"%w: release unit %q has incompatible version writes to %q, configure separately addressable version files",
+							errConflictingFileUpdate,
+							unit.ID,
+							versionFile.Path,
+						))
 				}
 			}
 
@@ -245,7 +246,7 @@ func validateReleaseUnitFileEffects(targets map[string]config.ResolvedTarget, un
 
 	for path := range changelogPaths {
 		if len(versionEffects[path]) > 0 {
-			return fileConflictError(path, []string{unit.ID}, fmt.Errorf(
+			return fileConflictError(FileConflictChangelogVersion, path, "", []string{unit.ID}, fmt.Errorf(
 				"%w: release unit %q writes %q as both a changelog and version file",
 				errConflictingFileUpdate,
 				unit.ID,

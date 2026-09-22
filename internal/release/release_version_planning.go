@@ -8,6 +8,7 @@ import (
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/logattr"
 	"github.com/monkescience/yeet/internal/version"
 )
 
@@ -68,15 +69,16 @@ func (a *releaseAnalyzer) nextVersionPlan(
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
 	strategy := a.core.versionStrategyForPlanning(target).strategy
+	current := currentVersionWithInitial(target, currentVersion)
 
-	releaseAsVersion, err := releaseAsOverride(ctx, strategy, target, commits)
+	releaseAsVersion, err := releaseAsOverride(ctx, strategy, target, commits, current)
 	if err != nil {
 		return "", commit.BumpNone, false, err
 	}
 
 	//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 	return strategy.NextRelease(
-		currentVersionWithInitial(target, currentVersion),
+		current,
 		bumpType,
 		releaseAsVersion,
 		a.core.run.prerelease,
@@ -88,6 +90,7 @@ func releaseAsOverride(
 	strategy version.Strategy,
 	target config.ResolvedTarget,
 	commits []commit.Commit,
+	currentVersion string,
 ) (string, error) {
 	if !strategy.SupportsReleaseAs() {
 		warnUnsupportedReleaseAs(ctx, target, commits)
@@ -95,7 +98,7 @@ func releaseAsOverride(
 		return "", nil
 	}
 
-	return detectReleaseAs(strategy, commits)
+	return detectReleaseAs(strategy, commits, currentVersion)
 }
 
 func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget, commits []commit.Commit) {
@@ -111,12 +114,13 @@ func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget,
 				slog.String("versioning", string(target.Versioning)),
 				slog.String("field", "Release-As"),
 				slog.String("value", strings.TrimSpace(footer.Value)),
+				logattr.Hint("remove the Release-As footer for this target, only semver supports it"),
 			)
 		}
 	}
 }
 
-func detectReleaseAs(strategy version.Strategy, commits []commit.Commit) (string, error) {
+func detectReleaseAs(strategy version.Strategy, commits []commit.Commit, currentVersion string) (string, error) {
 	releaseAsVersion := ""
 
 	for _, c := range commits {
@@ -127,7 +131,13 @@ func detectReleaseAs(strategy version.Strategy, commits []commit.Commit) (string
 
 			candidate := strings.TrimSpace(footer.Value)
 			if candidate == "" {
-				return "", fmt.Errorf("%w: empty value", errInvalidReleaseAs)
+				//nolint:wrapcheck // version supplies the typed release-as context.
+				return "", version.NewReleaseAsError(
+					"",
+					currentVersion,
+					"Release-As footer has an empty value",
+					fmt.Errorf("%w: empty value", errInvalidReleaseAs),
+				)
 			}
 
 			normalizedCandidate, err := strategy.NormalizeReleaseAs(candidate)
@@ -144,8 +154,9 @@ func detectReleaseAs(strategy version.Strategy, commits []commit.Commit) (string
 
 			if releaseAsVersion != normalizedCandidate {
 				//nolint:wrapcheck // version supplies the typed release-as context.
-				return "", version.NewReleaseAsError(
+				return "", version.NewConflictingReleaseAsError(
 					normalizedCandidate,
+					currentVersion,
 					releaseAsVersion,
 					"two commits request different Release-As versions",
 					fmt.Errorf("%w: %q and %q", errConflictingReleaseAs, releaseAsVersion, normalizedCandidate),

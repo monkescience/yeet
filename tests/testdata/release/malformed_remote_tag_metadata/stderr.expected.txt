@@ -1,0 +1,1 @@
+ERROR remote tag metadata is invalid: remote tag has an invalid commit hash tag=v1.0.0 hint="check remote tag references and commit hashes"

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
 	"github.com/monkescience/yeet/tests/internal/fixture"
@@ -679,6 +680,38 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 		)
 	})
 
+	t.Run("gitlab refusal reason reaches the debug record", func(t *testing.T) {
+		t.Parallel()
+
+		// given: GitLab refuses auto-merge with a reason only its merge_error field carries
+		repoDir, shas := providerAutoMergeRepo(t, "https://gitlab.com/group/service.git")
+		server := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:                   "group/service",
+			LatestTag:                 "v1.0.0",
+			BoundarySHA:               shas[0],
+			BranchHeadSHA:             shas[1],
+			AutoMergeResponseError:    "project rules refused auto-merge",
+			AssertAutoMergeRequests:   true,
+			ExpectedAutoMergeRequests: 1,
+			ForbidPublication:         true,
+		})
+		configPath := providerAutoMergeConfig(t, "gitlab")
+
+		// when: raising the log level to debug
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--auto-merge", "--no-color", "--verbose", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		// then: the provider reason appears in the debug detail, never in the error line
+		testastic.Equal(t, 1, result.ExitCode)
+
+		stderr := ansi.Strip(result.Stderr)
+		testastic.Contains(t, stderr, `provider_message="project rules refused auto-merge"`)
+		testastic.NotContains(t, withoutDebugDiagnostics(stderr), "project rules refused auto-merge")
+	})
+
 	t.Run("gitlab rejects versions without native auto-merge", func(t *testing.T) {
 		t.Parallel()
 
@@ -779,7 +812,7 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 	t.Run("independent units preserve accepted scheduling after a refusal", func(t *testing.T) {
 		t.Parallel()
 
-		// given: two independent releases where the first scheduling request is refused
+		// given: a short token and two independent releases where the first scheduling request is refused
 		repoDir, shas := writeIndependentMonorepoHistory(t)
 		opts := independentGitHubOptions(shas)
 		opts.Files = map[string]string{
@@ -801,7 +834,7 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--auto-merge", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
-			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+			testastic.WithRunEnv(append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN=e")...),
 		)
 
 		// then: the later unit remains scheduled while the command reports the first refusal

@@ -189,8 +189,8 @@ func (a *releaseAnalyzer) planDirectTarget(
 
 	slog.DebugContext(ctx, "release plan decision",
 		slog.String("target", target.ID),
-		slog.Any("bump_type", bumpType),
-		slog.Any("next_bump_type", nextBumpType),
+		slog.String("bump_type", string(bumpType)),
+		slog.String("next_bump_type", string(nextBumpType)),
 		slog.String("next_version", nextVersion),
 		slog.Bool("should_release", shouldRelease),
 	)

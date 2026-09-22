@@ -9,6 +9,7 @@ import (
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/version"
 )
 
 func captureWarnings(t *testing.T) *bytes.Buffer {
@@ -48,6 +49,7 @@ func TestReleaseAsOverride(t *testing.T) {
 			versionStrategyForResolvedTarget(target).strategy,
 			target,
 			commits,
+			"",
 		)
 
 		// then: no version is overridden and each ignored footer retains typed logging context
@@ -74,11 +76,35 @@ func TestReleaseAsOverride(t *testing.T) {
 			versionStrategyForResolvedTarget(target).strategy,
 			target,
 			[]commit.Commit{releaseAsCommit("abc1234", "2.0.0")},
+			"1.0.0",
 		)
 
 		// then: the requested version is returned and nothing is reported
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2.0.0", override)
 		testastic.Equal(t, "", logs.String())
+	})
+
+	t.Run("describes an empty semver footer", func(t *testing.T) {
+		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}
+
+		_, err := releaseAsOverride(
+			t.Context(),
+			versionStrategyForResolvedTarget(target).strategy,
+			target,
+			[]commit.Commit{releaseAsCommit("abc1234", "")},
+			"1.0.0",
+		)
+
+		var releaseAs *version.ReleaseAsError
+
+		testastic.ErrorAs(t, err, &releaseAs)
+
+		if releaseAs == nil {
+			return
+		}
+
+		testastic.Equal(t, "Release-As footer has an empty value", releaseAs.Problem)
+		testastic.Equal(t, "1.0.0", releaseAs.Current)
 	})
 }

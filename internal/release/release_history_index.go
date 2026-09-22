@@ -10,6 +10,7 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 type historyScan struct {
@@ -87,6 +88,7 @@ func (a *releaseAnalyzer) buildSharedHistoryIndex(
 		slog.WarnContext(ctx, "some release refs are unreachable from branch",
 			slog.String("branch", a.core.run.baseBranch),
 			slog.Any("missing_refs", scanned.MissingRefs),
+			logattr.Hint("check that the release tags belong to the configured branch"),
 		)
 	}
 
