@@ -266,7 +266,12 @@ type AutoMergeUnsupportedError struct {
 }
 
 func (e *AutoMergeUnsupportedError) Error() string {
-	return ErrAutoMergeUnsupported.Error()
+	problem := strings.TrimSpace(e.Problem)
+	if problem == "" {
+		return ErrAutoMergeUnsupported.Error()
+	}
+
+	return ErrAutoMergeUnsupported.Error() + ": " + problem
 }
 
 func (e *AutoMergeUnsupportedError) Unwrap() error {

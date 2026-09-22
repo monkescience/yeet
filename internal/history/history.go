@@ -28,6 +28,12 @@ const (
 	CheckoutProblemTagUnavailable = "release tag is unavailable in checkout"
 )
 
+const (
+	CheckoutCauseNoRepository  = "git repository was not found"
+	CheckoutCauseNoReference   = "git reference was not found"
+	CheckoutCauseInvalidConfig = "git configuration is invalid"
+)
+
 type CheckoutError struct {
 	Problem       string
 	Branch        string
@@ -35,6 +41,10 @@ type CheckoutError struct {
 	Ref           string
 	LocalHead     string
 	RemoteHead    string
+	Cause         string
+	Reason        string
+	Line          int
+	Column        int
 	Err           error
 }
 
@@ -277,11 +287,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 		DetectDotGit: true,
 	})
 	if err != nil {
-		return nil, &CheckoutError{
-			Problem: CheckoutProblemNoRepository,
-			Branch:  s.branch,
-			Err:     err,
-		}
+		return nil, openCheckoutError(s.branch, err)
 	}
 
 	shallows, err := repo.Storer.Shallow()
@@ -299,7 +305,7 @@ func (s *Source) openEligibleLocal(ctx context.Context) (*localHistory, error) {
 func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*localHistory, error) {
 	head, err := repo.Head()
 	if err != nil {
-		return nil, checkoutError(CheckoutProblemNoHead, err)
+		return nil, headCheckoutError(err)
 	}
 
 	if head.Name().IsBranch() && head.Name().Short() != s.branch {

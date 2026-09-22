@@ -190,11 +190,12 @@ func validateReleaseUnitFileOwnership(
 		for path := range unitPaths {
 			if previous, exists := owners[path]; exists && previous != unit.ID {
 				return fileConflictError(FileConflictAcrossUnits, path, "", []string{previous, unit.ID}, fmt.Errorf(
-					"%w: release units %q and %q both write %q, configure separate files or place the targets in one atomic group",
+					"%w: release units %q and %q both write %q, %s",
 					errConflictingFileUpdate,
 					previous,
 					unit.ID,
 					path,
+					FileConflictRemedyAcrossUnits,
 				))
 			}
 
@@ -232,10 +233,11 @@ func validateReleaseUnitFileEffects(targets map[string]config.ResolvedTarget, un
 				if versionFileEffectsConflict(existing, effect) {
 					return fileConflictError(
 						FileConflictIncompatibleVersions, versionFile.Path, "", []string{unit.ID}, fmt.Errorf(
-							"%w: release unit %q has incompatible version writes to %q, configure separately addressable version files",
+							"%w: release unit %q has incompatible version writes to %q, %s",
 							errConflictingFileUpdate,
 							unit.ID,
 							versionFile.Path,
+							FileConflictRemedyIncompatibleVersions,
 						))
 				}
 			}

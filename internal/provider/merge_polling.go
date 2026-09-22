@@ -8,6 +8,7 @@ import (
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 const mergePollBackoffFactor = 2
@@ -81,7 +82,7 @@ func (p mergePolling) awaitMergedCommit(
 		}
 
 		if attempt == 0 {
-			slog.InfoContext(ctx, "waiting for merge to finalize", slog.String("pull_request", reference))
+			slog.InfoContext(ctx, "waiting for merge to finalize", logattr.PullRequest(reference))
 		}
 
 		select {

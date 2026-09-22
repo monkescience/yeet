@@ -5,12 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/go-git/go-git/v6"
-	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
@@ -20,14 +16,6 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
-
-var gitConfigCheckoutError = regexp.MustCompile(
-	`(?:^|: )read (?:worktree )?config: ([0-9]+):([0-9]+): (` +
-		`expected section name|expected right bracket|expected EOL, EOF, or comment|` +
-		`expected section header|expected '='|expected value|expected section header or variable declaration)$`,
-)
-
-const gitConfigCheckoutMatches = 4
 
 type reportedFailure struct {
 	diagnostic *diagnostic
@@ -159,7 +147,7 @@ func describeCheckout(d *diagnostic, failure *release.Failure) bool {
 }
 
 func checkoutHint(checkout *history.CheckoutError) string {
-	if checkout.Err != nil && gitConfigCheckoutError.MatchString(checkout.Err.Error()) {
+	if checkout.Cause == history.CheckoutCauseInvalidConfig {
 		return "repair the local git metadata or use a fresh full checkout"
 	}
 
@@ -185,31 +173,21 @@ func checkoutHint(checkout *history.CheckoutError) string {
 }
 
 func checkoutVerboseAttrs(checkout *history.CheckoutError) []slog.Attr {
+	if checkout.Cause == history.CheckoutCauseInvalidConfig {
+		return []slog.Attr{
+			slog.String("cause", checkout.Cause),
+			slog.Int("line", checkout.Line),
+			slog.Int("column", checkout.Column),
+			slog.String("reason", checkout.Reason),
+		}
+	}
+
+	if checkout.Cause != "" {
+		return []slog.Attr{slog.String("cause", checkout.Cause)}
+	}
+
 	if checkout.Err == nil {
 		return nil
-	}
-
-	if errors.Is(checkout.Err, git.ErrRepositoryNotExists) {
-		return []slog.Attr{slog.String("cause", "git repository was not found")}
-	}
-
-	if errors.Is(checkout.Err, plumbing.ErrReferenceNotFound) {
-		return []slog.Attr{slog.String("cause", "git reference was not found")}
-	}
-
-	matches := gitConfigCheckoutError.FindStringSubmatch(checkout.Err.Error())
-	if len(matches) == gitConfigCheckoutMatches {
-		line, lineErr := strconv.Atoi(matches[1])
-
-		column, columnErr := strconv.Atoi(matches[2])
-		if lineErr == nil && columnErr == nil {
-			return []slog.Attr{
-				slog.String("cause", "git configuration is invalid"),
-				slog.Int("line", line),
-				slog.Int("column", column),
-				slog.String("reason", matches[3]),
-			}
-		}
 	}
 
 	if cause := diagnosticCause(checkout.Err); cause != "" {
@@ -257,7 +235,7 @@ func describeMergeError(d *diagnostic, err error, reason release.MergeReason) bo
 	described := false
 
 	if blocked, ok := errors.AsType[*forge.MergeBlockedError](err); ok {
-		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", blocked.Reference))
+		d.attrs = appendNonempty(d.attrs, logattr.PullRequest(blocked.Reference))
 
 		if blocked.MergeStatus != "" {
 			d.attrs = append(d.attrs, slog.String("merge_status", blocked.MergeStatus))
@@ -272,7 +250,7 @@ func describeMergeError(d *diagnostic, err error, reason release.MergeReason) bo
 	}
 
 	if untrusted, ok := errors.AsType[*forge.UntrustedReleasePRError](err); ok {
-		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", untrusted.Reference))
+		d.attrs = appendNonempty(d.attrs, logattr.PullRequest(untrusted.Reference))
 		described = true
 	}
 
@@ -289,7 +267,7 @@ func describeMergeError(d *diagnostic, err error, reason release.MergeReason) bo
 	}
 
 	if timeout, ok := errors.AsType[*provider.MergeNotFinalizedError](err); ok {
-		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", timeout.Reference()))
+		d.attrs = appendNonempty(d.attrs, logattr.PullRequest(timeout.Reference()))
 		d.attrs = append(d.attrs,
 			slog.Duration("timeout", timeout.Timeout()),
 			slog.String("timeout_kind", string(timeout.TimeoutKind())),
@@ -309,7 +287,7 @@ func describeAutoMergeUnsupported(d *diagnostic, err error) bool {
 
 	d.attrs = appendNonempty(d.attrs,
 		logattr.Provider(unsupported.Provider),
-		slog.String("pull_request", unsupported.Reference),
+		logattr.PullRequest(unsupported.Reference),
 		slog.String("version", unsupported.Version),
 		slog.String("required_version", unsupported.RequiredVersion),
 	)
@@ -367,7 +345,7 @@ func describeProviderResource(d *diagnostic, failure *release.Failure) bool {
 		describeLabel(d, failure)
 		d.explain(label.Problem)
 		d.attrs = appendNonempty(d.attrs, slog.String("label", label.Label), slog.String("role", label.Role),
-			slog.String("pull_request", label.Reference), slog.String("branch", label.Branch),
+			logattr.PullRequest(label.Reference), slog.String("branch", label.Branch),
 			slog.String("scope", label.Scope), slog.String("conflicts_with", label.Conflict))
 
 		described = true
@@ -480,7 +458,7 @@ func describeReleaseTarget(d *diagnostic, failure *release.Failure) bool {
 	}
 
 	d.message = "could not update version file"
-	d.attrs = appendNonempty(d.attrs, slog.String("target", file.Target), slog.String("file_path", file.Path))
+	d.attrs = appendNonempty(d.attrs, slog.String("target", file.Target), logattr.FilePath(file.Path))
 	describeVersionFileProblem(d, failure)
 
 	return true
@@ -525,7 +503,7 @@ func describeFileConflict(d *diagnostic, failure *release.Failure) bool {
 	}
 
 	d.attrs = appendNonempty(d.attrs, slog.String("conflict", string(conflict.Kind)),
-		slog.String("file_path", conflict.Path), slog.String("target", conflict.Target))
+		logattr.FilePath(conflict.Path), slog.String("target", conflict.Target))
 	if len(conflict.Units) > 0 {
 		d.attrs = append(d.attrs, slog.Any("units", conflict.Units))
 	}
@@ -533,14 +511,13 @@ func describeFileConflict(d *diagnostic, failure *release.Failure) bool {
 	switch conflict.Kind {
 	case release.FileConflictAcrossUnits:
 		d.explain("release units write the same file")
-		d.hint = "configure separate files or place the targets in one atomic group"
 	case release.FileConflictIncompatibleVersions:
 		d.explain("release unit writes incompatible versions to one file")
-		d.hint = "configure separately addressable version files"
 	case release.FileConflictChangelogVersion:
 		d.explain("file is configured as both a changelog and version file")
-		d.hint = "configure different paths for the changelog and version file"
 	}
+
+	d.hint = conflict.Hint
 
 	return true
 }
@@ -641,7 +618,7 @@ func describeReleaseContent(d *diagnostic, failure *release.Failure) bool {
 	}
 
 	d.message = "release pull request has an invalid manifest"
-	d.attrs = appendNonempty(d.attrs, slog.String("pull_request", manifest.Reference))
+	d.attrs = appendNonempty(d.attrs, logattr.PullRequest(manifest.Reference))
 	d.hint = "restore the release manifest in the pull request body"
 
 	return true

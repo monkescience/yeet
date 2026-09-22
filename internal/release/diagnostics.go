@@ -63,11 +63,18 @@ const (
 	FileConflictChangelogVersion     FileConflictKind = "changelog_version"
 )
 
+const (
+	FileConflictRemedyAcrossUnits          = "configure separate files or place the targets in one atomic group"
+	FileConflictRemedyIncompatibleVersions = "configure separately addressable version files"
+	FileConflictRemedyChangelogVersion     = "configure different paths for the changelog and version file"
+)
+
 type FileConflictError struct {
 	Kind   FileConflictKind
 	Units  []string
 	Target string
 	Path   string
+	Hint   string
 	cause  error
 }
 
@@ -81,7 +88,27 @@ func fileConflictError(
 	units []string,
 	cause error,
 ) error {
-	return &FileConflictError{Kind: kind, Units: units, Target: target, Path: path, cause: cause}
+	return &FileConflictError{
+		Kind:   kind,
+		Units:  units,
+		Target: target,
+		Path:   path,
+		Hint:   fileConflictRemedy(kind),
+		cause:  cause,
+	}
+}
+
+func fileConflictRemedy(kind FileConflictKind) string {
+	switch kind {
+	case FileConflictAcrossUnits:
+		return FileConflictRemedyAcrossUnits
+	case FileConflictIncompatibleVersions:
+		return FileConflictRemedyIncompatibleVersions
+	case FileConflictChangelogVersion:
+		return FileConflictRemedyChangelogVersion
+	default:
+		return ""
+	}
 }
 
 func pullRequestReference(pullRequest *forge.PullRequest) string {
