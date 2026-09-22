@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/monkescience/testastic"
@@ -36,6 +37,36 @@ func TestDiagnosticHandlerStructuredValues(t *testing.T) {
 	testastic.Contains(t, output.String(), `release.details.request_id="OmU="`)
 	testastic.NotContains(t, output.String(), "private-response-content")
 	testastic.NotContains(t, output.String(), "private-object-content")
+}
+
+func TestDiagnosticHandlerRendersEverySupportedKind(t *testing.T) {
+	// given: one attribute per slog kind the handler claims to support
+	var output bytes.Buffer
+
+	logger := slog.New(&diagnosticHandler{Handler: slog.NewTextHandler(&output, nil)})
+
+	// when: logging all of them in one record
+	logger.InfoContext(t.Context(), "kinds",
+		slog.String("string_kind", "text"),
+		slog.Bool("bool_kind", true),
+		slog.Duration("duration_kind", time.Second),
+		slog.Float64("float_kind", 1.5),
+		slog.Int64("int_kind", 7),
+		slog.Uint64("uint_kind", 8),
+		slog.Time("time_kind", time.Unix(0, 0).UTC()),
+		slog.Any("error_kind", errors.New("boom")),
+		slog.Any("strings_kind", []string{"one", "two"}))
+
+	// then: none of them degrade to the unsupported placeholder
+	rendered := output.String()
+	for _, key := range []string{
+		"string_kind", "bool_kind", "duration_kind", "float_kind",
+		"int_kind", "uint_kind", "time_kind", "error_kind", "strings_kind",
+	} {
+		testastic.Contains(t, rendered, key+"=")
+	}
+
+	testastic.NotContains(t, rendered, "[unsupported diagnostic value]")
 }
 
 func TestDiagnosticURLDisplay(t *testing.T) {

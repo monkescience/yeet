@@ -263,6 +263,85 @@ func TestDiagnosticsRedactsTokensInArguments(t *testing.T) {
 	}
 }
 
+func TestDiagnosticsRedactsTokensInAttributes(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"
+
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{name: "provider", args: []string{"--provider", token}},
+		{name: "remote", args: []string{"--remote", token}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a token echoed back through a flag value that reaches a log attribute
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider: "github",
+				Branch:   "main",
+				Host:     "github.example",
+				Owner:    "acme",
+				Repo:     "repo",
+			})
+			args := append([]string{"release", "--no-color", "--config", configPath}, test.args...)
+
+			// when: yeet reports the resulting failure
+			result := binary.RunWithOptions(t, args,
+				testastic.WithRunWorkDir(t.TempDir()),
+				testastic.WithRunEnv("GITHUB_TOKEN="+token))
+
+			// then: the token value never reaches the diagnostic, in the message or in any attribute
+			testastic.Equal(t, 1, result.ExitCode)
+
+			stderr := ansi.Strip(result.Stderr)
+			testastic.NotContains(t, stderr, token)
+			testastic.Contains(t, stderr, "[redacted]")
+		})
+	}
+}
+
+func TestDiagnosticsRedactionLengthBoundary(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name     string
+		token    string
+		redacted bool
+	}{
+		{name: "below_threshold", token: "abcdefghijklmno"},
+		{name: "at_threshold", token: "abcdefghijklmnop", redacted: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a token one byte either side of the redaction threshold, echoed through a flag
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider: "github",
+				Branch:   "main",
+				Host:     "github.example",
+				Owner:    "acme",
+				Repo:     "repo",
+			})
+
+			// when: yeet reports the resulting failure
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--no-color", "--config", configPath, "--provider", test.token},
+				testastic.WithRunWorkDir(t.TempDir()),
+				testastic.WithRunEnv("GITHUB_TOKEN="+test.token))
+
+			// then: only tokens long enough to be unambiguous are replaced
+			testastic.Equal(t, 1, result.ExitCode)
+
+			stderr := ansi.Strip(result.Stderr)
+			testastic.Equal(t, test.redacted, strings.Contains(stderr, "[redacted]"))
+			testastic.Equal(t, !test.redacted, strings.Contains(stderr, "provider="+test.token))
+		})
+	}
+}
+
 func TestDiagnosticsConfigurationTokenCollision(t *testing.T) {
 	t.Parallel()
 

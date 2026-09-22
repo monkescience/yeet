@@ -220,6 +220,8 @@ func TestDiagnosticsMergeTimeoutWhileResponsive(t *testing.T) {
 		errorDiagnostics(result.Stderr))
 }
 
+const gitLabDiagnosticsToken = "gitlab-diagnostics-test-token"
+
 func TestDiagnosticsGitLabMergeStatus(t *testing.T) {
 	t.Parallel()
 
@@ -237,7 +239,7 @@ func TestDiagnosticsGitLabMergeStatus(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 
-			// given: GitLab returns a merge status whose spelling matches the synthetic token
+			// given: GitLab reports a detailed merge status, including one this client predates
 			repoDir, shas := providerAutoMergeRepo(t, "https://gitlab.com/group/service.git")
 			fake := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
 				Project: "group/service", LatestTag: "v1.0.0",
@@ -271,9 +273,10 @@ func TestDiagnosticsGitLabMergeStatus(t *testing.T) {
 					"--config", providerAutoMergeConfig(t, "gitlab"),
 				},
 				testastic.WithRunWorkDir(repoDir),
-				testastic.WithRunEnv(append(fixture.GitLabEnv(server, "main"), "GITLAB_TOKEN="+scenario.status)...))
+				testastic.WithRunEnv(append(fixture.GitLabEnv(server, "main"),
+					"GITLAB_TOKEN="+gitLabDiagnosticsToken)...))
 
-			// then: provider statuses remain intact, including values introduced after this client
+			// then: the status reaches the user verbatim, including values introduced after this client
 			testastic.Equal(t, 1, result.ExitCode)
 			testastic.AssertFile(t, "testdata/diagnostics/gitlab_status_"+scenario.name+"/stderr.expected.txt",
 				errorDiagnostics(result.Stderr))

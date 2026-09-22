@@ -27,20 +27,7 @@ type diagnosticHandler struct {
 
 var diagnosticURL = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>]+`)
 
-const minRedactedTokenLength = 16
-
-var userSuppliedAttrs = map[string]struct{}{
-	"api_host":  {},
-	"argument":  {},
-	"arguments": {},
-	"config":    {},
-	"file_path": {},
-	"flag":      {},
-	"host":      {},
-	"path":      {},
-	"remote":    {},
-	"value":     {},
-}
+const minRedactedTokenBytes = 16
 
 func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog.Logger {
 	logger := charmlog.NewWithOptions(output, charmlog.Options{
@@ -57,7 +44,7 @@ func tokenRedactor() *strings.Replacer {
 
 	for _, name := range provider.TokenEnvVars() {
 		value := os.Getenv(name)
-		if len(value) < minRedactedTokenLength {
+		if len(value) < minRedactedTokenBytes {
 			continue
 		}
 
@@ -105,33 +92,25 @@ func (h *diagnosticHandler) redacted(value string) string {
 	return h.redact.Replace(value)
 }
 
-func (h *diagnosticHandler) redactedAttr(key, value string) string {
-	if _, echoed := userSuppliedAttrs[key]; !echoed {
-		return value
-	}
-
-	return h.redacted(value)
-}
-
 func (h *diagnosticHandler) attr(attr slog.Attr) slog.Attr {
 	attr.Value = attr.Value.Resolve()
 
 	switch attr.Value.Kind() {
 	case slog.KindString:
-		attr.Value = slog.StringValue(h.redactedAttr(attr.Key, sanitizeDiagnosticURLs(attr.Value.String())))
+		attr.Value = slog.StringValue(h.redacted(sanitizeDiagnosticURLs(attr.Value.String())))
 	case slog.KindAny:
 		switch value := attr.Value.Any().(type) {
 		case error:
-			attr.Value = slog.StringValue(safeCause(value))
+			attr.Value = slog.StringValue(h.redacted(safeCause(value)))
 		case []string:
 			if len(value) == 0 {
-				attr.Value = slog.StringValue(sanitizeDiagnosticURLs(fmt.Sprint(value)))
+				attr.Value = slog.StringValue(h.redacted(sanitizeDiagnosticURLs(fmt.Sprint(value))))
 
 				break
 			}
 
 			attr.Value = slog.StringValue(
-				h.redactedAttr(attr.Key, sanitizeDiagnosticURLs(strings.Join(value, ", "))))
+				h.redacted(sanitizeDiagnosticURLs(strings.Join(value, ", "))))
 		default:
 			attr.Value = slog.StringValue("[unsupported diagnostic value]")
 		}
@@ -186,22 +165,25 @@ func safeCause(err error) string {
 	return "unclassified error"
 }
 
+func yamlLoadCause(load *yaml.LoadError) string {
+	return fmt.Sprintf("yaml %s at %d:%d", load.Stage, load.Mark.Line, load.Mark.Column)
+}
+
 func diagnosticCause(err error) string {
 	if _, ok := errors.AsType[*json.SyntaxError](err); ok {
 		return "response is not valid JSON"
 	}
 
-	load, ok := errors.AsType[*yaml.LoadError](err)
 	if loads, multiple := errors.AsType[*yaml.LoadErrors](err); multiple {
 		if len(loads.Errors) != 1 {
 			return ""
 		}
 
-		load, ok = loads.Errors[0], true
+		return yamlLoadCause(loads.Errors[0])
 	}
 
-	if ok {
-		return fmt.Sprintf("yaml %s at %d:%d", load.Stage, load.Mark.Line, load.Mark.Column)
+	if load, single := errors.AsType[*yaml.LoadError](err); single {
+		return yamlLoadCause(load)
 	}
 
 	if timeout, ok := errors.AsType[*provider.MergeNotFinalizedError](err); ok {
