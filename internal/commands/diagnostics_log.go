@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,21 @@ type diagnosticHandler struct {
 
 var diagnosticURL = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>]+`)
 
+const minRedactedTokenLength = 16
+
+var userSuppliedAttrs = map[string]struct{}{
+	"api_host":  {},
+	"argument":  {},
+	"arguments": {},
+	"config":    {},
+	"file_path": {},
+	"flag":      {},
+	"host":      {},
+	"path":      {},
+	"remote":    {},
+	"value":     {},
+}
+
 func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog.Logger {
 	logger := charmlog.NewWithOptions(output, charmlog.Options{
 		Level:           charmlog.Level(level),
@@ -33,11 +49,15 @@ func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog
 	})
 	logger.SetColorProfile(resolveColorProfile(output, noColor))
 
+	return slog.New(&diagnosticHandler{Handler: logger, redact: tokenRedactor()})
+}
+
+func tokenRedactor() *strings.Replacer {
 	var replacements []string
 
 	for _, name := range provider.TokenEnvVars() {
 		value := os.Getenv(name)
-		if value == "" {
+		if len(value) < minRedactedTokenLength {
 			continue
 		}
 
@@ -45,11 +65,11 @@ func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog
 			base64.StdEncoding.EncodeToString([]byte(":"+value)), "[redacted]")
 	}
 
-	return slog.New(&diagnosticHandler{Handler: logger, redact: strings.NewReplacer(replacements...)})
+	return strings.NewReplacer(replacements...)
 }
 
 func (h *diagnosticHandler) Handle(ctx context.Context, record slog.Record) error {
-	safe := slog.NewRecord(record.Time, record.Level, h.text(record.Message), record.PC)
+	safe := slog.NewRecord(record.Time, record.Level, h.redacted(record.Message), record.PC)
 	record.Attrs(func(attr slog.Attr) bool {
 		safe.AddAttrs(h.attr(attr))
 
@@ -74,30 +94,46 @@ func (h *diagnosticHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (h *diagnosticHandler) WithGroup(name string) slog.Handler {
-	return &diagnosticHandler{Handler: h.Handler.WithGroup(h.text(name)), redact: h.redact}
+	return &diagnosticHandler{Handler: h.Handler.WithGroup(name), redact: h.redact}
+}
+
+func (h *diagnosticHandler) redacted(value string) string {
+	if h.redact == nil {
+		return value
+	}
+
+	return h.redact.Replace(value)
+}
+
+func (h *diagnosticHandler) redactedAttr(key, value string) string {
+	if _, echoed := userSuppliedAttrs[key]; !echoed {
+		return value
+	}
+
+	return h.redacted(value)
 }
 
 func (h *diagnosticHandler) attr(attr slog.Attr) slog.Attr {
-	attr.Key = h.text(attr.Key)
 	attr.Value = attr.Value.Resolve()
 
 	switch attr.Value.Kind() {
 	case slog.KindString:
-		attr.Value = slog.StringValue(h.text(attr.Value.String()))
+		attr.Value = slog.StringValue(h.redactedAttr(attr.Key, sanitizeDiagnosticURLs(attr.Value.String())))
 	case slog.KindAny:
 		switch value := attr.Value.Any().(type) {
 		case error:
-			attr.Value = slog.StringValue(h.text(safeCause(value)))
+			attr.Value = slog.StringValue(safeCause(value))
 		case []string:
 			if len(value) == 0 {
-				attr.Value = slog.StringValue(h.text(fmt.Sprint(value)))
+				attr.Value = slog.StringValue(sanitizeDiagnosticURLs(fmt.Sprint(value)))
 
 				break
 			}
 
-			attr.Value = slog.StringValue(h.text(strings.Join(value, ", ")))
+			attr.Value = slog.StringValue(
+				h.redactedAttr(attr.Key, sanitizeDiagnosticURLs(strings.Join(value, ", "))))
 		default:
-			attr.Value = slog.StringValue(h.text(fmt.Sprint(value)))
+			attr.Value = slog.StringValue("[unsupported diagnostic value]")
 		}
 	case slog.KindGroup:
 		group := attr.Value.Group()
@@ -115,21 +151,27 @@ func (h *diagnosticHandler) attr(attr slog.Attr) slog.Attr {
 	return attr
 }
 
-func (h *diagnosticHandler) text(value string) string {
-	value = diagnosticURL.ReplaceAllStringFunc(value, func(raw string) string {
+func sanitizeDiagnosticURLs(value string) string {
+	return diagnosticURL.ReplaceAllStringFunc(value, func(raw string) string {
 		parsed, err := url.Parse(raw)
 		if err != nil {
 			return "[invalid URL]"
 		}
 
 		parsed.User = nil
-		parsed.RawQuery = ""
+		query := make(url.Values)
+
+		for _, key := range []string{"version", "baseVersion", "targetVersion"} {
+			if value := parsed.Query().Get(key); value != "" {
+				query.Set(key, value)
+			}
+		}
+
+		parsed.RawQuery = query.Encode()
 		parsed.Fragment = ""
 
 		return parsed.String()
 	})
-
-	return h.redact.Replace(value)
 }
 
 func safeCause(err error) string {
@@ -141,21 +183,34 @@ func safeCause(err error) string {
 		return cause
 	}
 
-	for {
-		unwrapped := errors.Unwrap(err)
-		if unwrapped == nil {
-			break
-		}
-
-		err = unwrapped
-	}
-
-	return err.Error()
+	return "unclassified error"
 }
 
 func diagnosticCause(err error) string {
-	if load, ok := errors.AsType[*yaml.LoadError](err); ok {
+	if _, ok := errors.AsType[*json.SyntaxError](err); ok {
+		return "response is not valid JSON"
+	}
+
+	load, ok := errors.AsType[*yaml.LoadError](err)
+	if loads, multiple := errors.AsType[*yaml.LoadErrors](err); multiple {
+		if len(loads.Errors) != 1 {
+			return ""
+		}
+
+		load, ok = loads.Errors[0], true
+	}
+
+	if ok {
 		return fmt.Sprintf("yaml %s at %d:%d", load.Stage, load.Mark.Line, load.Mark.Column)
+	}
+
+	if timeout, ok := errors.AsType[*provider.MergeNotFinalizedError](err); ok {
+		switch timeout.TimeoutKind() {
+		case provider.MergeTimeoutResponsive:
+			return "merge remained pending"
+		case provider.MergeTimeoutTransport:
+			return "provider request timed out"
+		}
 	}
 
 	if errors.Is(err, context.Canceled) {

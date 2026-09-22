@@ -15,6 +15,7 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/history"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"go.yaml.in/yaml/v4"
@@ -430,6 +431,42 @@ func TestReleaseCategoryDiagnostic(t *testing.T) {
 	}
 }
 
+func TestCheckoutHint(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		problem  string
+		expected string
+	}{
+		{
+			name:     "unknown shallow state",
+			problem:  history.CheckoutProblemShallowUnknown,
+			expected: "repair the local git metadata or use a fresh full checkout",
+		},
+		{
+			name:     "missing head",
+			problem:  history.CheckoutProblemNoHead,
+			expected: "create or fetch a commit and check out the configured release branch",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a checkout failure with a known problem
+			checkout := &history.CheckoutError{Problem: testCase.problem}
+
+			// when: resolving its hint
+			actual := checkoutHint(checkout)
+
+			// then: the problem maps to actionable recovery advice
+			testastic.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
 func TestMergeDiagnostic(t *testing.T) {
 	t.Parallel()
 
@@ -495,6 +532,51 @@ func TestMergeDiagnostic(t *testing.T) {
 			// then: the command gives reason-specific facts and remediation
 			testastic.Equal(t, testCase.message, actual.message)
 			testastic.Equal(t, testCase.hint, actual.hint)
+		})
+	}
+}
+
+func TestMergeErrorDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name  string
+		err   error
+		key   string
+		value string
+	}{
+		{
+			name:  "untrusted pull request reference",
+			err:   &forge.UntrustedReleasePRError{Reference: "pull request #42"},
+			key:   "pull_request",
+			value: "pull request #42",
+		},
+		{
+			name:  "unsupported merge method",
+			err:   &forge.MergeMethodUnsupportedError{Method: forge.MergeMethod("octopus")},
+			key:   "merge_method",
+			value: "octopus",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: an empty diagnostic and a typed merge failure
+			d := diagnostic{}
+
+			// when: describing the failure
+			testastic.True(t, describeMergeError(&d, testCase.err, release.MergeReasonUnknown))
+
+			// then: the failure contributes its identifying attribute
+			var value string
+
+			for _, attr := range d.attrs {
+				if attr.Key == testCase.key {
+					value = attr.Value.String()
+				}
+			}
+
+			testastic.Equal(t, testCase.value, value)
 		})
 	}
 }

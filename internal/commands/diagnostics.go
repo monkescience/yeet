@@ -8,30 +8,46 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/logattr"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 type diagnostic struct {
-	message  string
-	hint     string
-	attrs    []slog.Attr
-	rawCause bool
+	message      string
+	hint         string
+	attrs        []slog.Attr
+	verboseAttrs []slog.Attr
+	rawCause     bool
 }
 
 func (d *diagnostic) report(ctx context.Context, err error) {
+	d.log(ctx, slog.LevelError, err)
+	d.logVerbose(ctx)
+}
+
+func (d *diagnostic) log(ctx context.Context, level slog.Level, err error) {
 	attrs := append([]slog.Attr(nil), d.attrs...)
 	if d.hint != "" {
-		attrs = append(attrs, slog.String("hint", d.hint))
+		attrs = append(attrs, logattr.Hint(d.hint))
 	}
 
 	if cause := d.cause(err); cause != "" {
 		attrs = append(attrs, slog.String("cause", cause))
 	}
 
-	slog.LogAttrs(ctx, slog.LevelError, d.message, attrs...)
-	slog.LogAttrs(ctx, slog.LevelDebug, "failure detail", slog.String("error", err.Error()))
+	slog.LogAttrs(ctx, level, d.message, attrs...)
+}
+
+func (d *diagnostic) logVerbose(ctx context.Context) {
+	if len(d.verboseAttrs) == 0 {
+		return
+	}
+
+	attrs := append([]slog.Attr(nil), d.attrs...)
+	attrs = append(attrs, d.verboseAttrs...)
+	slog.LogAttrs(ctx, slog.LevelDebug, "failure detail", attrs...)
 }
 
 func (d *diagnostic) cause(err error) string {
@@ -51,7 +67,7 @@ func (d *diagnostic) explain(problem string) {
 		return
 	}
 
-	d.message += ": " + problem
+	d.message += ": " + sanitizeDiagnosticURLs(problem)
 }
 
 type argumentError struct {
@@ -156,8 +172,14 @@ func flagDiagnostic(d *diagnostic, cmd *cobra.Command, err error) bool {
 	}
 
 	if flag, ok := errors.AsType[*pflag.ValueRequiredError](err); ok {
+		expected := flag.GetFlag().Value.Type()
+		if flag.GetFlag().Name == "config" {
+			expected = "configuration file path"
+		}
+
 		d.message = "flag requires a value"
-		d.attrs = append(d.attrs, slog.String("flag", flag.GetFlag().Name))
+		d.attrs = append(d.attrs, slog.String("flag", flag.GetFlag().Name),
+			slog.String("expected", expected))
 
 		return true
 	}

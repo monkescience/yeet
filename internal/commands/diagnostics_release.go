@@ -5,16 +5,29 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
 	"github.com/monkescience/yeet/internal/history"
+	"github.com/monkescience/yeet/internal/logattr"
 	"github.com/monkescience/yeet/internal/provider"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/version"
 	"github.com/monkescience/yeet/internal/versionfile"
 )
+
+var gitConfigCheckoutError = regexp.MustCompile(
+	`(?:^|: )read (?:worktree )?config: ([0-9]+):([0-9]+): (` +
+		`expected section name|expected right bracket|expected EOL, EOF, or comment|` +
+		`expected section header|expected '='|expected value|expected section header or variable declaration)$`,
+)
+
+const gitConfigCheckoutMatches = 4
 
 type reportedFailure struct {
 	diagnostic *diagnostic
@@ -23,6 +36,7 @@ type reportedFailure struct {
 
 func reportReleaseError(ctx context.Context, failure *release.Failure) {
 	reports := make([]reportedFailure, 0, len(failure.Failures()))
+	suppressedReports := make([]reportedFailure, 0, len(failure.Failures()))
 	byUnit := make(map[string]*diagnostic)
 	suppressed := make(map[string]int)
 
@@ -30,6 +44,9 @@ func reportReleaseError(ctx context.Context, failure *release.Failure) {
 		unit := failed.Unit()
 		if unit != "" && byUnit[unit] != nil {
 			suppressed[unit]++
+			d := releaseDiagnostic(failed)
+			d.attrs = append([]slog.Attr{slog.String("unit", unit)}, d.attrs...)
+			suppressedReports = append(suppressedReports, reportedFailure{diagnostic: &d, cause: failed})
 
 			continue
 		}
@@ -51,6 +68,11 @@ func reportReleaseError(ctx context.Context, failure *release.Failure) {
 	for _, report := range reports {
 		report.diagnostic.report(ctx, report.cause)
 	}
+
+	for _, report := range suppressedReports {
+		report.diagnostic.log(ctx, slog.LevelDebug, report.cause)
+		report.diagnostic.logVerbose(ctx)
+	}
 }
 
 func releaseDiagnostic(failure *release.Failure) diagnostic {
@@ -60,6 +82,7 @@ func releaseDiagnostic(failure *release.Failure) diagnostic {
 	for _, describe := range []func(*diagnostic, *release.Failure) bool{
 		describeConfiguration,
 		describeCheckout,
+		describeHistoryMetadata,
 		describeProviderSetup,
 		describeMergeState,
 		describeProviderResource,
@@ -72,7 +95,26 @@ func releaseDiagnostic(failure *release.Failure) diagnostic {
 		}
 	}
 
+	d.verboseAttrs = append(
+		[]slog.Attr{slog.String("failure", string(failure.Kind()))},
+		d.verboseAttrs...,
+	)
+
 	return d
+}
+
+func describeHistoryMetadata(d *diagnostic, failure *release.Failure) bool {
+	metadata, ok := errors.AsType[*history.RemoteTagMetadataError](failure)
+	if !ok {
+		return false
+	}
+
+	d.message = "remote tag metadata is invalid"
+	d.explain(metadata.Problem)
+	d.attrs = appendNonempty(d.attrs, slog.String("tag", metadata.Tag))
+	d.hint = "check remote tag references and commit hashes"
+
+	return true
 }
 
 func describeConfiguration(d *diagnostic, failure *release.Failure) bool {
@@ -107,15 +149,21 @@ func describeCheckout(d *diagnostic, failure *release.Failure) bool {
 		slog.String("ref", checkout.Ref), slog.String("local_head", checkout.LocalHead),
 		slog.String("remote_head", checkout.RemoteHead))
 
-	if hint := checkoutHint(checkout.Problem); hint != "" {
+	if hint := checkoutHint(checkout); hint != "" {
 		d.hint = hint
 	}
+
+	d.verboseAttrs = checkoutVerboseAttrs(checkout)
 
 	return true
 }
 
-func checkoutHint(problem string) string {
-	switch problem {
+func checkoutHint(checkout *history.CheckoutError) string {
+	if checkout.Err != nil && gitConfigCheckoutError.MatchString(checkout.Err.Error()) {
+		return "repair the local git metadata or use a fresh full checkout"
+	}
+
+	switch checkout.Problem {
 	case history.CheckoutProblemShallow:
 		return "fetch the full history (fetch-depth: 0 on GitHub Actions, " +
 			`GIT_DEPTH "0" on GitLab CI, fetchDepth: 0 on Azure Pipelines)`
@@ -125,6 +173,10 @@ func checkoutHint(problem string) string {
 		return "check out the configured release branch"
 	case history.CheckoutProblemNoRepository:
 		return "run yeet from a git checkout"
+	case history.CheckoutProblemShallowUnknown:
+		return "repair the local git metadata or use a fresh full checkout"
+	case history.CheckoutProblemNoHead:
+		return "create or fetch a commit and check out the configured release branch"
 	case history.CheckoutProblemTagUnavailable:
 		return "fetch tags from the remote before releasing"
 	default:
@@ -132,9 +184,44 @@ func checkoutHint(problem string) string {
 	}
 }
 
+func checkoutVerboseAttrs(checkout *history.CheckoutError) []slog.Attr {
+	if checkout.Err == nil {
+		return nil
+	}
+
+	if errors.Is(checkout.Err, git.ErrRepositoryNotExists) {
+		return []slog.Attr{slog.String("cause", "git repository was not found")}
+	}
+
+	if errors.Is(checkout.Err, plumbing.ErrReferenceNotFound) {
+		return []slog.Attr{slog.String("cause", "git reference was not found")}
+	}
+
+	matches := gitConfigCheckoutError.FindStringSubmatch(checkout.Err.Error())
+	if len(matches) == gitConfigCheckoutMatches {
+		line, lineErr := strconv.Atoi(matches[1])
+
+		column, columnErr := strconv.Atoi(matches[2])
+		if lineErr == nil && columnErr == nil {
+			return []slog.Attr{
+				slog.String("cause", "git configuration is invalid"),
+				slog.Int("line", line),
+				slog.Int("column", column),
+				slog.String("reason", matches[3]),
+			}
+		}
+	}
+
+	if cause := diagnosticCause(checkout.Err); cause != "" {
+		return []slog.Attr{slog.String("cause", cause)}
+	}
+
+	return nil
+}
+
 func describeProviderSetup(d *diagnostic, failure *release.Failure) bool {
 	if token, ok := errors.AsType[*provider.MissingTokenError](failure); ok {
-		d.attrs = append(d.attrs, slog.String("provider", token.Provider))
+		d.attrs = append(d.attrs, logattr.Provider(token.Provider))
 		d.hint = "set " + strings.Join(token.Variables, " or ")
 
 		return true
@@ -145,9 +232,11 @@ func describeProviderSetup(d *diagnostic, failure *release.Failure) bool {
 		return false
 	}
 
-	d.attrs = appendNonempty(d.attrs, slog.String("provider", setup.Provider),
-		slog.String("host", setup.Host), slog.String("remote", setup.Remote),
-		slog.String("remote_host", setup.RemoteHost))
+	d.attrs = appendNonempty(d.attrs, logattr.Provider(setup.Provider),
+		slog.String("host", setup.Host), slog.String("api_host", setup.APIHost),
+		slog.String("remote", setup.Remote),
+		slog.String("remote_host", setup.RemoteHost), slog.String("project", setup.Project),
+		slog.String("expected_project", setup.ExpectedProject))
 
 	if failure.Kind() != release.FailureConfigInvalid {
 		d.explain(setup.Problem)
@@ -161,26 +250,82 @@ func describeProviderSetup(d *diagnostic, failure *release.Failure) bool {
 }
 
 func describeMergeState(d *diagnostic, failure *release.Failure) bool {
+	return describeMergeError(d, failure, failure.MergeReason())
+}
+
+func describeMergeError(d *diagnostic, err error, reason release.MergeReason) bool {
 	described := false
 
-	if blocked, ok := errors.AsType[*forge.MergeBlockedError](failure); ok {
+	if blocked, ok := errors.AsType[*forge.MergeBlockedError](err); ok {
 		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", blocked.Reference))
 
-		if mergeDetailExplains(failure.MergeReason()) {
+		if blocked.MergeStatus != "" {
+			d.attrs = append(d.attrs, slog.String("merge_status", blocked.MergeStatus))
+		} else if mergeDetailExplains(reason) {
 			d.explain(blocked.Detail)
 		}
+
+		d.verboseAttrs = appendNonempty(d.verboseAttrs,
+			slog.String("provider_message", blocked.ProviderMessage))
 
 		described = true
 	}
 
-	if timeout, ok := errors.AsType[*provider.MergeNotFinalizedError](failure); ok {
+	if untrusted, ok := errors.AsType[*forge.UntrustedReleasePRError](err); ok {
+		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", untrusted.Reference))
+		described = true
+	}
+
+	if unsupported, ok := errors.AsType[*forge.MergeMethodUnsupportedError](err); ok {
+		d.attrs = appendNonempty(d.attrs,
+			slog.String("merge_method", string(unsupported.Method)),
+			slog.String("branch", unsupported.Branch),
+		)
+		described = true
+	}
+
+	if describeAutoMergeUnsupported(d, err) {
+		described = true
+	}
+
+	if timeout, ok := errors.AsType[*provider.MergeNotFinalizedError](err); ok {
 		d.attrs = appendNonempty(d.attrs, slog.String("pull_request", timeout.Reference()))
-		d.attrs = append(d.attrs, slog.Duration("timeout", timeout.Timeout()))
+		d.attrs = append(d.attrs,
+			slog.Duration("timeout", timeout.Timeout()),
+			slog.String("timeout_kind", string(timeout.TimeoutKind())),
+		)
 
 		described = true
 	}
 
 	return described
+}
+
+func describeAutoMergeUnsupported(d *diagnostic, err error) bool {
+	unsupported, ok := errors.AsType[*forge.AutoMergeUnsupportedError](err)
+	if !ok {
+		return false
+	}
+
+	d.attrs = appendNonempty(d.attrs,
+		logattr.Provider(unsupported.Provider),
+		slog.String("pull_request", unsupported.Reference),
+		slog.String("version", unsupported.Version),
+		slog.String("required_version", unsupported.RequiredVersion),
+	)
+
+	switch {
+	case unsupported.Problem != "":
+		d.explain(unsupported.Problem)
+	case unsupported.RequiredVersion != "":
+		d.explain("provider version is older than required")
+	case unsupported.Version != "":
+		d.explain("provider version is invalid")
+	default:
+		d.explain("provider version is unavailable")
+	}
+
+	return true
 }
 
 func mergeDetailExplains(reason release.MergeReason) bool {
@@ -201,7 +346,7 @@ func describeProviderResource(d *diagnostic, failure *release.Failure) bool {
 	if branch, ok := errors.AsType[*provider.BranchUpdateError](failure); ok {
 		d.message = "could not update release branch"
 		d.explain(branch.Problem)
-		d.attrs = append(d.attrs, slog.String("provider", "azuredevops"), slog.String("branch", branch.Branch))
+		d.attrs = append(d.attrs, logattr.Provider("azuredevops"), slog.String("branch", branch.Branch))
 		d.hint = "check branch policies and token permissions in the provider"
 
 		described = true
@@ -220,6 +365,7 @@ func describeProviderResource(d *diagnostic, failure *release.Failure) bool {
 
 	if label, ok := errors.AsType[*provider.LabelError](failure); ok {
 		describeLabel(d, failure)
+		d.explain(label.Problem)
 		d.attrs = appendNonempty(d.attrs, slog.String("label", label.Label), slog.String("role", label.Role),
 			slog.String("pull_request", label.Reference), slog.String("branch", label.Branch),
 			slog.String("scope", label.Scope), slog.String("conflicts_with", label.Conflict))
@@ -253,7 +399,7 @@ func describeProviderRequest(d *diagnostic, failure *release.Failure) bool {
 	details := provider.ErrorRequestDetails(failure)
 
 	d.attrs = append(d.attrs, slog.Int("status", status))
-	d.attrs = appendNonempty(d.attrs, slog.String("provider", details.Provider),
+	d.attrs = appendNonempty(d.attrs, logattr.Provider(details.Provider),
 		slog.String("method", details.Method), slog.String("path", details.Path),
 		slog.String("request_id", details.RequestID))
 
@@ -295,32 +441,27 @@ func describeReleaseTarget(d *diagnostic, failure *release.Failure) bool {
 	described := false
 
 	if selection, ok := errors.AsType[*release.SelectionError](failure); ok {
-		d.attrs = appendNonempty(d.attrs, slog.String("target", selection.Target), slog.String("branch", selection.Branch),
-			slog.String("expected_branch", selection.ExpectedBranch), slog.String("channel", selection.Channel),
-			slog.String("ref", selection.Ref))
-
 		if selection.Target != "" {
 			d.message = "unknown release target"
 			d.hint = "select a target configured in targets"
+		} else if selection.Problem != "" {
+			d.hint = "configure branch or release.channels.<name>.branch, or run --dry-run"
 		}
+
+		d.explain(selection.Problem)
+		d.attrs = appendNonempty(d.attrs, slog.String("target", selection.Target),
+			slog.String("included_by", selection.IncludedBy), slog.String("branch", selection.Branch),
+			slog.String("expected_branch", selection.ExpectedBranch), slog.String("channel", selection.Channel),
+			slog.String("ref", selection.Ref))
 
 		described = true
 	}
 
-	pending, hasPending := errors.AsType[*release.PendingReleaseError](failure)
-	if hasPending && len(pending.References) > 0 {
-		d.attrs = append(d.attrs, slog.Any("pending", pending.References))
-
+	if describePendingRelease(d, failure) {
 		described = true
 	}
 
-	if conflict, ok := errors.AsType[*release.FileConflictError](failure); ok {
-		d.attrs = appendNonempty(d.attrs, slog.String("path", conflict.Path))
-
-		if len(conflict.Units) > 0 {
-			d.attrs = append(d.attrs, slog.Any("units", conflict.Units))
-		}
-
+	if describeFileConflict(d, failure) {
 		described = true
 	}
 
@@ -339,8 +480,67 @@ func describeReleaseTarget(d *diagnostic, failure *release.Failure) bool {
 	}
 
 	d.message = "could not update version file"
-	d.attrs = appendNonempty(d.attrs, slog.String("target", file.Target), slog.String("path", file.Path))
+	d.attrs = appendNonempty(d.attrs, slog.String("target", file.Target), slog.String("file_path", file.Path))
 	describeVersionFileProblem(d, failure)
+
+	return true
+}
+
+func describePendingRelease(d *diagnostic, failure *release.Failure) bool {
+	pending, ok := errors.AsType[*release.PendingReleaseError](failure)
+	if !ok {
+		return false
+	}
+
+	if len(pending.References) == 0 && pending.Problem == "" && pending.Hint == "" {
+		return false
+	}
+
+	if len(pending.References) > 0 {
+		d.attrs = append(d.attrs, slog.Any("pending", pending.References))
+	}
+
+	if len(pending.URLs) > 0 {
+		d.attrs = append(d.attrs, slog.Any("urls", pending.URLs))
+	}
+
+	d.attrs = appendNonempty(d.attrs, slog.String("unit", pending.Unit), slog.String("branch", pending.Branch))
+
+	if pending.Problem != "" {
+		d.message = "pending release pull request is incompatible"
+		d.explain(pending.Problem)
+	}
+
+	if pending.Hint != "" {
+		d.hint = pending.Hint
+	}
+
+	return true
+}
+
+func describeFileConflict(d *diagnostic, failure *release.Failure) bool {
+	conflict, ok := errors.AsType[*release.FileConflictError](failure)
+	if !ok {
+		return false
+	}
+
+	d.attrs = appendNonempty(d.attrs, slog.String("conflict", string(conflict.Kind)),
+		slog.String("file_path", conflict.Path), slog.String("target", conflict.Target))
+	if len(conflict.Units) > 0 {
+		d.attrs = append(d.attrs, slog.Any("units", conflict.Units))
+	}
+
+	switch conflict.Kind {
+	case release.FileConflictAcrossUnits:
+		d.explain("release units write the same file")
+		d.hint = "configure separate files or place the targets in one atomic group"
+	case release.FileConflictIncompatibleVersions:
+		d.explain("release unit writes incompatible versions to one file")
+		d.hint = "configure separately addressable version files"
+	case release.FileConflictChangelogVersion:
+		d.explain("file is configured as both a changelog and version file")
+		d.hint = "configure different paths for the changelog and version file"
+	}
 
 	return true
 }
@@ -349,15 +549,31 @@ func describeVersionFileProblem(d *diagnostic, err error) {
 	problems := []struct {
 		cause   error
 		problem string
+		hint    string
 	}{
-		{versionfile.ErrNoMarkersFound, "file has no yeet version markers"},
-		{versionfile.ErrUnclosedBlockMarker, "version marker block has no end marker"},
-		{versionfile.ErrNestedBlockMarker, "version marker blocks are nested"},
-		{versionfile.ErrMarkerNoMatch, "version marker has no matching version"},
-		{versionfile.ErrMarkerSchemeMismatch, "version marker does not match the versioning scheme"},
-		{versionfile.ErrInvalidJSON, "file contains invalid json"},
-		{versionfile.ErrJSONPointerNotFound, "json pointer was not found"},
-		{versionfile.ErrJSONPointerNonString, "json pointer must select a string"},
+		{cause: versionfile.ErrNoMarkersFound, problem: "file has no yeet version markers"},
+		{cause: versionfile.ErrUnclosedBlockMarker, problem: "version marker block has no end marker"},
+		{cause: versionfile.ErrNestedBlockMarker, problem: "version marker blocks are nested"},
+		{cause: versionfile.ErrMarkerNoMatch, problem: "version marker has no matching version"},
+		{cause: versionfile.ErrMarkerSchemeMismatch, problem: "version marker does not match the versioning scheme"},
+		{
+			cause:   versionfile.ErrInvalidNextVersion,
+			problem: "next version is invalid for the configured versioning scheme",
+			hint:    "check target versioning and the version_files configuration",
+		},
+		{
+			cause:   versionfile.ErrInvalidScheme,
+			problem: "configured versioning scheme is invalid",
+			hint:    "check the target versioning configuration",
+		},
+		{cause: versionfile.ErrInvalidJSON, problem: "file contains invalid json"},
+		{
+			cause:   versionfile.ErrInvalidJSONPointer,
+			problem: "json pointer is invalid",
+			hint:    "use a valid JSON pointer in the version_files configuration",
+		},
+		{cause: versionfile.ErrJSONPointerNotFound, problem: "json pointer was not found"},
+		{cause: versionfile.ErrJSONPointerNonString, problem: "json pointer must select a string"},
 	}
 	for _, problem := range problems {
 		if !errors.Is(err, problem.cause) {
@@ -367,6 +583,10 @@ func describeVersionFileProblem(d *diagnostic, err error) {
 		d.explain(problem.problem)
 
 		d.hint = "check the file and its version_files configuration"
+		if problem.hint != "" {
+			d.hint = problem.hint
+		}
+
 		if marker, ok := errors.AsType[*versionfile.MarkerError](err); ok {
 			d.attrs = append(d.attrs, slog.String("marker", marker.Name), slog.Int("line", marker.Line))
 
@@ -396,7 +616,7 @@ func describeReleaseContent(d *diagnostic, failure *release.Failure) bool {
 	if releaseAs, ok := errors.AsType[*version.ReleaseAsError](failure); ok {
 		d.explain(releaseAs.Problem)
 		d.attrs = appendNonempty(d.attrs, slog.String("requested", releaseAs.Requested),
-			slog.String("current", releaseAs.Current))
+			slog.String("current", releaseAs.Current), slog.String("conflicts_with", releaseAs.Conflicting))
 
 		described = true
 	}

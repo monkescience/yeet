@@ -17,9 +17,10 @@ import (
 var errVerboseQuietConflict = errors.New("--verbose and --quiet cannot be used together")
 
 type bootstrapOptions struct {
-	verbose bool
-	quiet   bool
-	noColor bool
+	verbose          bool
+	quiet            bool
+	noColor          bool
+	loggerConfigured bool
 }
 
 func NewRoot(manager *telemetry.Manager) *cobra.Command {
@@ -78,11 +79,15 @@ func Execute(ctx context.Context, manager *telemetry.Manager) error {
 
 	if cmd.CalledAs() == "" {
 		_, remaining, _ := root.Find(os.Args[1:])
+		cmd.FParseErrWhitelist.UnknownFlags = true
 		_ = cmd.ParseFlags(remaining)
 		err = &argumentError{values: cmd.Flags().Args(), unknownCommand: true, cause: err}
 	}
 
-	options.setLogger(cmd)
+	if !options.loggerConfigured {
+		options.setLogger(cmd)
+	}
+
 	reportCommandError(ctx, cmd, err)
 
 	return err
@@ -109,6 +114,8 @@ func (o *bootstrapOptions) configureLogging(cmd *cobra.Command) error {
 }
 
 func (o *bootstrapOptions) setLogger(cmd *cobra.Command) {
+	o.loggerConfigured = true
+
 	level := slog.LevelInfo
 	if o.verbose {
 		level = slog.LevelDebug
