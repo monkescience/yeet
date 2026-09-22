@@ -621,7 +621,8 @@ func (m *gitLabMerge) execute(
 	)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
-			return "", false, gitLabAcceptRefused(current.Reference, "merge request returned HTTP 405", "")
+			return "", false, gitLabAcceptRefused(current.Reference,
+				"merge request returned HTTP 405", err.Error())
 		}
 
 		return "", false, fmt.Errorf("accept merge request !%d: %w", m.number, err)

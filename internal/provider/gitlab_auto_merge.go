@@ -156,7 +156,8 @@ func (g *GitLab) ensureGitLabAutoMerge(
 	)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
-			return blockedMerge(reference, forge.MergeBlockedReasonFailure, "auto-merge request returned HTTP 405")
+			return blockedMergeMessage(reference, forge.MergeBlockedReasonFailure,
+				"auto-merge request returned HTTP 405", err.Error())
 		}
 
 		return fmt.Errorf("enable auto-merge for merge request !%d: %w", number, err)

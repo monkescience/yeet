@@ -845,6 +845,41 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 			result.Stderr,
 		)
 	})
+
+	t.Run("verbose diagnostics retain the provider's refusal message", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a provider that refuses scheduling with an explanatory body
+		repoDir, shas := writeIndependentMonorepoHistory(t)
+		opts := independentGitHubOptions(shas)
+		opts.Files = map[string]string{
+			"api/CHANGELOG.md": "api release\n",
+			"web/CHANGELOG.md": "web release\n",
+		}
+		opts.ExpectedCreatedPullRequests = []fakeprovider.GitHubPullRequestExpectation{
+			{Title: "chore: release 1.1.0", Head: "yeet/release-main-target-api-21f150df25", Base: "main"},
+			{Title: "chore: release 2.0.1", Head: "yeet/release-main-target-web-1355f0b5d0", Base: "main"},
+		}
+		opts.AutoMergeStatusCodes = []int{http.StatusUnprocessableEntity, 0}
+		opts.ForbidPublication = true
+		server := fakeprovider.NewGitHub(t, opts)
+		configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
+
+		// when: invoking provider auto-merge with verbose diagnostics
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--auto-merge", "--verbose", "--no-color", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN=e")...),
+		)
+
+		// then: the status code is reported and the provider's own words survive in the detail record
+		testastic.Equal(t, 1, result.ExitCode)
+
+		stderr := ansi.Strip(result.Stderr)
+		testastic.Contains(t, stderr, "github GraphQL request returned HTTP 422")
+		testastic.Contains(t, stderr, "provider_message=")
+		testastic.Contains(t, stderr, "auto-merge refused")
+	})
 }
 
 func providerAutoMergeRepo(t *testing.T, remoteURL string) (string, []string) {

@@ -348,8 +348,8 @@ func (g *GitHub) gitHubGraphQL(
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode >= http.StatusBadRequest &&
 			httpResponse.StatusCode < http.StatusInternalServerError {
-			return blockedMerge("", forge.MergeBlockedReasonFailure,
-				fmt.Sprintf("github GraphQL request returned HTTP %d", httpResponse.StatusCode))
+			return blockedMergeMessage("", forge.MergeBlockedReasonFailure,
+				fmt.Sprintf("github GraphQL request returned HTTP %d", httpResponse.StatusCode), err.Error())
 		}
 
 		return fmt.Errorf("github GraphQL request: %w", err)
