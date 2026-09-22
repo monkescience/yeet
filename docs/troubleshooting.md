@@ -35,9 +35,10 @@ is invalid. `--no-color` disables color, while the standard `NO_COLOR`, `CLICOLO
 `CLICOLOR_FORCE` variables apply when the flag is absent.
 
 Records carry their detail in structured `key=value` attributes rather than in the message, so match
-on attributes when you scrape logs. The provider appears as `provider=`, a pull request or merge
-request number as `pr_number=`, and the file a version-file failure refers to as `file_path=`.
-Attribute names are not a stable interface and can change between releases.
+on attributes when you scrape logs. On a failure the provider appears as `provider=`, the pull
+request or merge request as `pull_request=`, and the file a version-file failure refers to as
+`file_path=`. The provider operation records that `--verbose` reveals use `pr_number=` for the
+number alone. Attribute names are not a stable interface and can change between releases.
 
 ## Related documentation
 
