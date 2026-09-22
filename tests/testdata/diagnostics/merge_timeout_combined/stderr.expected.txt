@@ -1,1 +1,1 @@
-ERROR merge finalization timed out pull_request="merge request !42" timeout=250ms hint="inspect provider state before retrying" cause="operation timed out"
+ERROR merge finalization timed out pull_request="merge request !42" timeout=250ms timeout_kind=transport hint="inspect provider state before retrying" cause="provider request timed out"

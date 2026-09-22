@@ -186,11 +186,15 @@ func (s *Source) loadRemoteTags(ctx context.Context) ([]string, map[string]strin
 
 		commitHash := strings.TrimSpace(ref.CommitSHA)
 		if commitHash == "" {
-			return nil, nil, fmt.Errorf("%w: tag %q has no commit hash", errRemoteTagMetadata, name)
+			return nil, nil, remoteTagMetadataError(name, "remote tag has no commit hash", "has no commit hash")
 		}
 
 		if existing, exists := commits[name]; exists && !strings.EqualFold(existing, commitHash) {
-			return nil, nil, fmt.Errorf("%w: tag %q has conflicting commit hashes", errRemoteTagMetadata, name)
+			return nil, nil, remoteTagMetadataError(
+				name,
+				"remote tag has conflicting commit hashes",
+				"has conflicting commit hashes",
+			)
 		}
 
 		if _, exists := commits[name]; !exists {
@@ -242,7 +246,7 @@ func (s *Source) remoteBoundaries(
 
 		boundary, valid := plumbing.FromHex(remoteCommit)
 		if !valid {
-			return nil, fmt.Errorf("%w: tag %q has invalid commit hash", errRemoteTagMetadata, ref)
+			return nil, remoteTagMetadataError(ref, "remote tag has an invalid commit hash", "has invalid commit hash")
 		}
 
 		boundaries[ref] = boundary

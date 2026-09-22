@@ -1,0 +1,2 @@
+ERROR release reviewer could not be applied: multiple reviewers require GitLab Premium or Ultimate unit=target:default phase=reconciliation reviewers="alice, bob" further_failures=1 hint="check reviewer identity, membership, permissions, and provider limits"
+DEBUG release labels could not be applied unit=target:default phase=reconciliation status=403 provider=gitlab method=PUT path=/api/v4/projects/group%2Fservice/merge_requests/42 hint="restore or create the configured labels"

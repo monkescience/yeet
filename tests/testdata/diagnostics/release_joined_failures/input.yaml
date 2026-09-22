@@ -1,0 +1,16 @@
+provider: gitlab
+branch: main
+repository:
+  gitlab:
+    host: gitlab.com
+    project: group/service
+release:
+  pull_request_mode: independent
+  reviewers:
+    - alice
+    - bob
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

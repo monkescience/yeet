@@ -1,0 +1,1 @@
+ERROR merge is blocked by repository policy pull_request="merge request !42" merge_status=external_status_checks hint="satisfy required approvals and checks"

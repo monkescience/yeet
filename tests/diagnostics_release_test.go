@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -139,6 +140,75 @@ func TestDiagnosticsReleaseIndependentFailures(t *testing.T) {
 			stderr,
 		)
 	})
+
+	t.Run("verbose output renders every failure suppressed by unit grouping", func(t *testing.T) {
+		t.Parallel()
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+		fake := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+			Project:        "group/service",
+			LatestTag:      "v1.0.0",
+			BoundarySHA:    shas[0],
+			BranchHeadSHA:  shas[1],
+			Users:          map[string]int64{"alice": 1, "bob": 2},
+			ExistingLabels: []string{"yeet", "autorelease: pending", "autorelease: tagged"},
+		})
+		server := gitLabJoinedFailureServer(t, fake)
+		configPath := absoluteTestFile(t, "testdata/diagnostics/release_joined_failures/input.yaml")
+
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--verbose", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
+		)
+
+		testastic.Equal(t, 1, result.ExitCode)
+		assertDiagnosticFragments(
+			t,
+			"testdata/diagnostics/release_joined_failures/stderr.expected.txt",
+			ansi.Strip(result.Stderr),
+		)
+		testastic.NotContains(t, result.Stderr, "private-label-response")
+	})
+}
+
+func gitLabJoinedFailureServer(t *testing.T, fake *httptest.Server) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/merge_requests") {
+			response := httptest.NewRecorder()
+			fake.Config.Handler.ServeHTTP(response, r)
+
+			var payload map[string]any
+
+			err := json.Unmarshal(response.Body.Bytes(), &payload)
+			testastic.NoError(t, err)
+			delete(payload, "reviewers")
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(response.Code)
+			err = json.MarshalWrite(w, payload)
+			testastic.NoError(t, err)
+
+			return
+		}
+
+		if r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/merge_requests/42") {
+			http.Error(w, "private-label-response", http.StatusForbidden)
+
+			return
+		}
+
+		fake.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 func newMixedFinalizationFailureServer(t *testing.T, fake *httptest.Server) *httptest.Server {

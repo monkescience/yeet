@@ -98,66 +98,92 @@ func TestDiagnosticsLoggingOptionOrder(t *testing.T) {
 func TestDiagnosticsProviderCause(t *testing.T) {
 	t.Parallel()
 
-	for _, verbose := range []bool{false, true} {
-		name := "default"
-		if verbose {
-			name = "verbose"
-		}
-
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			// given: a provider failure whose body and request metadata contain synthetic secrets
-			repoDir, shas := writeIndependentMonorepoHistory(t)
-			opts := independentGitHubOptions(shas)
-			opts.FailOnMutation = true
-			fake := fakeprovider.NewGitHub(t, opts)
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if strings.HasSuffix(r.URL.Path, "/commits/heads/main") {
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("X-GitHub-Request-Id", "diagnostic-test-credential")
-					w.WriteHeader(http.StatusForbidden)
-					_, err := w.Write([]byte(readTestFile(t, "testdata/diagnostics/provider_cause/response.json")))
-					testastic.NoError(t, err)
-
-					return
-				}
-
-				fake.Config.Handler.ServeHTTP(w, r)
-			}))
-			t.Cleanup(server.Close)
-			configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
-
-			args := []string{"release", "--config", configPath}
+	for _, scenario := range []struct {
+		name     string
+		collides bool
+		token    string
+	}{
+		{name: "long", token: "diagnostic-test-credential"},
+		{name: "short", token: "e", collides: true},
+		{name: "request_id_collision", token: "E123:ABC:456", collides: true},
+		{name: "numeric_collision", token: "0", collides: true},
+	} {
+		for _, verbose := range []bool{false, true} {
+			name := "default"
 			if verbose {
-				args = append(args, "--verbose")
+				name = "verbose"
 			}
 
-			env := append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN=diagnostic-test-credential")
+			t.Run(scenario.name+"/"+name, func(t *testing.T) {
+				t.Parallel()
 
-			// when: the release fails while checking the provider's branch head
-			result := binary.RunWithOptions(t, args, testastic.WithRunWorkDir(repoDir), testastic.WithRunEnv(env...))
+				// given: a provider failure with private body content and documented diagnostic headers
+				repoDir, shas := writeIndependentMonorepoHistory(t)
+				opts := independentGitHubOptions(shas)
+				opts.FailOnMutation = true
+				fake := fakeprovider.NewGitHub(t, opts)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.HasSuffix(r.URL.Path, "/commits/heads/main") {
+						w.Header().Set("Content-Type", "application/json")
 
-			// then: verbosity only adds debug records and errors retain the same safe details
-			testastic.Equal(t, 1, result.ExitCode)
-			testastic.Equal(t, "", result.Stdout)
-			testastic.False(t, strings.Contains(result.Stderr, "diagnostic-test-credential"))
-			testastic.NotContains(t, withoutDebugDiagnostics(result.Stderr), "private-sdk-response")
-			testastic.Equal(t, verbose, strings.Contains(result.Stderr, "private-sdk-response"))
-			testastic.Equal(t, verbose, strings.Contains(result.Stderr, "DEBUG http request completed"))
-			testastic.NotContains(t, result.Stderr, " cause=")
+						w.Header().Set("X-GitHub-Request-Id", "E123:ABC:456")
+						w.Header().Set("X-RateLimit-Remaining", "100")
+						w.Header().Set("X-RateLimit-Reset", "1700000000")
+						w.Header().Set("Retry-After", "60")
+						w.WriteHeader(http.StatusForbidden)
+						_, err := w.Write([]byte(readTestFile(t, "testdata/diagnostics/provider_cause/response.json")))
+						testastic.NoError(t, err)
 
-			var terminal []string
+						return
+					}
 
-			for line := range strings.SplitSeq(result.Stderr, "\n") {
-				if strings.HasPrefix(line, "ERROR ") {
-					terminal = append(terminal, line)
+					fake.Config.Handler.ServeHTTP(w, r)
+				}))
+				t.Cleanup(server.Close)
+				configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
+
+				args := []string{"release", "--config", configPath}
+				if verbose {
+					args = append(args, "--verbose")
 				}
-			}
 
-			testastic.AssertFile(t, "testdata/diagnostics/provider_cause/stderr.expected.txt",
-				strings.Join(terminal, "\n")+"\n")
-		})
+				env := append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN="+scenario.token)
+
+				// when: the release fails while checking the provider's branch head
+				result := binary.RunWithOptions(t, args, testastic.WithRunWorkDir(repoDir), testastic.WithRunEnv(env...))
+
+				// then: headers remain intact while response bodies are excluded at either verbosity
+				testastic.Equal(t, 1, result.ExitCode)
+				testastic.Equal(t, "", result.Stdout)
+
+				if !scenario.collides {
+					testastic.NotContains(t, result.Stderr, scenario.token)
+				}
+
+				testastic.NotContains(t, withoutDebugDiagnostics(result.Stderr), "private-sdk-response")
+				testastic.NotContains(t, result.Stderr, "private-sdk-response")
+				testastic.Equal(t, verbose, strings.Contains(result.Stderr, "DEBUG http request completed"))
+				testastic.NotContains(t, result.Stderr, " cause=")
+
+				if verbose {
+					testastic.Contains(t, result.Stderr, "request_id=E123:ABC:456")
+					testastic.Contains(t, result.Stderr, "rate_limit_remaining=100")
+					testastic.Contains(t, result.Stderr, "rate_limit_reset=1700000000")
+					testastic.Contains(t, result.Stderr, "retry_after=60")
+				}
+
+				var terminal []string
+
+				for line := range strings.SplitSeq(result.Stderr, "\n") {
+					if strings.HasPrefix(line, "ERROR ") {
+						terminal = append(terminal, line)
+					}
+				}
+
+				testastic.AssertFile(t, "testdata/diagnostics/provider_cause/stderr.expected.txt",
+					strings.Join(terminal, "\n")+"\n")
+			})
+		}
 	}
 }
 
@@ -165,12 +191,14 @@ func TestDiagnosticsTokenRedaction(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		token    string
-		provider string
+		name string
+		env  string
 	}{
-		{name: "placeholder_token", token: "github", provider: "provider=[redacted]"},
-		{name: "real_token", token: "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB", provider: "provider=github"},
+		{name: "single_character", env: "GITHUB_TOKEN=e"},
+		{name: "attribute_key", env: "GITLAB_TOKEN=t"},
+		{name: "provider_name", env: "GITHUB_TOKEN=github"},
+		{name: "remote_name", env: "GITLAB_TOKEN=origin"},
+		{name: "real_token", env: "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"},
 	}
 
 	for _, test := range tests {
@@ -191,50 +219,112 @@ func TestDiagnosticsTokenRedaction(t *testing.T) {
 				t,
 				[]string{"release", "--dry-run", "--no-color", "--config", configPath},
 				testastic.WithRunWorkDir(t.TempDir()),
-				testastic.WithRunEnv("GITHUB_TOKEN="+test.token),
+				testastic.WithRunEnv(test.env),
 			)
 
-			// then: no token value reaches the diagnostic, whatever its length
+			// then: incidental matches do not corrupt application messages or repository coordinates
 			testastic.Equal(t, 1, result.ExitCode)
 
 			stderr := ansi.Strip(result.Stderr)
-			testastic.NotContains(t, stderr, test.token)
-			testastic.Contains(t, stderr, test.provider)
+			testastic.AssertFile(t, "testdata/diagnostics/token_collision/stderr.expected.txt", stderr)
 		})
 	}
+}
+
+func TestDiagnosticsRedactsTokensInArguments(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"
+
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{name: "unknown_command", args: []string{token}},
+		{name: "unknown_flag", args: []string{"--" + token}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a token long enough to be unambiguous, echoed back through a CLI argument
+			args := append([]string{}, test.args...)
+			args = append(args, "--no-color")
+
+			// when: yeet reports the resulting argument failure
+			result := binary.RunWithOptions(t, args,
+				testastic.WithRunWorkDir(t.TempDir()),
+				testastic.WithRunEnv("GITHUB_TOKEN="+token))
+
+			// then: the token value never reaches the diagnostic
+			stderr := ansi.Strip(result.Stderr)
+			testastic.NotContains(t, stderr, token)
+			testastic.Contains(t, stderr, "[redacted]")
+		})
+	}
+}
+
+func TestDiagnosticsConfigurationTokenCollision(t *testing.T) {
+	t.Parallel()
+
+	// given: malformed configuration and a token matching ordinary diagnostic prose
+	configPath := absoluteTestFile(t, "testdata/release/malformed_yaml/input.yaml")
+
+	// when: validating that configuration
+	result := binary.RunWithOptions(t,
+		[]string{"release", "--config", configPath, "--no-color"},
+		testastic.WithRunEnv("GITHUB_TOKEN=e"))
+
+	// then: the parser location and explanation remain readable
+	testastic.Equal(t, 1, result.ExitCode)
+	testastic.AssertFile(t, "testdata/release/malformed_yaml/stderr.expected.txt", ansi.Strip(result.Stderr))
 }
 
 func TestDiagnosticsUnclassifiedCause(t *testing.T) {
 	t.Parallel()
 
-	// given: a provider that answers the branch head with a body it cannot parse
-	repoDir, shas := writeIndependentMonorepoHistory(t)
-	fake := fakeprovider.NewGitHub(t, independentGitHubOptions(shas))
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/commits/heads/main") {
-			w.Header().Set("Content-Type", "application/json")
-			_, err := w.Write([]byte("{not json"))
-			testastic.NoError(t, err)
+	for _, scenario := range []struct {
+		name  string
+		body  string
+		cause string
+	}{
+		{name: "syntax", body: "{not json", cause: "response is not valid JSON"},
+		{name: "unknown_shape", body: "[]", cause: "unclassified error"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
 
-			return
-		}
+			// given: a provider that answers the branch head with a body it cannot parse
+			repoDir, shas := writeIndependentMonorepoHistory(t)
+			fake := fakeprovider.NewGitHub(t, independentGitHubOptions(shas))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/commits/heads/main") {
+					w.Header().Set("Content-Type", "application/json")
+					_, err := w.Write([]byte(scenario.body))
+					testastic.NoError(t, err)
 
-		fake.Config.Handler.ServeHTTP(w, r)
-	}))
-	t.Cleanup(server.Close)
+					return
+				}
 
-	// when: the release runs against it
-	result := binary.RunWithOptions(t,
-		[]string{"release", "--no-color", "--config", absoluteTestFile(t, "testdata/release/independent_create/input.yaml")},
-		testastic.WithRunWorkDir(repoDir),
-		testastic.WithRunEnv(append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN=test-token")...),
-	)
+				fake.Config.Handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
 
-	// then: the bare category line still names why the run failed
-	testastic.Equal(t, 1, result.ExitCode)
-	testastic.Equal(t, "", result.Stdout)
+			configPath := absoluteTestFile(t, "testdata/release/independent_create/input.yaml")
 
-	stderr := ansi.Strip(result.Stderr)
-	testastic.Contains(t, stderr, "ERROR release could not be completed")
-	testastic.Contains(t, stderr, " cause=")
+			// when: the release runs against it
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--no-color", "--config", configPath},
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(append(fixture.GitHubEnv(server, "main"), "GITHUB_TOKEN=test-token")...),
+			)
+
+			// then: the bare category line still names why the run failed
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.Equal(t, "", result.Stdout)
+
+			stderr := ansi.Strip(result.Stderr)
+			testastic.Contains(t, stderr, "ERROR release could not be completed")
+			testastic.Contains(t, stderr, `cause="`+scenario.cause+`"`)
+		})
+	}
 }

@@ -723,6 +723,17 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		// then: invalid provider metadata is rejected
 		testastic.Error(t, err)
 		testastic.Equal(t, "remote tag metadata invalid: tag \"v1.0.0\" has invalid commit hash", err.Error())
+
+		var metadata *history.RemoteTagMetadataError
+
+		testastic.ErrorAs(t, err, &metadata)
+
+		if metadata == nil {
+			return
+		}
+
+		testastic.Equal(t, "v1.0.0", metadata.Tag)
+		testastic.Equal(t, "remote tag has an invalid commit hash", metadata.Problem)
 	})
 
 	t.Run("missing commit object fails", func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 type Tracer struct {
@@ -46,7 +47,7 @@ func (t *Tracer) Interceptor(next http.RoundTripper) http.RoundTripper {
 			}
 
 			attrs := []slog.Attr{
-				slog.String("provider", t.provider),
+				logattr.Provider(t.provider),
 				slog.String("method", request.Method),
 				slog.String("path", sanitizedPath(request)),
 				slog.Int("status", status),

@@ -1,0 +1,1 @@
+ERROR merge finalization timed out pull_request="merge request !42" timeout=250ms timeout_kind=responsive hint="inspect provider state before retrying" cause="merge remained pending"
