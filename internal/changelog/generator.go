@@ -2,9 +2,11 @@ package changelog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strings"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 const breakingChangesHeading = "⚠ BREAKING CHANGES"
@@ -248,10 +251,8 @@ func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
 		if err != nil {
 			slog.WarnContext(ctx, "skipping invalid changelog reference pattern",
 				slog.String("pattern", p.Pattern),
-			)
-			slog.DebugContext(ctx, "changelog reference pattern did not compile",
-				slog.String("pattern", p.Pattern),
-				slog.Any("error", err),
+				slog.String("reason", patternCompileReason(err)),
+				logattr.Hint("correct the pattern in changelog.references.patterns"),
 			)
 
 			continue
@@ -259,6 +260,14 @@ func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
 
 		g.compiledPatterns = append(g.compiledPatterns, compiledPattern{re: re, url: p.URL})
 	}
+}
+
+func patternCompileReason(err error) string {
+	if compile, ok := errors.AsType[*syntax.Error](err); ok {
+		return string(compile.Code)
+	}
+
+	return "pattern could not be compiled"
 }
 
 func (g *Generator) linkDescription(description string) string {
