@@ -182,10 +182,9 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "/version", cfg.VersionFiles[0].JSONPointer)
 	})
 
-	t.Run("version file mapping preserves ignored extra fields", func(t *testing.T) {
+	t.Run("version file mapping rejects extra fields", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a version file mapping with an extra field the custom decoder ignores
 		data := []byte(`version_files:
   - path: VERSION
     format: markers
@@ -197,12 +196,32 @@ targets:
     tag_prefix: v
 `)
 
-		// when: parsing the config
-		cfg, err := parse(data)
+		_, err := parse(data)
 
-		// then: parsing retains the baseline custom mapping behavior
-		testastic.NoError(t, err)
-		testastic.SliceEqual(t, []VersionFile{{Path: "VERSION", Format: VersionFileFormatMarkers}}, cfg.VersionFiles)
+		testastic.Equal(t, "invalid config: version_files[0] contains unknown field \"ignored\"", err.Error())
+		testastic.ErrorIs(t, err, ErrInvalidConfig)
+	})
+
+	t.Run("multiple unknown fields use comma separated diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parse([]byte(`versioning: semver
+branch: main
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+bogus_one: true
+bogus_two: true
+`))
+
+		testastic.Equal(t,
+			"invalid config: configuration could not be decoded: line 8: unknown field \"bogus_one\", "+
+				"line 9: unknown field \"bogus_two\"",
+			err.Error(),
+		)
+		testastic.ErrorIs(t, err, ErrInvalidConfig)
 	})
 
 	t.Run("json version file requires json pointer", func(t *testing.T) {

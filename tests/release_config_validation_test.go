@@ -332,6 +332,24 @@ func TestReleaseConfigValidation(t *testing.T) {
 		)
 	})
 
+	for _, scenario := range []string{
+		"rejects_unknown_global_version_file_field",
+		"rejects_unknown_target_version_file_field",
+	} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := absoluteTestFile(t, "testdata/release/"+scenario+"/input.yaml")
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunEnv("GITHUB_REF_NAME=main"),
+			)
+
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.AssertFile(t, "testdata/release/"+scenario+"/stderr.expected.txt", result.Stderr)
+		})
+	}
+
 	t.Run("rejects malformed json pointer escape", func(t *testing.T) {
 		t.Parallel()
 

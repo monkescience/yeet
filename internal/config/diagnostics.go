@@ -85,7 +85,7 @@ func describeDecodeFailure(cause error) string {
 		return "configuration could not be decoded"
 	}
 
-	return "configuration could not be decoded: " + strings.Join(problems, "; ")
+	return "configuration could not be decoded: " + strings.Join(problems, ", ")
 }
 
 func validationReason(err error) string {
