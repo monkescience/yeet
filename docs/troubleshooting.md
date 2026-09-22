@@ -2,7 +2,9 @@
 
 Follow the recovery advice in the error message first. The sections below cover auto-merge and
 release label problems that may need additional steps. Use `--verbose` when you need the operations
-leading up to a failure and the underlying error the provider or the checkout reported.
+leading up to a failure, the classified failure detail, and the message the provider or the
+checkout reported. yeet never prints raw provider response bodies, so `--verbose` only lowers the
+log level, it never adds otherwise hidden fields to a record.
 
 ## Auto-merge
 
@@ -31,6 +33,11 @@ yeet stores no lifecycle label history, so it cannot infer a renamed pending or 
 Use `--verbose` or `-v` for debug logs. Use `--quiet` for warnings and errors only. Combining them
 is invalid. `--no-color` disables color, while the standard `NO_COLOR`, `CLICOLOR`, and
 `CLICOLOR_FORCE` variables apply when the flag is absent.
+
+Records carry their detail in structured `key=value` attributes rather than in the message, so match
+on attributes when you scrape logs. The provider appears as `provider=`, a pull request or merge
+request number as `pr_number=`, and the file a version-file failure refers to as `file_path=`.
+Attribute names are not a stable interface and can change between releases.
 
 ## Related documentation
 

@@ -207,6 +207,9 @@ version_files:
 
 The pointer must resolve to a string. Nested values use RFC 6901 syntax such as `/packages/0/version`, and yeet preserves the existing JSON formatting.
 
+Mapping entries accept only the fields documented above. yeet rejects a configuration that carries
+any other key, so a typo such as `json_pointers` fails the run instead of being ignored.
+
 | Scheme | Marker scopes |
 |---|---|
 | semver | `version`, `major`, `minor`, `patch` |
