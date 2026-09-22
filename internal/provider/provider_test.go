@@ -2,6 +2,7 @@ package provider_test
 
 import (
 	"encoding/json/v2"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -326,7 +327,8 @@ func TestMaxPRBodyLength(t *testing.T) {
 		t.Parallel()
 
 		// given: an Azure DevOps provider
-		az := provider.NewAzureDevOps(http.DefaultClient, "https://dev.azure.com", "pat", "org", "org", "proj", "repo")
+		az := provider.NewAzureDevOps(slog.New(slog.DiscardHandler),
+			http.DefaultClient, "https://dev.azure.com", "pat", "org", "org", "proj", "repo")
 
 		// when: reading its max PR body length
 		limit := az.MaxPRBodyLength()
@@ -342,7 +344,7 @@ func TestMaxPRBodyLength(t *testing.T) {
 		client, err := githubapi.NewClient()
 		testastic.NoError(t, err)
 
-		gh := provider.NewGitHub(client, "o", "r")
+		gh := provider.NewGitHub(slog.New(slog.DiscardHandler), client, "o", "r")
 
 		// when: reading its max PR body length
 		limit := gh.MaxPRBodyLength()
@@ -358,7 +360,7 @@ func TestMaxPRBodyLength(t *testing.T) {
 		client, err := gitlabapi.NewClient("")
 		testastic.NoError(t, err)
 
-		gl := provider.NewGitLab(client, "o/r")
+		gl := provider.NewGitLab(slog.New(slog.DiscardHandler), client, "o/r")
 
 		// when: reading its max PR body length
 		limit := gl.MaxPRBodyLength()

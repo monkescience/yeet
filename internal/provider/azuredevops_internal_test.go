@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/base64"
 	"encoding/json/v2"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestNewAzureDevOpsWithSystemAccessTokenUsesBearerAuth(t *testing.T) {
 	// given: an Azure DevOps pipeline system access token
 
 	// when: constructing a provider with system-token authentication
-	azureDevOpsProvider := NewAzureDevOpsWithSystemAccessToken(
+	azureDevOpsProvider := NewAzureDevOpsWithSystemAccessToken(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"system-token",
@@ -36,7 +37,7 @@ func TestNewAzureDevOpsUsesPATBasicAuth(t *testing.T) {
 	// given: an Azure DevOps personal access token
 
 	// when: constructing a provider with PAT authentication
-	azureDevOpsProvider := NewAzureDevOps(
+	azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"pat-token",
@@ -112,7 +113,7 @@ func TestTrustedAzureDevOpsReleasePR(t *testing.T) {
 
 			// given: an Azure DevOps pull request candidate
 			pullRequest := test.pullRequest
-			azureDevOpsProvider := NewAzureDevOps(
+			azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 				nil,
 				"https://dev.azure.com",
 				"pat-token",
@@ -144,7 +145,7 @@ func TestTrustedAzureDevOpsReleasePRMatchesRepositoryConfiguredByID(t *testing.T
 		"repository": {"id": "`+repositoryID+`", "name": "yeet"}
 	}`), &pullRequest))
 
-	azureDevOpsProvider := NewAzureDevOps(
+	azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"pat-token",
@@ -165,7 +166,7 @@ func TestAzureDevOpsPullRequestWebURL(t *testing.T) {
 	t.Parallel()
 
 	// given: an Azure DevOps provider with cloud repository coordinates
-	azureDevOpsProvider := NewAzureDevOps(
+	azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"pat-token",
@@ -189,7 +190,7 @@ func TestAzureDevOpsPullRequestWebURL(t *testing.T) {
 func TestAzureDevOpsCompareURL(t *testing.T) {
 	t.Parallel()
 
-	azureDevOpsProvider := NewAzureDevOps(
+	azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"pat-token",
@@ -249,7 +250,7 @@ func TestAzureDevOpsTagWebURL(t *testing.T) {
 	t.Parallel()
 
 	// given: a tag containing URL query delimiters
-	azureDevOpsProvider := NewAzureDevOps(
+	azureDevOpsProvider := NewAzureDevOps(slog.New(slog.DiscardHandler),
 		nil,
 		"https://dev.azure.com",
 		"pat-token",

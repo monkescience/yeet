@@ -14,6 +14,24 @@ var (
 	ErrRepositoryConflict      = errors.New("resolve repository: project does not match owner/repo")
 )
 
+type repositoryConflictError struct {
+	project         string
+	expectedProject string
+}
+
+func (e *repositoryConflictError) Error() string {
+	return fmt.Sprintf(
+		"%s: project %q does not match owner/repo %q",
+		ErrRepositoryConflict,
+		e.project,
+		e.expectedProject,
+	)
+}
+
+func (e *repositoryConflictError) Unwrap() error {
+	return ErrRepositoryConflict
+}
+
 func resolveRepositoryProvider(repository *repositoryDescriptor) error {
 	if repository.Provider == "" {
 		providerType, err := detectType(repository.Host)
@@ -197,12 +215,10 @@ func validateRepositoryCoordinates(repository *repositoryDescriptor) error {
 		return nil
 	}
 
-	return fmt.Errorf(
-		"%w: project %q does not match owner/repo %q",
-		ErrRepositoryConflict,
-		repository.Project,
-		expectedProject,
-	)
+	return &repositoryConflictError{
+		project:         repository.Project,
+		expectedProject: expectedProject,
+	}
 }
 
 type repositoryDescriptor struct {

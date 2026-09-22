@@ -17,7 +17,7 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.R
 		return nil, forge.ErrNoRelease
 	}
 
-	slog.DebugContext(ctx, "azure devops: looking up release by tag", slog.String("tag", tag))
+	a.logger.DebugContext(ctx, "looking up release by tag", slog.String("tag", tag))
 
 	objectID, err := a.lookupTagObjectID(ctx, tag)
 	if err != nil {
@@ -27,7 +27,7 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.R
 	annotated, err := a.getAnnotatedTag(ctx, objectID)
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
-			slog.DebugContext(ctx, "azure devops: tag exists but no annotation",
+			a.logger.DebugContext(ctx, "tag exists but no annotation",
 				slog.String("tag", tag),
 				slog.String("object_id", objectID),
 			)
@@ -43,7 +43,7 @@ func (a *AzureDevOps) GetReleaseByTag(ctx context.Context, tag string) (*forge.R
 		return nil, fmt.Errorf("get annotated tag %q: %w", tag, err)
 	}
 
-	slog.DebugContext(ctx, "azure devops: release found",
+	a.logger.DebugContext(ctx, "release found",
 		slog.String("tag", tag),
 		slog.String("object_id", objectID),
 	)
@@ -57,7 +57,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts forge.ReleaseOptio
 		return nil, fmt.Errorf("create release: %w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
-	slog.DebugContext(ctx, "azure devops: creating annotated tag",
+	a.logger.DebugContext(ctx, "creating annotated tag",
 		slog.String("tag", opts.TagName),
 		slog.String("ref", ref),
 	)
@@ -87,7 +87,7 @@ func (a *AzureDevOps) CreateRelease(ctx context.Context, opts forge.ReleaseOptio
 	release := a.azureDevOpsAnnotatedTagRelease(opts.TagName, ref, created)
 	release.Name = opts.Name
 
-	slog.DebugContext(ctx, "azure devops: created annotated tag",
+	a.logger.DebugContext(ctx, "created annotated tag",
 		slog.String("tag", opts.TagName),
 		slog.String("object_id", ref),
 	)

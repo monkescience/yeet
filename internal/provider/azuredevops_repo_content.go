@@ -33,7 +33,7 @@ func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA strin
 	})
 	if err != nil {
 		if isAzureDevOpsBranchAlreadyExists(err) {
-			slog.DebugContext(ctx, "azure devops: branch already exists",
+			a.logger.DebugContext(ctx, "branch already exists",
 				slog.String("branch", name),
 				slog.Int("status", http.StatusConflict),
 			)
@@ -52,7 +52,7 @@ func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA strin
 		}
 	}
 
-	slog.DebugContext(ctx, "azure devops: created branch",
+	a.logger.DebugContext(ctx, "created branch",
 		slog.String("branch", name),
 		slog.String("base_sha", baseSHA),
 	)
@@ -93,7 +93,7 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 		return "", err
 	}
 
-	slog.DebugContext(ctx, "azure devops: reading file",
+	a.logger.DebugContext(ctx, "reading file",
 		slog.String("path", path),
 		slog.String("ref", branch),
 	)
@@ -113,7 +113,7 @@ func (a *AzureDevOps) GetFile(ctx context.Context, branch, path string) (string,
 	})
 	if err != nil {
 		if isAzureDevOpsNotFound(err) {
-			slog.DebugContext(ctx, "azure devops: file not found",
+			a.logger.DebugContext(ctx, "file not found",
 				slog.String("path", path),
 				slog.String("ref", branch),
 			)
@@ -158,7 +158,7 @@ func (a *AzureDevOps) UpdateFiles(
 	files map[string]forge.FileUpdate,
 	message string,
 ) error {
-	slog.DebugContext(ctx, "azure devops: updating files",
+	a.logger.DebugContext(ctx, "updating files",
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(files)),
@@ -199,7 +199,7 @@ func (a *AzureDevOps) UpdateFiles(
 		return fmt.Errorf("push to branch %q: %w", branch, err)
 	}
 
-	slog.DebugContext(ctx, "azure devops: updated files",
+	a.logger.DebugContext(ctx, "updated files",
 		slog.String("branch", branch),
 		slog.Int("files", len(files)),
 	)

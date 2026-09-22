@@ -328,6 +328,12 @@ func TestResolveRepositoryAPIURLHostTrust(t *testing.T) {
 
 		// then: the cross-host API URL is rejected as untrusted
 		testastic.ErrorIs(t, err, ErrUntrustedHost)
+
+		var setup *SetupError
+		testastic.True(t, errors.As(err, &setup))
+		testastic.Equal(t, "credentials.example", setup.APIHost)
+		testastic.Equal(t, "configured provider api host does not match repository host", setup.Problem)
+		testastic.Equal(t, "use an api_url on the repository host", setup.Hint)
 		testastic.Equal(
 			t,
 			"provider host is not trusted: configured api_url host \"credentials.example\" "+
@@ -417,7 +423,7 @@ func TestResolveRepositoryWrapsGitRemoteFailure(t *testing.T) {
 		RepositoryOverrides{},
 	)
 
-	// then: both the trust sentinel and the underlying cause are recoverable
-	testastic.ErrorIs(t, err, ErrUntrustedHost)
+	// then: the repository cause remains recoverable without a host-trust classification
+	testastic.False(t, errors.Is(err, ErrUntrustedHost))
 	testastic.ErrorIs(t, err, ErrGitRemoteNotFound)
 }

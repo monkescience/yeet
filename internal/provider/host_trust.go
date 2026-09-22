@@ -50,9 +50,15 @@ func validateProviderHostTrust(
 	}
 
 	if spec, known := forgeSpecs[repository.Provider]; known && spec.endpointOverride() == "" {
-		err = validateConfiguredAPIHost(repository.APIURL, host)
-		if err != nil {
-			return hostTrustError(repository, host, err)
+		apiHost, apiErr := validateConfiguredAPIHost(repository.APIURL, host)
+		if apiErr != nil {
+			setup := hostTrustError(repository, apiErr)
+
+			setup.APIHost = apiHost
+			setup.Problem = "configured provider api host does not match repository host"
+			setup.Hint = "use an api_url on the repository host"
+
+			return setup
 		}
 	}
 
@@ -77,15 +83,19 @@ func validateRemoteHostTrust(
 
 	remoteURL, err := getRemoteURL(ctx, repository.Remote)
 	if err != nil {
-		setup := hostTrustError(
+		setup := repositoryLookupSetupError(repository, host, err)
+		if setup != nil {
+			return setup
+		}
+
+		diagnosis := setupProblem(err)
+		setup = hostTrustError(
 			repository,
-			host,
 			&untrustedHostError{host: host, remote: repository.Remote, cause: err},
 		)
 		setup.Problem = "git remote could not be read"
 		setup.Hint = "check that the local repository has the configured git remote"
 
-		diagnosis := setupProblem(err)
 		if diagnosis.hint != "" {
 			setup.Problem, setup.Hint = diagnosis.problem, diagnosis.hint
 		}
@@ -97,7 +107,6 @@ func validateRemoteHostTrust(
 	if err != nil {
 		setup := hostTrustError(
 			repository,
-			host,
 			&untrustedHostError{host: host, remote: repository.Remote, cause: err},
 		)
 		setup.Problem = "git remote url is invalid"
@@ -109,7 +118,6 @@ func validateRemoteHostTrust(
 	if !strings.EqualFold(strings.TrimSpace(detected.Host), host) {
 		setup := hostTrustError(
 			repository,
-			host,
 			fmt.Errorf("%w: %q does not match git remote host %q", ErrUntrustedHost, host, detected.Host),
 		)
 		setup.RemoteHost = detected.Host
@@ -121,24 +129,39 @@ func validateRemoteHostTrust(
 	return nil
 }
 
-func hostTrustError(repository *repositoryDescriptor, host string, err error) *SetupError {
+func repositoryLookupSetupError(repository *repositoryDescriptor, host string, err error) *SetupError {
+	diagnosis := setupProblem(err)
+	if !diagnosis.repositoryFailure {
+		return nil
+	}
+
 	return &SetupError{
 		Host:     host,
 		Remote:   repository.Remote,
 		Provider: repository.Provider,
-		Problem:  "provider host is not trusted",
+		Problem:  diagnosis.problem,
+		Hint:     diagnosis.hint,
 		Err:      err,
 	}
 }
 
-func validateConfiguredAPIHost(apiURL, repositoryHost string) error {
+func hostTrustError(repository *repositoryDescriptor, err error) *SetupError {
+	return &SetupError{
+		Host:     strings.TrimSpace(repository.Host),
+		Remote:   repository.Remote,
+		Provider: repository.Provider,
+		Err:      err,
+	}
+}
+
+func validateConfiguredAPIHost(apiURL, repositoryHost string) (string, error) {
 	if apiURL == "" {
-		return nil
+		return "", nil
 	}
 
 	parsed, err := url.Parse(apiURL)
 	if err != nil || parsed.Hostname() == "" {
-		return fmt.Errorf("%w: configured api_url is invalid", ErrUntrustedHost)
+		return "", fmt.Errorf("%w: configured api_url is invalid", ErrUntrustedHost)
 	}
 
 	repositoryHostname := repositoryHost
@@ -149,7 +172,7 @@ func validateConfiguredAPIHost(apiURL, repositoryHost string) error {
 	}
 
 	if !strings.EqualFold(parsed.Hostname(), repositoryHostname) {
-		return fmt.Errorf(
+		return parsed.Hostname(), fmt.Errorf(
 			"%w: configured api_url host %q does not match repository host %q",
 			ErrUntrustedHost,
 			parsed.Hostname(),
@@ -157,7 +180,7 @@ func validateConfiguredAPIHost(apiURL, repositoryHost string) error {
 		)
 	}
 
-	return nil
+	return parsed.Hostname(), nil
 }
 
 func validateHostFormat(host string) error {

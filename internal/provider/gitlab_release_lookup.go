@@ -11,12 +11,12 @@ import (
 )
 
 func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {
-	slog.DebugContext(ctx, "gitlab: looking up release by tag", slog.String("tag", tag))
+	g.logger.DebugContext(ctx, "looking up release by tag", slog.String("tag", tag))
 
 	release, _, err := g.client.Releases.GetRelease(g.projectID, tag, gitlab.WithContext(ctx))
 	if err != nil {
 		if errors.Is(err, gitlab.ErrNotFound) {
-			slog.DebugContext(ctx, "gitlab: release not found", slog.String("tag", tag))
+			g.logger.DebugContext(ctx, "release not found", slog.String("tag", tag))
 
 			return nil, forge.ErrNoRelease
 		}
@@ -24,7 +24,7 @@ func (g *GitLab) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
 	}
 
-	slog.DebugContext(ctx, "gitlab: release found",
+	g.logger.DebugContext(ctx, "release found",
 		slog.String("tag", tag),
 		slog.String("url", release.Links.Self),
 	)
@@ -38,7 +38,7 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 		return nil, fmt.Errorf("create release: %w: %q", forge.ErrInvalidCommitSHA, ref)
 	}
 
-	slog.DebugContext(ctx, "gitlab: creating release",
+	g.logger.DebugContext(ctx, "creating release",
 		slog.String("tag", opts.TagName),
 		slog.String("ref", ref),
 	)
@@ -56,7 +56,7 @@ func (g *GitLab) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
-	slog.DebugContext(ctx, "gitlab: created release",
+	g.logger.DebugContext(ctx, "created release",
 		slog.String("tag", release.TagName),
 		slog.String("url", release.Links.Self),
 	)

@@ -2,7 +2,7 @@ package provider
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/monkescience/yeet/internal/forge"
 )
@@ -10,6 +10,7 @@ import (
 type mergeState struct {
 	Reference        string
 	RawReadiness     string
+	MergeStatus      string
 	MergeCommitSHA   string
 	HeadSHA          string
 	SourceBranch     string
@@ -25,8 +26,20 @@ type mergeState struct {
 }
 
 type mergeRefusal struct {
-	reason forge.MergeBlockedReason
-	detail string
+	reason  forge.MergeBlockedReason
+	detail  string
+	status  string
+	message string
+}
+
+func (r *mergeRefusal) failure(reference string) error {
+	return &forge.MergeBlockedError{
+		Reference:       reference,
+		Reason:          r.reason,
+		Detail:          r.detail,
+		MergeStatus:     r.status,
+		ProviderMessage: r.message,
+	}
 }
 
 type forgeMerge[M any] interface {
@@ -49,7 +62,7 @@ func (d mergeDriver[M]) run(ctx context.Context, opts forge.MergeReleasePROption
 	}
 
 	if !d.isTrusted(current) {
-		return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
+		return "", &forge.UntrustedReleasePRError{Reference: current.Reference}
 	}
 
 	if current.IsMerged {
@@ -94,12 +107,12 @@ func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) 
 		}
 
 		if !d.isTrusted(current) {
-			return "", fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
+			return "", &forge.UntrustedReleasePRError{Reference: current.Reference}
 		}
 
 		switch {
 		case current.Refusal != nil:
-			return "", blockedMerge(reference, current.Refusal.reason, current.Refusal.detail)
+			return "", current.Refusal.failure(reference)
 		case current.IsMerged:
 			return current.MergeCommitSHA, nil
 		case current.IsClosedUnmerged:
@@ -120,7 +133,12 @@ func checkMergeReadiness(current mergeState) error {
 
 	switch {
 	case current.ReadinessBlocked:
-		return blockedMerge(current.Reference, forge.MergeBlockedReasonPolicy, current.RawReadiness)
+		return &forge.MergeBlockedError{
+			Reference:   current.Reference,
+			Reason:      forge.MergeBlockedReasonPolicy,
+			Detail:      current.RawReadiness,
+			MergeStatus: current.MergeStatus,
+		}
 	default:
 		return nil
 	}
@@ -128,4 +146,13 @@ func checkMergeReadiness(current mergeState) error {
 
 func blockedMerge(reference string, reason forge.MergeBlockedReason, detail string) error {
 	return &forge.MergeBlockedError{Reference: reference, Reason: reason, Detail: detail}
+}
+
+func blockedMergeMessage(reference string, reason forge.MergeBlockedReason, detail, message string) error {
+	return &forge.MergeBlockedError{
+		Reference:       reference,
+		Reason:          reason,
+		Detail:          detail,
+		ProviderMessage: strings.TrimSpace(message),
+	}
 }

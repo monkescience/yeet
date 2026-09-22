@@ -14,12 +14,12 @@ import (
 )
 
 func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Release, error) {
-	slog.DebugContext(ctx, "github: looking up release by tag", slog.String("tag", tag))
+	g.logger.DebugContext(ctx, "looking up release by tag", slog.String("tag", tag))
 
 	release, resp, err := g.client.Repositories.GetReleaseByTag(ctx, g.repo.Owner, g.repo.Name, tag)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			slog.DebugContext(ctx, "github: release not found",
+			g.logger.DebugContext(ctx, "release not found",
 				slog.String("tag", tag),
 				slog.Int("status", resp.StatusCode),
 			)
@@ -30,7 +30,7 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 		return nil, fmt.Errorf("get release by tag %q: %w", tag, err)
 	}
 
-	slog.DebugContext(ctx, "github: release found",
+	g.logger.DebugContext(ctx, "release found",
 		slog.String("tag", tag),
 		slog.String("url", release.GetHTMLURL()),
 	)
@@ -46,7 +46,7 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (*forge.Release, error) {
 	targetCommitish := strings.TrimSpace(opts.Ref)
 
-	slog.DebugContext(ctx, "github: creating release",
+	g.logger.DebugContext(ctx, "creating release",
 		slog.String("tag", opts.TagName),
 		slog.String("target_commitish", targetCommitish),
 		slog.Bool("prerelease", opts.Prerelease),
@@ -75,7 +75,7 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 		return nil, fmt.Errorf("create release: %w", err)
 	}
 
-	slog.DebugContext(ctx, "github: created release",
+	g.logger.DebugContext(ctx, "created release",
 		slog.String("tag", rel.GetTagName()),
 		slog.String("url", rel.GetHTMLURL()),
 	)

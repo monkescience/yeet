@@ -14,7 +14,7 @@ import (
 func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, error) {
 	ref := branch
 
-	slog.DebugContext(ctx, "gitlab: reading file",
+	g.logger.DebugContext(ctx, "reading file",
 		slog.String("path", path),
 		slog.String("ref", ref),
 	)
@@ -27,7 +27,7 @@ func (g *GitLab) GetFile(ctx context.Context, branch, path string) (string, erro
 	)
 	if err != nil {
 		if errors.Is(err, gitlab.ErrNotFound) {
-			slog.DebugContext(ctx, "gitlab: file not found",
+			g.logger.DebugContext(ctx, "file not found",
 				slog.String("path", path),
 				slog.String("ref", ref),
 			)
@@ -72,7 +72,7 @@ func (g *GitLab) UpdateFiles(
 		})
 	}
 
-	slog.DebugContext(ctx, "gitlab: updating files",
+	g.logger.DebugContext(ctx, "updating files",
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(actions)),
@@ -89,7 +89,7 @@ func (g *GitLab) UpdateFiles(
 		return fmt.Errorf("force update branch %s: %w", branch, err)
 	}
 
-	slog.DebugContext(ctx, "gitlab: updated files", slog.String("branch", branch))
+	g.logger.DebugContext(ctx, "updated files", slog.String("branch", branch))
 
 	return nil
 }

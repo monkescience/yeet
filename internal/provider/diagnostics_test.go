@@ -42,6 +42,7 @@ func TestSetupErrorPreservesCauseAndSafeFacts(t *testing.T) {
 	// given: a trusted-host setup failure with a known root cause
 	cause := errors.New("remote lookup failed")
 	err := &provider.SetupError{
+		APIHost:  "api.gitlab.example.com",
 		Host:     "gitlab.example.com",
 		Remote:   "upstream",
 		Provider: "gitlab",
@@ -58,6 +59,7 @@ func TestSetupErrorPreservesCauseAndSafeFacts(t *testing.T) {
 	testastic.Equal(t, cause.Error(), err.Error())
 	testastic.ErrorIs(t, err, cause)
 	testastic.True(t, found)
+	testastic.Equal(t, "api.gitlab.example.com", setup.APIHost)
 	testastic.Equal(t, "gitlab.example.com", setup.Host)
 	testastic.Equal(t, "upstream", setup.Remote)
 	testastic.Equal(t, "gitlab", setup.Provider)

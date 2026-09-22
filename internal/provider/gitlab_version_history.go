@@ -12,7 +12,7 @@ import (
 )
 
 func (g *GitLab) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	slog.DebugContext(ctx, "gitlab: listing tags")
+	g.logger.DebugContext(ctx, "listing tags")
 
 	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *gitlab.Tag) (string, string, bool) {
 		if tag.Commit == nil {
@@ -25,7 +25,7 @@ func (g *GitLab) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "gitlab: listed tags", slog.Int("count", len(refs)))
+	g.logger.DebugContext(ctx, "listed tags", slog.Int("count", len(refs)))
 
 	return refs, nil
 }

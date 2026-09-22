@@ -58,6 +58,18 @@ type gitHubMergeQueueRepository struct {
 	} `json:"mergeQueue"`
 }
 
+func gitHubAutoMergeIdentityMissing(reference string) error {
+	return fmt.Errorf(
+		"%w: %s is missing a node ID or head SHA",
+		&forge.AutoMergeUnsupportedError{
+			Provider:  providerNameGitHub,
+			Reference: reference,
+			Problem:   "pull request is missing a node ID or head SHA",
+		},
+		reference,
+	)
+}
+
 func (g *GitHub) EnsureAutoMerge(ctx context.Context, number int, opts forge.MergeReleasePROptions) error {
 	pullRequest, _, err := g.client.PullRequests.Get(ctx, g.repo.Owner, g.repo.Name, number)
 	if err != nil {
@@ -67,7 +79,7 @@ func (g *GitHub) EnsureAutoMerge(ctx context.Context, number int, opts forge.Mer
 	current := gitHubMergeState(g.repo, number, pullRequest)
 
 	if !isTrustedMergeState(current, opts.BaseBranch, mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch)) {
-		return fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
+		return &forge.UntrustedReleasePRError{Reference: current.Reference}
 	}
 
 	if current.IsMerged {
@@ -104,7 +116,7 @@ func (g *GitHub) EnsureAutoMerge(ctx context.Context, number int, opts forge.Mer
 
 	pullRequestID := strings.TrimSpace(pullRequest.GetNodeID())
 	if pullRequestID == "" || current.HeadSHA == "" {
-		return fmt.Errorf("%w: %s is missing a node ID or head SHA", forge.ErrAutoMergeUnsupported, current.Reference)
+		return gitHubAutoMergeIdentityMissing(current.Reference)
 	}
 
 	if queueRequired {
@@ -177,12 +189,10 @@ func gitHubConfiguredQueueMethod(
 	if configured != forge.MergeMethodMerge &&
 		configured != forge.MergeMethodRebase &&
 		configured != forge.MergeMethodSquash {
-		return "", fmt.Errorf(
-			"%w: merge queue for branch %q has unknown merge method %q",
-			forge.ErrMergeMethodUnsupported,
-			branch,
-			repository.MergeQueue.Configuration.MergeMethod,
-		)
+		return "", &forge.MergeMethodUnsupportedError{
+			Method: forge.MergeMethod(repository.MergeQueue.Configuration.MergeMethod),
+			Branch: branch,
+		}
 	}
 
 	return configured, nil
@@ -338,7 +348,8 @@ func (g *GitHub) gitHubGraphQL(
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode >= http.StatusBadRequest &&
 			httpResponse.StatusCode < http.StatusInternalServerError {
-			return blockedMerge("", forge.MergeBlockedReasonFailure, "github GraphQL request: "+err.Error())
+			return blockedMerge("", forge.MergeBlockedReasonFailure,
+				fmt.Sprintf("github GraphQL request returned HTTP %d", httpResponse.StatusCode))
 		}
 
 		return fmt.Errorf("github GraphQL request: %w", err)

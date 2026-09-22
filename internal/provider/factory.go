@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -249,7 +250,7 @@ func newGitHubProvider(
 		return nil, fmt.Errorf("configure github client: %w", err)
 	}
 
-	provider := NewGitHub(
+	provider := NewGitHub(slog.Default(),
 		client,
 		repository.Owner,
 		repository.Repo,
@@ -285,7 +286,7 @@ func newGitLabProvider(
 		return nil, fmt.Errorf("create gitlab client: %w", err)
 	}
 
-	provider := NewGitLab(client, repository.Project, configuredMergePollingOptions(settings)...)
+	provider := NewGitLab(slog.Default(), client, repository.Project, configuredMergePollingOptions(settings)...)
 	provider.repoURL = spec.webBaseURL(repository.WebURL, repository.Host) + "/" + repository.Project
 	provider.releaseBranch = settings.releaseBranch
 
@@ -317,7 +318,7 @@ func newAzureDevOpsProvider(
 	standardClient.Timeout = httpClient.HTTPClient.Timeout
 
 	if token.envVar == azureDevOpsSystemAccessTokenEnv {
-		provider := NewAzureDevOpsWithSystemAccessToken(
+		provider := NewAzureDevOpsWithSystemAccessToken(slog.Default(),
 			standardClient,
 			baseURL,
 			token.value,
@@ -333,7 +334,7 @@ func newAzureDevOpsProvider(
 		return provider, nil
 	}
 
-	provider := NewAzureDevOps(
+	provider := NewAzureDevOps(slog.Default(),
 		standardClient,
 		baseURL,
 		token.value,

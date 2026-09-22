@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -35,7 +36,7 @@ func newGitLabContractProvider(
 	)
 	testastic.NoError(t, err)
 
-	return provider.NewGitLab(client, "o/r", options...)
+	return provider.NewGitLab(slog.New(slog.DiscardHandler), client, "o/r", options...)
 }
 
 func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {
@@ -1321,6 +1322,15 @@ func TestGitLabReleasePRLabelPreflight(t *testing.T) {
 
 				// then: the reserved filter value is rejected before a provider request
 				testastic.ErrorContains(t, err, "reserved GitLab label filter value")
+
+				var label *provider.LabelError
+
+				testastic.ErrorAs(t, err, &label)
+
+				if label != nil {
+					testastic.Equal(t, reserved, label.Label)
+					testastic.Equal(t, "configured GitLab lifecycle label is reserved", label.Problem)
+				}
 
 				_, err = p.FindOpenPendingReleasePRs(context.Background(), providerContractBaseBranch, reserved)
 				testastic.ErrorContains(t, err, "reserved GitLab label filter value")

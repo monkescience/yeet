@@ -185,9 +185,11 @@ const (
 )
 
 type MergeBlockedError struct {
-	Reference string
-	Reason    MergeBlockedReason
-	Detail    string
+	MergeStatus     string
+	Reference       string
+	Reason          MergeBlockedReason
+	Detail          string
+	ProviderMessage string
 }
 
 func (e *MergeBlockedError) Error() string {
@@ -208,4 +210,65 @@ func (e *MergeBlockedError) Error() string {
 
 func (e *MergeBlockedError) Unwrap() error {
 	return ErrMergeBlocked
+}
+
+type UntrustedReleasePRError struct {
+	Reference string
+}
+
+func (e *UntrustedReleasePRError) Error() string {
+	reference := strings.TrimSpace(e.Reference)
+	if reference == "" {
+		return ErrUntrustedReleasePR.Error()
+	}
+
+	return fmt.Sprintf("%s: %s", ErrUntrustedReleasePR, reference)
+}
+
+func (e *UntrustedReleasePRError) Unwrap() error {
+	return ErrUntrustedReleasePR
+}
+
+type MergeMethodUnsupportedError struct {
+	Method MergeMethod
+	Branch string
+}
+
+func (e *MergeMethodUnsupportedError) Error() string {
+	method := strings.TrimSpace(string(e.Method))
+	branch := strings.TrimSpace(e.Branch)
+
+	switch {
+	case method == "":
+		return ErrMergeMethodUnsupported.Error()
+	case branch != "":
+		return fmt.Sprintf(
+			"%s: merge queue for branch %q has unknown merge method %q",
+			ErrMergeMethodUnsupported,
+			branch,
+			method,
+		)
+	default:
+		return fmt.Sprintf("%s: unknown merge method %q", ErrMergeMethodUnsupported, method)
+	}
+}
+
+func (e *MergeMethodUnsupportedError) Unwrap() error {
+	return ErrMergeMethodUnsupported
+}
+
+type AutoMergeUnsupportedError struct {
+	Provider        string
+	Reference       string
+	Version         string
+	RequiredVersion string
+	Problem         string
+}
+
+func (e *AutoMergeUnsupportedError) Error() string {
+	return ErrAutoMergeUnsupported.Error()
+}
+
+func (e *AutoMergeUnsupportedError) Unwrap() error {
+	return ErrAutoMergeUnsupported
 }

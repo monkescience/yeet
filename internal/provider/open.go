@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
@@ -64,16 +63,15 @@ func openResolved(
 			return nil, "", err
 		}
 
-		providerName, remote := string(cfg.Provider), cfg.Repository.Remote
-		if overrides.Provider != nil {
-			providerName = strings.TrimSpace(*overrides.Provider)
+		unresolved := repositoryFromConfig(cfg)
+		applyRepositoryOverrides(unresolved, cfg.Provider, overrides)
+		normalizeRepositoryDescriptor(unresolved)
+
+		if unresolved.Provider == "" {
+			unresolved.Provider = providerNameAuto
 		}
 
-		if overrides.Remote != nil {
-			remote = strings.TrimSpace(*overrides.Remote)
-		}
-
-		return nil, "", unresolvedRepositoryError(providerName, remote, err)
+		return nil, "", unresolvedRepositoryError(unresolved.Provider, unresolved.Remote, err)
 	}
 
 	resolved, err := resolvedRepositoryFromDescriptor(repository)
@@ -102,12 +100,14 @@ func unresolvedRepositoryError(providerName, remote string, err error) *SetupErr
 	diagnosis := setupProblem(err)
 
 	return &SetupError{
-		Provider:   providerName,
-		Remote:     remote,
-		RemoteHost: diagnosis.remoteHost,
-		Problem:    diagnosis.problem,
-		Hint:       diagnosis.hint,
-		Err:        err,
+		Provider:        providerName,
+		Remote:          remote,
+		RemoteHost:      diagnosis.remoteHost,
+		Project:         diagnosis.project,
+		ExpectedProject: diagnosis.expectedProject,
+		Problem:         diagnosis.problem,
+		Hint:            diagnosis.hint,
+		Err:             err,
 	}
 }
 

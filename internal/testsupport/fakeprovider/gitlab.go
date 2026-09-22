@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -724,7 +725,7 @@ func gitlabPendingMR(iid int) map[string]any {
 		gitlabKeyID:         iid,
 		"state":             gitlabStateOpened,
 		"merge_status":      "can_be_merged",
-		"web_url":           "https://example.test/mr/42",
+		"web_url":           "https://example.test/mr/" + strconv.Itoa(iid),
 		"source_branch":     fakeReleaseBranch,
 		"target_branch":     fakeBaseBranch,
 		"source_project_id": gitlabFakeMRID,

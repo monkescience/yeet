@@ -12,7 +12,7 @@ import (
 )
 
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	slog.DebugContext(ctx, "github: listing tags")
+	g.logger.DebugContext(ctx, "listing tags")
 
 	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *github.RepositoryTag) (string, string, bool) {
 		return tag.GetName(), tag.GetCommit().GetSHA(), true
@@ -21,7 +21,7 @@ func (g *GitHub) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "github: listed tags", slog.Int("count", len(refs)))
+	g.logger.DebugContext(ctx, "listed tags", slog.Int("count", len(refs)))
 
 	return refs, nil
 }

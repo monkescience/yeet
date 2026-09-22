@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,7 +29,7 @@ func newGitHubContractProvider(
 
 	client := newGitHubTestClient(t, server)
 
-	return provider.NewGitHub(client, "o", "r", options...)
+	return provider.NewGitHub(slog.New(slog.DiscardHandler), client, "o", "r", options...)
 }
 
 func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) http.Handler {

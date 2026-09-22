@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,7 +31,7 @@ func NewGitHubContentProvider(t *testing.T, content *RepoContent) forge.Provider
 	)
 	testastic.NoError(t, err)
 
-	return provider.NewGitHub(client, ContentOwner, ContentRepo)
+	return provider.NewGitHub(slog.New(slog.DiscardHandler), client, ContentOwner, ContentRepo)
 }
 
 type gitHubContentState struct {

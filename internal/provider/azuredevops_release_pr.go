@@ -12,6 +12,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/identity"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 const azureDevOpsPRPageSize = 100
@@ -28,7 +29,7 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts forge.ReleasePRO
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "azure devops: creating pull request",
+	a.logger.DebugContext(ctx, "creating pull request",
 		slog.String("source_branch", opts.ReleaseBranch),
 		slog.String("target_branch", opts.BaseBranch),
 	)
@@ -59,8 +60,8 @@ func (a *AzureDevOps) CreateReleasePR(ctx context.Context, opts forge.ReleasePRO
 
 	prNumber := derefInt(created.PullRequestId)
 
-	slog.DebugContext(ctx, "azure devops: created pull request",
-		slog.Int("pr_number", prNumber),
+	a.logger.DebugContext(ctx, "created pull request",
+		logattr.PullRequestNumber(int64(prNumber)),
 		slog.String("url", a.pullRequestWebURL(prNumber)),
 	)
 
@@ -79,7 +80,7 @@ func (a *AzureDevOps) resolveReviewers(ctx context.Context, names []string) ([]g
 		return nil, nil
 	}
 
-	slog.DebugContext(ctx, "azure devops: resolving reviewers", slog.Int("reviewer_count", len(names)))
+	a.logger.DebugContext(ctx, "resolving reviewers", slog.Int("reviewer_count", len(names)))
 
 	identityClient, err := identity.NewClient(ctx, a.conn)
 	if err != nil {
@@ -138,7 +139,7 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts forg
 		return err
 	}
 
-	slog.DebugContext(ctx, "azure devops: updating pull request", slog.Int("pr_number", number))
+	a.logger.DebugContext(ctx, "updating pull request", logattr.PullRequestNumber(int64(number)))
 
 	update := git.GitPullRequest{
 		Title:       new(opts.Title),
@@ -155,7 +156,7 @@ func (a *AzureDevOps) UpdateReleasePR(ctx context.Context, number int, opts forg
 		return fmt.Errorf("update pull request !%d: %w", number, err)
 	}
 
-	slog.DebugContext(ctx, "azure devops: updated pull request", slog.Int("pr_number", number))
+	a.logger.DebugContext(ctx, "updated pull request", logattr.PullRequestNumber(int64(number)))
 
 	return nil
 }
@@ -188,7 +189,7 @@ func (a *AzureDevOps) findOpenPendingReleasePRs(
 	baseBranch, pendingLabel, expectedBranch string,
 	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
-	slog.DebugContext(ctx, "azure devops: listing open pending release pull requests",
+	a.logger.DebugContext(ctx, "listing open pending release pull requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -255,7 +256,7 @@ func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
 		})
 	}
 
-	slog.DebugContext(ctx, "azure devops: listed open pending release pull requests", slog.Int("count", len(pending)))
+	a.logger.DebugContext(ctx, "listed open pending release pull requests", slog.Int("count", len(pending)))
 
 	return pending, nil
 }
@@ -281,7 +282,7 @@ func (a *AzureDevOps) FindMergedReleasePR(
 	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(a.releaseBranch, baseBranch, expectedBranches)
-	slog.DebugContext(ctx, "azure devops: searching merged release pull requests",
+	a.logger.DebugContext(ctx, "searching merged release pull requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -318,8 +319,8 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		MergeCommitSHA: azureDevOpsCompletedMergeCommit(full),
 	}
 
-	slog.DebugContext(ctx, "azure devops: found merged release pull request",
-		slog.Int("pr_number", result.Number),
+	a.logger.DebugContext(ctx, "found merged release pull request",
+		logattr.PullRequestNumber(int64(result.Number)),
 		slog.String("url", result.URL),
 		slog.String("merge_sha", result.MergeCommitSHA),
 	)
@@ -460,7 +461,7 @@ func (a *AzureDevOps) MergeReleasePR(
 	number int,
 	opts forge.MergeReleasePROptions,
 ) (string, error) {
-	slog.DebugContext(ctx, "azure devops: completing pull request", slog.Int("pr_number", number))
+	a.logger.DebugContext(ctx, "completing pull request", logattr.PullRequestNumber(int64(number)))
 
 	driver := mergeDriver[git.GitPullRequestMergeStrategy]{
 		forge:         &azureDevOpsMerge{provider: a, number: number},
@@ -477,7 +478,15 @@ func (a *AzureDevOps) EnsureAutoMerge(
 	number int,
 	_ forge.MergeReleasePROptions,
 ) error {
-	return fmt.Errorf("%w: Azure DevOps pull request #%d requires direct mode", forge.ErrAutoMergeUnsupported, number)
+	return fmt.Errorf(
+		"%w: Azure DevOps pull request #%d requires direct mode",
+		&forge.AutoMergeUnsupportedError{
+			Provider:  providerNameAzureDevOps,
+			Reference: fmt.Sprintf("pull request #%d", number),
+			Problem:   "provider requires direct auto-merge mode",
+		},
+		number,
+	)
 }
 
 type azureDevOpsMerge struct {
@@ -534,8 +543,8 @@ func (m *azureDevOpsMerge) execute(
 		return "", false, fmt.Errorf("complete pull request !%d: %w", m.number, err)
 	}
 
-	slog.DebugContext(ctx, "azure devops: completed pull request",
-		slog.Int("pr_number", m.number),
+	m.provider.logger.DebugContext(ctx, "completed pull request",
+		logattr.PullRequestNumber(int64(m.number)),
 		slog.String("strategy", string(strategy)),
 	)
 
@@ -544,7 +553,7 @@ func (m *azureDevOpsMerge) execute(
 	}
 
 	if refusal := azureDevOpsMergeRefusal(merged); refusal != nil {
-		return "", false, blockedMerge(current.Reference, refusal.reason, refusal.detail)
+		return "", false, refusal.failure(current.Reference)
 	}
 
 	return "", true, nil
@@ -562,12 +571,12 @@ func azureDevOpsMergeRefusal(pullRequest *git.GitPullRequest) *mergeRefusal {
 		return nil
 	}
 
-	detail := strings.TrimSpace(derefString(pullRequest.MergeFailureMessage))
-	if detail == "" {
-		detail = "merge_status=" + mergeStatus
+	return &mergeRefusal{
+		reason:  reason,
+		detail:  "merge_status=" + mergeStatus,
+		status:  mergeStatus,
+		message: strings.TrimSpace(derefString(pullRequest.MergeFailureMessage)),
 	}
-
-	return &mergeRefusal{reason: reason, detail: "was refused: " + detail}
 }
 
 func azureDevOpsMergeRefusalReason(mergeStatus string) (forge.MergeBlockedReason, bool) {
@@ -590,6 +599,7 @@ func (a *AzureDevOps) azureDevOpsMergeState(number int, pullRequest *git.GitPull
 	return mergeState{
 		Reference:        azureDevOpsPullRequestReference(number),
 		RawReadiness:     "merge_status=" + mergeStatus,
+		MergeStatus:      mergeStatus,
 		MergeCommitSHA:   azureDevOpsCompletedMergeCommit(pullRequest),
 		HeadSHA:          azureDevOpsLastMergeSourceCommit(pullRequest),
 		SourceBranch:     azureDevOpsRefToBranch(derefString(pullRequest.SourceRefName)),
@@ -913,7 +923,7 @@ func azureDevOpsMergeStrategy(method forge.MergeMethod) (git.GitPullRequestMerge
 	case forge.MergeMethodMerge:
 		return git.GitPullRequestMergeStrategyValues.NoFastForward, nil
 	default:
-		return "", fmt.Errorf("%w: unknown merge method %q", forge.ErrMergeMethodUnsupported, method)
+		return "", &forge.MergeMethodUnsupportedError{Method: method}
 	}
 }
 

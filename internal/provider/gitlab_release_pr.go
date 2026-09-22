@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/logattr"
 	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
@@ -32,7 +33,7 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 		return nil, wrapReleasePRLabelsError(err)
 	}
 
-	slog.DebugContext(ctx, "gitlab: creating merge request",
+	g.logger.DebugContext(ctx, "creating merge request",
 		slog.String("source_branch", opts.ReleaseBranch),
 		slog.String("target_branch", opts.BaseBranch),
 	)
@@ -67,8 +68,8 @@ func (g *GitLab) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "gitlab: created merge request",
-		slog.Int("iid", int(mr.IID)),
+	g.logger.DebugContext(ctx, "created merge request",
+		logattr.PullRequestNumber(mr.IID),
 		slog.String("url", mr.WebURL),
 	)
 
@@ -87,7 +88,7 @@ func (g *GitLab) resolveReviewerIDs(ctx context.Context, usernames []string) ([]
 		return nil, nil
 	}
 
-	slog.DebugContext(ctx, "gitlab: resolving reviewers", slog.Int("reviewer_count", len(usernames)))
+	g.logger.DebugContext(ctx, "resolving reviewers", slog.Int("reviewer_count", len(usernames)))
 
 	ids := make([]int64, 0, len(usernames))
 
@@ -189,7 +190,7 @@ func (g *GitLab) MaxPRBodyLength() int {
 }
 
 func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error {
-	slog.DebugContext(ctx, "gitlab: updating merge request", slog.Int("iid", number))
+	g.logger.DebugContext(ctx, "updating merge request", logattr.PullRequestNumber(int64(number)))
 
 	_, _, err := g.client.MergeRequests.UpdateMergeRequest(g.projectID, int64(number), &gitlab.UpdateMergeRequestOptions{
 		Title:       new(opts.Title),
@@ -199,7 +200,7 @@ func (g *GitLab) UpdateReleasePR(ctx context.Context, number int, opts forge.Rel
 		return fmt.Errorf("update merge request !%d: %w", number, err)
 	}
 
-	slog.DebugContext(ctx, "gitlab: updated merge request", slog.Int("iid", number))
+	g.logger.DebugContext(ctx, "updated merge request", logattr.PullRequestNumber(int64(number)))
 
 	return nil
 }
@@ -257,7 +258,7 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		options.SourceBranch = new(sourceBranch)
 	}
 
-	slog.DebugContext(ctx, "gitlab: listing open pending release merge requests",
+	g.logger.DebugContext(ctx, "listing open pending release merge requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -326,7 +327,7 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "gitlab: listed open pending release merge requests", slog.Int("count", len(pendingMRs)))
+	g.logger.DebugContext(ctx, "listed open pending release merge requests", slog.Int("count", len(pendingMRs)))
 
 	return pendingMRs, nil
 }
@@ -373,7 +374,7 @@ func (g *GitLab) FindMergedReleasePR(
 		PerPage:      gitLabPageSize,
 	}
 
-	slog.DebugContext(ctx, "gitlab: searching merged release merge requests",
+	g.logger.DebugContext(ctx, "searching merged release merge requests",
 		slog.String("target_branch", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -451,11 +452,11 @@ func (g *GitLab) FindMergedReleasePR(
 		Body:           bestMR.Description,
 		URL:            bestMR.WebURL,
 		Branch:         bestMR.SourceBranch,
-		MergeCommitSHA: gitLabMergeCommitSHA(ctx, bestMR),
+		MergeCommitSHA: g.mergeCommitSHA(ctx, bestMR),
 	}
 
-	slog.DebugContext(ctx, "gitlab: found merged release merge request",
-		slog.Int("iid", found.Number),
+	g.logger.DebugContext(ctx, "found merged release merge request",
+		logattr.PullRequestNumber(int64(found.Number)),
 		slog.String("url", found.URL),
 		slog.String("merge_sha", found.MergeCommitSHA),
 	)
@@ -537,20 +538,20 @@ func gitLabCommitSHA(mergeCommit, squashCommit, sourceCommit string) string {
 	return ""
 }
 
-func gitLabMergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) string {
+func (g *GitLab) mergeCommitSHA(ctx context.Context, mergeRequest *gitlab.BasicMergeRequest) string {
 	commitSHA := gitLabMergeRequestCommitSHA(mergeRequest)
 	if commitSHA != "" {
 		return commitSHA
 	}
 
-	slog.WarnContext(ctx, "gitlab merged request has no merge, squash, or source commit hash",
-		slog.Int64("iid", mergeRequest.IID))
+	g.logger.WarnContext(ctx, "merged request has no merge, squash, or source commit hash",
+		logattr.PullRequestNumber(mergeRequest.IID))
 
 	return ""
 }
 
 func (g *GitLab) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
-	slog.DebugContext(ctx, "gitlab: merging merge request", slog.Int("iid", number))
+	g.logger.DebugContext(ctx, "merging merge request", logattr.PullRequestNumber(int64(number)))
 
 	driver := mergeDriver[*gitlab.AcceptMergeRequestOptions]{
 		forge:         &gitLabMerge{provider: g, number: number},
@@ -620,7 +621,7 @@ func (m *gitLabMerge) execute(
 	)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
-			return "", false, gitLabAcceptRefused(current.Reference, err.Error())
+			return "", false, gitLabAcceptRefused(current.Reference, "merge request returned HTTP 405", "")
 		}
 
 		return "", false, fmt.Errorf("accept merge request !%d: %w", m.number, err)
@@ -631,11 +632,11 @@ func (m *gitLabMerge) execute(
 	}
 
 	if mergeError := strings.TrimSpace(merged.MergeError); mergeError != "" {
-		return "", false, gitLabAcceptRefused(current.Reference, mergeError)
+		return "", false, gitLabAcceptRefused(current.Reference, "provider reported a merge failure", mergeError)
 	}
 
-	slog.DebugContext(ctx, "gitlab: merged merge request",
-		slog.Int("iid", m.number),
+	m.provider.logger.DebugContext(ctx, "merged merge request",
+		logattr.PullRequestNumber(int64(m.number)),
 		slog.String("sha", current.HeadSHA),
 	)
 
@@ -648,8 +649,8 @@ func (m *gitLabMerge) execute(
 	return "", true, nil
 }
 
-func gitLabAcceptRefused(reference, detail string) error {
-	return blockedMerge(reference, forge.MergeBlockedReasonUnknown, "was refused: "+detail)
+func gitLabAcceptRefused(reference, detail, message string) error {
+	return blockedMergeMessage(reference, forge.MergeBlockedReasonUnknown, "was refused: "+detail, message)
 }
 
 func gitLabMergeState(reference string, mergeRequest *gitlab.MergeRequest) mergeState {
@@ -658,6 +659,7 @@ func gitLabMergeState(reference string, mergeRequest *gitlab.MergeRequest) merge
 	return mergeState{
 		Reference:        reference,
 		RawReadiness:     "detailed_merge_status=" + mergeStatus,
+		MergeStatus:      mergeStatus,
 		MergeCommitSHA:   gitLabMergeRequestCommitSHA(&mergeRequest.BasicMergeRequest),
 		HeadSHA:          strings.TrimSpace(mergeRequest.SHA),
 		SourceBranch:     mergeRequest.SourceBranch,
@@ -780,11 +782,15 @@ func validateGitLabReleasePRLabels(labels forge.ReleasePRLabels) error {
 
 func validateGitLabLifecycleLabel(name string) error {
 	if strings.EqualFold(name, "any") || strings.EqualFold(name, "none") {
-		return fmt.Errorf(
-			"%w: %q is a reserved GitLab label filter value",
-			errGitLabReleasePRLabelsInvalid,
-			name,
-		)
+		return &LabelError{
+			Label:   name,
+			Problem: "configured GitLab lifecycle label is reserved",
+			Err: fmt.Errorf(
+				"%w: %q is a reserved GitLab label filter value",
+				errGitLabReleasePRLabelsInvalid,
+				name,
+			),
+		}
 	}
 
 	return nil
@@ -863,7 +869,7 @@ func gitLabAcceptMergeOptions(
 
 		return options, nil
 	default:
-		return nil, fmt.Errorf("%w: unknown merge method %q", forge.ErrMergeMethodUnsupported, requested)
+		return nil, &forge.MergeMethodUnsupportedError{Method: requested}
 	}
 }
 

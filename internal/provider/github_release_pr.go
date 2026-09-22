@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-github/v91/github"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 var _ forgeMerge[forge.MergeMethod] = (*gitHubMerge)(nil)
@@ -25,7 +26,7 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "github: creating pull request",
+	g.logger.DebugContext(ctx, "creating pull request",
 		slog.String("head", opts.ReleaseBranch),
 		slog.String("base", opts.BaseBranch),
 	)
@@ -40,8 +41,8 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 		return nil, fmt.Errorf("create pull request: %w", err)
 	}
 
-	slog.DebugContext(ctx, "github: created pull request",
-		slog.Int("pr_number", pr.GetNumber()),
+	g.logger.DebugContext(ctx, "created pull request",
+		logattr.PullRequestNumber(int64(pr.GetNumber())),
 		slog.String("url", pr.GetHTMLURL()),
 	)
 
@@ -53,8 +54,8 @@ func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROption
 				opts.Reviewers, pr.GetNumber(), err)
 		}
 
-		slog.DebugContext(ctx, "github: requested reviewers",
-			slog.Int("pr_number", pr.GetNumber()),
+		g.logger.DebugContext(ctx, "requested reviewers",
+			logattr.PullRequestNumber(int64(pr.GetNumber())),
 			slog.Int("reviewer_count", len(opts.Reviewers)),
 		)
 	}
@@ -74,7 +75,7 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 		return nil
 	}
 
-	slog.DebugContext(ctx, "github: validating reviewers", slog.Int("reviewer_count", len(reviewers)))
+	g.logger.DebugContext(ctx, "validating reviewers", slog.Int("reviewer_count", len(reviewers)))
 
 	for _, reviewer := range reviewers {
 		isCollaborator, _, err := g.client.Repositories.IsCollaborator(ctx, g.repo.Owner, g.repo.Name, reviewer)
@@ -99,7 +100,7 @@ func (g *GitHub) MaxPRBodyLength() int {
 }
 
 func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error {
-	slog.DebugContext(ctx, "github: updating pull request", slog.Int("pr_number", number))
+	g.logger.DebugContext(ctx, "updating pull request", logattr.PullRequestNumber(int64(number)))
 
 	_, _, err := g.client.PullRequests.Edit(ctx, g.repo.Owner, g.repo.Name, number, &github.PullRequest{
 		Title: new(opts.Title),
@@ -109,7 +110,7 @@ func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts forge.Rel
 		return fmt.Errorf("update pull request #%d: %w", number, err)
 	}
 
-	slog.DebugContext(ctx, "github: updated pull request", slog.Int("pr_number", number))
+	g.logger.DebugContext(ctx, "updated pull request", logattr.PullRequestNumber(int64(number)))
 
 	return nil
 }
@@ -154,7 +155,7 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		options.Head = g.repo.Owner + ":" + expectedBranch
 	}
 
-	slog.DebugContext(ctx, "github: listing open pending release pull requests",
+	g.logger.DebugContext(ctx, "listing open pending release pull requests",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -216,7 +217,7 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "github: listed open pending release pull requests", slog.Int("count", len(pendingPRs)))
+	g.logger.DebugContext(ctx, "listed open pending release pull requests", slog.Int("count", len(pendingPRs)))
 
 	return pendingPRs, nil
 }
@@ -255,7 +256,7 @@ func (g *GitHub) FindMergedReleasePR(
 	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
-	slog.DebugContext(ctx, "github: listing merged release pull requests",
+	g.logger.DebugContext(ctx, "listing merged release pull requests",
 		slog.String("base", baseBranch),
 		slog.String("label", pendingLabel),
 	)
@@ -294,8 +295,8 @@ func (g *GitHub) FindMergedReleasePR(
 		MergeCommitSHA: full.GetMergeCommitSHA(),
 	}
 
-	slog.DebugContext(ctx, "github: found merged release pull request",
-		slog.Int("pr_number", found.Number),
+	g.logger.DebugContext(ctx, "found merged release pull request",
+		logattr.PullRequestNumber(int64(found.Number)),
 		slog.String("url", found.URL),
 		slog.String("merge_sha", found.MergeCommitSHA),
 	)
@@ -440,7 +441,7 @@ func (g *GitHub) applyLabels(ctx context.Context, number int, anchor string, add
 }
 
 func (g *GitHub) MergeReleasePR(ctx context.Context, number int, opts forge.MergeReleasePROptions) (string, error) {
-	slog.DebugContext(ctx, "github: merging pull request", slog.Int("pr_number", number))
+	g.logger.DebugContext(ctx, "merging pull request", logattr.PullRequestNumber(int64(number)))
 
 	driver := mergeDriver[forge.MergeMethod]{
 		forge:         &gitHubMerge{provider: g, number: number},
@@ -494,16 +495,16 @@ func (m *gitHubMerge) execute(ctx context.Context, current mergeState, method fo
 	}
 
 	if !result.GetMerged() {
-		detail := strings.TrimSpace(result.GetMessage())
-		if detail == "" {
-			detail = "merge not completed"
-		}
-
-		return "", false, blockedMerge(current.Reference, forge.MergeBlockedReasonUnknown, detail)
+		return "", false, blockedMergeMessage(
+			current.Reference,
+			forge.MergeBlockedReasonUnknown,
+			"merge not completed",
+			result.GetMessage(),
+		)
 	}
 
-	slog.DebugContext(ctx, "github: merged pull request",
-		slog.Int("pr_number", m.number),
+	m.provider.logger.DebugContext(ctx, "merged pull request",
+		logattr.PullRequestNumber(int64(m.number)),
 		slog.String("method", string(method)),
 		slog.String("merge_sha", result.GetSHA()),
 	)
@@ -521,6 +522,7 @@ func gitHubMergeState(repo repoInfo, number int, pullRequest *github.PullRequest
 	return mergeState{
 		Reference:        gitHubPullRequestReference(number),
 		RawReadiness:     "mergeable_state=" + mergeableState,
+		MergeStatus:      mergeableState,
 		MergeCommitSHA:   strings.TrimSpace(pullRequest.GetMergeCommitSHA()),
 		HeadSHA:          strings.TrimSpace(head.GetSHA()),
 		SourceBranch:     head.GetRef(),
@@ -673,7 +675,7 @@ func (g *GitHub) resolveGitHubMergeMethod(ctx context.Context, requested forge.M
 			return "", gitHubMergeMethodDisabled(requested)
 		}
 	default:
-		return "", fmt.Errorf("%w: unknown merge method %q", forge.ErrMergeMethodUnsupported, requested)
+		return "", &forge.MergeMethodUnsupportedError{Method: requested}
 	}
 
 	return requested, nil

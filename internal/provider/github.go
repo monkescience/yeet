@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ const (
 var _ forge.Provider = (*GitHub)(nil)
 
 type GitHub struct {
+	logger        *slog.Logger
 	client        *github.Client
 	repo          repoInfo
 	baseURL       string
@@ -33,7 +35,12 @@ type GitHub struct {
 	labels      labelDefinitionCache
 }
 
-func NewGitHub(client *github.Client, owner, repo string, options ...MergePollingOption) *GitHub {
+func NewGitHub(
+	logger *slog.Logger,
+	client *github.Client,
+	owner, repo string,
+	options ...MergePollingOption,
+) *GitHub {
 	apiBaseURL := strings.TrimSuffix(client.BaseURL(), "/")
 	baseURL := apiBaseURL
 	graphqlURL := apiBaseURL + "/graphql"
@@ -48,6 +55,7 @@ func NewGitHub(client *github.Client, owner, repo string, options ...MergePollin
 	}
 
 	return &GitHub{
+		logger:     providerLogger(logger, providerNameGitHub),
 		client:     client,
 		repo:       repoInfo{Owner: owner, Name: repo},
 		baseURL:    baseURL,

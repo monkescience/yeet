@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +20,7 @@ const azureDevOpsZeroObjectID = "0000000000000000000000000000000000000000"
 var _ forge.Provider = (*AzureDevOps)(nil)
 
 type AzureDevOps struct {
+	logger        *slog.Logger
 	conn          *azuredevops.Connection
 	httpClient    *http.Client
 	baseURL       string
@@ -34,25 +36,25 @@ type AzureDevOps struct {
 	clientErr  error
 }
 
-func NewAzureDevOps(
+func NewAzureDevOps(logger *slog.Logger,
 	httpClient *http.Client,
 	baseURL, pat, organization, collection, project, repo string,
 	options ...MergePollingOption,
 ) *AzureDevOps {
-	return newAzureDevOps(
+	return newAzureDevOps(logger,
 		httpClient, baseURL, patConnection, pat, organization, collection, project, repo, options...)
 }
 
-func NewAzureDevOpsWithSystemAccessToken(
+func NewAzureDevOpsWithSystemAccessToken(logger *slog.Logger,
 	httpClient *http.Client,
 	baseURL, token, organization, collection, project, repo string,
 	options ...MergePollingOption,
 ) *AzureDevOps {
-	return newAzureDevOps(
+	return newAzureDevOps(logger,
 		httpClient, baseURL, systemAccessTokenConnection, token, organization, collection, project, repo, options...)
 }
 
-func newAzureDevOps(
+func newAzureDevOps(logger *slog.Logger,
 	httpClient *http.Client,
 	baseURL string,
 	connectionFactory func(string, string) *azuredevops.Connection,
@@ -74,6 +76,7 @@ func newAzureDevOps(
 	}
 
 	return &AzureDevOps{
+		logger:       providerLogger(logger, providerNameAzureDevOps),
 		conn:         conn,
 		httpClient:   httpClient,
 		baseURL:      baseURL,

@@ -2,6 +2,7 @@ package fakeprovider
 
 import (
 	"encoding/json/v2"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ func NewAzureContentProvider(t *testing.T, content *RepoContent) forge.Provider 
 	server := httptest.NewServer(newAzureContentHandler(t, content))
 	t.Cleanup(server.Close)
 
-	return provider.NewAzureDevOps(
+	return provider.NewAzureDevOps(slog.New(slog.DiscardHandler),
 		server.Client(),
 		server.URL,
 		"contoso-pat",

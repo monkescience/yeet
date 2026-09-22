@@ -58,4 +58,67 @@ func TestAwaitMergedCommitReportsTheCauseThatEndedTheWait(t *testing.T) {
 	// then: a real failure stays distinguishable from a slow forge
 	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
 	testastic.ErrorIs(t, err, errMergePollingProbe)
+
+	var timeout *MergeNotFinalizedError
+	testastic.True(t, errors.As(err, &timeout))
+	testastic.Equal(t, MergeTimeoutTransport, timeout.TimeoutKind())
+}
+
+func TestAwaitMergedCommitRetainsTransportFailureAfterPendingResponse(t *testing.T) {
+	t.Parallel()
+
+	polling := newMergePolling(WithMergePolling(time.Nanosecond, time.Nanosecond, 100*time.Millisecond))
+	calls := 0
+
+	resolve := func(pollCtx context.Context) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", nil
+		}
+
+		<-pollCtx.Done()
+
+		return "", errMergePollingProbe
+	}
+
+	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
+
+	testastic.Equal(t, 2, calls)
+	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
+	testastic.ErrorIs(t, err, errMergePollingProbe)
+
+	var timeout *MergeNotFinalizedError
+	testastic.True(t, errors.As(err, &timeout))
+	testastic.Equal(t, MergeTimeoutTransport, timeout.TimeoutKind())
+}
+
+func TestAwaitMergedCommitSkipsPollingOnceTheBudgetIsSpent(t *testing.T) {
+	t.Parallel()
+
+	// given: a wait budget that is already spent when the first poll would run
+	polling := newMergePolling(WithMergePolling(time.Nanosecond, time.Nanosecond, time.Nanosecond))
+	calls := 0
+
+	resolve := func(context.Context) (string, error) {
+		calls++
+
+		return "", nil
+	}
+
+	// when: the driver waits for the merge to finalize
+	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
+
+	// then: no request is sent and the merge is reported as still pending
+	testastic.Equal(t, 0, calls)
+	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
+
+	var timeout *MergeNotFinalizedError
+
+	testastic.True(t, errors.As(err, &timeout))
+
+	if timeout == nil {
+		return
+	}
+
+	testastic.Equal(t, MergeTimeoutResponsive, timeout.TimeoutKind())
 }

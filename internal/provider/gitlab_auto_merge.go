@@ -31,7 +31,7 @@ func (g *GitLab) EnsureAutoMerge(ctx context.Context, number int, opts forge.Mer
 
 	current := gitLabMergeState(reference, mergeRequest)
 	if !isTrustedMergeState(current, opts.BaseBranch, mergeExpectedReleaseBranch(g.releaseBranch, opts.ReleaseBranch)) {
-		return fmt.Errorf("%w: %s", forge.ErrUntrustedReleasePR, current.Reference)
+		return &forge.UntrustedReleasePRError{Reference: current.Reference}
 	}
 
 	if current.IsMerged {
@@ -101,7 +101,10 @@ func (g *GitLab) checkGitLabAutoMergeVersion(ctx context.Context) error {
 	}
 
 	if serverVersion == nil {
-		return fmt.Errorf("%w: GitLab returned no server version", forge.ErrAutoMergeUnsupported)
+		return fmt.Errorf(
+			"%w: GitLab returned no server version",
+			&forge.AutoMergeUnsupportedError{Provider: providerNameGitLab},
+		)
 	}
 
 	version := strings.TrimSpace(serverVersion.Version)
@@ -112,7 +115,7 @@ func (g *GitLab) checkGitLabAutoMergeVersion(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf(
 			"%w: cannot parse GitLab version %q",
-			forge.ErrAutoMergeUnsupported,
+			&forge.AutoMergeUnsupportedError{Provider: providerNameGitLab, Version: serverVersion.Version},
 			serverVersion.Version,
 		)
 	}
@@ -120,7 +123,11 @@ func (g *GitLab) checkGitLabAutoMergeVersion(ctx context.Context) error {
 	if parsed.LessThan(gitLabAutoMergeMinimumVersion) {
 		return fmt.Errorf(
 			"%w: GitLab %s is older than required version %s",
-			forge.ErrAutoMergeUnsupported,
+			&forge.AutoMergeUnsupportedError{
+				Provider:        providerNameGitLab,
+				Version:         parsed.String(),
+				RequiredVersion: gitLabAutoMergeMinimumVersion.String(),
+			},
 			parsed,
 			gitLabAutoMergeMinimumVersion,
 		)
@@ -149,7 +156,7 @@ func (g *GitLab) ensureGitLabAutoMerge(
 	)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusMethodNotAllowed {
-			return blockedMerge(reference, forge.MergeBlockedReasonFailure, "was refused: "+err.Error())
+			return blockedMerge(reference, forge.MergeBlockedReasonFailure, "auto-merge request returned HTTP 405")
 		}
 
 		return fmt.Errorf("enable auto-merge for merge request !%d: %w", number, err)
@@ -161,7 +168,12 @@ func (g *GitLab) ensureGitLabAutoMerge(
 
 	mergeError := strings.TrimSpace(accepted.MergeError)
 	if mergeError != "" {
-		return blockedMerge(reference, forge.MergeBlockedReasonFailure, "was refused: "+mergeError)
+		return blockedMergeMessage(
+			reference,
+			forge.MergeBlockedReasonFailure,
+			"provider reported an auto-merge failure",
+			mergeError,
+		)
 	}
 
 	if accepted.State == gitlabMergeRequestMergedState ||

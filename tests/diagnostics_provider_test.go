@@ -48,9 +48,11 @@ func TestDiagnosticsGitLabNotFound(t *testing.T) {
 				testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 			)
 
-			// then: one provider diagnostic preserves status 404 at either verbosity
+			// then: the provider diagnostic preserves status 404 and provider debug logs respect verbosity
 			testastic.Equal(t, 1, result.ExitCode)
 			testastic.Equal(t, "", result.Stdout)
+			testastic.Equal(t, verbosity == "verbose",
+				strings.Contains(ansi.Strip(result.Stderr), "DEBUG listing tags provider=gitlab"))
 			testastic.AssertFile(t,
 				"testdata/diagnostics/gitlab_not_found/stderr.expected.txt",
 				errorDiagnostics(result.Stderr),
@@ -119,8 +121,10 @@ func TestDiagnosticsMergeTimeout(t *testing.T) {
 				testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 			)
 
-			// then: one timeout diagnostic retains the cause and any independent unit
+			// then: the timeout retains its cause and verbose logs identify the provider and pull request
 			testastic.True(t, polled.Load())
+			testastic.Equal(t, scenario.verbose,
+				strings.Contains(ansi.Strip(result.Stderr), "DEBUG merging merge request provider=gitlab pr_number=42"))
 			testastic.Equal(t, 1, result.ExitCode)
 			testastic.Equal(t, "", result.Stdout)
 			testastic.AssertFile(t, fixturePath+"/stderr.expected.txt", errorDiagnostics(result.Stderr))
@@ -164,7 +168,11 @@ func TestDiagnosticsMergeTimeoutWhileResponsive(t *testing.T) {
 		AsynchronousMerge: true, ForbidPublication: true,
 	})
 
-	var accepted, polled atomic.Bool
+	var accepted atomic.Bool
+
+	var polls atomic.Int32
+
+	var responded atomic.Bool
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/merge_requests/42/merge") {
@@ -172,8 +180,21 @@ func TestDiagnosticsMergeTimeoutWhileResponsive(t *testing.T) {
 		}
 
 		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/merge_requests/42") && accepted.Load() {
-			polled.Store(true)
-			writeUnmergedMergeRequest(t, w, r, fake.Config.Handler)
+			polls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewEncoder(w).Encode(map[string]any{
+				"id":                    42,
+				"iid":                   42,
+				"state":                 "opened",
+				"detailed_merge_status": "mergeable",
+				"sha":                   shas[1],
+				"source_branch":         "yeet/release-main",
+				"target_branch":         "main",
+				"source_project_id":     42,
+				"target_project_id":     42,
+			})
+			testastic.NoError(t, err)
+			responded.Store(true)
 
 			return
 		}
@@ -184,42 +205,78 @@ func TestDiagnosticsMergeTimeoutWhileResponsive(t *testing.T) {
 
 	// when: the CLI waits for the accepted merge to finalize
 	result := binary.RunWithOptions(t,
-		[]string{"release", "--config", absoluteTestFile(t, "testdata/diagnostics/merge_timeout_combined/input.yaml")},
+		[]string{"release", "--config", absoluteTestFile(t, "testdata/diagnostics/merge_timeout_responsive/input.yaml")},
 		testastic.WithRunWorkDir(repoDir),
 		testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 	)
 
 	// then: the timeout still names the request and the configured budget
-	testastic.True(t, polled.Load())
+	testastic.Equal(t, int32(1), polls.Load())
+	testastic.True(t, responded.Load())
 	testastic.Equal(t, 1, result.ExitCode)
 	testastic.Equal(t, "", result.Stdout)
 
-	diagnostics := errorDiagnostics(result.Stderr)
-	testastic.Contains(t, diagnostics, "merge finalization timed out")
-	testastic.Contains(t, diagnostics, `pull_request="merge request !42"`)
-	testastic.Contains(t, diagnostics, "timeout=250ms")
-	testastic.Contains(t, diagnostics, `cause="operation timed out"`)
+	testastic.AssertFile(t, "testdata/diagnostics/merge_timeout_responsive/stderr.expected.txt",
+		errorDiagnostics(result.Stderr))
 }
 
-func writeUnmergedMergeRequest(t *testing.T, w http.ResponseWriter, r *http.Request, next http.Handler) {
-	t.Helper()
+func TestDiagnosticsGitLabMergeStatus(t *testing.T) {
+	t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	next.ServeHTTP(recorder, r)
+	for _, scenario := range []struct {
+		name   string
+		status string
+	}{
+		{name: "known", status: "not_approved"},
+		{name: "blocked_status", status: "blocked_status"},
+		{name: "broken_status", status: "broken_status"},
+		{name: "external_status_checks", status: "external_status_checks"},
+		{name: "policies_denied", status: "policies_denied"},
+		{name: "unknown", status: "future_merge_check"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
 
-	var body map[string]any
+			// given: GitLab returns a merge status whose spelling matches the synthetic token
+			repoDir, shas := providerAutoMergeRepo(t, "https://gitlab.com/group/service.git")
+			fake := fakeprovider.NewGitLab(t, fakeprovider.GitLabOptions{
+				Project: "group/service", LatestTag: "v1.0.0",
+				BoundarySHA: shas[0], BranchHeadSHA: shas[1], ForbidPublication: true,
+			})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/merge_requests/42") {
+					response := httptest.NewRecorder()
+					fake.Config.Handler.ServeHTTP(response, r)
 
-	err := json.Unmarshal(recorder.Body.Bytes(), &body)
-	testastic.NoError(t, err)
+					var payload map[string]any
 
-	body["state"] = "opened"
-	body["merged_at"] = nil
-	body["merge_commit_sha"] = nil
-	body["squash_commit_sha"] = nil
+					testastic.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+					payload["detailed_merge_status"] = scenario.status
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(recorder.Code)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(response.Code)
+					testastic.NoError(t, json.NewEncoder(w).Encode(payload))
 
-	err = json.NewEncoder(w).Encode(body)
-	testastic.NoError(t, err)
+					return
+				}
+
+				fake.Config.Handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+
+			// when: attempting a direct merge with verbose diagnostics
+			result := binary.RunWithOptions(t,
+				[]string{
+					"release", "--auto-merge", "--auto-merge-mode", "direct", "--verbose",
+					"--config", providerAutoMergeConfig(t, "gitlab"),
+				},
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(append(fixture.GitLabEnv(server, "main"), "GITLAB_TOKEN="+scenario.status)...))
+
+			// then: provider statuses remain intact, including values introduced after this client
+			testastic.Equal(t, 1, result.ExitCode)
+			testastic.AssertFile(t, "testdata/diagnostics/gitlab_status_"+scenario.name+"/stderr.expected.txt",
+				errorDiagnostics(result.Stderr))
+		})
+	}
 }

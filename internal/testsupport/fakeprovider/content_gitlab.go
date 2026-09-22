@@ -2,6 +2,7 @@ package fakeprovider
 
 import (
 	"encoding/json/v2"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -28,7 +29,7 @@ func NewGitLabContentProvider(t *testing.T, content *RepoContent) forge.Provider
 	)
 	testastic.NoError(t, err)
 
-	return provider.NewGitLab(client, ContentProject)
+	return provider.NewGitLab(slog.New(slog.DiscardHandler), client, ContentProject)
 }
 
 func newGitLabContentHandler(t *testing.T, content *RepoContent) http.Handler {

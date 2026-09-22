@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/forge"
@@ -13,6 +14,7 @@ const gitLabPageSize = 100
 var _ forge.Provider = (*GitLab)(nil)
 
 type GitLab struct {
+	logger        *slog.Logger
 	client        *gitlab.Client
 	projectID     string
 	repoURL       string
@@ -21,10 +23,16 @@ type GitLab struct {
 	labels        labelDefinitionCache
 }
 
-func NewGitLab(client *gitlab.Client, project string, options ...MergePollingOption) *GitLab {
+func NewGitLab(
+	logger *slog.Logger,
+	client *gitlab.Client,
+	project string,
+	options ...MergePollingOption,
+) *GitLab {
 	baseURL := strings.TrimSuffix(client.BaseURL().String(), "/api/v4/")
 
 	return &GitLab{
+		logger:    providerLogger(logger, providerNameGitLab),
 		client:    client,
 		projectID: project,
 		repoURL:   baseURL + "/" + project,

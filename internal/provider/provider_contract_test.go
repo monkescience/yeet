@@ -848,6 +848,10 @@ func TestProviderContract(t *testing.T) {
 				// then: forge.ErrMergeMethodUnsupported is returned
 				testastic.Error(t, err)
 				testastic.ErrorIs(t, err, forge.ErrMergeMethodUnsupported)
+
+				var unsupported *forge.MergeMethodUnsupportedError
+				testastic.True(t, errors.As(err, &unsupported))
+				testastic.Equal(t, forge.MergeMethod("octopus"), unsupported.Method)
 			})
 
 			t.Run("resolves a configured extra label the forge does not define", func(t *testing.T) {
@@ -1083,6 +1087,10 @@ func TestProviderContract(t *testing.T) {
 				// then: the trust check refuses the merge and no commit is reported
 				testastic.Error(t, err)
 				testastic.ErrorIs(t, err, forge.ErrUntrustedReleasePR)
+
+				var untrusted *forge.UntrustedReleasePRError
+				testastic.True(t, errors.As(err, &untrusted))
+				testastic.True(t, strings.TrimSpace(untrusted.Reference) != "")
 				testastic.Equal(t, "", mergeSHA)
 			})
 

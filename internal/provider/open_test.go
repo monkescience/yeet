@@ -91,6 +91,7 @@ func TestOpen(t *testing.T) {
 
 		// given: an unsupported remote host and a tracked constructor
 		cfg := config.Default()
+		cfg.Repository.Remote = " upstream "
 		constructed := false
 
 		// when: opening the provider
@@ -108,6 +109,11 @@ func TestOpen(t *testing.T) {
 		// then: provider detection fails before construction
 		testastic.ErrorIs(t, err, ErrUnsupportedHost)
 		testastic.False(t, constructed)
+
+		var setup *SetupError
+		testastic.True(t, errors.As(err, &setup))
+		testastic.Equal(t, providerNameAuto, setup.Provider)
+		testastic.Equal(t, "upstream", setup.Remote)
 	})
 
 	t.Run("host trust prevents credential-backed construction", func(t *testing.T) {
@@ -178,4 +184,84 @@ func TestOpenReportsMissingCredentialsAfterRepositoryResolution(t *testing.T) {
 
 	// then: repository resolution succeeds before credential lookup fails
 	testastic.ErrorIs(t, err, ErrMissingToken)
+}
+
+func TestSetupProblem(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		err             error
+		match           error
+		problem         string
+		hint            string
+		project         string
+		expectedProject string
+	}{
+		{
+			name:    "github coordinates",
+			err:     ErrGitHubRepoRequired,
+			match:   ErrGitHubRepoRequired,
+			problem: "github repository owner and repo are required",
+			hint:    "set repository.github.owner and repository.github.repo",
+		},
+		{
+			name:    "github owner",
+			err:     ErrGitHubOwnerInvalid,
+			match:   ErrGitHubOwnerInvalid,
+			problem: "github repository owner must not contain '/'",
+			hint:    "set repository.github.owner to one path segment",
+		},
+		{
+			name:    "gitlab project",
+			err:     ErrGitLabProjectNeeded,
+			match:   ErrGitLabProjectNeeded,
+			problem: "gitlab repository project is required",
+			hint:    "set repository.gitlab.project",
+		},
+		{
+			name:    "azuredevops coordinates",
+			err:     ErrAzureDevOpsCoordsNeeded,
+			match:   ErrAzureDevOpsCoordsNeeded,
+			problem: "azuredevops repository coordinates are incomplete",
+			hint:    "set repository.azuredevops.organization, project, and repo",
+		},
+		{
+			name: "coordinate conflict",
+			err: validateRepositoryCoordinates(&repositoryDescriptor{
+				Project: "other/widgets",
+				Owner:   "platform",
+				Repo:    "yeet",
+			}),
+			match:           ErrRepositoryConflict,
+			problem:         "repository project does not match owner and repo",
+			hint:            "align repository project with owner and repo",
+			project:         "other/widgets",
+			expectedProject: "platform/yeet",
+		},
+		{
+			name:    "unsupported provider",
+			err:     ErrUnsupportedProvider,
+			match:   ErrUnsupportedProvider,
+			problem: "provider is not supported",
+			hint:    "use github, gitlab, or azuredevops",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a repository resolution failure
+			// when: turning it into a setup diagnostic
+			setup := unresolvedRepositoryError(providerNameGitHub, "origin", testCase.err)
+
+			// then: the diagnostic names the problem, remedy, and coordinates
+			testastic.ErrorIs(t, setup, testCase.match)
+			testastic.Equal(t, testCase.problem, setup.Problem)
+			testastic.Equal(t, testCase.hint, setup.Hint)
+			testastic.Equal(t, testCase.project, setup.Project)
+			testastic.Equal(t, testCase.expectedProject, setup.ExpectedProject)
+		})
+	}
 }

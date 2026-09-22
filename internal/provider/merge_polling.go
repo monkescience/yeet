@@ -60,8 +60,13 @@ func (p mergePolling) awaitMergedCommit(
 	defer cancel()
 
 	interval := p.interval
+	deadline, _ := waitCtx.Deadline()
 
 	for attempt := 0; ; attempt++ {
+		if waitCtx.Err() != nil || !time.Now().Before(deadline) {
+			return p.waitExpired(ctx, reference)
+		}
+
 		mergeSHA, err := resolve(waitCtx)
 		if err != nil {
 			if ctx.Err() == nil && waitCtx.Err() != nil {
@@ -81,11 +86,7 @@ func (p mergePolling) awaitMergedCommit(
 
 		select {
 		case <-waitCtx.Done():
-			if ctx.Err() != nil {
-				return "", fmt.Errorf("wait for %s: %w", reference, ctx.Err())
-			}
-
-			return "", p.notFinalizedFrom(reference, waitCtx.Err())
+			return p.waitExpired(ctx, reference)
 		case <-time.After(interval):
 		}
 
@@ -93,19 +94,51 @@ func (p mergePolling) awaitMergedCommit(
 	}
 }
 
-func (p mergePolling) notFinalizedFrom(reference string, cause error) error {
-	return &MergeNotFinalizedError{reference: reference, timeout: p.timeout, cause: cause}
+func (p mergePolling) waitExpired(ctx context.Context, reference string) (string, error) {
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("wait for %s: %w", reference, ctx.Err())
+	}
+
+	return "", p.notFinalizedResponsive(reference, context.DeadlineExceeded)
 }
+
+func (p mergePolling) notFinalizedFrom(reference string, cause error) error {
+	return &MergeNotFinalizedError{
+		reference: reference,
+		timeout:   p.timeout,
+		kind:      MergeTimeoutTransport,
+		cause:     cause,
+	}
+}
+
+func (p mergePolling) notFinalizedResponsive(reference string, cause error) error {
+	return &MergeNotFinalizedError{
+		reference: reference,
+		timeout:   p.timeout,
+		kind:      MergeTimeoutResponsive,
+		cause:     cause,
+	}
+}
+
+type MergeTimeoutKind string
+
+const (
+	MergeTimeoutTransport  MergeTimeoutKind = "transport"
+	MergeTimeoutResponsive MergeTimeoutKind = "responsive"
+)
 
 type MergeNotFinalizedError struct {
 	cause     error
 	reference string
 	timeout   time.Duration
+	kind      MergeTimeoutKind
 }
 
 func (e *MergeNotFinalizedError) Reference() string { return e.reference }
 
 func (e *MergeNotFinalizedError) Timeout() time.Duration { return e.timeout }
+
+func (e *MergeNotFinalizedError) TimeoutKind() MergeTimeoutKind { return e.kind }
 
 func (e *MergeNotFinalizedError) Error() string {
 	return fmt.Sprintf("%s: %s after %s: %s", forge.ErrMergeNotFinalized, e.reference, e.timeout, e.cause)

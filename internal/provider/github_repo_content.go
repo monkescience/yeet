@@ -16,7 +16,7 @@ import (
 const gitHubRegularFileMode = "100644"
 
 func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, error) {
-	slog.DebugContext(ctx, "github: reading file",
+	g.logger.DebugContext(ctx, "reading file",
 		slog.String("path", path),
 		slog.String("ref", branch),
 	)
@@ -30,7 +30,7 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 	)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			slog.DebugContext(ctx, "github: file not found",
+			g.logger.DebugContext(ctx, "file not found",
 				slog.String("path", path),
 				slog.String("ref", branch),
 				slog.Int("status", resp.StatusCode),
@@ -60,7 +60,7 @@ func (g *GitHub) UpdateFiles(
 	files map[string]forge.FileUpdate,
 	message string,
 ) error {
-	slog.DebugContext(ctx, "github: updating files",
+	g.logger.DebugContext(ctx, "updating files",
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(files)),
@@ -86,7 +86,7 @@ func (g *GitHub) UpdateFiles(
 		return err
 	}
 
-	slog.DebugContext(ctx, "github: updated files",
+	g.logger.DebugContext(ctx, "updated files",
 		slog.String("branch", branch),
 		slog.String("commit_sha", newCommit.GetSHA()),
 	)

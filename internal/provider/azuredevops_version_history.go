@@ -15,7 +15,7 @@ const azureDevOpsTagRefPrefix = "refs/tags/"
 const azureDevOpsRefPageSize = 100
 
 func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	slog.DebugContext(ctx, "azure devops: listing tags")
+	a.logger.DebugContext(ctx, "listing tags")
 
 	refs, err := foldTagRefs(
 		ctx,
@@ -26,7 +26,7 @@ func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
 		return nil, err
 	}
 
-	slog.DebugContext(ctx, "azure devops: listed tags", slog.Int("count", len(refs)))
+	a.logger.DebugContext(ctx, "listed tags", slog.Int("count", len(refs)))
 
 	return refs, nil
 }

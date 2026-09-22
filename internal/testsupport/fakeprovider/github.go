@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1421,7 +1422,7 @@ func githubPendingPR(opts GitHubOptions, number int) map[string]any {
 		"draft":           false,
 		fakeStateMerged:   false,
 		"mergeable_state": mergeableState,
-		githubKeyHTMLURL:  "https://example.test/pulls/42",
+		githubKeyHTMLURL:  "https://example.test/pulls/" + strconv.Itoa(number),
 		"head": map[string]any{
 			githubKeyRef: fakeReleaseBranch,
 			githubKeySHA: fakeHeadSHA,

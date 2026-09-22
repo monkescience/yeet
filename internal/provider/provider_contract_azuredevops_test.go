@@ -3,6 +3,7 @@ package provider_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -58,7 +59,7 @@ func newAzureDevOpsContractProvider(
 ) forge.Provider {
 	t.Helper()
 
-	return provider.NewAzureDevOps(
+	return provider.NewAzureDevOps(slog.New(slog.DiscardHandler),
 		server.Client(),
 		server.URL,
 		"contoso-pat",
@@ -396,6 +397,14 @@ func TestAzureDevOpsMergeReleasePRFastRefusal(t *testing.T) {
 	})
 
 	// then: the refusal is reported as a blocked merge without waiting for the forge
+	var blocked *forge.MergeBlockedError
+
+	testastic.ErrorAs(t, err, &blocked)
+
+	if blocked != nil {
+		testastic.Equal(t, "rejectedByPolicy", blocked.MergeStatus)
+	}
+
 	testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 	testastic.Equal(t, "", mergeSHA)
 	testastic.Equal(t, int32(0), polls.Load())
@@ -408,24 +417,28 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 		name    string
 		refusal string
 		message string
+		status  string
 		reason  forge.MergeBlockedReason
 	}{
 		{
 			name:    "policy rejection",
 			refusal: "refused_policy.json",
-			message: "the merge was rejected by a branch policy",
+			message: "merge_status=rejectedByPolicy",
+			status:  "rejectedByPolicy",
 			reason:  forge.MergeBlockedReasonPolicy,
 		},
 		{
 			name:    "conflicts",
 			refusal: "refused_conflicts.json",
-			message: "the source branch conflicts with the target branch",
+			message: "merge_status=conflicts",
+			status:  "conflicts",
 			reason:  forge.MergeBlockedReasonConflicts,
 		},
 		{
 			name:    "provider failure",
 			refusal: "refused_failure.json",
-			message: "the provider could not create the merge commit",
+			message: "merge_status=failure",
+			status:  "failure",
 			reason:  forge.MergeBlockedReasonFailure,
 		},
 	} {
@@ -494,7 +507,8 @@ func TestAzureDevOpsMergeReleasePRPollingRefusal(t *testing.T) {
 
 			testastic.ErrorIs(t, err, forge.ErrMergeBlocked)
 			testastic.Equal(t, string(testCase.reason), string(blocked.Reason))
-			testastic.Equal(t, "was refused: "+testCase.message, blocked.Detail)
+			testastic.Equal(t, testCase.message, blocked.Detail)
+			testastic.Equal(t, testCase.status, blocked.MergeStatus)
 			testastic.Equal(t, "", mergeSHA)
 			testastic.Equal(t, int32(1), polls.Load())
 		})
