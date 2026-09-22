@@ -363,10 +363,6 @@ func parse(data []byte) (*Config, error) {
 		return nil, InvalidWithCausef(err, "%s", describeDecodeFailure(err))
 	}
 
-	if deferredValidationErr != nil {
-		return nil, deferredValidationErr
-	}
-
 	err = validateRepositorySubsection(&cfg.Repository, cfg.Provider)
 	if err != nil {
 		return nil, err
@@ -375,6 +371,10 @@ func parse(data []byte) (*Config, error) {
 	err = cfg.Validate()
 	if err != nil {
 		return nil, err
+	}
+
+	if deferredValidationErr != nil {
+		return nil, deferredValidationErr
 	}
 
 	return cfg, nil

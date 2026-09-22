@@ -185,6 +185,7 @@ func TestParse(t *testing.T) {
 	t.Run("version file mapping rejects extra fields", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a version file entry carrying a key the schema does not define
 		data := []byte(`version_files:
   - path: VERSION
     format: markers
@@ -196,8 +197,10 @@ targets:
     tag_prefix: v
 `)
 
+		// when: parsing the config
 		_, err := parse(data)
 
+		// then: the typo is rejected instead of silently ignored
 		testastic.Equal(t, "invalid config: version_files[0] contains unknown field \"ignored\"", err.Error())
 		testastic.ErrorIs(t, err, ErrInvalidConfig)
 	})
@@ -205,6 +208,8 @@ targets:
 	t.Run("multiple unknown fields use comma separated diagnostics", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a config with two unknown top level fields
+		// when: parsing the config
 		_, err := parse([]byte(`versioning: semver
 branch: main
 targets:
@@ -216,11 +221,35 @@ bogus_one: true
 bogus_two: true
 `))
 
+		// then: both are reported in one comma separated diagnostic
 		testastic.Equal(t,
 			"invalid config: configuration could not be decoded: line 8: unknown field \"bogus_one\", "+
 				"line 9: unknown field \"bogus_two\"",
 			err.Error(),
 		)
+		testastic.ErrorIs(t, err, ErrInvalidConfig)
+	})
+
+	t.Run("semantic rules win over the generic unknown field text", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a path target carrying includes, which the schema and a semantic rule both reject
+		data := []byte(`versioning: semver
+branch: main
+targets:
+  app:
+    type: path
+    path: .
+    tag_prefix: v
+    includes:
+      - other
+`)
+
+		// when: parsing the config
+		_, err := parse(data)
+
+		// then: the purpose written rule is reported instead of "contains unknown field"
+		testastic.Equal(t, "invalid config: targets.app.includes is only valid for derived targets", err.Error())
 		testastic.ErrorIs(t, err, ErrInvalidConfig)
 	})
 
