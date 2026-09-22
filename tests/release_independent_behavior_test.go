@@ -86,18 +86,21 @@ func TestReleaseIndependentBoundaries(t *testing.T) {
 	t.Run("grouped incompatible version writes report the version-file remedy", func(t *testing.T) {
 		t.Parallel()
 
+		// given: one atomic group whose units write incompatible versions to one file
 		repoDir, shas := writeIndependentMonorepoHistory(t)
 		opts := independentGitHubOptions(shas)
 		opts.FailOnMutation = true
 		server := fakeprovider.NewGitHub(t, opts)
 		configPath := absoluteTestFile(t, "testdata/release/incompatible_grouped_version_writes/input.yaml")
 
+		// when: planning the release
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: the remedy points at the version files, not at grouping the targets
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.NotContains(t, result.Stderr, "atomic group")
 		testastic.AssertFile(

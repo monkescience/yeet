@@ -144,6 +144,7 @@ func TestDiagnosticsReleaseIndependentFailures(t *testing.T) {
 	t.Run("verbose output renders every failure suppressed by unit grouping", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a release whose units fail for several reasons at once
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://gitlab.com/group/service.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -160,12 +161,14 @@ func TestDiagnosticsReleaseIndependentFailures(t *testing.T) {
 		server := gitLabJoinedFailureServer(t, fake)
 		configPath := absoluteTestFile(t, "testdata/diagnostics/release_joined_failures/input.yaml")
 
+		// when: releasing with verbose diagnostics
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--verbose", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
+		// then: every failure the grouped summary suppressed is still rendered
 		testastic.Equal(t, 1, result.ExitCode)
 		assertDiagnosticFragments(
 			t,

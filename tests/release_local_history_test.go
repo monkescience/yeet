@@ -329,6 +329,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 	t.Run("empty repository reports the missing head in verbose diagnostics", func(t *testing.T) {
 		t.Parallel()
 
+		// given: an initialized repository that has no commits yet
 		repoDir := fixture.WriteRepo(t, "https://github.com/acme/repo.git")
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
 			Owner:         "acme",
@@ -343,12 +344,14 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
+		// when: releasing with verbose diagnostics
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: the missing head is named instead of a bare checkout failure
 		testastic.Equal(t, 1, result.ExitCode)
 		assertDiagnosticFragments(
 			t,
@@ -361,6 +364,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 	t.Run("malformed git config reports controlled parse details in verbose diagnostics", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a repository whose git config has an unterminated section header
 		repoDir, _, _ := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
@@ -384,12 +388,14 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
+		// when: releasing with verbose diagnostics
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: the parse position is reported without echoing the raw go-git error text
 		testastic.Equal(t, 1, result.ExitCode)
 		assertDiagnosticFragments(
 			t,

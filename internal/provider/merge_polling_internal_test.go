@@ -67,6 +67,7 @@ func TestAwaitMergedCommitReportsTheCauseThatEndedTheWait(t *testing.T) {
 func TestAwaitMergedCommitRetainsTransportFailureAfterPendingResponse(t *testing.T) {
 	t.Parallel()
 
+	// given: a resolver that reports the merge as pending, then fails once the budget expires
 	polling := newMergePolling(WithMergePolling(time.Nanosecond, time.Nanosecond, 100*time.Millisecond))
 	calls := 0
 
@@ -81,8 +82,10 @@ func TestAwaitMergedCommitRetainsTransportFailureAfterPendingResponse(t *testing
 		return "", errMergePollingProbe
 	}
 
+	// when: awaiting the merged commit
 	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
 
+	// then: the transport failure is retained rather than replaced by the pending response
 	testastic.Equal(t, 2, calls)
 	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
 	testastic.ErrorIs(t, err, errMergePollingProbe)

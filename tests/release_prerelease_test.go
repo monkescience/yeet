@@ -196,6 +196,7 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 	t.Run("github reports malformed remote tag metadata", func(t *testing.T) {
 		t.Parallel()
 
+		// given: a provider whose tag metadata does not resolve to a commit
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
@@ -219,12 +220,14 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 			Repo:     "testrepo",
 		})
 
+		// when: planning the release
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
+		// then: the malformed metadata is reported instead of being treated as a boundary
 		testastic.Equal(t, 1, result.ExitCode)
 		testastic.AssertFile(
 			t,

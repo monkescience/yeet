@@ -86,8 +86,10 @@ func TestReleaseAsOverride(t *testing.T) {
 	})
 
 	t.Run("describes an empty semver footer", func(t *testing.T) {
+		// given: a Release-As footer with no value
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}
 
+		// when: resolving the release-as override
 		_, err := releaseAsOverride(
 			t.Context(),
 			versionStrategyForResolvedTarget(target).strategy,
@@ -96,6 +98,7 @@ func TestReleaseAsOverride(t *testing.T) {
 			"1.0.0",
 		)
 
+		// then: the error names the problem and the current version
 		var releaseAs *version.ReleaseAsError
 
 		testastic.ErrorAs(t, err, &releaseAs)
