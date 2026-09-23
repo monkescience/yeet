@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/forge"
@@ -51,6 +52,7 @@ type forgeMerge[M any] interface {
 type mergeDriver[M any] struct {
 	forge         forgeMerge[M]
 	polling       mergePolling
+	logger        *slog.Logger
 	baseBranch    string
 	releaseBranch string
 }
@@ -100,7 +102,7 @@ func (d mergeDriver[M]) isTrusted(current mergeState) bool {
 }
 
 func (d mergeDriver[M]) awaitMergeCommit(ctx context.Context, reference string) (string, error) {
-	return d.polling.awaitMergedCommit(ctx, reference, func(pollCtx context.Context) (string, error) {
+	return d.polling.awaitMergedCommit(ctx, d.logger, reference, func(pollCtx context.Context) (string, error) {
 		current, err := d.forge.state(pollCtx)
 		if err != nil {
 			return "", err

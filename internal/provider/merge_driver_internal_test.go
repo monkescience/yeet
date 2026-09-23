@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ func newTestMergeDriver(adapter forgeMerge[forge.MergeMethod]) mergeDriver[forge
 	return mergeDriver[forge.MergeMethod]{
 		forge:      adapter,
 		polling:    newMergePolling(WithMergePolling(time.Millisecond, time.Millisecond, time.Second)),
+		logger:     slog.New(slog.DiscardHandler),
 		baseBranch: "main",
 	}
 }

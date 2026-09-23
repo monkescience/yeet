@@ -59,15 +59,11 @@ type gitHubMergeQueueRepository struct {
 }
 
 func gitHubAutoMergeIdentityMissing(reference string) error {
-	return fmt.Errorf(
-		"%w: %s is missing a node ID or head SHA",
-		&forge.AutoMergeUnsupportedError{
-			Provider:  providerNameGitHub,
-			Reference: reference,
-			Problem:   "pull request is missing a node ID or head SHA",
-		},
-		reference,
-	)
+	return &forge.AutoMergeUnsupportedError{
+		Provider:  providerNameGitHub,
+		Reference: reference,
+		Problem:   "pull request is missing a node ID or head SHA",
+	}
 }
 
 func (g *GitHub) EnsureAutoMerge(ctx context.Context, number int, opts forge.MergeReleasePROptions) error {

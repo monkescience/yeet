@@ -466,6 +466,7 @@ func (a *AzureDevOps) MergeReleasePR(
 	driver := mergeDriver[git.GitPullRequestMergeStrategy]{
 		forge:         &azureDevOpsMerge{provider: a, number: number},
 		polling:       a.polling,
+		logger:        a.logger,
 		baseBranch:    opts.BaseBranch,
 		releaseBranch: mergeExpectedReleaseBranch(a.releaseBranch, opts.ReleaseBranch),
 	}
@@ -478,15 +479,11 @@ func (a *AzureDevOps) EnsureAutoMerge(
 	number int,
 	_ forge.MergeReleasePROptions,
 ) error {
-	return fmt.Errorf(
-		"%w: Azure DevOps pull request #%d requires direct mode",
-		&forge.AutoMergeUnsupportedError{
-			Provider:  providerNameAzureDevOps,
-			Reference: fmt.Sprintf("pull request #%d", number),
-			Problem:   "provider requires direct auto-merge mode",
-		},
-		number,
-	)
+	return &forge.AutoMergeUnsupportedError{
+		Provider:  providerNameAzureDevOps,
+		Reference: fmt.Sprintf("pull request #%d", number),
+		Problem:   "provider requires direct auto-merge mode",
+	}
 }
 
 type azureDevOpsMerge struct {

@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -53,7 +55,7 @@ func TestAwaitMergedCommitReportsTheCauseThatEndedTheWait(t *testing.T) {
 	}
 
 	// when: the driver waits for the merge to finalize
-	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
+	_, err := polling.awaitMergedCommit(context.Background(), slog.New(slog.DiscardHandler), "pull request #42", resolve)
 
 	// then: a real failure stays distinguishable from a slow forge
 	testastic.ErrorIs(t, err, forge.ErrMergeNotFinalized)
@@ -83,7 +85,7 @@ func TestAwaitMergedCommitRetainsTransportFailureAfterPendingResponse(t *testing
 	}
 
 	// when: awaiting the merged commit
-	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
+	_, err := polling.awaitMergedCommit(context.Background(), slog.New(slog.DiscardHandler), "pull request #42", resolve)
 
 	// then: the transport failure is retained rather than replaced by the pending response
 	testastic.Equal(t, 2, calls)
@@ -109,7 +111,7 @@ func TestAwaitMergedCommitSkipsPollingOnceTheBudgetIsSpent(t *testing.T) {
 	}
 
 	// when: the driver waits for the merge to finalize
-	_, err := polling.awaitMergedCommit(context.Background(), "pull request #42", resolve)
+	_, err := polling.awaitMergedCommit(context.Background(), slog.New(slog.DiscardHandler), "pull request #42", resolve)
 
 	// then: no request is sent and the merge is reported as still pending
 	testastic.Equal(t, 0, calls)
@@ -124,4 +126,32 @@ func TestAwaitMergedCommitSkipsPollingOnceTheBudgetIsSpent(t *testing.T) {
 	}
 
 	testastic.Equal(t, MergeTimeoutResponsive, timeout.TimeoutKind())
+}
+
+func TestAwaitMergedCommitLogsThroughTheProviderLogger(t *testing.T) {
+	t.Parallel()
+
+	// given: a provider logger and a merge that finalizes on the second poll
+	var output bytes.Buffer
+
+	logger := providerLogger(slog.New(slog.NewTextHandler(&output, nil)), providerNameGitHub)
+	polling := newMergePolling(WithMergePolling(time.Nanosecond, time.Nanosecond, time.Second))
+	calls := 0
+
+	resolve := func(context.Context) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", nil
+		}
+
+		return "abc123", nil
+	}
+
+	// when: the driver waits for the merge to finalize
+	sha, err := polling.awaitMergedCommit(context.Background(), logger, "pull request #42", resolve)
+
+	// then: the wait is reported on the provider logger with its provider context
+	testastic.NoError(t, err)
+	testastic.Equal(t, "abc123", sha)
+	testastic.Contains(t, output.String(), `msg="waiting for merge to finalize" provider=github`)
 }

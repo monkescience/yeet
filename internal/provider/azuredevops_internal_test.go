@@ -3,12 +3,14 @@ package provider
 import (
 	"encoding/base64"
 	"encoding/json/v2"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/forge"
 )
 
 func TestNewAzureDevOpsWithSystemAccessTokenUsesBearerAuth(t *testing.T) {
@@ -300,4 +302,22 @@ func TestAzureDevOpsReadFileBody(t *testing.T) {
 		// then: the read fails with the file size error
 		testastic.ErrorIs(t, err, errAzureDevOpsFileTooLarge)
 	})
+}
+
+func TestAzureDevOpsEnsureAutoMergeStatesTheProblemOnce(t *testing.T) {
+	t.Parallel()
+
+	// given: an Azure DevOps provider, which only supports direct auto-merge
+	azureDevOpsProvider := &AzureDevOps{}
+
+	// when: requesting provider-managed auto-merge
+	err := azureDevOpsProvider.EnsureAutoMerge(t.Context(), 42, forge.MergeReleasePROptions{})
+
+	// then: the error names the unsupported mode once and keeps the pull request as a fact
+	testastic.ErrorIs(t, err, forge.ErrAutoMergeUnsupported)
+	testastic.Equal(t, "provider-managed auto-merge unsupported: provider requires direct auto-merge mode", err.Error())
+
+	unsupported, ok := errors.AsType[*forge.AutoMergeUnsupportedError](err)
+	testastic.True(t, ok)
+	testastic.Equal(t, "pull request #42", unsupported.Reference)
 }

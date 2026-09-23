@@ -54,6 +54,7 @@ func newMergePolling(options ...MergePollingOption) mergePolling {
 
 func (p mergePolling) awaitMergedCommit(
 	ctx context.Context,
+	logger *slog.Logger,
 	reference string,
 	resolve func(context.Context) (string, error),
 ) (string, error) {
@@ -82,7 +83,7 @@ func (p mergePolling) awaitMergedCommit(
 		}
 
 		if attempt == 0 {
-			slog.InfoContext(ctx, "waiting for merge to finalize", logattr.PullRequest(reference))
+			logger.InfoContext(ctx, "waiting for merge to finalize", logattr.PullRequest(reference))
 		}
 
 		select {
