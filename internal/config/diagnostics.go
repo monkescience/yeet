@@ -97,10 +97,16 @@ func validationReason(err error) string {
 	return strings.TrimSpace(reason)
 }
 
+const unknownFieldMarker = " not found in type "
+
+func unknownFieldMessage(message string) bool {
+	return strings.Contains(message, unknownFieldMarker)
+}
+
 func normalizeDecodeMessage(message string) string {
 	message = strings.TrimSpace(message)
 
-	field, _, found := strings.Cut(message, " not found in type ")
+	field, _, found := strings.Cut(message, unknownFieldMarker)
 	if !found {
 		return message
 	}

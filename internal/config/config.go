@@ -356,7 +356,8 @@ func parse(data []byte) (*Config, error) {
 
 	err = decoder.Decode(cfg)
 	if err != nil {
-		if _, single := singleLoadError(err); single && deferredValidationErr != nil {
+		load, single := singleLoadError(err)
+		if single && deferredValidationErr != nil && unknownFieldMessage(load.Message) {
 			return nil, InvalidWithCausef(err, "%s", deferredValidationErr.Problem)
 		}
 

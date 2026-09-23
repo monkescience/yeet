@@ -1,0 +1,1 @@
+ERROR invalid configuration: configuration could not be decoded: cannot construct !!str `5 parsecs` into time.Duration path={{anyString}} line=4 column=20 cause="yaml constructor at 4:20"

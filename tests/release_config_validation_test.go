@@ -335,6 +335,7 @@ func TestReleaseConfigValidation(t *testing.T) {
 	for _, scenario := range []string{
 		"rejects_unknown_global_version_file_field",
 		"rejects_unknown_target_version_file_field",
+		"reports_decode_error_beside_unknown_version_file_field",
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			t.Parallel()
