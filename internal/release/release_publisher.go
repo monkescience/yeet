@@ -42,6 +42,13 @@ func (p *releasePublisher) finalizeMergedReleasePR(
 	unit releaseUnit,
 ) ([]FinalizedRelease, error) {
 	mergedPR, err := p.findMergedReleasePR(ctx, unit)
+	if errors.Is(err, forge.ErrNoPR) {
+		slog.DebugContext(ctx, "no merged release pull request to finalize",
+			slog.String("base", p.core.run.baseBranch),
+			slog.String("label", p.core.cfg.Release.Labels.Pending),
+		)
+	}
+
 	if err != nil {
 		return nil, err
 	}

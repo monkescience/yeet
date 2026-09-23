@@ -1,2 +1,2 @@
 INFO  adopting unlabeled pull request url=https://example.test/mr/42
-INFO  updating existing release pull request url=https://example.test/mr/42
+INFO  updated release pull request url=https://example.test/mr/42 title="chore: release 1.1.0"

@@ -1,2 +1,2 @@
-INFO  created release pull request url=http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42
+INFO  created release pull request url=http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42 title="chore: release 1.1.0"
 ERROR provider-managed auto-merge is unsupported: provider requires direct auto-merge mode provider=azuredevops pull_request="pull request !42" hint="check provider prerequisites or use --auto-merge-mode direct"

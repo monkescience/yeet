@@ -255,10 +255,6 @@ func (g *GitHub) FindMergedReleasePR(
 	expectedBranches ...string,
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
-	g.logger.DebugContext(ctx, "listing merged release pull requests",
-		slog.String("base", baseBranch),
-		slog.String("label", pendingLabel),
-	)
 
 	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, pendingLabel, expectedBranch)
 	if err != nil {

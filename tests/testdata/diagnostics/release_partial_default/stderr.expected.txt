@@ -1,2 +1,2 @@
-INFO  created release pull request url=https://example.test/pulls/42
+INFO  created release pull request url=https://example.test/pulls/42 title="chore: release 2.0.1"
 ERROR provider request failed unit=target:api phase=reconciliation status=422 provider=github method=POST path=/api/v3/repos/testorg/testrepo/pulls hint="check the requested resource state and provider validation rules"

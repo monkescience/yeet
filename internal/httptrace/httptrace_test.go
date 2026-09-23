@@ -31,7 +31,7 @@ func TestTracer(t *testing.T) {
 		request, err := http.NewRequestWithContext(
 			context.Background(),
 			http.MethodPost,
-			"https://api.github.com/repos/acme/private/pulls?access_token=fake-sensitive&ref=private",
+			"https://api.github.com/repos/acme/private/pulls?access_token=fake-sensitive&ref=private&page=3",
 			strings.NewReader("private request body"),
 		)
 		testastic.NoError(t, err)
@@ -57,13 +57,14 @@ func TestTracer(t *testing.T) {
 
 		_ = response.Body.Close()
 
-		// then: the log keeps diagnostic metadata and excludes private transport data
+		// then: the log keeps diagnostic metadata and the page and excludes private transport data
 		assertTraceEvent(t, logOutput.Bytes(), map[string]any{
 			"level":                "DEBUG",
 			"msg":                  "http request completed",
 			"provider":             "github",
 			"method":               http.MethodPost,
 			"path":                 "/repos/acme/private/pulls",
+			"page":                 "3",
 			"status":               float64(http.StatusCreated),
 			"attempt":              float64(2),
 			"request_id":           "request-123",

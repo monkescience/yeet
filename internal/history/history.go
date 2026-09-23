@@ -167,7 +167,7 @@ func (s *Source) GetCommitsSinceRefs(
 		return CommitHistory{}, err
 	}
 
-	slog.DebugContext(ctx, "local git history served commit ranges",
+	slog.DebugContext(ctx, "resolved commit ranges from local git",
 		slog.String("branch", s.branch),
 		slog.Int("refs", len(refs)),
 	)

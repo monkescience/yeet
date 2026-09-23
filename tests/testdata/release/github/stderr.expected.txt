@@ -5,9 +5,9 @@ DEBUG config: resolved target id=default type=path path=. versioning=semver
 DEBUG http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/commits/heads/main status=200 duration_ms={{regex `\d+`}} attempt=1
 DEBUG http request completed provider=github method=GET path=/api/v3/repos/testorg/testrepo/tags status=200 duration_ms={{regex `\d+`}} attempt=1
 DEBUG listed tags provider=github count=1
-DEBUG local git history served commit ranges branch=main refs=1
+DEBUG resolved commit ranges from local git branch=main refs=1
 DEBUG planning target target=default current_version=1.0.0 boundary_ref=v1.0.0 branch=main
-DEBUG commits since boundary target=default total=1 filtered=1
+DEBUG commits since boundary target=default total=1 matched=1
 DEBUG parsed commit target=default hash=79b3c2e type=feat breaking=false in_changelog=true
 DEBUG release plan decision target=default bump_type=minor next_bump_type=minor next_version=1.1.0 should_release=true
 DEBUG changelog: generated entry version=v1.1.0 previous_tag=v1.0.0 commits_in=1 commits_included=1 sections=1 bytes=129

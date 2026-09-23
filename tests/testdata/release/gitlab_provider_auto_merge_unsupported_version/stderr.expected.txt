@@ -1,2 +1,2 @@
-INFO  created release pull request url=https://example.test/mr/42
+INFO  created release pull request url=https://example.test/mr/42 title="chore: release 1.1.0"
 ERROR provider-managed auto-merge is unsupported: provider version is older than required provider=gitlab version=17.10.9 required_version=17.11.0 hint="check provider prerequisites or use --auto-merge-mode direct"

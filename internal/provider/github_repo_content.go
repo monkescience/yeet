@@ -64,6 +64,7 @@ func (g *GitHub) UpdateFiles(
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(files)),
+		slog.Bool("reset_to_base", true),
 	)
 
 	baseCommit, err := g.baseBranchCommit(ctx, base)

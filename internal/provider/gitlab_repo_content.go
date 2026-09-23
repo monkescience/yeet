@@ -76,6 +76,7 @@ func (g *GitLab) UpdateFiles(
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(actions)),
+		slog.Bool("reset_to_base", true),
 	)
 
 	_, _, err := g.client.Commits.CreateCommit(g.projectID, &gitlab.CreateCommitOptions{

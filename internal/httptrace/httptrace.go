@@ -55,6 +55,7 @@ func (t *Tracer) Interceptor(next http.RoundTripper) http.RoundTripper {
 				slog.Int("attempt", attempt),
 			}
 			attrs = appendPresent(attrs,
+				slog.String("page", requestPage(request)),
 				slog.String("request_id", firstHeader(responseHeaders,
 					"X-GitHub-Request-Id", "X-Request-Id", "X-VSS-E2EID", "X-TFS-Session")),
 				slog.String("rate_limit_remaining", firstHeader(responseHeaders,
@@ -109,6 +110,14 @@ func sanitizedPath(request *http.Request) string {
 	}
 
 	return path
+}
+
+func requestPage(request *http.Request) string {
+	if request == nil || request.URL == nil {
+		return ""
+	}
+
+	return request.URL.Query().Get("page")
 }
 
 func firstHeader(headers http.Header, names ...string) string {

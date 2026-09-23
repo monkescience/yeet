@@ -57,6 +57,11 @@ func (u *releaseBranchUpdater) updateFiles(
 		files[target.Changelog.File] = changelogContent
 		changelogFiles[target.Changelog.File] = struct{}{}
 
+		slog.DebugContext(ctx, "rewrote changelog",
+			slog.String("path", target.Changelog.File),
+			slog.String("next_version", plan.NextVersion),
+		)
+
 		err = u.updateVersionFiles(ctx, files, changelogFiles, target, plan.ID, plan.NextVersion)
 		if err != nil {
 			return err

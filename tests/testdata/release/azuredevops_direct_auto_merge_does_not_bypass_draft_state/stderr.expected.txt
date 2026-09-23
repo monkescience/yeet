@@ -1,2 +1,2 @@
-INFO  created release pull request url=http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42
+INFO  created release pull request url=http://127.0.0.1:{{regex `\d+`}}/contoso/platform/_git/yeet/pullrequest/42 title="chore: release 1.1.0"
 ERROR release pull request is a draft pull_request="pull request !42" hint="mark the release pull request ready to merge"

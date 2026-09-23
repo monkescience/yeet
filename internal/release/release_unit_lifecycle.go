@@ -856,8 +856,6 @@ func (l *releaseUnitLifecycle) updateExisting(
 	commitSubject string,
 	plans []TargetPlan,
 ) (*forge.PullRequest, error) {
-	slog.InfoContext(ctx, "updating existing release pull request", slog.String("url", existing.URL))
-
 	err := l.branchUpdater.updateFiles(ctx, releaseBranch, plans, commitSubject)
 	if err != nil {
 		return nil, err
@@ -870,6 +868,11 @@ func (l *releaseUnitLifecycle) updateExisting(
 
 	existing.Title = prOpts.Title
 	existing.Body = prOpts.Body
+
+	slog.InfoContext(ctx, "updated release pull request",
+		slog.String("url", existing.URL),
+		slog.String("title", prOpts.Title),
+	)
 
 	return existing, nil
 }
@@ -896,7 +899,10 @@ func (l *releaseUnitLifecycle) createNew(
 		return nil, err
 	}
 
-	slog.InfoContext(ctx, "created release pull request", slog.String("url", pr.URL))
+	slog.InfoContext(ctx, "created release pull request",
+		slog.String("url", pr.URL),
+		slog.String("title", prOpts.Title),
+	)
 
 	return pr, nil
 }

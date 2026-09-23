@@ -241,7 +241,7 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 	slog.DebugContext(ctx, "commits since boundary",
 		slog.String("target", target.ID),
 		slog.Int("total", len(targetHist.entries)),
-		slog.Int("filtered", len(entries)),
+		slog.Int("matched", len(entries)),
 	)
 
 	commits, err := a.parseCommits(ctx, entries)

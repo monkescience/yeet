@@ -1,2 +1,2 @@
-INFO  created release pull request url=https://example.test/mr/42
+INFO  created release pull request url=https://example.test/mr/42 title="chore: release 1.1.0"
 ERROR release pull request is a draft pull_request="merge request !42" hint="mark the release pull request ready to merge"

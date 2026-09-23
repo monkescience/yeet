@@ -1,2 +1,2 @@
-INFO  updating existing release pull request url=https://example.test/pulls/42
+INFO  updated release pull request url=https://example.test/pulls/42 title="chore: release 1.1.0"
 ERROR merge method is unavailable: merge method "merge" conflicts with merge queue method "rebase" hint="enable the method in the provider settings or choose another --auto-merge-method"

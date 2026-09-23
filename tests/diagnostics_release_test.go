@@ -179,6 +179,37 @@ func TestDiagnosticsReleaseIndependentFailures(t *testing.T) {
 	})
 }
 
+func TestDiagnosticsReleaseVerboseDecisions(t *testing.T) {
+	t.Parallel()
+
+	// given: a releasable commit and no merged release pull request to finalize
+	repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+			{Message: "feat: add API"},
+		})
+	server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+		Owner: "testorg", Repo: "testrepo", LatestTag: "v1.0.0", BoundarySHA: shas[0], BranchHeadSHA: shas[1],
+		ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+			Title: "chore: release 1.1.0", Head: "yeet/release-main", Base: "main",
+		}},
+	})
+	configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+		Provider: "github", Branch: "main", Host: "github.com", Owner: "testorg", Repo: "testrepo",
+	})
+
+	// when: releasing with verbose logging
+	result := binary.RunWithOptions(t, []string{"release", "--verbose", "--config", configPath},
+		testastic.WithRunWorkDir(repoDir), testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...))
+
+	// then: the skipped finalization and the changelog rewrite are both logged
+	testastic.Equal(t, 0, result.ExitCode)
+	stderr := ansi.Strip(result.Stderr)
+	testastic.Contains(t, stderr,
+		`DEBUG no merged release pull request to finalize base=main label="autorelease: pending"`)
+	testastic.Contains(t, stderr, "DEBUG rewrote changelog path=CHANGELOG.md next_version=1.1.0")
+}
+
 func gitLabJoinedFailureServer(t *testing.T, fake *httptest.Server) *httptest.Server {
 	t.Helper()
 

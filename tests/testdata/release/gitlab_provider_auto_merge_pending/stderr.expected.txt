@@ -1,2 +1,2 @@
-INFO  created release pull request url=https://example.test/mr/42
+INFO  created release pull request url=https://example.test/mr/42 title="chore: release 1.1.0"
 INFO  provider accepted pull request auto-merge number=42 url=https://example.test/mr/42

@@ -162,6 +162,7 @@ func (a *AzureDevOps) UpdateFiles(
 		slog.String("branch", branch),
 		slog.String("base", base),
 		slog.Int("files", len(files)),
+		slog.Bool("reset_to_base", true),
 	)
 
 	branchTip, err := a.resetBranchToBase(ctx, branch, base)
