@@ -148,6 +148,10 @@ release:
 Disabling auto-merge does not cancel a merge the provider already scheduled.
 Cancel it in the provider.
 
+A scheduled merge stays active while yeet refreshes the release branch and PR/MR.
+After a successful refresh, yeet schedules the merge again if the provider canceled it.
+A failed refresh leaves the scheduled merge in place, so the provider can merge before the refresh finishes.
+
 ### Merge methods
 
 `auto_merge_method`, or the one-run `--auto-merge-method` override, accepts `auto`, `squash`, `rebase`, or `merge`.
