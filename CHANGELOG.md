@@ -1,5 +1,32 @@
 # Changelog
 
+## [v0.16.1](https://github.com/monkescience/yeet/compare/v0.16.0...v0.16.1) (2026-09-23)
+
+### Bug Fixes
+
+- **diagnostics:** log release decisions and outcomes missing from debug output ([aef17f1](https://github.com/monkescience/yeet/commit/aef17f1f64e54eb285dc4496d53f54ea486d729a))
+- **diagnostics:** trim redundant debug log lines ([389fac3](https://github.com/monkescience/yeet/commit/389fac3d0d6c3438522931303bb255d07888702f))
+- **diagnostics:** show failure detail without verbose and name network causes ([94d3881](https://github.com/monkescience/yeet/commit/94d3881e650076acc5d50bde2ca04ba3045ca680))
+- **release:** report the current version for invalid Release-As footers ([7d4f7fb](https://github.com/monkescience/yeet/commit/7d4f7fba516eddb89a590a74dd3ebde346c58da6))
+- **config:** report decode errors unrelated to deferred unknown fields ([c2c608a](https://github.com/monkescience/yeet/commit/c2c608a8a4d97fe11969eae793c3214da3fd3bc5))
+- **diagnostics:** redact tokens of 8 bytes or more ([3cfbf66](https://github.com/monkescience/yeet/commit/3cfbf664609804e218f071984e396f8f0e00da31))
+- **provider:** reference Azure DevOps pull requests consistently in auto-merge failures ([f582f2e](https://github.com/monkescience/yeet/commit/f582f2ea18594fb60d6f8fef45d156eda4d42bb5))
+- **provider:** log merge waits through the provider logger and state auto-merge problems once ([e354d04](https://github.com/monkescience/yeet/commit/e354d04993c5754cd78f7773b27dafd614e19258))
+- **config:** report semantic rules before the unknown field message ([2fed750](https://github.com/monkescience/yeet/commit/2fed75013155a832d1b228745b726745ac7d2db6))
+- **provider:** retain provider failure text on refused merges ([6e5216b](https://github.com/monkescience/yeet/commit/6e5216b89ac7d13f3b044713d9b6be28b847c288))
+- **diagnostics:** redact tokens in every string log attribute ([00a9a71](https://github.com/monkescience/yeet/commit/00a9a71efc2dd2766a3fb2e877913577590d1576))
+- **release:** improve release failure diagnostics ([c068b22](https://github.com/monkescience/yeet/commit/c068b22cdad8390a1de553bd0f52e463064f39c5))
+- **provider:** retain provider failure facts and wire injected loggers ([cc2d68d](https://github.com/monkescience/yeet/commit/cc2d68d9fe77e04237976f0621c1e23639dbefa8))
+- **commands:** improve failure diagnostics and cli error handling ([e251e46](https://github.com/monkescience/yeet/commit/e251e46c1193242361ea8c790c680da6ddff53f6))
+- **diagnostics:** redact echoed secrets and record structured failure detail ([4153ad6](https://github.com/monkescience/yeet/commit/4153ad6e95b8f92659b3f3e186412e6c03713b40))
+- **changelog:** report why a reference pattern is invalid ([ac6d93d](https://github.com/monkescience/yeet/commit/ac6d93db8fdeb1c189576513c788ebb82d759ca8))
+- **config:** reject nested unknown fields and clarify decode errors ([0a5d71d](https://github.com/monkescience/yeet/commit/0a5d71d3a3eb45f7bd022ccd89b6f2137844913d))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v3 (#280) ([3317fa9](https://github.com/monkescience/yeet/commit/3317fa9e70ebcec78634519c4b980e929c0472cd))
+- **release:** enhance error diagnostics with structured data ([3b39765](https://github.com/monkescience/yeet/commit/3b397655a1d19a36620da748a8bca080fd73fc77))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v2 to v2.64.0 (#279) ([2e1caed](https://github.com/monkescience/yeet/commit/2e1caedf2d4572780ea57d368a43679edb3f2822))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.0.2 (#275) ([514ad8a](https://github.com/monkescience/yeet/commit/514ad8a3a5af4d49a4694b7ac09ce696f2ace996))
+- **deps:** update module github.com/monkescience/testastic to v0.4.7 (#274) ([2f2c3a3](https://github.com/monkescience/yeet/commit/2f2c3a3235a76edf639b8d3b9342e987997516dc))
+
 ## [v0.16.0](https://github.com/monkescience/yeet/compare/v0.15.0...v0.16.0) (2026-09-15)
 
 ### Migration Notes
