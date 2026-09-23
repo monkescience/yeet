@@ -105,7 +105,7 @@ func TestDiagnosticsProviderCause(t *testing.T) {
 	}{
 		{name: "long", token: "diagnostic-test-credential"},
 		{name: "short", token: "e", collides: true},
-		{name: "request_id_collision", token: "E123:ABC:456", collides: true},
+		{name: "request_id_collision", token: "E123:AB", collides: true},
 		{name: "numeric_collision", token: "0", collides: true},
 	} {
 		for _, verbose := range []bool{false, true} {
@@ -311,8 +311,8 @@ func TestDiagnosticsRedactionLengthBoundary(t *testing.T) {
 		token    string
 		redacted bool
 	}{
-		{name: "below_threshold", token: "abcdefghijklmno"},
-		{name: "at_threshold", token: "abcdefghijklmnop", redacted: true},
+		{name: "below_threshold", token: "abcdefg"},
+		{name: "at_threshold", token: "abcdefgh", redacted: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

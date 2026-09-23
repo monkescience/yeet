@@ -2,6 +2,10 @@
 
 yeet reads provider credentials from environment variables. It never accepts tokens through flags or `.yeet.yaml`.
 
+Diagnostics replace any token value of 8 bytes or more with `[redacted]`. Shorter values are left
+in place because they match ordinary log text, so use a real provider token rather than a short
+placeholder.
+
 | Provider | Variables, in precedence order | Minimum token or app access |
 |---|---|---|
 | GitHub | `GITHUB_TOKEN`, `GH_TOKEN` | Contents (write) and Pull requests (write) |

@@ -27,7 +27,7 @@ type diagnosticHandler struct {
 
 var diagnosticURL = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>]+`)
 
-const minRedactedTokenBytes = 16
+const minRedactedTokenBytes = 8
 
 func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog.Logger {
 	logger := charmlog.NewWithOptions(output, charmlog.Options{

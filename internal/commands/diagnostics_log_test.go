@@ -71,7 +71,7 @@ func TestDiagnosticHandlerRendersEverySupportedKind(t *testing.T) {
 
 func TestDiagnosticURLDisplay(t *testing.T) {
 	// given: an external URL containing credentials, navigation parameters, and sensitive query data
-	t.Setenv("GITHUB_TOKEN", "GTv1.2.3")
+	t.Setenv("GITHUB_TOKEN", "Tv1.2.3")
 
 	var output bytes.Buffer
 
