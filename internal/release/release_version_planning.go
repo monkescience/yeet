@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -142,6 +143,11 @@ func detectReleaseAs(strategy version.Strategy, commits []commit.Commit, current
 
 			normalizedCandidate, err := strategy.NormalizeReleaseAs(candidate)
 			if err != nil {
+				releaseAs, ok := errors.AsType[*version.ReleaseAsError](err)
+				if ok && releaseAs.Current == "" {
+					releaseAs.Current = currentVersion
+				}
+
 				//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 				return "", err
 			}
