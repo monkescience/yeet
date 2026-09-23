@@ -1,1 +1,1 @@
-ERROR local checkout cannot be used for release: git repository is unavailable branch=main hint="run yeet from a git checkout"
+ERROR local checkout cannot be used for release: git repository is unavailable branch=main hint="run yeet from a git checkout" cause="git repository was not found"

@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"cmp"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -40,16 +43,26 @@ func newDiagnosticLogger(output io.Writer, level slog.Level, noColor bool) *slog
 }
 
 func tokenRedactor() *strings.Replacer {
-	var replacements []string
+	return newTokenRedactor(os.Getenv)
+}
+
+func newTokenRedactor(getenv func(string) string) *strings.Replacer {
+	var secrets []string
 
 	for _, name := range provider.TokenEnvVars() {
-		value := os.Getenv(name)
+		value := getenv(name)
 		if len(value) < minRedactedTokenBytes {
 			continue
 		}
 
-		replacements = append(replacements, value, "[redacted]",
-			base64.StdEncoding.EncodeToString([]byte(":"+value)), "[redacted]")
+		secrets = append(secrets, value, base64.StdEncoding.EncodeToString([]byte(":"+value)))
+	}
+
+	slices.SortStableFunc(secrets, func(a, b string) int { return cmp.Compare(len(b), len(a)) })
+
+	replacements := make([]string, 0, len(secrets)+len(secrets))
+	for _, secret := range secrets {
+		replacements = append(replacements, secret, "[redacted]")
 	}
 
 	return strings.NewReplacer(replacements...)
@@ -199,13 +212,21 @@ func diagnosticCause(err error) string {
 		return "operation canceled"
 	}
 
+	if lookup, ok := errors.AsType[*net.DNSError](err); ok {
+		return fmt.Sprintf("host %s could not be resolved: %s", lookup.Name, lookup.Err)
+	}
+
+	if verification, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
+		return "tls certificate verification failed: " + verification.Err.Error()
+	}
+
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "operation timed out"
+		return "operation timed out" + requestHostSuffix(err)
 	}
 
 	var network net.Error
 	if errors.As(err, &network) && network.Timeout() {
-		return "network operation timed out"
+		return "network operation timed out" + requestHostSuffix(err)
 	}
 
 	if errno, ok := errors.AsType[syscall.Errno](err); ok {
@@ -213,4 +234,18 @@ func diagnosticCause(err error) string {
 	}
 
 	return ""
+}
+
+func requestHostSuffix(err error) string {
+	request, ok := errors.AsType[*url.Error](err)
+	if !ok {
+		return ""
+	}
+
+	parsed, parseErr := url.Parse(request.URL)
+	if parseErr != nil || parsed.Host == "" {
+		return ""
+	}
+
+	return " on " + parsed.Host
 }

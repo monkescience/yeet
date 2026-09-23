@@ -2,8 +2,14 @@ package commands //nolint:testpackage // exercises handler transformations unava
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"testing"
 	"time"
 
@@ -133,4 +139,61 @@ func TestDiagnosticVerboseDetailIncludesFailureContext(t *testing.T) {
 		ansi.Strip(output.String()),
 		`DEBUG failure detail unit=target:api phase=reconciliation cause="git reference was not found"`,
 	)
+}
+
+func TestTokenRedactorPrefersLongestToken(t *testing.T) {
+	// given: one configured token that is a prefix of another
+	tokens := map[string]string{"GH_TOKEN": "ghp_abcdefgh", "GITHUB_TOKEN": "ghp_abcdefghXYZ123456"}
+	redactor := newTokenRedactor(func(name string) string { return tokens[name] })
+
+	// when: redacting text containing the longer token
+	redacted := redactor.Replace("token ghp_abcdefghXYZ123456 rejected")
+
+	// then: no suffix of the longer token survives
+	testastic.Equal(t, "token [redacted] rejected", redacted)
+}
+
+func TestDiagnosticCauseNamesNetworkFailures(t *testing.T) {
+	for _, scenario := range []struct {
+		name  string
+		err   error
+		cause string
+	}{
+		{
+			name: "unresolved host",
+			err: &url.Error{Op: "Get", URL: "https://git.example.test/api", Err: &net.DNSError{
+				Err: "no such host", Name: "git.example.test", IsNotFound: true,
+			}},
+			cause: "host git.example.test could not be resolved: no such host",
+		},
+		{
+			name: "untrusted certificate",
+			err: &url.Error{Op: "Get", URL: "https://git.example.test/api", Err: &tls.CertificateVerificationError{
+				Err: x509.UnknownAuthorityError{},
+			}},
+			cause: "tls certificate verification failed: x509: certificate signed by unknown authority",
+		},
+		{
+			name: "request deadline",
+			err: fmt.Errorf("get branch head: %w", &url.Error{
+				Op: "Get", URL: "https://user:secret@git.example.test/api?token=secret", Err: context.DeadlineExceeded,
+			}),
+			cause: "operation timed out on git.example.test",
+		},
+		{
+			name:  "deadline without request",
+			err:   context.DeadlineExceeded,
+			cause: "operation timed out",
+		},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			// given: a transport failure wrapped like provider requests wrap it
+
+			// when: classifying the cause
+			cause := diagnosticCause(scenario.err)
+
+			// then: the failing host and reason are named without request details
+			testastic.Equal(t, scenario.cause, cause)
+		})
+	}
 }

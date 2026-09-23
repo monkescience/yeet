@@ -326,7 +326,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 	})
 
-	t.Run("empty repository reports the missing head in verbose diagnostics", func(t *testing.T) {
+	t.Run("empty repository reports the missing head", func(t *testing.T) {
 		t.Parallel()
 
 		// given: an initialized repository that has no commits yet
@@ -344,9 +344,9 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
-		// when: releasing with verbose diagnostics
+		// when: releasing
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
+			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
@@ -361,7 +361,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 	})
 
-	t.Run("malformed git config reports controlled parse details in verbose diagnostics", func(t *testing.T) {
+	t.Run("malformed git config reports controlled parse details", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a repository whose git config has an unterminated section header
@@ -388,9 +388,9 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
-		// when: releasing with verbose diagnostics
+		// when: releasing
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--verbose", "--dry-run", "--config", configPath},
+			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)

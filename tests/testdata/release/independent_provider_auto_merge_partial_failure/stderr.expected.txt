@@ -1,4 +1,4 @@
 INFO  created release pull request url=https://example.test/pulls/42
 INFO  created release pull request url=https://example.test/pulls/42
 INFO  provider accepted pull request auto-merge number=42 url=https://example.test/pulls/42
-ERROR provider refused the merge: github GraphQL request returned HTTP 422 unit=target:api phase=auto-merge hint="inspect the release pull request in the provider"
+ERROR provider refused the merge: github GraphQL request returned HTTP 422 unit=target:api phase=auto-merge provider_message="auto-merge refused" hint="inspect the release pull request in the provider"

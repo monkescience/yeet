@@ -141,7 +141,13 @@ func describeCheckout(d *diagnostic, failure *release.Failure) bool {
 		d.hint = hint
 	}
 
-	d.verboseAttrs = checkoutVerboseAttrs(checkout)
+	d.knownCause = checkout.Cause
+	if checkout.Cause == history.CheckoutCauseInvalidConfig {
+		d.attrs = append(d.attrs,
+			slog.Int("line", checkout.Line),
+			slog.Int("column", checkout.Column),
+			slog.String("reason", checkout.Reason))
+	}
 
 	return true
 }
@@ -170,31 +176,6 @@ func checkoutHint(checkout *history.CheckoutError) string {
 	default:
 		return ""
 	}
-}
-
-func checkoutVerboseAttrs(checkout *history.CheckoutError) []slog.Attr {
-	if checkout.Cause == history.CheckoutCauseInvalidConfig {
-		return []slog.Attr{
-			slog.String("cause", checkout.Cause),
-			slog.Int("line", checkout.Line),
-			slog.Int("column", checkout.Column),
-			slog.String("reason", checkout.Reason),
-		}
-	}
-
-	if checkout.Cause != "" {
-		return []slog.Attr{slog.String("cause", checkout.Cause)}
-	}
-
-	if checkout.Err == nil {
-		return nil
-	}
-
-	if cause := diagnosticCause(checkout.Err); cause != "" {
-		return []slog.Attr{slog.String("cause", cause)}
-	}
-
-	return nil
 }
 
 func describeProviderSetup(d *diagnostic, failure *release.Failure) bool {
@@ -243,8 +224,7 @@ func describeMergeError(d *diagnostic, err error, reason release.MergeReason) bo
 			d.explain(blocked.Detail)
 		}
 
-		d.verboseAttrs = appendNonempty(d.verboseAttrs,
-			slog.String("provider_message", blocked.ProviderMessage))
+		d.attrs = appendNonempty(d.attrs, slog.String("provider_message", blocked.ProviderMessage))
 
 		described = true
 	}
@@ -324,7 +304,7 @@ func describeProviderResource(d *diagnostic, failure *release.Failure) bool {
 	if branch, ok := errors.AsType[*provider.BranchUpdateError](failure); ok {
 		d.message = "could not update release branch"
 		d.explain(branch.Problem)
-		d.attrs = append(d.attrs, logattr.Provider("azuredevops"), slog.String("branch", branch.Branch))
+		d.attrs = append(d.attrs, logattr.Provider(branch.Provider), slog.String("branch", branch.Branch))
 		d.hint = "check branch policies and token permissions in the provider"
 
 		described = true
@@ -523,56 +503,16 @@ func describeFileConflict(d *diagnostic, failure *release.Failure) bool {
 }
 
 func describeVersionFileProblem(d *diagnostic, err error) {
-	problems := []struct {
-		cause   error
-		problem string
-		hint    string
-	}{
-		{cause: versionfile.ErrNoMarkersFound, problem: "file has no yeet version markers"},
-		{cause: versionfile.ErrUnclosedBlockMarker, problem: "version marker block has no end marker"},
-		{cause: versionfile.ErrNestedBlockMarker, problem: "version marker blocks are nested"},
-		{cause: versionfile.ErrMarkerNoMatch, problem: "version marker has no matching version"},
-		{cause: versionfile.ErrMarkerSchemeMismatch, problem: "version marker does not match the versioning scheme"},
-		{
-			cause:   versionfile.ErrInvalidNextVersion,
-			problem: "next version is invalid for the configured versioning scheme",
-			hint:    "check target versioning and the version_files configuration",
-		},
-		{
-			cause:   versionfile.ErrInvalidScheme,
-			problem: "configured versioning scheme is invalid",
-			hint:    "check the target versioning configuration",
-		},
-		{cause: versionfile.ErrInvalidJSON, problem: "file contains invalid json"},
-		{
-			cause:   versionfile.ErrInvalidJSONPointer,
-			problem: "json pointer is invalid",
-			hint:    "use a valid JSON pointer in the version_files configuration",
-		},
-		{cause: versionfile.ErrJSONPointerNotFound, problem: "json pointer was not found"},
-		{cause: versionfile.ErrJSONPointerNonString, problem: "json pointer must select a string"},
-	}
-	for _, problem := range problems {
-		if !errors.Is(err, problem.cause) {
-			continue
-		}
-
-		d.explain(problem.problem)
-
-		d.hint = "check the file and its version_files configuration"
-		if problem.hint != "" {
-			d.hint = problem.hint
-		}
-
-		if marker, ok := errors.AsType[*versionfile.MarkerError](err); ok {
-			d.attrs = append(d.attrs, slog.String("marker", marker.Name), slog.Int("line", marker.Line))
-
-			if len(marker.Suggestions) > 0 {
-				d.hint = "use " + strings.Join(marker.Suggestions, " or ") + " for the configured versioning scheme"
-			}
-		}
-
+	problem, hint, ok := versionfile.Describe(err)
+	if !ok {
 		return
+	}
+
+	d.explain(problem)
+	d.hint = hint
+
+	if marker, ok := errors.AsType[*versionfile.MarkerError](err); ok {
+		d.attrs = append(d.attrs, slog.String("marker", marker.Name), slog.Int("line", marker.Line))
 	}
 }
 

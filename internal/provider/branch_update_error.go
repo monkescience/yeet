@@ -3,9 +3,10 @@ package provider
 import "github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
 
 type BranchUpdateError struct {
-	Branch  string
-	Problem string
-	Err     error
+	Provider string
+	Branch   string
+	Problem  string
+	Err      error
 }
 
 func (e *BranchUpdateError) Error() string { return e.Err.Error() }

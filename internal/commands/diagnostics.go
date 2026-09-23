@@ -19,6 +19,7 @@ type diagnostic struct {
 	hint         string
 	attrs        []slog.Attr
 	verboseAttrs []slog.Attr
+	knownCause   string
 	rawCause     bool
 }
 
@@ -51,6 +52,10 @@ func (d *diagnostic) logVerbose(ctx context.Context) {
 }
 
 func (d *diagnostic) cause(err error) string {
+	if d.knownCause != "" {
+		return d.knownCause
+	}
+
 	if cause := diagnosticCause(err); cause != "" {
 		return cause
 	}

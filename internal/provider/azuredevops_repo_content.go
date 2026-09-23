@@ -47,7 +47,7 @@ func (a *AzureDevOps) createBranchAtSHA(ctx context.Context, name, baseSHA strin
 	err = validateAzureDevOpsRefUpdateResults(name, results)
 	if err != nil {
 		return &BranchUpdateError{
-			Branch: name, Problem: azureBranchUpdateProblem(results),
+			Provider: providerNameAzureDevOps, Branch: name, Problem: azureBranchUpdateProblem(results),
 			Err: fmt.Errorf("create branch %q: %w", name, err),
 		}
 	}
@@ -254,7 +254,7 @@ func (a *AzureDevOps) resetBranchToBase(ctx context.Context, branch, base string
 	err = validateAzureDevOpsRefUpdateResults(branch, results)
 	if err != nil {
 		return "", &BranchUpdateError{
-			Branch: branch, Problem: azureBranchUpdateProblem(results),
+			Provider: providerNameAzureDevOps, Branch: branch, Problem: azureBranchUpdateProblem(results),
 			Err: fmt.Errorf("reset branch %q to base: %w", branch, err),
 		}
 	}

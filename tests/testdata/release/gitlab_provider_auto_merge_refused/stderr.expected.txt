@@ -1,2 +1,2 @@
 INFO  created release pull request url=https://example.test/mr/42
-ERROR provider refused the merge: provider reported an auto-merge failure pull_request="merge request !42" hint="inspect the release pull request in the provider"
+ERROR provider refused the merge: provider reported an auto-merge failure pull_request="merge request !42" provider_message="project rules refused auto-merge" hint="inspect the release pull request in the provider"

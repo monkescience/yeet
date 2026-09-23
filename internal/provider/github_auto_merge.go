@@ -3,11 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/google/go-github/v91/github"
 	"github.com/monkescience/yeet/internal/forge"
 )
 
@@ -344,8 +346,13 @@ func (g *GitHub) gitHubGraphQL(
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode >= http.StatusBadRequest &&
 			httpResponse.StatusCode < http.StatusInternalServerError {
+			message := err.Error()
+			if failure, ok := errors.AsType[*github.ErrorResponse](err); ok {
+				message = failure.Message
+			}
+
 			return blockedMergeMessage("", forge.MergeBlockedReasonFailure,
-				fmt.Sprintf("github GraphQL request returned HTTP %d", httpResponse.StatusCode), err.Error())
+				fmt.Sprintf("github GraphQL request returned HTTP %d", httpResponse.StatusCode), message)
 		}
 
 		return fmt.Errorf("github GraphQL request: %w", err)

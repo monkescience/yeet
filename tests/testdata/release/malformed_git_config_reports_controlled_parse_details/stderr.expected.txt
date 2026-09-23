@@ -1,3 +1,1 @@
-ERROR local checkout cannot be used for release: git repository is unavailable branch=main hint="repair the local git metadata or use a fresh full checkout"
-DEBUG failure detail branch=main failure=checkout cause="git configuration is invalid"
-reason="expected right bracket"
+ERROR local checkout cannot be used for release: git repository is unavailable branch=main line=1 column=6 reason="expected right bracket" hint="repair the local git metadata or use a fresh full checkout" cause="git configuration is invalid"

@@ -680,7 +680,7 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 		)
 	})
 
-	t.Run("gitlab refusal reason reaches the debug record", func(t *testing.T) {
+	t.Run("gitlab refusal reason reaches the error line", func(t *testing.T) {
 		t.Parallel()
 
 		// given: GitLab refuses auto-merge with a reason only its merge_error field carries
@@ -697,19 +697,19 @@ func TestReleaseProviderAutoMerge(t *testing.T) {
 		})
 		configPath := providerAutoMergeConfig(t, "gitlab")
 
-		// when: raising the log level to debug
+		// when: running at the default log level
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--auto-merge", "--no-color", "--verbose", "--config", configPath},
+			[]string{"release", "--auto-merge", "--no-color", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitLabEnv(server, "main")...),
 		)
 
-		// then: the provider reason appears in the debug detail, never in the error line
+		// then: the provider reason appears on the error line without raising the log level
 		testastic.Equal(t, 1, result.ExitCode)
 
 		stderr := ansi.Strip(result.Stderr)
 		testastic.Contains(t, stderr, `provider_message="project rules refused auto-merge"`)
-		testastic.NotContains(t, withoutDebugDiagnostics(stderr), "project rules refused auto-merge")
+		testastic.NotContains(t, stderr, "DEBUG")
 	})
 
 	t.Run("gitlab rejects versions without native auto-merge", func(t *testing.T) {
