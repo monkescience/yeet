@@ -249,7 +249,7 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 		return directPlanContext{}, err
 	}
 
-	logParsedCommits(ctx, target.ID, commits)
+	logParsedCommits(ctx, target.ID, target.Changelog.Include, commits)
 
 	return directPlanContext{history: targetHist, entries: entries, commits: commits}, nil
 }
@@ -622,13 +622,19 @@ func uniqueEntryHashes(entryGroups ...[]history.CommitEntry) []string {
 	return hashes
 }
 
-func logParsedCommits(ctx context.Context, targetID string, commits []commit.Commit) {
+func logParsedCommits(ctx context.Context, targetID string, changelogTypes []string, commits []commit.Commit) {
 	for _, parsed := range commits {
+		hash := parsed.Hash
+		if len(hash) > 7 { //nolint:mnd // standard short hash length
+			hash = hash[:7]
+		}
+
 		slog.DebugContext(ctx, "parsed commit",
 			slog.String("target", targetID),
-			slog.String("hash", parsed.Hash),
+			slog.String("hash", hash),
 			slog.String("type", parsed.Type),
 			slog.Bool("breaking", parsed.Breaking),
+			slog.Bool("in_changelog", parsed.Breaking || slices.Contains(changelogTypes, parsed.Type)),
 		)
 	}
 }

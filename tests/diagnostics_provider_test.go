@@ -52,7 +52,7 @@ func TestDiagnosticsGitLabNotFound(t *testing.T) {
 			testastic.Equal(t, 1, result.ExitCode)
 			testastic.Equal(t, "", result.Stdout)
 			testastic.Equal(t, verbosity == "verbose",
-				strings.Contains(ansi.Strip(result.Stderr), "DEBUG listing tags provider=gitlab"))
+				strings.Contains(ansi.Strip(result.Stderr), "DEBUG http request completed provider=gitlab method=GET"))
 			testastic.AssertFile(t,
 				"testdata/diagnostics/gitlab_not_found/stderr.expected.txt",
 				errorDiagnostics(result.Stderr),

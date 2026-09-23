@@ -148,22 +148,40 @@ func prepareWithPath(
 }
 
 func logRun(ctx context.Context, configPath string, options Options) {
-	channel := ""
-	if options.Channel != nil {
-		channel = *options.Channel
-	}
-
-	slog.DebugContext(ctx, "running release command",
+	attrs := []any{
 		slog.String("config", configPath),
 		slog.Bool("dry_run", options.DryRun),
-		slog.Bool("provider_override_set", options.Provider != nil),
-		slog.Bool("remote_override_set", options.RepositoryRemote != nil),
-		slog.Bool("host_override_set", options.RepositoryHost != nil),
-		slog.Bool("owner_override_set", options.RepositoryOwner != nil),
-		slog.Bool("repo_override_set", options.RepositoryRepo != nil),
-		slog.Bool("project_override_set", options.RepositoryProject != nil),
-		slog.String("channel", channel),
-		slog.Bool("channel_set", options.Channel != nil),
-		slog.Any("targets", options.Targets),
-	)
+	}
+
+	overrides := make([]string, 0)
+
+	for _, override := range []struct {
+		name string
+		set  bool
+	}{
+		{"provider", options.Provider != nil},
+		{"remote", options.RepositoryRemote != nil},
+		{"host", options.RepositoryHost != nil},
+		{"owner", options.RepositoryOwner != nil},
+		{"repo", options.RepositoryRepo != nil},
+		{"project", options.RepositoryProject != nil},
+	} {
+		if override.set {
+			overrides = append(overrides, override.name)
+		}
+	}
+
+	if len(overrides) > 0 {
+		attrs = append(attrs, slog.Any("overrides", overrides))
+	}
+
+	if options.Channel != nil {
+		attrs = append(attrs, slog.String("channel", *options.Channel))
+	}
+
+	if len(options.Targets) > 0 {
+		attrs = append(attrs, slog.Any("targets", options.Targets))
+	}
+
+	slog.DebugContext(ctx, "running release command", attrs...)
 }

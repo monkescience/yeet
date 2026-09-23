@@ -12,8 +12,6 @@ import (
 )
 
 func (g *GitHub) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	g.logger.DebugContext(ctx, "listing tags")
-
 	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *github.RepositoryTag) (string, string, bool) {
 		return tag.GetName(), tag.GetCommit().GetSHA(), true
 	})

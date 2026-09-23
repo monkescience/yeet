@@ -258,11 +258,6 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		options.SourceBranch = new(sourceBranch)
 	}
 
-	g.logger.DebugContext(ctx, "listing open pending release merge requests",
-		slog.String("target_branch", baseBranch),
-		slog.String("label", pendingLabel),
-	)
-
 	pendingMRs := make([]*forge.PullRequest, 0)
 
 	err = paginate(ctx, "listing open pending release MRs",
@@ -327,7 +322,11 @@ func (g *GitLab) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	g.logger.DebugContext(ctx, "listed open pending release merge requests", slog.Int("count", len(pendingMRs)))
+	g.logger.DebugContext(ctx, "listed open pending release merge requests",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", pendingLabel),
+		slog.Int("count", len(pendingMRs)),
+	)
 
 	return pendingMRs, nil
 }

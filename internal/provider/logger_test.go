@@ -42,7 +42,6 @@ func TestProviderInjectedLogger(t *testing.T) {
 	testastic.NoError(t, err)
 
 	// then: the injected logger retains caller context and provider context without cross-instance output
-	testastic.Contains(t, debugLogs, `msg="listing tags" instance=debug provider=gitlab`)
 	testastic.Contains(t, debugLogs, `msg="listed tags" instance=debug provider=gitlab count=0`)
 	testastic.Equal(t, debugLogs, debugOutput.String())
 	testastic.Equal(t, "", quietOutput.String())

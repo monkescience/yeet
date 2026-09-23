@@ -189,11 +189,6 @@ func (a *AzureDevOps) findOpenPendingReleasePRs(
 	baseBranch, pendingLabel, expectedBranch string,
 	anyBranch bool,
 ) ([]*forge.PullRequest, error) {
-	a.logger.DebugContext(ctx, "listing open pending release pull requests",
-		slog.String("target_branch", baseBranch),
-		slog.String("label", pendingLabel),
-	)
-
 	prs, err := a.listPullRequests(
 		ctx,
 		git.PullRequestStatusValues.Active,
@@ -256,7 +251,11 @@ func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
 		})
 	}
 
-	a.logger.DebugContext(ctx, "listed open pending release pull requests", slog.Int("count", len(pending)))
+	a.logger.DebugContext(ctx, "listed open pending release pull requests",
+		slog.String("target_branch", baseBranch),
+		slog.String("label", pendingLabel),
+		slog.Int("count", len(pending)),
+	)
 
 	return pending, nil
 }

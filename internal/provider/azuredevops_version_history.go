@@ -15,8 +15,6 @@ const azureDevOpsTagRefPrefix = "refs/tags/"
 const azureDevOpsRefPageSize = 100
 
 func (a *AzureDevOps) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	a.logger.DebugContext(ctx, "listing tags")
-
 	refs, err := foldTagRefs(
 		ctx,
 		a.refPages("listing tag refs", "tags/", true),

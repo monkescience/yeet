@@ -12,8 +12,6 @@ import (
 )
 
 func (g *GitLab) ListTagRefs(ctx context.Context) ([]forge.TagRef, error) {
-	g.logger.DebugContext(ctx, "listing tags")
-
 	refs, err := foldTagRefs(ctx, g.tagPages, func(tag *gitlab.Tag) (string, string, bool) {
 		if tag.Commit == nil {
 			return tag.Name, "", true

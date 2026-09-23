@@ -155,11 +155,6 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		options.Head = g.repo.Owner + ":" + expectedBranch
 	}
 
-	g.logger.DebugContext(ctx, "listing open pending release pull requests",
-		slog.String("base", baseBranch),
-		slog.String("label", pendingLabel),
-	)
-
 	pendingPRs := make([]*forge.PullRequest, 0)
 
 	err := paginate(ctx, "listing open pending release PRs",
@@ -217,7 +212,11 @@ func (g *GitHub) findOpenPendingReleasePRs(
 		return nil, err
 	}
 
-	g.logger.DebugContext(ctx, "listed open pending release pull requests", slog.Int("count", len(pendingPRs)))
+	g.logger.DebugContext(ctx, "listed open pending release pull requests",
+		slog.String("base", baseBranch),
+		slog.String("label", pendingLabel),
+		slog.Int("count", len(pendingPRs)),
+	)
 
 	return pendingPRs, nil
 }

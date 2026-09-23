@@ -29,13 +29,13 @@ func TestLogParsedCommits(t *testing.T) {
 	})
 
 	commits := []commit.Commit{{
-		Hash:        "abc1234",
+		Hash:        "abc1234def5678abc1234def5678abc1234def56",
 		Type:        "fix",
 		Description: "private customer incident details",
 	}}
 
 	// when: logging the parsed commit metadata
-	logParsedCommits(t.Context(), "service", commits)
+	logParsedCommits(t.Context(), "service", []string{"feat", "fix"}, commits)
 
 	// then: the complete event contains only the expected metadata and a valid timestamp
 	var event map[string]any
@@ -51,12 +51,13 @@ func TestLogParsedCommits(t *testing.T) {
 	delete(event, "time")
 
 	testastic.DeepEqual(t, map[string]any{
-		"level":    "DEBUG",
-		"msg":      "parsed commit",
-		"target":   "service",
-		"hash":     "abc1234",
-		"type":     "fix",
-		"breaking": false,
+		"level":        "DEBUG",
+		"msg":          "parsed commit",
+		"target":       "service",
+		"hash":         "abc1234",
+		"type":         "fix",
+		"breaking":     false,
+		"in_changelog": true,
 	}, event)
 }
 
