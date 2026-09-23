@@ -1,6 +1,8 @@
 # Artifact verification
 
-Release archives and the container image are signed through Sigstore keyless signing. Both also carry GitHub build provenance attestations. Replace the archive name when verifying another platform.
+Release archives and the container image are signed through Sigstore keyless signing.
+Both also carry GitHub build provenance attestations.
+Replace the archive name when verifying another platform.
 
 ## Archive signature
 
@@ -33,7 +35,8 @@ This expects a certificate issued to `.github/workflows/image.yaml` in `monkesci
 gh attestation verify yeet_linux_amd64.tar.gz --repo monkescience/yeet
 ```
 
-This expects provenance from `.github/workflows/binaries.yaml` in `monkescience/yeet`. The repository selector verifies the source repository, and the result identifies the workflow and commit that produced the archive.
+This expects provenance from `.github/workflows/binaries.yaml` in `monkescience/yeet`.
+The repository selector verifies the source repository, and the result identifies the workflow and commit that produced the archive.
 
 ## Container provenance
 

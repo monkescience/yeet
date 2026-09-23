@@ -1,11 +1,12 @@
 # Find the right guide
 
-Start with what you want to accomplish. Each guide includes the configuration and provider details you need for that task.
+Start with what you want to accomplish.
+Each guide includes the configuration and provider details you need for that task.
 
 | I want to... | Start here |
 |---|---|
 | Publish my first automated release | Follow the local preview, CI setup, and first-release path in the [Quick start](../README.md#quick-start). |
-| Give yeet access to my provider | Choose token variables, permissions, and trusted hosts in [Authentication](authentication.md). |
+| Give yeet access to my provider | Choose token variables, permissions, and self-hosted URLs in [Authentication](authentication.md). |
 | Run yeet in CI | Copy the GitHub Actions, GitLab CI, or Azure Pipelines example from [CI setup](ci.md). |
 | Release one repository | Start with the generated target in [Configuration](configuration.md#targets). |
 | Release multiple packages from a monorepo | Define path and derived targets in [Configuration](configuration.md#targets). |
@@ -17,4 +18,5 @@ Start with what you want to accomplish. Each guide includes the configuration an
 | Move from release-please | Follow the ordered [Migration guide](migrate-from-release-please.md). |
 | Contribute or report a vulnerability | Read [Contributing](../CONTRIBUTING.md) or use the private process in [Security Policy](../SECURITY.md). |
 
-The complete `.yeet.yaml` field reference is [`yeet.schema.json`](../yeet.schema.json). CLI flags and environment variables are also available through `yeet --help` and `yeet <command> --help`.
+The complete `.yeet.yaml` field reference is [`yeet.schema.json`](../yeet.schema.json).
+CLI flags and environment variables are also available through `yeet --help` and `yeet <command> --help`.

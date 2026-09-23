@@ -1,9 +1,8 @@
 # Telemetry
 
-yeet uses limited anonymous telemetry to understand how its release workflows
-are used and where maintenance effort is most useful. Telemetry counts command
-executions. It does not identify users, installations, organizations, or
-repositories.
+yeet uses limited anonymous telemetry to understand how its release workflows are used and where maintenance effort is most useful.
+Telemetry counts command executions.
+It does not identify users, installations, organizations, or repositories.
 
 The short version is:
 
@@ -21,8 +20,8 @@ telemetry:
   enabled: false
 ```
 
-This setting overrides the default. It is useful when everyone working with a
-repository should get the same behavior.
+This setting overrides the default.
+It is useful when everyone working with a repository should get the same behavior.
 
 To explicitly enable telemetry for a repository:
 
@@ -37,8 +36,9 @@ To disable telemetry for yeet and other tools that honor `DO_NOT_TRACK`, set:
 export DO_NOT_TRACK=1
 ```
 
-`DO_NOT_TRACK` also accepts `true`, `yes`, and `on` in any letter case. It always
-wins over `.yeet.yaml`. yeet has no separate user-level telemetry setting.
+`DO_NOT_TRACK` also accepts `true`, `yes`, and `on` in any letter case.
+It always wins over `.yeet.yaml`.
+yeet has no separate user-level telemetry setting.
 
 The complete decision order is:
 
@@ -46,24 +46,21 @@ The complete decision order is:
 2. Otherwise, yeet uses `telemetry.enabled` from `.yeet.yaml` when present.
 3. If neither is set, telemetry is enabled.
 
-If no repository configuration exists, telemetry remains enabled. If the
-configuration is invalid or cannot be read, telemetry is disabled because yeet
-cannot safely determine whether the repository opted out.
+If no repository configuration exists, telemetry remains enabled.
+If the configuration is invalid or cannot be read, telemetry is disabled because yeet cannot safely determine whether the repository opted out.
 
 ## Why yeet collects telemetry
 
-Aggregate usage data helps us prioritize support for yeet versions, operating
-systems, providers, release styles, and features. It also helps identify
-reliability and performance problems.
+Aggregate usage data helps us prioritize support for yeet versions, operating systems, providers, release styles, and features.
+It also helps identify reliability and performance problems.
 
-This data does not show how many people or repositories use yeet. Repositories
-that run yeet more often contribute more events. Opt-outs, offline runs, and
-blocked requests contribute no events.
+This data does not show how many people or repositories use yeet.
+Repositories that run yeet more often contribute more events.
+Opt-outs, offline runs, and blocked requests contribute no events.
 
 ## Exactly what is sent
 
-After `init` or `release` finishes, yeet attempts at most one
-`Yeet.Command.executed` event with these fields:
+After `init` or `release` finishes, yeet attempts at most one `Yeet.Command.executed` event with these fields:
 
 | Field | Possible value | Purpose |
 |---|---|---|
@@ -75,9 +72,7 @@ After `init` or `release` finishes, yeet attempts at most one
 | `Yeet.outcome` | `success` or `failure` | Identify reliability work. |
 | `Yeet.failure.category` | A failure kind such as `config_missing`, `config_invalid`, `config_exists`, `authentication`, `host_trust`, `repository`, `checkout`, `release_branch`, `release_state`, `merge_blocked`, `merge_timeout`, `reviewer`, `labels`, `network`, or `unexpected` | Only sent for failures. Show which kinds of failures dominate without sending error details. |
 
-The event also sets TelemetryDeck's top-level `floatValue` field to the command
-runtime in seconds, rounded to whole milliseconds, so average and percentile
-runtimes can be charted.
+The event also sets TelemetryDeck's top-level `floatValue` field to the command runtime in seconds, rounded to whole milliseconds, so average and percentile runtimes can be charted.
 
 When `release` successfully reads `.yeet.yaml`, the event can also contain:
 
@@ -90,39 +85,32 @@ When `release` successfully reads `.yeet.yaml`, the event can also contain:
 | `Yeet.release.channelsConfigured` | `true` or `false` | Understand prerelease-channel usage. |
 | `Yeet.release.autoMerge` | `off`, `provider`, or `direct` | Prioritize auto-merge safety and provider behavior. |
 
-No user or session identifier is sent. TelemetryDeck documents that an empty
-[`clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).
+No user or session identifier is sent.
+TelemetryDeck documents that an empty [`clientUser` disables user counting](https://telemetrydeck.com/docs/api/signals-reference/).
 
-The `help`, `version`, and completion commands do not send telemetry. Invalid
-commands and commands canceled before delivery do not send telemetry either.
+The `help`, `version`, and completion commands do not send telemetry.
+Invalid commands and commands canceled before delivery do not send telemetry either.
 
 ## What is never sent
 
 yeet does not send:
 
 - A persistent user, installation, machine, repository, or session identifier
-- Repository names, owners, remotes, hosts, URLs, paths, branches, tags,
-  target names, or target counts
-- Commit hashes, commit messages, changelogs, pull requests, reviewers, labels,
-  or release names
-- Command arguments, arbitrary flag values, environment-variable values, file
-  names, or the working directory
-- Credentials, tokens, request headers, error messages, logs, stack traces, or
-  provider response bodies
-- An IP address in the event payload, or a username, hostname, locale,
-  timezone, device model, or operating-system version
+- Repository names, owners, remotes, hosts, URLs, paths, branches, tags, target names, or target counts
+- Commit hashes, commit messages, changelogs, pull requests, reviewers, labels, or release names
+- Command arguments, arbitrary flag values, environment-variable values, file names, or the working directory
+- Credentials, tokens, request headers, error messages, logs, stack traces, or provider response bodies
+- An IP address in the event payload, or a username, hostname, locale, timezone, device model, or operating-system version
 
 ## How events are delivered
 
-Official release binaries and images send directly over HTTPS to the
-[TelemetryDeck Ingest API](https://telemetrydeck.com/docs/ingest/v2/).
+Official release binaries and images send directly over HTTPS to the [TelemetryDeck Ingest API](https://telemetrydeck.com/docs/ingest/v2/).
 
 Telemetry is sent on a best-effort basis and is never queued or stored on disk.
 Delivery failures do not change yeet's output, exit status, or release behavior.
 
-TelemetryDeck documents that it does not store IP addresses. Its current
-privacy information is available in the
-[TelemetryDeck privacy FAQ](https://telemetrydeck.com/docs/guides/privacy-faq/).
+TelemetryDeck documents that it does not store IP addresses.
+Its current privacy information is available in the [TelemetryDeck privacy FAQ](https://telemetrydeck.com/docs/guides/privacy-faq/).
 
 ## Related documentation
 

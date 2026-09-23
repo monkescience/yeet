@@ -12,11 +12,14 @@ targets:
     tag_prefix: v
 ```
 
-Most single-repository users edit only the target name, `path`, and `tag_prefix`. The target name appears in release output, `path` selects relevant commits, and `tag_prefix` controls tags such as `v1.2.3`.
+Most single-repository users edit only the target name, `path`, and `tag_prefix`.
+The target name appears in release output, `path` selects relevant commits, and `tag_prefix` controls tags such as `v1.2.3`.
 
-The [JSON schema](../yeet.schema.json) is the complete reference for fields, defaults, and descriptions. It also powers editor validation and runtime config validation. Released builds write a schema URL pinned to their tag, while development builds write `main` as shown above.
+The [JSON schema](../yeet.schema.json) is the complete reference for fields, defaults, and descriptions.
+It also powers editor validation and autocompletion.
 
-yeet reads the nearest ancestor `.yeet.yaml`. Pass `--config` to read or create another path.
+yeet reads the nearest ancestor `.yeet.yaml`.
+Pass `--config` to read or create another path.
 
 ## Repository targeting
 
@@ -27,9 +30,13 @@ Repository detection uses these sources from highest to lowest priority:
 3. The configured `repository.remote`
 4. The `origin` remote
 
-The coordinate flags require an explicit `--provider`. GitLab uses `--project` rather than `--owner` and `--repo`. Azure DevOps does not accept `--owner`.
+The coordinate flags require an explicit `--provider`.
+GitLab uses `--project` rather than `--owner` and `--repo`.
+Azure DevOps does not accept `--owner`.
 
-Automatic provider detection recognizes only `github.com`, `gitlab.com`, and `dev.azure.com`. Set `provider` for enterprise or self-hosted domains. Usually the remote still supplies the host and project path, so add `repository:` only when remote discovery is incomplete or must be overridden.
+Automatic provider detection recognizes only `github.com`, `gitlab.com`, and `dev.azure.com`.
+Set `provider` for enterprise or self-hosted domains.
+Usually the remote still supplies the host and project path, so add `repository:` only when remote discovery is incomplete or must be overridden.
 
 Exactly one provider subsection may be configured, and it must match `provider`:
 
@@ -72,11 +79,15 @@ repository:
     # collection: DefaultCollection
 ```
 
-`api_url` and `web_url` are useful when a self-hosted provider uses a path prefix or separate API and browser roots. Both must be absolute HTTPS URLs without credentials, query parameters, or fragments. The `api_url` hostname must match the resolved repository host because yeet sends provider credentials to it. Environment API URL overrides remain available as trusted operator input. Precedence and host trust are documented in [Authentication](authentication.md#host-trust).
+`api_url` and `web_url` are useful when a self-hosted provider uses a path prefix or separate API and browser roots.
+Both must be absolute HTTPS URLs without credentials, query parameters, or fragments.
+The `api_url` hostname must match the resolved repository host because yeet sends provider credentials to it.
+Environment overrides are covered in [Authentication](authentication.md#self-hosted-providers).
 
 ## Network requests
 
-Provider requests time out after 30 seconds and make at most four total attempts by default. Durations use Go syntax such as `500ms`, `30s`, or `2m`:
+Provider requests time out after 30 seconds and make at most four total attempts by default.
+Durations use Go syntax such as `500ms`, `30s`, or `2m`:
 
 ```yaml
 network:
@@ -87,25 +98,32 @@ network:
     max_backoff: 15s
 ```
 
-Retries apply only when the request can be repeated safely, or when a provider returns a rate-limit response. The Azure DevOps SDK honors `request_timeout`, but manages its own transport and does not expose these retry bounds.
+Retries apply only when the request can be repeated safely, or when a provider returns a rate-limit response.
+Azure DevOps honors `request_timeout` but ignores the `retry` settings.
 
 ## Release timezone
 
-`timezone` controls both CalVer calculations and generated changelog dates. It accepts `Local`, `UTC`, or an IANA location such as `Europe/Berlin`:
+`timezone` controls both CalVer calculations and generated changelog dates.
+It accepts `Local`, `UTC`, or an IANA location such as `Europe/Berlin`:
 
 ```yaml
 timezone: America/Los_Angeles
 ```
 
-The compatibility default is `Local`, which uses the machine's local timezone. A release run captures one timestamp, so every target in the run uses the same calendar date.
+The compatibility default is `Local`, which uses the machine's local timezone.
+A release run captures one timestamp, so every target in the run uses the same calendar date.
 
 ## Targets
 
-yeet plans each target independently and combines all planned changes into one release PR/MR per base branch. Use `--target` repeatedly to limit a run.
+yeet plans each target independently.
+By default, all planned changes share one release PR/MR per base branch.
+Set `release.pull_request_mode: independent` to give targets their own PR/MR, see [Monorepo release units](release.md#monorepo-release-units).
+Use `--target` repeatedly to limit a run.
 
 ### Single repository target
 
-Use a path target rooted at `.`. Choose a prefix that matches existing tags so version discovery continues from the correct release.
+Use a path target rooted at `.`.
+Choose a prefix that matches existing tags so version discovery continues from the correct release.
 
 ```yaml
 targets:
@@ -117,7 +135,8 @@ targets:
 
 ### Monorepo path targets
 
-Each path target receives only commits that changed its path. `exclude_paths` removes subtrees from that match.
+Each path target receives only commits that changed its path.
+`exclude_paths` removes subtrees from that match.
 
 ```yaml
 targets:
@@ -136,7 +155,8 @@ targets:
 
 ### Derived targets
 
-A derived target releases when any included target releases. An optional `path` also lets it match direct commits.
+A derived target releases when any included target releases.
+An optional `path` also lets it match direct commits.
 
 ```yaml
 targets:
@@ -157,11 +177,13 @@ targets:
     tag_prefix: v
 ```
 
-Targets can override `versioning`, both pre-major settings, `version_files`, `changelog`, and `calver`. Release PR/MR settings remain top-level because they apply to the combined release.
+Targets can override `versioning`, both pre-major settings, `version_files`, `changelog`, and `calver`.
+Release PR/MR settings remain top-level because they apply to every release PR/MR.
 
 ## Bump types
 
-By default, `feat` produces a minor bump and `fix` or `perf` produces a patch bump. Customize the mapping when the repository uses additional conventional commit types:
+By default, `feat` produces a minor bump and `fix` or `perf` produces a patch bump.
+Customize the mapping when the repository uses additional conventional commit types:
 
 ```yaml
 bump_types:
@@ -174,11 +196,13 @@ bump_types:
     - deps
 ```
 
-Unlisted types do not bump unless the commit is breaking. See [Versioning](versioning.md) for pre-1.0 behavior.
+Unlisted types do not bump unless the commit is breaking.
+See [Versioning](versioning.md) for pre-1.0 behavior.
 
 ## Version files
 
-`yeet release` changes only files listed in `version_files`. Plain string entries use comment markers:
+`yeet release` changes only files listed in `version_files`.
+Plain string entries use comment markers:
 
 ```txt
 # inline markers (semver project)
@@ -194,7 +218,9 @@ appVersion: "1.2.3"
 # x-yeet-end
 ```
 
-Markers must be in a real `#`, `//`, `/* */`, `--`, `;`, or `<!-- -->` comment. Every listed marker file must contain a valid marker. Lines inside a block without a version value remain unchanged.
+Markers must be in a real `#`, `//`, `/* */`, `--`, `;`, or `<!-- -->` comment.
+Every listed marker file must contain a valid marker.
+Lines inside a block without a version value remain unchanged.
 
 JSON files use a JSON Pointer because JSON has no comments:
 
@@ -205,18 +231,16 @@ version_files:
     json_pointer: /version
 ```
 
-The pointer must resolve to a string. Nested values use RFC 6901 syntax such as `/packages/0/version`, and yeet preserves the existing JSON formatting.
-
-Mapping entries accept only the fields documented above. yeet rejects a configuration that carries
-any other key, so a stray `json_pointers` next to `json_pointer` fails the run instead of being
-ignored.
+The pointer must resolve to a string.
+Nested values use RFC 6901 syntax such as `/packages/0/version`, and yeet preserves the existing JSON formatting.
 
 | Scheme | Marker scopes |
 |---|---|
 | semver | `version`, `major`, `minor`, `patch` |
 | calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` when present in the configured format |
 
-Block markers use `x-yeet-start-<scope>` and `x-yeet-end`. Calver substitution preserves token width, so `0M` produces a zero-padded month.
+Block markers use `x-yeet-start-<scope>` and `x-yeet-end`.
+Calver substitution preserves token width, so `0M` produces a zero-padded month.
 
 ## Related documentation
 

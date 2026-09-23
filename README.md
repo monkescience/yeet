@@ -9,9 +9,12 @@
 
 Automate releases on **GitHub, GitLab, or Azure DevOps** from your [conventional commits](https://www.conventionalcommits.org/).
 
-With yeet, you can calculate the next semver or calver version, generate a changelog, open a release PR/MR, and publish the release after it merges. yeet ships as a single static binary with no runtime dependencies.
+With yeet, you can calculate the next semver or calver version, generate a changelog, open a release PR/MR, and publish the release after it merges.
+yeet ships as a single static binary with no runtime dependencies.
 
-yeet is designed to run from CI on every push to a release branch. The local CLI is the setup and preview tool. Your CI workflow performs the recurring release work.
+yeet is designed to run from CI on every push to a release branch.
+The local CLI is the setup and preview tool.
+Your CI workflow performs the recurring release work.
 
 ## Quick start
 
@@ -26,19 +29,26 @@ yeet init
 yeet release --dry-run
 ```
 
-Use `GITLAB_TOKEN` or `AZURE_DEVOPS_EXT_PAT` for another provider. See [Authentication](docs/authentication.md) for token permissions and CI variables.
+Use `GITLAB_TOKEN` or `AZURE_DEVOPS_EXT_PAT` for another provider.
+See [Authentication](docs/authentication.md) for token permissions and CI variables.
 
-`yeet init` creates only `.yeet.yaml`. The generated config is provider-neutral and auto-detects the public provider from the Git remote.
+`yeet init` creates only `.yeet.yaml`.
+The generated config is provider-neutral and auto-detects the public provider from the Git remote.
 
 ### 2. Automate it in CI
 
-Add the matching release pipeline from [CI setup](docs/ci.md). GitHub repositories normally use the [GitHub Actions workflow](docs/ci.md#github-actions-with-a-github-app). GitLab and Azure DevOps use the equivalent examples on that page.
+Add the matching release pipeline from [CI setup](docs/ci.md).
+GitHub repositories normally use the [GitHub Actions workflow](docs/ci.md#github-actions-with-a-github-app).
+GitLab and Azure DevOps use the equivalent examples on that page.
 
-Commit `.yeet.yaml` and the workflow. From then on, CI runs `yeet release` on pushes to the configured release branch.
+Commit `.yeet.yaml` and the workflow.
+From then on, CI runs `yeet release` on pushes to the configured release branch.
 
 ### 3. Create the first release
 
-Merge a `feat`, `fix`, or `perf` conventional commit into the release branch. CI opens the release PR/MR. Merge that release, then the next CI run creates the tag and provider release.
+Merge a `feat`, `fix`, or `perf` conventional commit into the release branch.
+CI opens the release PR/MR.
+Merge that release, then the next CI run creates the tag and provider release.
 
 ## Install
 
@@ -75,7 +85,8 @@ Shell completions are available through `yeet completion bash|zsh|fish|powershel
 | `yeet version` | Print build and version information |
 | `yeet completion` | Generate shell completion scripts |
 
-Run `yeet --help` or `yeet <command> --help` for generated CLI help. The [configuration guide](docs/configuration.md) covers common tasks, and [`yeet.schema.json`](yeet.schema.json) is the complete field reference.
+Run `yeet --help` or `yeet <command> --help` for generated CLI help.
+The [configuration guide](docs/configuration.md) covers common tasks, and [`yeet.schema.json`](yeet.schema.json) is the complete field reference.
 
 ## How it works
 
@@ -87,7 +98,8 @@ See [Release PRs and MRs](docs/release.md) for lifecycle, labels, auto-merge, re
 
 ## Verify a release
 
-Archives and container images are signed with Sigstore and carry GitHub build provenance. Follow [Artifact verification](docs/verification.md) for the expected identities and copyable verification commands.
+Archives and container images are signed with Sigstore and carry GitHub build provenance.
+Follow [Artifact verification](docs/verification.md) for the expected identities and copyable verification commands.
 
 ## Documentation
 
