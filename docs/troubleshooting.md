@@ -37,7 +37,8 @@ is invalid. `--no-color` disables color, while the standard `NO_COLOR`, `CLICOLO
 Records carry their detail in structured `key=value` attributes rather than in the message, so match
 on attributes when you scrape logs. On a failure the provider appears as `provider=`, the pull
 request or merge request as `pull_request=`, and the file a version-file failure refers to as
-`file_path=`. The provider operation records that `--verbose` reveals use `pr_number=` for the
+`file_path=`. A pending-release failure lists its pull requests or merge requests as `pending=` and
+their links as `urls=`. The provider operation records that `--verbose` reveals use `pr_number=` for the
 number alone. Attribute names are not a stable interface and can change between releases.
 
 ## Related documentation
