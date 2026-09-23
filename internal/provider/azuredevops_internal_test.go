@@ -319,5 +319,5 @@ func TestAzureDevOpsEnsureAutoMergeStatesTheProblemOnce(t *testing.T) {
 
 	unsupported, ok := errors.AsType[*forge.AutoMergeUnsupportedError](err)
 	testastic.True(t, ok)
-	testastic.Equal(t, "pull request #42", unsupported.Reference)
+	testastic.Equal(t, "pull request !42", unsupported.Reference)
 }

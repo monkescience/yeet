@@ -481,7 +481,7 @@ func (a *AzureDevOps) EnsureAutoMerge(
 ) error {
 	return &forge.AutoMergeUnsupportedError{
 		Provider:  providerNameAzureDevOps,
-		Reference: fmt.Sprintf("pull request #%d", number),
+		Reference: azureDevOpsPullRequestReference(number),
 		Problem:   "provider requires direct auto-merge mode",
 	}
 }
