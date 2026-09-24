@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.16.2](https://github.com/monkescience/yeet/compare/v0.16.1...v0.16.2) (2026-09-24)
+
+### Features
+
+- **release:** skip the release when the checkout is behind the remote branch ([f44c2d3](https://github.com/monkescience/yeet/commit/f44c2d3237ef4e76efc3acd3613cf368d825dd53))
+
 ## [v0.16.1](https://github.com/monkescience/yeet/compare/v0.16.0...v0.16.1) (2026-09-23)
 
 ### Bug Fixes

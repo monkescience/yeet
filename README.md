@@ -55,8 +55,8 @@ Merge that release, then the next CI run creates the tag and provider release.
 Other installation options:
 
 ```sh
-go install github.com/monkescience/yeet/cmd/yeet@v0.16.1 # x-yeet-version
-docker run --rm ghcr.io/monkescience/yeet:v0.16.1 --help # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.16.2 # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.16.2 --help # x-yeet-version
 ```
 
 On Windows, install with [Scoop](https://scoop.sh):
