@@ -38,6 +38,31 @@ func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, erro
 	return sha, nil
 }
 
+func (g *GitHub) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error) {
+	comparison, resp, err := g.client.Repositories.CompareCommits(
+		ctx,
+		g.repo.Owner,
+		g.repo.Name,
+		ancestorSHA,
+		descendantSHA,
+		&github.ListOptions{PerPage: 1},
+	)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, fmt.Errorf("%w: compare %q with %q", forge.ErrRefNotFound, ancestorSHA, descendantSHA)
+		}
+
+		return false, fmt.Errorf("compare %q with %q: %w", ancestorSHA, descendantSHA, err)
+	}
+
+	switch comparison.GetStatus() {
+	case "ahead", "identical":
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 func (g *GitHub) tagPages(ctx context.Context, handle func(*github.RepositoryTag) (bool, error)) error {
 	options := &github.ListOptions{PerPage: gitHubPageSize}
 

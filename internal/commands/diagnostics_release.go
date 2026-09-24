@@ -161,8 +161,8 @@ func checkoutHint(checkout *history.CheckoutError) string {
 	case history.CheckoutProblemShallow:
 		return "fetch the full history (fetch-depth: 0 on GitHub Actions, " +
 			`GIT_DEPTH "0" on GitLab CI, fetchDepth: 0 on Azure Pipelines)`
-	case history.CheckoutProblemBehindRemote:
-		return "pull the latest commits of the release branch before releasing"
+	case history.CheckoutProblemRemoteMismatch:
+		return "check out the remote head of the release branch before releasing"
 	case history.CheckoutProblemOtherBranch:
 		return "check out the configured release branch"
 	case history.CheckoutProblemNoRepository:

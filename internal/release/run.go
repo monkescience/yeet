@@ -67,6 +67,19 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 
 	historySource, err := history.Open(ctx, p, run.baseBranch, ".")
 	if err != nil {
+		checkout, ok := errors.AsType[*history.CheckoutError](err)
+		if ok && checkout.Problem == history.CheckoutProblemSuperseded {
+			return &Result{
+				BaseBranch: run.baseBranch,
+				Provider:   resolvedProvider,
+				Superseded: &SupersededCheckout{
+					Branch:     checkout.Branch,
+					LocalHead:  checkout.LocalHead,
+					RemoteHead: checkout.RemoteHead,
+				},
+			}, resolvedConfigPath, nil
+		}
+
 		return nil, resolvedConfigPath, fmt.Errorf("validate checkout: %w", err)
 	}
 

@@ -1,0 +1,13 @@
+{
+  "status": "ahead",
+  "ahead_by": 1,
+  "behind_by": 0,
+  "total_commits": 1,
+  "base_commit": {
+    "sha": "746167636f6d6d69743132330000000000000000"
+  },
+  "merge_base_commit": {
+    "sha": "746167636f6d6d69743132330000000000000000"
+  },
+  "commits": []
+}

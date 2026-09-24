@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -56,6 +57,12 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitLabBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
 			handleGitLabBranchHeadMissingContract(t, w, r)
+		case providerContractAncestor:
+			handleGitLabMergeBaseContract(t, w, r, http.StatusOK, "contracts/gitlab/is_ancestor/merge_base.json")
+		case providerContractNotAncestor:
+			handleGitLabMergeBaseContract(t, w, r, http.StatusOK, "contracts/gitlab/is_ancestor/merge_base_other.json")
+		case providerContractAncestorUnknownCommit:
+			handleGitLabMergeBaseContract(t, w, r, http.StatusBadRequest, "contracts/gitlab/is_ancestor/unknown_ref.json")
 		case providerContractGetReleaseByTag:
 			handleGitLabGetReleaseByTagContract(t, w, r)
 		case providerContractCreateReleasePR:
@@ -114,6 +121,22 @@ func handleGitLabBranchHeadContract(t *testing.T, w http.ResponseWriter, r *http
 	if r.Method == http.MethodGet &&
 		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/branches/"+providerContractBaseBranch {
 		writeJSONFixture(t, w, "contracts/gitlab/branch_head/branch.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitLab", r)
+}
+
+func handleGitLabMergeBaseContract(t *testing.T, w http.ResponseWriter, r *http.Request, status int, fixture string) {
+	t.Helper()
+
+	if r.Method == http.MethodGet &&
+		r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/repository/merge_base" &&
+		slices.Equal(r.URL.Query()["refs[]"], []string{providerContractTagCommitSHA, providerContractHeadSHA}) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		writeJSONFixture(t, w, fixture)
 
 		return
 	}
@@ -628,6 +651,24 @@ func TestGitLabCreateReleaseRejectsConflictingCommit(t *testing.T) {
 	// then: the conflicting tag target is rejected
 	testastic.ErrorIs(t, err, forge.ErrReleaseTagMismatch)
 	testastic.Nil(t, release)
+}
+
+func TestGitLabIsAncestorReportsUnrelatedHistoriesAsNoAncestor(t *testing.T) {
+	t.Parallel()
+
+	// given: GitLab finds no merge base for the two commits
+	server := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleGitLabMergeBaseContract(t, w, r, http.StatusNotFound, "contracts/gitlab/_shared/not_found.json")
+	}))
+
+	p := newGitLabContractProvider(t, server)
+
+	// when: IsAncestor is invoked for the tag commit and the head
+	ancestor, err := p.IsAncestor(context.Background(), providerContractTagCommitSHA, providerContractHeadSHA)
+
+	// then: the tag commit is reported as no ancestor without an error
+	testastic.NoError(t, err)
+	testastic.False(t, ancestor)
 }
 
 func handleGitLabGetFileContract(t *testing.T, w http.ResponseWriter, r *http.Request) {

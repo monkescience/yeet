@@ -204,6 +204,9 @@ const (
 	providerContractListTagsPaged            providerContractScenario = "list tags paged"
 	providerContractBranchHead               providerContractScenario = "branch head"
 	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
+	providerContractAncestor                 providerContractScenario = "ancestor"
+	providerContractNotAncestor              providerContractScenario = "not ancestor"
+	providerContractAncestorUnknownCommit    providerContractScenario = "ancestor unknown commit"
 	providerContractGetReleaseByTag          providerContractScenario = "get release by tag"
 	providerContractCreateReleasePR          providerContractScenario = "create release pr"
 	providerContractCreateReleasePRReviewers providerContractScenario = "create release pr reviewers"
@@ -350,6 +353,58 @@ func TestProviderContract(t *testing.T) {
 
 				// when: GetBranchHead is invoked for a branch that does not exist
 				_, err := p.GetBranchHead(context.Background(), "missing-branch")
+
+				// then: the sentinel ref-not-found error is surfaced
+				testastic.Error(t, err)
+				testastic.True(t, errors.Is(err, forge.ErrRefNotFound))
+			})
+
+			t.Run("reports a commit reachable from the descendant as an ancestor", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server whose history contains the tag commit below the head
+				server := harness.newServer(t, harness.handler(t, providerContractAncestor))
+
+				p := harness.newProvider(t, server)
+
+				// when: IsAncestor is invoked for the tag commit and the head
+				ancestor, err := p.IsAncestor(
+					context.Background(), providerContractTagCommitSHA, providerContractHeadSHA,
+				)
+
+				// then: the tag commit is reported as an ancestor
+				testastic.NoError(t, err)
+				testastic.True(t, ancestor)
+			})
+
+			t.Run("reports a commit on a diverged line as no ancestor", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server whose merge base differs from the tag commit
+				server := harness.newServer(t, harness.handler(t, providerContractNotAncestor))
+
+				p := harness.newProvider(t, server)
+
+				// when: IsAncestor is invoked for the tag commit and the head
+				ancestor, err := p.IsAncestor(
+					context.Background(), providerContractTagCommitSHA, providerContractHeadSHA,
+				)
+
+				// then: the tag commit is not reported as an ancestor
+				testastic.NoError(t, err)
+				testastic.False(t, ancestor)
+			})
+
+			t.Run("reports an unknown ancestor commit as ref not found", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server that does not know the tag commit
+				server := harness.newServer(t, harness.handler(t, providerContractAncestorUnknownCommit))
+
+				p := harness.newProvider(t, server)
+
+				// when: IsAncestor is invoked for the unknown commit
+				_, err := p.IsAncestor(context.Background(), providerContractTagCommitSHA, providerContractHeadSHA)
 
 				// then: the sentinel ref-not-found error is surfaced
 				testastic.Error(t, err)

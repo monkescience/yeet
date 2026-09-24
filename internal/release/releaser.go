@@ -32,6 +32,13 @@ type Result struct {
 	Text            *RenderedRelease
 	PullRequest     *forge.PullRequest
 	Releases        []FinalizedRelease
+	Superseded      *SupersededCheckout
+}
+
+type SupersededCheckout struct {
+	Branch     string
+	LocalHead  string
+	RemoteHead string
 }
 
 type UnitResult struct {

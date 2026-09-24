@@ -24,7 +24,8 @@ const (
 	CheckoutProblemNoRepository   = "git repository is unavailable"
 	CheckoutProblemNoHead         = "checkout head is unavailable"
 	CheckoutProblemOtherBranch    = "checkout is on another branch"
-	CheckoutProblemBehindRemote   = "checkout does not match remote branch"
+	CheckoutProblemRemoteMismatch = "checkout does not match remote branch"
+	CheckoutProblemSuperseded     = "checkout is behind remote branch"
 	CheckoutProblemTagUnavailable = "release tag is unavailable in checkout"
 )
 
@@ -78,6 +79,7 @@ type CommitHistory struct {
 type Remote interface {
 	ListTagRefs(ctx context.Context) ([]forge.TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
+	IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error)
 }
 
 type Source struct {
@@ -321,14 +323,35 @@ func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*
 		return nil, fmt.Errorf("validate local head against remote branch %q: %w", s.branch, err)
 	}
 
-	if !strings.EqualFold(head.Hash().String(), strings.TrimSpace(remoteHead)) {
+	remoteHead = strings.TrimSpace(remoteHead)
+	if !strings.EqualFold(head.Hash().String(), remoteHead) {
 		return nil, &CheckoutError{
-			Problem:    CheckoutProblemBehindRemote,
+			Problem:    s.remoteMismatchProblem(ctx, head.Hash().String(), remoteHead),
 			Branch:     s.branch,
 			LocalHead:  head.Hash().String(),
-			RemoteHead: strings.TrimSpace(remoteHead),
+			RemoteHead: remoteHead,
 		}
 	}
 
 	return newLocalHistory(repo, head.Hash()), nil
+}
+
+func (s *Source) remoteMismatchProblem(ctx context.Context, localHead, remoteHead string) string {
+	behind, err := s.remote.IsAncestor(ctx, localHead, remoteHead)
+	if err != nil {
+		slog.DebugContext(ctx, "could not compare local head with remote branch",
+			slog.String("branch", s.branch),
+			slog.String("local_head", localHead),
+			slog.String("remote_head", remoteHead),
+			slog.Any("error", err),
+		)
+
+		return CheckoutProblemRemoteMismatch
+	}
+
+	if behind {
+		return CheckoutProblemSuperseded
+	}
+
+	return CheckoutProblemRemoteMismatch
 }

@@ -25,6 +25,7 @@ type GitHubOptions struct {
 	BoundarySHA                   string
 	TagSHAs                       map[string]string
 	Commits                       []GitHubCommit
+	OffBranchSHAs                 []string
 	MergedPendingRelease          bool
 	MergedPendingReleaseBody      string
 	Files                         map[string]string
@@ -224,6 +225,8 @@ const (
 	githubKeyTruncated = "truncated"
 	githubFakePRID     = 42
 	githubChangelog    = "CHANGELOG.md"
+
+	githubComparisonAhead = "ahead"
 )
 
 func NewGitHub(t *testing.T, opts GitHubOptions) *httptest.Server {
@@ -616,18 +619,20 @@ func githubTagsHandler(opts GitHubOptions) http.HandlerFunc {
 
 func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		base, _, _ := strings.Cut(r.PathValue("spec"), "...")
+		base, head, _ := strings.Cut(r.PathValue("spec"), "...")
 
-		boundarySHA, ok := githubResolveRefSHA(base, opts)
-		if !ok {
+		baseSHA, baseKnown := githubResolveRefSHA(base, opts)
+		headSHA, headKnown := githubResolveRefSHA(head, opts)
+
+		if !baseKnown || !headKnown {
 			http.Error(w, "not found", http.StatusNotFound)
 
 			return
 		}
 
-		ahead, reachable := githubCommitsAhead(opts.Commits, boundarySHA)
-		if !reachable {
-			writeJSON(w, githubComparisonPayload(nil, 0, "diverged"))
+		ahead, status := githubComparison(opts.Commits, baseSHA, headSHA)
+		if status != githubComparisonAhead {
+			writeJSON(w, githubComparisonPayload(nil, 0, status))
 
 			return
 		}
@@ -636,18 +641,22 @@ func githubCompareHandler(opts GitHubOptions) http.HandlerFunc {
 
 		if opts.PaginateCommits && r.URL.Query().Get("page") != "2" {
 			w.Header().Set("Link", `<https://api.github.com/?page=2>; rel="next"`)
-			writeJSON(w, githubComparisonPayload(nil, len(ahead), "ahead"))
+			writeJSON(w, githubComparisonPayload(nil, len(ahead), githubComparisonAhead))
 
 			return
 		}
 
-		writeJSON(w, githubComparisonPayload(ahead, len(ahead), "ahead"))
+		writeJSON(w, githubComparisonPayload(ahead, len(ahead), githubComparisonAhead))
 	}
 }
 
 func githubResolveRefSHA(ref string, opts GitHubOptions) (string, bool) {
 	if ref == opts.LatestTag || slices.Contains(opts.ExtraTags, ref) {
 		return opts.BoundarySHA, true
+	}
+
+	if ref == githubHeadSHA(opts) || slices.Contains(opts.OffBranchSHAs, ref) {
+		return ref, true
 	}
 
 	for _, c := range opts.Commits {
@@ -659,14 +668,22 @@ func githubResolveRefSHA(ref string, opts GitHubOptions) (string, bool) {
 	return "", false
 }
 
-func githubCommitsAhead(commits []GitHubCommit, boundarySHA string) ([]GitHubCommit, bool) {
-	for idx, c := range commits {
-		if c.SHA == boundarySHA {
-			return slices.Clone(commits[:idx]), true
-		}
+func githubComparison(commits []GitHubCommit, baseSHA, headSHA string) ([]GitHubCommit, string) {
+	if baseSHA == headSHA {
+		return nil, "identical"
 	}
 
-	return nil, false
+	baseIdx := slices.IndexFunc(commits, func(c GitHubCommit) bool { return c.SHA == baseSHA })
+	headIdx := slices.IndexFunc(commits, func(c GitHubCommit) bool { return c.SHA == headSHA })
+
+	switch {
+	case baseIdx < 0 || headIdx < 0:
+		return nil, "diverged"
+	case headIdx < baseIdx:
+		return slices.Clone(commits[headIdx:baseIdx]), githubComparisonAhead
+	default:
+		return nil, "behind"
+	}
 }
 
 func githubComparisonPayload(commits []GitHubCommit, total int, status string) map[string]any {

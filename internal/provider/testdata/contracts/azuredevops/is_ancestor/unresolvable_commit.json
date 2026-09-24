@@ -1,0 +1,9 @@
+{
+  "$id": "1",
+  "innerException": null,
+  "message": "TF401175: The version descriptor <Commit: 746167636f6d6d69743132330000000000000000> could not be resolved to a version in the repository r.",
+  "typeName": "Microsoft.TeamFoundation.Git.Server.GitUnresolvableToCommitException, Microsoft.TeamFoundation.Git.Server",
+  "typeKey": "GitUnresolvableToCommitException",
+  "errorCode": 0,
+  "eventId": 3000
+}

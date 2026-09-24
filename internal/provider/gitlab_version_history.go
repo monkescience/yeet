@@ -69,3 +69,24 @@ func (g *GitLab) GetBranchHead(ctx context.Context, branch string) (string, erro
 
 	return branchInfo.Commit.ID, nil
 }
+
+func (g *GitLab) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error) {
+	mergeBase, resp, err := g.client.Repositories.MergeBase(
+		g.projectID,
+		&gitlab.MergeBaseOptions{Ref: &[]string{ancestorSHA, descendantSHA}},
+		gitlab.WithContext(ctx),
+	)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+
+		if resp != nil && resp.StatusCode == http.StatusBadRequest {
+			return false, fmt.Errorf("%w: merge base of %q and %q", forge.ErrRefNotFound, ancestorSHA, descendantSHA)
+		}
+
+		return false, fmt.Errorf("get merge base of %q and %q: %w", ancestorSHA, descendantSHA, err)
+	}
+
+	return strings.EqualFold(mergeBase.ID, ancestorSHA), nil
+}

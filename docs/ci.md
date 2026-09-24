@@ -117,6 +117,9 @@ steps:
 
 The checkout must match the provider's current remote head.
 A full history alone does not make a stale or detached checkout usable.
+When the remote branch has moved past the checkout, for example because a newer push landed during the run, yeet skips the release with a warning and exits successfully.
+The run for the newer commit releases it, as long as that commit triggers a run.
+Any other mismatch, such as unpushed or diverged commits, fails the run.
 
 ## Related documentation
 

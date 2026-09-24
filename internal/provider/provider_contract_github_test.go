@@ -57,6 +57,12 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 			handleGitHubBranchHeadContract(t, w, r)
 		case providerContractBranchHeadMissing:
 			handleGitHubBranchHeadMissingContract(t, w, r)
+		case providerContractAncestor:
+			handleGitHubCompareContract(t, w, r, http.StatusOK, "contracts/github/is_ancestor/compare_ahead.json")
+		case providerContractNotAncestor:
+			handleGitHubCompareContract(t, w, r, http.StatusOK, "contracts/github/is_ancestor/compare_diverged.json")
+		case providerContractAncestorUnknownCommit:
+			handleGitHubCompareContract(t, w, r, http.StatusNotFound, "contracts/github/_shared/not_found.json")
 		case providerContractGetReleaseByTag:
 			handleGitHubGetReleaseByTagContract(t, w, r)
 		case providerContractCreateReleasePR:
@@ -158,6 +164,21 @@ func handleGitHubBranchHeadMissingContract(t *testing.T, w http.ResponseWriter, 
 	if r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/commits/heads/missing-branch" {
 		w.WriteHeader(http.StatusNotFound)
 		writeJSONFixture(t, w, "contracts/github/_shared/not_found.json")
+
+		return
+	}
+
+	fatalUnexpectedProviderRequest(t, "GitHub", r)
+}
+
+func handleGitHubCompareContract(t *testing.T, w http.ResponseWriter, r *http.Request, status int, fixture string) {
+	t.Helper()
+
+	if r.Method == http.MethodGet &&
+		r.URL.Path == "/repos/o/r/compare/"+providerContractTagCommitSHA+"..."+providerContractHeadSHA {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		writeJSONFixture(t, w, fixture)
 
 		return
 	}

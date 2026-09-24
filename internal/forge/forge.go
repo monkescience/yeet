@@ -86,6 +86,7 @@ type TagRef struct {
 type Provider interface {
 	ListTagRefs(ctx context.Context) ([]TagRef, error)
 	GetBranchHead(ctx context.Context, branch string) (string, error)
+	IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error)
 	GetReleaseByTag(ctx context.Context, tag string) (*Release, error)
 	CreateRelease(ctx context.Context, opts ReleaseOptions) (*Release, error)
 	CreateReleasePR(ctx context.Context, opts ReleasePROptions) (*PullRequest, error)

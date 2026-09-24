@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/git"
@@ -50,6 +51,36 @@ func (a *AzureDevOps) GetBranchHead(ctx context.Context, branch string) (string,
 	}
 
 	return head, nil
+}
+
+func (a *AzureDevOps) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error) {
+	gitClient, err := a.client(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	mergeBases, err := gitClient.GetMergeBases(ctx, git.GetMergeBasesArgs{
+		RepositoryNameOrId: &a.repo,
+		Project:            &a.project,
+		CommitId:           &ancestorSHA,
+		OtherCommitId:      &descendantSHA,
+	})
+	if err != nil {
+		status := azureDevOpsStatusCode(err)
+		if status == http.StatusNotFound || status == http.StatusBadRequest {
+			return false, fmt.Errorf("%w: merge base of %q and %q", forge.ErrRefNotFound, ancestorSHA, descendantSHA)
+		}
+
+		return false, fmt.Errorf("get merge base of %q and %q: %w", ancestorSHA, descendantSHA, err)
+	}
+
+	for _, mergeBase := range *mergeBases {
+		if strings.EqualFold(derefString(mergeBase.CommitId), ancestorSHA) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (a *AzureDevOps) refPages(resource, filter string, peelTags bool) pageFetcher[git.GitRef] {

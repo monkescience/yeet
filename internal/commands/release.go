@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/logattr"
 	"github.com/monkescience/yeet/internal/release"
 	"github.com/monkescience/yeet/internal/telemetry"
 	"github.com/spf13/cobra"
@@ -197,6 +198,18 @@ func runRelease(
 }
 
 func handleReleaseResult(ctx context.Context, output io.Writer, result *release.Result, dryRun bool) error {
+	if result.Superseded != nil {
+		slog.WarnContext(ctx, "release skipped: local checkout is behind the remote release branch",
+			slog.String("branch", result.Superseded.Branch),
+			slog.String("local_head", result.Superseded.LocalHead),
+			slog.String("remote_head", result.Superseded.RemoteHead),
+			logattr.Hint("the newer commits are released by the run for the remote head, "+
+				"or pull them and rerun"),
+		)
+
+		return nil
+	}
+
 	if len(result.Plans) > 0 {
 		if dryRun {
 			return printDryRun(output, result)

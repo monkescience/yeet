@@ -1,1 +1,0 @@
-ERROR local checkout cannot be used for release: checkout does not match remote branch branch=main local_head=7ea4b951bab3dfb0402b7d4f5f5c1c70775415fb remote_head=1111111111111111111111111111111111111111 hint="pull the latest commits of the release branch before releasing"

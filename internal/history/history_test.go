@@ -22,6 +22,8 @@ const fixtureBranch = "main"
 type remoteStub struct {
 	branchHead    string
 	branchHeadErr error
+	isAncestor    bool
+	isAncestorErr error
 	tagRefs       []forge.TagRef
 
 	branchHeadCalls int
@@ -38,6 +40,10 @@ func (r *remoteStub) GetBranchHead(_ context.Context, _ string) (string, error) 
 	r.branchHeadCalls++
 
 	return r.branchHead, r.branchHeadErr
+}
+
+func (r *remoteStub) IsAncestor(_ context.Context, _, _ string) (bool, error) {
+	return r.isAncestor, r.isAncestorErr
 }
 
 type repoFixture struct {
@@ -589,10 +595,10 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		testastic.Equal(t, 0, remote.branchHeadCalls)
 	})
 
-	t.Run("stale local head fails with pull hint", func(t *testing.T) {
+	t.Run("local head missing from the remote branch fails as a mismatch", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a remote branch head that differs from the local checkout
+		// given: a remote branch head that differs from the local checkout and does not contain it
 		fx := newRepoFixture(t)
 		fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
@@ -613,10 +619,54 @@ func TestSourceUnusableCheckout(t *testing.T) {
 		var checkout *history.CheckoutError
 
 		testastic.True(t, errors.As(err, &checkout))
-		testastic.Equal(t, history.CheckoutProblemBehindRemote, checkout.Problem)
+		testastic.Equal(t, history.CheckoutProblemRemoteMismatch, checkout.Problem)
 		testastic.Equal(t, "8ef653648bf61273f097a29668e6d5ed4134a2cc", checkout.LocalHead)
 		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
 		testastic.Equal(t, fixtureBranch, checkout.Branch)
+	})
+
+	t.Run("local head behind the remote branch is reported as superseded", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a remote branch head that already contains the local checkout head
+		fx := newRepoFixture(t)
+		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+
+		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111", isAncestor: true}
+
+		// when: a source is opened
+		_, err := history.Open(t.Context(), remote, fixtureBranch, fx.dir)
+
+		// then: the checkout is identified as superseded with both heads
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemSuperseded, checkout.Problem)
+		testastic.Equal(t, "8ef653648bf61273f097a29668e6d5ed4134a2cc", checkout.LocalHead)
+		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
+	})
+
+	t.Run("ancestry lookup failure falls back to a mismatch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a differing remote branch head whose ancestry cannot be determined
+		fx := newRepoFixture(t)
+		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+
+		remote := &remoteStub{
+			branchHead:    "1111111111111111111111111111111111111111",
+			isAncestor:    true,
+			isAncestorErr: errors.New("compare unavailable"),
+		}
+
+		// when: a source is opened
+		_, err := history.Open(t.Context(), remote, fixtureBranch, fx.dir)
+
+		// then: the run fails as an unverified mismatch instead of skipping
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemRemoteMismatch, checkout.Problem)
 	})
 
 	t.Run("checkout of another branch fails even at the same commit", func(t *testing.T) {

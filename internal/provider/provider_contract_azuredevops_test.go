@@ -1091,6 +1091,12 @@ func newAzureDevOpsScenarioHandler(
 		return azureDevOpsBranchHeadHandler(t)
 	case providerContractBranchHeadMissing:
 		return azureDevOpsBranchHeadMissingHandler(t)
+	case providerContractAncestor:
+		return azureDevOpsMergeBasesHandler(t, http.StatusOK, "merge_bases.json")
+	case providerContractNotAncestor:
+		return azureDevOpsMergeBasesHandler(t, http.StatusOK, "merge_bases_other.json")
+	case providerContractAncestorUnknownCommit:
+		return azureDevOpsMergeBasesHandler(t, http.StatusNotFound, "unresolvable_commit.json")
 	case providerContractGetReleaseByTag:
 		return azureDevOpsGetReleaseByTagHandler(t)
 	case providerContractCreateReleasePR:
@@ -1168,6 +1174,24 @@ func azureDevOpsBranchHeadHandler(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if isAzureDevOpsRefsRequest(r, "heads/"+providerContractBaseBranch) {
 			writeJSONFixture(t, w, azureDevOpsContractFixture("branch_head", "refs.json"))
+
+			return
+		}
+
+		fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
+	}
+}
+
+func azureDevOpsMergeBasesHandler(t *testing.T, status int, fixture string) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet &&
+			r.URL.Path == azureDevOpsContractRepoAPI("commits/"+providerContractTagCommitSHA+"/mergeBases") &&
+			r.URL.Query().Get("otherCommitId") == providerContractHeadSHA {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			writeJSONFixture(t, w, azureDevOpsContractFixture("is_ancestor", fixture))
 
 			return
 		}

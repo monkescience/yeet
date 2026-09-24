@@ -63,11 +63,11 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 	})
 
-	t.Run("stale checkout fails with an actionable error", func(t *testing.T) {
+	t.Run("diverged checkout fails with an actionable error", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a local checkout whose head differs from the provider branch head
-		repoDir, boundarySHA, _ := fixture.WriteRepoWithTaggedHistory(
+		// given: a local checkout whose head the provider knows outside the provider branch
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
 			"main",
@@ -80,6 +80,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   boundarySHA,
 			BranchHeadSHA: "1111111111111111111111111111111111111111",
+			OffBranchSHAs: []string{headSHA},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -90,7 +91,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
-		// when: invoking `yeet release --dry-run` inside the stale checkout
+		// when: invoking `yeet release --dry-run` inside the diverged checkout
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
@@ -101,17 +102,17 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release/stale_checkout_fails_with_an_actionable_error/"+
+			"testdata/release/diverged_checkout_fails_with_an_actionable_error/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
 	})
 
-	t.Run("stale checkout is rejected before remote mutation", func(t *testing.T) {
+	t.Run("diverged checkout is rejected before remote mutation", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a non-dry release with a merged PR ready to finalize but a stale checkout
-		repoDir, boundarySHA, _ := fixture.WriteRepoWithTaggedHistory(
+		// given: a non-dry release with a merged PR ready to finalize but a diverged checkout
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
 			"main",
@@ -124,6 +125,7 @@ func TestReleaseLocalHistory(t *testing.T) {
 			LatestTag:            "v1.0.0",
 			BoundarySHA:          boundarySHA,
 			BranchHeadSHA:        "1111111111111111111111111111111111111111",
+			OffBranchSHAs:        []string{headSHA},
 			MergedPendingRelease: true,
 			FailOnMutation:       true,
 		})
@@ -147,7 +149,57 @@ func TestReleaseLocalHistory(t *testing.T) {
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release/stale_checkout_is_rejected_before_remote_mutation/"+
+			"testdata/release/diverged_checkout_is_rejected_before_remote_mutation/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("checkout behind the remote branch skips the release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a merged PR ready to finalize and a remote branch that moved past the local head
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   boundarySHA,
+			BranchHeadSHA: "1111111111111111111111111111111111111111",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "1111111111111111111111111111111111111111", Message: "fix: newer push"},
+				{SHA: headSHA, Message: "feat: local head"},
+			},
+			MergedPendingRelease: true,
+			FailOnMutation:       true,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: invoking a release that would otherwise finalize the merged PR
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the run succeeds with a skip warning and no provider mutation
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/checkout_behind_the_remote_branch_skips_the_release/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
