@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-github/v91/github"
+	"github.com/google/go-github/v92/github"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/forge"
