@@ -17,37 +17,34 @@ const (
 
 var errInvalidCommitOverride = errors.New("invalid commit override")
 
-type commitOverrideResult struct {
-	commits []commit.Commit
-	found   bool
-}
-
 func commitOverrideMessages(
 	ctx context.Context,
-	commit, body string,
+	hash, body string,
 	knownTypes map[string]struct{},
 ) ([]string, bool, error) {
-	start := strings.Index(body, commitOverrideStartMarker)
+	noteLines := commit.ReleaseNoteLines(body)
+
+	start := markerIndex(body, commitOverrideStartMarker, 0, noteLines)
 	if start == -1 {
 		return nil, false, nil
 	}
 
 	start += len(commitOverrideStartMarker)
 
-	end := strings.Index(body[start:], commitOverrideEndMarker)
+	end := markerIndex(body, commitOverrideEndMarker, start, commit.ClosedReleaseNoteLines(body))
 	if end == -1 {
 		return nil, true, &CommitOverrideError{
-			Commit:        commit,
+			Commit:        hash,
 			Problem:       "override block has no end marker",
 			MissingMarker: commitOverrideEndMarker,
 			cause:         fmt.Errorf("%w: missing %s marker", errInvalidCommitOverride, commitOverrideEndMarker),
 		}
 	}
 
-	block := strings.TrimSpace(body[start : start+end])
+	block := strings.TrimSpace(body[start:end])
 	if block == "" {
 		return nil, true, &CommitOverrideError{
-			Commit:  commit,
+			Commit:  hash,
 			Problem: "override block is empty",
 			cause:   fmt.Errorf("%w: empty override block", errInvalidCommitOverride),
 		}
@@ -56,7 +53,7 @@ func commitOverrideMessages(
 	messages := splitCommitOverrideMessages(ctx, block, knownTypes)
 	if len(messages) == 0 {
 		return nil, true, &CommitOverrideError{
-			Commit:  commit,
+			Commit:  hash,
 			Problem: "override block is empty",
 			cause:   fmt.Errorf("%w: empty override block", errInvalidCommitOverride),
 		}
@@ -65,14 +62,38 @@ func commitOverrideMessages(
 	return messages, true, nil
 }
 
+func markerIndex(body, marker string, from int, noteLines []bool) int {
+	for from <= len(body) {
+		offset := strings.Index(body[from:], marker)
+		if offset == -1 {
+			return -1
+		}
+
+		position := from + offset
+
+		line := strings.Count(body[:position], "\n")
+		if line >= len(noteLines) || !noteLines[line] {
+			return position
+		}
+
+		from = position + len(marker)
+	}
+
+	return -1
+}
+
 func splitCommitOverrideMessages(ctx context.Context, block string, knownTypes map[string]struct{}) []string {
-	lines := strings.SplitSeq(strings.ReplaceAll(block, "\r\n", "\n"), "\n")
+	normalized := strings.ReplaceAll(block, "\r\n", "\n")
+	fenced := commit.ReleaseNoteLines(normalized)
 	messages := make([]string, 0)
 	current := make([]string, 0)
 
-	for line := range lines {
+	for idx, line := range strings.Split(normalized, "\n") {
 		trimmedLine := strings.TrimSpace(line)
-		if len(current) > 0 && isConventionalCommitHeader(ctx, trimmedLine, knownTypes) && previousLineBlank(current) {
+		insideNote := len(fenced) > 0 && fenced[idx]
+
+		if len(current) > 0 && !insideNote && previousLineBlank(current) &&
+			isConventionalCommitHeader(ctx, trimmedLine, knownTypes) {
 			messages = appendCommitOverrideMessage(messages, current)
 			current = current[:0]
 		}
@@ -93,7 +114,9 @@ func knownCommitTypes(cfg *config.Config) map[string]struct{} {
 	}
 
 	for sectionType := range cfg.Changelog.Sections {
-		types[sectionType] = struct{}{}
+		if sectionType != config.BreakingSectionKey {
+			types[sectionType] = struct{}{}
+		}
 	}
 
 	return types

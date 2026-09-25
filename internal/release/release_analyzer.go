@@ -15,7 +15,7 @@ type releaseAnalyzer struct {
 	core          *releaseCore
 	history       versionHistoryProvider
 	bumpMapping   commit.BumpMapping
-	overrideCache map[string]commitOverrideResult
+	parseCache    map[string][]parsedCommit
 	overrideTypes map[string]struct{}
 }
 
@@ -24,7 +24,7 @@ func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider) *rele
 		core:          core,
 		history:       history,
 		bumpMapping:   core.cfg.BumpTypes.ToBumpMapping(),
-		overrideCache: make(map[string]commitOverrideResult),
+		parseCache:    make(map[string][]parsedCommit),
 		overrideTypes: knownCommitTypes(core.cfg),
 	}
 }

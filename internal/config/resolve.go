@@ -196,8 +196,8 @@ func validateChangelogSectionHeadings(configPath string, changelog ChangelogConf
 	headingsByCommitType := make(map[string]string, len(changelog.Sections)+1)
 	maps.Copy(headingsByCommitType, changelog.Sections)
 
-	if _, configured := headingsByCommitType["breaking"]; !configured {
-		headingsByCommitType["breaking"] = defaultBreakingChangesHeading
+	if _, configured := headingsByCommitType[BreakingSectionKey]; !configured {
+		headingsByCommitType[BreakingSectionKey] = defaultBreakingChangesHeading
 	}
 
 	sectionPath := configPath + ".sections"
@@ -250,7 +250,7 @@ func validateIncludedChangelogHeadings(
 	sectionPath := configPath + ".sections"
 
 	for _, commitType := range include {
-		if commitType == "breaking" {
+		if commitType == BreakingSectionKey {
 			return Invalidf("%s.include must not contain %q because breaking changes are included automatically", configPath,
 				commitType,
 			)

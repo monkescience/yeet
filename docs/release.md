@@ -203,7 +203,18 @@ The body is regenerated on every run.
 ## Release notes
 
 Final release notes come from the matching generated `CHANGELOG.md` entry, not the PR/MR body.
-Edit the changelog on the release branch to add manual notes:
+Per-change notes come from `release-note` fences in commit messages, see [Release notes](changelog-generation.md#release-notes).
+Edit the changelog on the release branch to add a short summary above the sections:
+
+```md
+## [v2.0.0](https://github.com/org/repo/compare/v1.4.0...v2.0.0) (2026-09-25)
+
+Units replace targets. Most configs need a one-line rename.
+
+### ⚠ BREAKING CHANGES
+```
+
+You can also add manual sections:
 
 ````md
 ### Migration Notes

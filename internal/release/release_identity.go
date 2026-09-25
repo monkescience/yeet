@@ -5,10 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/text"
 )
 
 const (
@@ -105,7 +110,7 @@ func releaseManifestFromPullRequest(pullRequest *forge.PullRequest) (releaseMani
 }
 
 func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
-	markers := releaseManifestMarkerOpenRE.FindAllStringIndex(body, -1)
+	markers := releaseManifestMarkers(body)
 	if len(markers) == 0 {
 		return releaseManifest{}, false, nil
 	}
@@ -138,6 +143,49 @@ func releaseManifestFromBody(body string) (releaseManifest, bool, error) {
 	}
 
 	return manifest, true, nil
+}
+
+func releaseManifestMarkers(body string) [][]int {
+	markers := releaseManifestMarkerOpenRE.FindAllStringIndex(body, -1)
+	if len(markers) == 0 {
+		return nil
+	}
+
+	root := parser.New().Parse([]byte(body))
+	unclosed := commit.UnclosedBlockOffsets(body)
+
+	_ = ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+
+		var indices []text.Index
+
+		switch node := node.(type) {
+		case *ast.CodeBlock:
+			if node.Parent() == root && slices.Contains(unclosed, node.Pos()) {
+				return ast.WalkSkipChildren, nil
+			}
+
+			for _, segment := range node.Value.Segments() {
+				indices = append(indices, text.Index{Start: segment.Start, Stop: segment.Stop})
+			}
+		case *ast.CodeSpan:
+			indices = node.Value.Indices()
+		default:
+			return ast.WalkContinue, nil
+		}
+
+		markers = slices.DeleteFunc(markers, func(marker []int) bool {
+			return slices.ContainsFunc(indices, func(index text.Index) bool {
+				return index.Start <= marker[0] && marker[0] < index.Stop
+			})
+		})
+
+		return ast.WalkSkipChildren, nil
+	})
+
+	return markers
 }
 
 func (c *releaseCore) validateReleaseManifest(

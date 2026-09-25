@@ -107,6 +107,36 @@ func TestCommitOverrideMessages(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, errInvalidCommitOverride)
 	})
+
+	t.Run("splits entries after an unclosed code fence", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an override entry whose code fence never closes, followed by more entries
+		body := "BEGIN_COMMIT_OVERRIDE\nfeat: a\n```sh\n\nfix: b\n\nfeat!: c\nEND_COMMIT_OVERRIDE"
+
+		// when: parsing the override body
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", body, knownTypes)
+
+		// then: every entry stays separate
+		testastic.NoError(t, err)
+		testastic.True(t, ok)
+		testastic.SliceEqual(t, []string{"feat: a\n```sh", "fix: b", "feat!: c"}, messages)
+	})
+
+	t.Run("does not treat the breaking section key as a commit type", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an override entry with a paragraph that starts like the breaking section key
+		body := "BEGIN_COMMIT_OVERRIDE\nfeat: add x\n\nBreaking: old flags\n\nfix: y\nEND_COMMIT_OVERRIDE"
+
+		// when: parsing the override body
+		messages, ok, err := commitOverrideMessages(t.Context(), "abc1234", body, knownTypes)
+
+		// then: the paragraphs stay with their entry
+		testastic.NoError(t, err)
+		testastic.True(t, ok)
+		testastic.SliceEqual(t, []string{"feat: add x\n\nBreaking: old flags", "fix: y"}, messages)
+	})
 }
 
 func TestReleaseCommitOverrides(t *testing.T) {
@@ -174,7 +204,7 @@ END_COMMIT_OVERRIDE`,
 		// when: calculating a release
 		result, err := r.Release(context.Background(), true)
 
-		// then: the breaking override controls the bump and breaking section
+		// then: the breaking override controls the bump and its footer becomes a note
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2.0.0", result.Plans[0].NextVersion)
 		testastic.AssertFile(

@@ -17,6 +17,7 @@ type Commit struct {
 	Body        string
 	Footers     []Footer
 	Breaking    bool
+	Note        string
 }
 
 type Footer struct {
@@ -53,6 +54,10 @@ var conventionalCommitPattern = regexp.MustCompile(
 )
 
 func Parse(ctx context.Context, hash, rawMessage string) Commit {
+	return parseIgnoringLines(ctx, hash, rawMessage, nil)
+}
+
+func parseIgnoringLines(ctx context.Context, hash, rawMessage string, ignored []bool) Commit {
 	c := Commit{
 		Hash: hash,
 	}
@@ -79,17 +84,22 @@ func Parse(ctx context.Context, hash, rawMessage string) Commit {
 	c.Description = matches[conventionalCommitPattern.SubexpIndex("description")]
 	c.Breaking = matches[conventionalCommitPattern.SubexpIndex("breaking")] == "!"
 
-	parseBodyAndFooters(&c, lines[1:])
-	logRejectedBreakingMarkers(ctx, &c, lines[1:])
+	var bodyIgnored []bool
+	if len(ignored) > 0 {
+		bodyIgnored = ignored[1:]
+	}
+
+	parseBodyAndFooters(&c, lines[1:], bodyIgnored)
+	logRejectedBreakingMarkers(ctx, &c, unignoredLines(lines[1:], bodyIgnored))
 
 	return c
 }
 
-func parseBodyAndFooters(c *Commit, lines []string) {
+func parseBodyAndFooters(c *Commit, lines []string, ignored []bool) {
 	footerStart := -1
 
 	for i, line := range lines {
-		if i == 0 || strings.TrimSpace(lines[i-1]) != "" {
+		if i == 0 || (len(ignored) > 0 && ignored[i]) || strings.TrimSpace(lines[i-1]) != "" {
 			continue
 		}
 
@@ -104,14 +114,34 @@ func parseBodyAndFooters(c *Commit, lines []string) {
 	}
 
 	if footerStart == -1 {
+		lines = unignoredLines(lines, ignored)
 		c.Body = strings.TrimSpace(strings.Join(lines, "\n"))
 
 		return
 	}
 
-	c.Body = strings.TrimSpace(strings.Join(lines[:footerStart], "\n"))
+	var bodyIgnored, footerIgnored []bool
+	if len(ignored) > 0 {
+		bodyIgnored, footerIgnored = ignored[:footerStart], ignored[footerStart:]
+	}
 
-	parseFooters(c, lines[footerStart:])
+	c.Body = strings.TrimSpace(strings.Join(unignoredLines(lines[:footerStart], bodyIgnored), "\n"))
+	parseFooters(c, unignoredLines(lines[footerStart:], footerIgnored))
+}
+
+func unignoredLines(lines []string, ignored []bool) []string {
+	if len(ignored) == 0 {
+		return lines
+	}
+
+	kept := make([]string, 0, len(lines))
+	for idx, line := range lines {
+		if !ignored[idx] {
+			kept = append(kept, line)
+		}
+	}
+
+	return kept
 }
 
 func parseFooters(c *Commit, lines []string) {
@@ -135,7 +165,7 @@ func parseFooters(c *Commit, lines []string) {
 	flushContinuation(c.Footers, &continuation)
 
 	c.Footers = slices.DeleteFunc(c.Footers, func(footer Footer) bool {
-		return isBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) == ""
+		return IsBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) == ""
 	})
 
 	for _, footer := range c.Footers {
@@ -155,7 +185,7 @@ func logRejectedBreakingMarkers(ctx context.Context, c *Commit, lines []string) 
 		}
 
 		footer, ok := parseFooter(strings.TrimLeftFunc(line, unicode.IsSpace))
-		if ok && isBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) != "" {
+		if ok && IsBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) != "" {
 			continue
 		}
 
@@ -186,12 +216,12 @@ func appendContinuation(continuation *strings.Builder, line string) {
 	continuation.WriteString(line)
 }
 
-func isBreakingFooter(key string) bool {
+func IsBreakingFooter(key string) bool {
 	return key == FooterBreakingChange || key == FooterBreakingChanged
 }
 
 func setBreaking(c *Commit, footer Footer) {
-	if isBreakingFooter(footer.Key) {
+	if IsBreakingFooter(footer.Key) {
 		c.Breaking = true
 	}
 }
@@ -240,7 +270,7 @@ func parseFooter(line string) (Footer, bool) {
 	}
 
 	if parts := strings.SplitN(line, " #", 2); len(parts) == 2 && isToken(parts[0]) { //nolint:mnd // footer format
-		if isBreakingFooter(parts[0]) {
+		if IsBreakingFooter(parts[0]) {
 			return Footer{}, false
 		}
 

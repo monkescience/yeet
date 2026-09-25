@@ -15,6 +15,8 @@ import (
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/logattr"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/parser"
 )
 
 const breakingChangesHeading = "⚠ BREAKING CHANGES"
@@ -170,7 +172,10 @@ func (g *Generator) buildSections(relevant []commit.Commit) []Section {
 
 		lines := make([]string, 0, len(sectionCommits))
 		for _, c := range sectionCommits {
-			lines = append(lines, g.formattedLine(c, c.Description))
+			lines = append(lines, g.formattedLine(c))
+			if !c.Breaking {
+				lines = appendQuotedNote(lines, noteText(c))
+			}
 		}
 
 		sections = append(sections, Section{Heading: sectionName, Lines: lines})
@@ -187,7 +192,8 @@ func (g *Generator) breakingSection(commits []commit.Commit) (Section, bool) {
 			continue
 		}
 
-		lines = append(lines, g.formattedLine(c, breakingDescription(c)))
+		lines = append(lines, g.formattedLine(c))
+		lines = appendQuotedNote(lines, noteText(c))
 	}
 
 	if len(lines) == 0 {
@@ -205,7 +211,44 @@ func (g *Generator) breakingHeading() string {
 	return breakingChangesHeading
 }
 
-func (g *Generator) formattedLine(c commit.Commit, description string) string {
+func appendQuotedNote(lines []string, note string) []string {
+	if note == "" {
+		return lines
+	}
+
+	for line := range strings.SplitSeq(note, "\n") {
+		if strings.TrimSpace(line) == "" {
+			lines = append(lines, "  >")
+
+			continue
+		}
+
+		lines = append(lines, "  > "+line)
+	}
+
+	return lines
+}
+
+func noteText(c commit.Commit) string {
+	if note := strings.Trim(commit.SanitizeNoteText(c.Note), "\n"); strings.TrimSpace(note) != "" {
+		return note
+	}
+
+	for _, f := range c.Footers {
+		if !commit.IsBreakingFooter(f.Key) {
+			continue
+		}
+
+		note := strings.Trim(commit.SanitizeNoteText(strings.TrimRightFunc(f.Value, unicode.IsSpace)), "\n")
+		if strings.TrimSpace(note) != "" {
+			return escapeFooterMarkdown(note)
+		}
+	}
+
+	return ""
+}
+
+func (g *Generator) formattedLine(c commit.Commit) string {
 	shortHash := c.Hash
 	if len(shortHash) > 7 { //nolint:mnd // standard short hash length
 		shortHash = shortHash[:7]
@@ -217,7 +260,7 @@ func (g *Generator) formattedLine(c commit.Commit, description string) string {
 		hashRef = fmt.Sprintf("[%s](%s%s/commit/%s)", shortHash, g.repoURL, g.pathPrefix, c.Hash)
 	}
 
-	linked := g.linkDescription(sanitizeCommitText(description))
+	linked := g.linkDescription(sanitizeCommitText(c.Description))
 	scope := sanitizeCommitText(c.Scope)
 
 	var sb strings.Builder
@@ -345,16 +388,6 @@ func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
 	return grouped
 }
 
-func breakingDescription(c commit.Commit) string {
-	for _, f := range c.Footers {
-		if f.Key == "BREAKING CHANGE" || f.Key == "BREAKING-CHANGE" {
-			return strings.TrimRightFunc(f.Value, unicode.IsSpace)
-		}
-	}
-
-	return c.Description
-}
-
 func sanitizeCommitText(s string) string {
 	stripped := strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\r' {
@@ -372,7 +405,95 @@ func sanitizeCommitText(s string) string {
 		return r
 	}, s)
 
-	return strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(stripped)
+	return escapeCommentMarkers(stripped)
+}
+
+func escapeCommentMarkers(s string) string {
+	return strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(s)
+}
+
+func escapeFooterMarkdown(text string) string {
+	for {
+		escaped := commit.SanitizeNoteText(text)
+		openings := commit.UnclosedBlockOffsets(escaped)
+
+		for len(openings) > 0 {
+			escaped = insertBackslashes(escaped, openings)
+			openings = commit.UnclosedBlockOffsets(escaped)
+		}
+
+		escaped = escapeHeadings(escaped)
+		if escaped == text {
+			return text
+		}
+
+		text = escaped
+	}
+}
+
+func escapeHeadings(text string) string {
+	var offsets []int
+
+	_ = ast.Walk(parser.New().Parse([]byte(text)), func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		heading, ok := node.(*ast.Heading)
+		if !ok || !entering {
+			return ast.WalkContinue, nil
+		}
+
+		if offset, found := headingMarkerOffset(text, heading); found {
+			offsets = append(offsets, offset)
+		}
+
+		return ast.WalkSkipChildren, nil
+	})
+
+	return insertBackslashes(text, offsets)
+}
+
+func insertBackslashes(text string, offsets []int) string {
+	var sb strings.Builder
+
+	last := 0
+	for _, offset := range offsets {
+		sb.WriteString(text[last:offset])
+		sb.WriteByte('\\')
+
+		last = offset
+	}
+
+	sb.WriteString(text[last:])
+
+	return sb.String()
+}
+
+func headingMarkerOffset(text string, heading *ast.Heading) (int, bool) {
+	if heading.HeadingKind == ast.HeadingKindATX {
+		return heading.Pos(), true
+	}
+
+	source := heading.Source()
+	if len(source) == 0 {
+		return 0, false
+	}
+
+	lineEnd := strings.IndexByte(text[source[len(source)-1].Start:], '\n')
+	if lineEnd == -1 {
+		return 0, false
+	}
+
+	underline := source[len(source)-1].Start + lineEnd + 1
+
+	underlineEnd := strings.IndexByte(text[underline:], '\n')
+	if underlineEnd == -1 {
+		underlineEnd = len(text) - underline
+	}
+
+	marker := strings.IndexAny(text[underline:underline+underlineEnd], "=-")
+	if marker == -1 {
+		return 0, false
+	}
+
+	return underline + marker, true
 }
 
 func capitalizeFirst(s string) string {

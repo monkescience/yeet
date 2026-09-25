@@ -12,7 +12,6 @@ func TestReleaseBreakingDescriptionTrailingWhitespace(t *testing.T) {
 		{name: "trailing newline", footer: "BREAKING CHANGE: remove API\n"},
 		{name: "trailing whitespace", footer: "BREAKING-CHANGE: remove API \t\n\n"},
 		{name: "CRLF newline", footer: "BREAKING CHANGE: remove API\r\n"},
-		{name: "multiline description", footer: "BREAKING CHANGE: remove\nAPI\n"},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
@@ -26,4 +25,16 @@ func TestReleaseBreakingDescriptionTrailingWhitespace(t *testing.T) {
 				"testdata/release/breaking_description_whitespace/pull_request.expected.md")
 		})
 	}
+}
+
+func TestReleaseBreakingDescriptionLineBreaks(t *testing.T) {
+	t.Parallel()
+
+	// given: a breaking footer whose description spans two lines
+	message := "fix: update API\n\nBREAKING CHANGE: remove\nAPI\n"
+
+	// when: creating its release through the CLI
+	// then: the note keeps the footer line break
+	assertConventionalRelease(t, message, "2.0.0",
+		"testdata/release/breaking_description_multiline/pull_request.expected.md")
 }

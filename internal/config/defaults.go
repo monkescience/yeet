@@ -30,18 +30,18 @@ func defaultChangelogInclude() []string {
 
 func defaultChangelogSections() map[string]string {
 	return map[string]string{
-		commitTypeFeat:   "Features",
-		commitTypeFix:    "Bug Fixes",
-		commitTypePerf:   "Performance Improvements",
-		commitTypeRevert: "Reverts",
-		"docs":           "Documentation",
-		"style":          "Styles",
-		"refactor":       "Code Refactoring",
-		"test":           "Tests",
-		"build":          "Build System",
-		"ci":             "Continuous Integration",
-		"chore":          "Miscellaneous Chores",
-		"breaking":       defaultBreakingChangesHeading,
+		commitTypeFeat:     "Features",
+		commitTypeFix:      "Bug Fixes",
+		commitTypePerf:     "Performance Improvements",
+		commitTypeRevert:   "Reverts",
+		"docs":             "Documentation",
+		"style":            "Styles",
+		"refactor":         "Code Refactoring",
+		"test":             "Tests",
+		"build":            "Build System",
+		"ci":               "Continuous Integration",
+		"chore":            "Miscellaneous Chores",
+		BreakingSectionKey: defaultBreakingChangesHeading,
 	}
 }
 

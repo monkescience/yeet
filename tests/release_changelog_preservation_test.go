@@ -52,4 +52,46 @@ func TestReleaseChangelogPreservation(t *testing.T) {
 		// then: the refreshed body keeps both manual sections in place around the regenerated one
 		testastic.Equal(t, 0, result.ExitCode)
 	})
+
+	t.Run("github regenerates the breaking section when refreshing the release PR", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a release branch CHANGELOG with an intro, an outdated breaking section and a manual section
+		dir := "testdata/release/github_regenerates_the_breaking_section/"
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat!: drop legacy mode\n\nBREAKING CHANGE: Remove legacy mode."},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:                     "testorg",
+			Repo:                      "testrepo",
+			LatestTag:                 "v1.0.0",
+			BoundarySHA:               shas[0],
+			BranchHeadSHA:             shas[1],
+			Files:                     map[string]string{"CHANGELOG.md": readTestFile(t, dir+"changelog.input.md")},
+			ExistingOpenReleasePRBody: readTestFile(t, dir+"existing_pull_request_body.input.md"),
+			ExpectPRBodyFile:          dir + "pull_request_body.expected.md",
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release` so the open PR is refreshed
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the breaking section is regenerated while the intro and manual section survive
+		testastic.Equal(t, 0, result.ExitCode)
+	})
 }

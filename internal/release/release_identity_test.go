@@ -3,6 +3,7 @@ package release
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -97,6 +98,71 @@ func TestReleaseManifestRoundTrip(t *testing.T) {
 
 func TestReleaseManifestFromBody(t *testing.T) {
 	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		code string
+	}{
+		{
+			name: "quoted fenced code",
+			code: "- example\n  > ```html\n  > " + strings.ReplaceAll(singleTargetManifestMarker, "\n", "\n  > ") +
+				"\n  > ```",
+		},
+		{
+			name: "closed top-level fenced code",
+			code: "```html\n" + singleTargetManifestMarker + "\n```",
+		},
+		{
+			name: "unclosed quoted fenced code",
+			code: "> ```html\n> " + strings.ReplaceAll(singleTargetManifestMarker, "\n", "\n> "),
+		},
+		{
+			name: "inline code",
+			code: "Use `" + strings.ReplaceAll(singleTargetManifestMarker, "\n", " ") + "`.",
+		},
+		{
+			name: "indented code",
+			code: "    " + strings.ReplaceAll(singleTargetManifestMarker, "\n", "\n    "),
+		},
+	} {
+		t.Run("ignores manifest examples in "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a manifest code example before a distinct legitimate release manifest
+			body := tc.code + "\n\n" + waveManifestMarker
+
+			// when: parsing the release pull request body and the code example alone
+			manifest, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: body})
+			_, found, exampleErr := releaseManifestFromBody(tc.code)
+
+			// then: only the real manifest is selected and the example cannot supply release identity
+			testastic.NoError(t, err)
+			testastic.Equal(t, 2, len(manifest.Targets))
+			testastic.Equal(t, "api", manifest.Targets[0].ID)
+			testastic.NoError(t, exampleErr)
+			testastic.False(t, found)
+		})
+	}
+
+	for _, fence := range []string{"```sh", "~~~sh"} {
+		t.Run("recovers manifest after unclosed "+fence, func(t *testing.T) {
+			t.Parallel()
+
+			// given: manually edited release notes with a fence that consumes the generated manifest
+			body := "### Upgrade\n\n" + fence + "\necho upgrade\n\n" + singleTargetManifestMarker
+
+			// when: reading the release identity and checking the same malformed notes with two manifests
+			manifest, err := releaseManifestFromPullRequest(&forge.PullRequest{Body: body})
+			_, _, duplicateErr := releaseManifestFromBody(body + "\n\n" + waveManifestMarker)
+
+			// then: the single manifest is recovered and ambiguous identity still fails closed
+			testastic.NoError(t, err)
+			testastic.DeepEqual(t, []releaseManifestEntry{{
+				ID: "default", Type: "path", Tag: "v1.2.3", ChangelogFile: "CHANGELOG.md",
+			}}, manifest.Targets)
+			testastic.ErrorIs(t, duplicateErr, errInvalidReleaseManifest)
+		})
+	}
 
 	t.Run("parses manifest marker normalized by GitLab UI", func(t *testing.T) {
 		t.Parallel()

@@ -43,6 +43,7 @@ type GitHubOptions struct {
 	ExpectPRBodyFile              string
 	ExpectCommitSubject           string
 	ExpectedUpdatedFiles          map[string]string
+	ExpectedUpdatedFileGoldens    map[string]string
 	ExpectedCreatedPullRequests   []GitHubPullRequestExpectation
 	PendingChecks                 bool
 	AutoMergeAlreadyEnabled       bool
@@ -907,7 +908,7 @@ func registerGitHubGitData(
 	mux.HandleFunc("GET "+prefix+"/git/trees/{sha}", githubTreeHandler(t, opts))
 
 	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, r *http.Request) {
-		assertGitHubUpdatedFiles(t, r, opts.ExpectedUpdatedFiles)
+		assertGitHubUpdatedFiles(t, r, opts.ExpectedUpdatedFiles, opts.ExpectedUpdatedFileGoldens)
 		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
 	})
 
@@ -949,10 +950,10 @@ func githubCreateRefHandler(publication *githubPublicationAssertions) http.Handl
 	}
 }
 
-func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected map[string]string) {
+func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected, goldens map[string]string) {
 	t.Helper()
 
-	if len(expected) == 0 {
+	if len(expected) == 0 && len(goldens) == 0 {
 		return
 	}
 
@@ -977,6 +978,10 @@ func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected map[string
 
 	for path, content := range expected {
 		testastic.Equal(t, content, actual[path])
+	}
+
+	for path, golden := range goldens {
+		testastic.AssertFile(t, golden, actual[path])
 	}
 }
 

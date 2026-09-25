@@ -58,6 +58,15 @@ JSON files use `format: json` and `json_pointer`.
 YAML, TOML, and XML files use comment markers.
 See [Version files](configuration.md#version-files).
 
+## Changelog differences
+
+yeet keeps the release-please version heading, `⚠ BREAKING CHANGES` section, and type sections, with these differences:
+
+- A breaking entry shows the commit description. The `BREAKING CHANGE` footer text appears below it as a note.
+- `release-note` fences add notes, quoted under the change they explain. See [Release notes](changelog-generation.md#release-notes).
+
+Existing changelog entries are not rewritten.
+
 ## Marker mapping
 
 | release-please | yeet |

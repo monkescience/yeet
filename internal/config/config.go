@@ -17,6 +17,8 @@ const DefaultFile = ".yeet.yaml"
 
 const githubProjectSegments = 2
 
+const BreakingSectionKey = "breaking"
+
 const (
 	commitTypeFeat   = "feat"
 	commitTypeFix    = "fix"

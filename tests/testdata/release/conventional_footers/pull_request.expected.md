@@ -4,7 +4,8 @@
 
 ### ⚠ BREAKING CHANGES
 
-- remove API ([{{regex `[0-9a-f]{7}`}}](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/{{regex `[0-9a-f]{40}`}})) (#123)
+- update API ([{{regex `[0-9a-f]{7}`}}](http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/commit/{{regex `[0-9a-f]{40}`}})) (#123)
+  > remove API
 
 ### Bug Fixes
 

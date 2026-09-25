@@ -75,7 +75,7 @@ func TestGenerate(t *testing.T) {
 		// when: generating changelog
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
-		// then: breaking changes section uses release-please style header
+		// then: the footer becomes a note in the breaking changes section
 		testastic.AssertFile(
 			t,
 			"testdata/generate/includes_breaking_changes_section/body.expected.md",
@@ -585,7 +585,7 @@ func TestGenerate(t *testing.T) {
 		// when: generating changelog
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
-		// then: reference appears in breaking changes section
+		// then: the reference appears in the breaking note and the type section
 		testastic.AssertFile(
 			t,
 			"testdata/generate/references_in_breaking_changes_section/body.expected.md",
@@ -977,7 +977,7 @@ func TestPrepend(t *testing.T) {
 func TestGenerateSanitizesCommitText(t *testing.T) {
 	t.Parallel()
 
-	t.Run("preserves word boundaries in multiline footer values", func(t *testing.T) {
+	t.Run("keeps line breaks in multiline footer notes", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a breaking footer whose value spans multiple lines
@@ -995,10 +995,10 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		// when: generating the changelog
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
 
-		// then: the removed newline leaves a space between the adjacent words
+		// then: the note keeps the footer line break
 		testastic.AssertFile(
 			t,
-			"testdata/generate_sanitizes_commit_text/preserves_word_boundaries_in_multiline_footer_values/body.expected.md",
+			"testdata/generate_sanitizes_commit_text/keeps_line_breaks_in_multiline_footer_notes/body.expected.md",
 			changelog.RenderSections(entry.Sections),
 		)
 	})

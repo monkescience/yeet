@@ -2,6 +2,7 @@ package release
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/history"
+	"github.com/monkescience/yeet/internal/logattr"
 )
 
 func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
@@ -26,61 +28,126 @@ func needsPathFiltering(targets map[string]config.ResolvedTarget) bool {
 	return false
 }
 
-func (a *releaseAnalyzer) parseCommits(ctx context.Context, entries []history.CommitEntry) ([]commit.Commit, error) {
+type parsedCommit struct {
+	commit         commit.Commit
+	noteErr        error
+	hiddenOverride bool
+}
+
+func (a *releaseAnalyzer) parseCommits(
+	ctx context.Context,
+	entries []history.CommitEntry,
+	target config.ResolvedTarget,
+) ([]commit.Commit, error) {
 	commits := make([]commit.Commit, 0, len(entries))
 
 	for _, entry := range entries {
-		override, err := a.commitOverride(ctx, entry)
+		parsed, err := a.parseEntry(ctx, entry)
 		if err != nil {
 			return nil, err
 		}
 
-		if override.found {
-			commits = append(commits, override.commits...)
+		for _, candidate := range parsed {
+			if candidate.hiddenOverride {
+				slog.WarnContext(ctx, "ignored commit override inside unclosed release note",
+					slog.String("target", target.ID),
+					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+					logattr.Hint("close the release-note fence before BEGIN_COMMIT_OVERRIDE to restore the override"),
+				)
+			} else if candidate.noteErr != nil && inChangelog(candidate.commit, target.Changelog.Include) {
+				slog.WarnContext(ctx, "skipped invalid release note",
+					slog.String("target", target.ID),
+					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+					slog.String("problem", candidate.noteErr.Error()),
+					logattr.Hint(releaseNoteHint(candidate.noteErr)+
+						", or add the note to the changelog on the release branch"),
+				)
+			}
 
-			continue
+			commits = append(commits, candidate.commit)
 		}
-
-		commits = append(commits, commit.Parse(ctx, entry.Hash, entry.Message))
 	}
 
 	return commits, nil
 }
 
-func (a *releaseAnalyzer) commitOverride(
-	ctx context.Context,
-	entry history.CommitEntry,
-) (commitOverrideResult, error) {
+func (a *releaseAnalyzer) parseEntry(ctx context.Context, entry history.CommitEntry) ([]parsedCommit, error) {
 	hash := strings.TrimSpace(entry.Hash)
 	if hash == "" {
-		return commitOverrideResult{}, nil
+		return []parsedCommit{parseCommitMessage(ctx, entry.Hash, entry.Message)}, nil
 	}
 
-	if cached, exists := a.overrideCache[hash]; exists {
+	if cached, exists := a.parseCache[hash]; exists {
 		return cached, nil
 	}
 
 	messages, found, err := commitOverrideMessages(ctx, hash, entry.Message, a.overrideTypes)
 	if err != nil {
-		return commitOverrideResult{}, fmt.Errorf("parse commit override for %q: %w", hash, err)
+		return nil, fmt.Errorf("parse commit override for %q: %w", hash, err)
 	}
 
-	if !found {
-		result := commitOverrideResult{}
-		a.overrideCache[hash] = result
+	parsed := make([]parsedCommit, 0, len(messages))
 
-		return result, nil
+	if found {
+		for _, message := range messages {
+			parsed = append(parsed, parseCommitMessage(ctx, hash, message))
+		}
+	} else {
+		parsed = append(parsed, parseCommitMessage(ctx, entry.Hash, entry.Message))
 	}
 
-	commits := make([]commit.Commit, 0, len(messages))
-	for _, message := range messages {
-		commits = append(commits, commit.Parse(ctx, hash, message))
+	a.parseCache[hash] = parsed
+
+	return parsed, nil
+}
+
+func parseCommitMessage(ctx context.Context, hash, message string) parsedCommit {
+	parsed, err := commit.ParseWithReleaseNote(ctx, hash, message)
+
+	return parsedCommit{
+		commit: parsed, noteErr: err,
+		hiddenOverride: err != nil && unclosedNoteHidesOverride(message),
+	}
+}
+
+func unclosedNoteHidesOverride(message string) bool {
+	if !strings.Contains(message, commitOverrideStartMarker) {
+		return false
 	}
 
-	result := commitOverrideResult{commits: commits, found: true}
-	a.overrideCache[hash] = result
+	message = strings.ReplaceAll(message, "\r\n", "\n")
+	noteLines := commit.ReleaseNoteLines(message)
+	closedLines := commit.ClosedReleaseNoteLines(message)
 
-	return result, nil
+	for line, text := range strings.Split(message, "\n") {
+		if line < len(noteLines) && noteLines[line] && !closedLines[line] &&
+			strings.Contains(text, commitOverrideStartMarker) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func releaseNoteHint(err error) string {
+	switch {
+	case errors.Is(err, commit.ErrReleaseNoteUnclosed):
+		return "close the release-note fence"
+	case errors.Is(err, commit.ErrReleaseNoteEmpty):
+		return "write the note inside the release-note fence or remove the fence"
+	case errors.Is(err, commit.ErrReleaseNoteHeading):
+		return "use level 4 or deeper headings inside release notes"
+	case errors.Is(err, commit.ErrReleaseNoteUnclosedCodeBlock):
+		return "use a longer backtick or a tilde outer fence around nested code blocks"
+	case errors.Is(err, commit.ErrReleaseNoteUnclosedHTML):
+		return "close the HTML block or escape its opening tag"
+	default:
+		return "fix the release-note fence"
+	}
+}
+
+func inChangelog(c commit.Commit, include []string) bool {
+	return c.Breaking || slices.Contains(include, c.Type)
 }
 
 func (a *releaseAnalyzer) planPathTargets(
@@ -244,7 +311,7 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 		slog.Int("matched", len(entries)),
 	)
 
-	commits, err := a.parseCommits(ctx, entries)
+	commits, err := a.parseCommits(ctx, entries, target)
 	if err != nil {
 		return directPlanContext{}, err
 	}
@@ -304,7 +371,7 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 		directEntries = filterEntriesForTarget(targetHist.entries, target)
 	}
 
-	directCommits, err := a.parseCommits(ctx, directEntries)
+	directCommits, err := a.parseCommits(ctx, directEntries, target)
 	if err != nil {
 		return derivedPlanContext{}, err
 	}
@@ -634,7 +701,7 @@ func logParsedCommits(ctx context.Context, targetID string, changelogTypes []str
 			slog.String("hash", hash),
 			slog.String("type", parsed.Type),
 			slog.Bool("breaking", parsed.Breaking),
-			slog.Bool("in_changelog", parsed.Breaking || slices.Contains(changelogTypes, parsed.Type)),
+			slog.Bool("in_changelog", inChangelog(parsed, changelogTypes)),
 		)
 	}
 }
