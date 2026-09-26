@@ -1,12 +1,11 @@
 # Artifact verification
 
-Release archives and the container image are signed through Sigstore keyless signing.
-Both also carry GitHub build provenance attestations.
-Replace the archive name when verifying another platform.
+Release archives and the container image are signed with Sigstore and carry GitHub build provenance.
+The examples use the Linux amd64 archive. Replace the file name for other platforms.
 
-## Archive signature
+## Signatures
 
-Download an archive and its adjacent `.sigstore.json` bundle from the same GitHub release, then run:
+Download the archive and its `.sigstore.json` bundle from the same GitHub release, then run:
 
 ```sh
 cosign verify-blob \
@@ -16,9 +15,7 @@ cosign verify-blob \
   yeet_linux_amd64.tar.gz
 ```
 
-This expects a certificate issued to `.github/workflows/binaries.yaml` in `monkescience/yeet` by GitHub Actions.
-
-## Container signature
+For the container image:
 
 ```sh
 cosign verify \
@@ -27,27 +24,11 @@ cosign verify \
   ghcr.io/monkescience/yeet:v0.16.2 # x-yeet-version
 ```
 
-This expects a certificate issued to `.github/workflows/image.yaml` in `monkescience/yeet` by GitHub Actions.
-
-## Archive provenance
+## Provenance
 
 ```sh
 gh attestation verify yeet_linux_amd64.tar.gz --repo monkescience/yeet
-```
-
-This expects provenance from `.github/workflows/binaries.yaml` in `monkescience/yeet`.
-The repository selector verifies the source repository, and the result identifies the workflow and commit that produced the archive.
-
-## Container provenance
-
-```sh
 gh attestation verify oci://ghcr.io/monkescience/yeet:v0.16.2 --repo monkescience/yeet # x-yeet-version
 ```
 
-This expects provenance from `.github/workflows/image.yaml` in `monkescience/yeet` and reports the source workflow and commit.
-
-## Related documentation
-
-- [Documentation index](README.md)
-- [First automated release](../README.md#quick-start)
-- [CI setup](ci.md)
+Both commands confirm the artifact was built from `monkescience/yeet` and report the workflow and commit that produced it.

@@ -49,7 +49,7 @@ A block that exists only in a PR body has no effect unless the provider copies i
 | `.release-please-manifest.json` | Not needed, versions come from git tags |
 | `separate-pull-requests` | `release.pull_request_mode: independent`, see [Monorepo release units](release.md#monorepo-release-units) |
 
-Translate title patterns to Go `text/template` syntax using [Branch, subject, and release name templates](release.md#branch-subject-and-release-name-templates).
+Translate title patterns to Go `text/template` syntax using [Titles, branches, and body](release.md#titles-branches-and-body).
 Change lifecycle label names only after all in-flight releases are closed or finalized.
 
 yeet has no language-specific `release-type` strategies.
@@ -63,7 +63,7 @@ See [Version files](configuration.md#version-files).
 yeet keeps the release-please version heading, `⚠ BREAKING CHANGES` section, and type sections, with these differences:
 
 - A breaking entry shows the commit description. The `BREAKING CHANGE` footer text appears below it as a note.
-- `release-note` fences add notes, quoted under the change they explain. See [Release notes](changelog-generation.md#release-notes).
+- `release-note` fences add notes, quoted under the change they explain. See [Release notes](commits.md#release-notes).
 
 Existing changelog entries are not rewritten.
 

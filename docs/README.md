@@ -1,22 +1,26 @@
-# Find the right guide
+# yeet documentation
 
-Start with what you want to accomplish.
-Each guide includes the configuration and provider details you need for that task.
+New to yeet? Start with the [Quick start](../README.md#quick-start).
 
-| I want to... | Start here |
-|---|---|
-| Publish my first automated release | Follow the local preview, CI setup, and first-release path in the [Quick start](../README.md#quick-start). |
-| Give yeet access to my provider | Choose token variables, permissions, and self-hosted URLs in [Authentication](authentication.md). |
-| Run yeet in CI | Copy the GitHub Actions, GitLab CI, or Azure Pipelines example from [CI setup](ci.md). |
-| Release one repository | Start with the generated target in [Configuration](configuration.md#targets). |
-| Release multiple packages from a monorepo | Define path and derived targets in [Configuration](configuration.md#targets). |
-| Control version bumps and changelog sections | Choose a strategy in [Versioning](versioning.md), then configure [Changelog generation](changelog-generation.md). |
-| Customize release PRs, reviewers, or prerelease channels | Use [Release PRs and MRs](release.md) for lifecycle and provider behavior. |
-| Recover from a failed release | Find recovery steps for auto-merge and release labels in [Troubleshooting](troubleshooting.md). |
-| Verify a downloaded archive or container image | Check signatures and provenance with [Artifact verification](verification.md). |
-| See or disable the anonymous analytics | Review the payload and opt-out options in [Telemetry](telemetry.md). |
-| Move from release-please | Follow the ordered [Migration guide](migrate-from-release-please.md). |
-| Contribute or report a vulnerability | Read [Contributing](../CONTRIBUTING.md) or use the private process in [Security Policy](../SECURITY.md). |
+## Set up
 
-The complete `.yeet.yaml` field reference is [`yeet.schema.json`](../yeet.schema.json).
-CLI flags and environment variables are also available through `yeet --help` and `yeet <command> --help`.
+- [Authentication](authentication.md): tokens, permissions, and self-hosted providers
+- [CI setup](ci.md): copyable pipelines for GitHub, GitLab, and Azure DevOps
+- [Configuration](configuration.md): `.yeet.yaml`, monorepo targets, and version files
+- [Migrating from release-please](migrate-from-release-please.md)
+
+## Day to day
+
+- [Writing commits](commits.md): commit format, breaking changes, release notes, and overrides
+- [Versioning](versioning.md): how versions are bumped with semver or calver
+- [Changelog](changelog-generation.md): sections and issue links
+- [Release PRs and MRs](release.md): lifecycle, labels, reviewers, templates, and prerelease channels
+- [Auto-merge](auto-merge.md): merging release PRs/MRs without manual steps
+
+## Reference
+
+- [Troubleshooting](troubleshooting.md)
+- [Artifact verification](verification.md)
+- [Telemetry](telemetry.md)
+- [`yeet.schema.json`](../yeet.schema.json): every `.yeet.yaml` field
+- `yeet --help` and `yeet <command> --help`: every flag and environment variable

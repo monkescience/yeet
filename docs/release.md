@@ -1,65 +1,71 @@
 # Release PRs and MRs
 
-Settings under `release:` apply to every release PR/MR.
-Combined mode creates one release PR/MR for all eligible targets.
-Independent mode creates one for each eligible ungrouped target or atomic group.
+Every CI run of `yeet release` moves the release one step forward:
 
-The release lifecycle has three states:
-
-| State | What `yeet release` does |
+| Situation | What yeet does |
 |---|---|
-| No open release | Analyzes commits, updates changelogs and version files, then opens a release PR/MR with the pending label |
-| Open pending release | Refreshes the same release branch and PR/MR with newly eligible commits |
-| Merged pending release | Creates the tag and provider release, replaces the pending label with the tagged label, and publishes changelog notes |
+| No open release | Updates changelogs and version files, then opens a release PR/MR labeled `autorelease: pending` |
+| Release PR/MR is open | Refreshes it with any new commits |
+| Release PR/MR was merged | Creates the tag and provider release, then relabels the PR/MR `autorelease: tagged` |
 
-With `--auto-merge` or `release.auto_merge`, yeet also merges the release PR/MR.
-See [Auto-merge modes](#auto-merge-modes).
+Most repositories need no `release:` settings. The options below are all optional.
+To merge release PRs/MRs automatically, see [Auto-merge](auto-merge.md).
 
-## Typical setup
+## Editing release notes
 
-Most repositories need no `release:` settings.
-Add only the ones you need, for example auto-merge with a reviewer, or a custom PR/MR body.
+The provider release notes are the new `CHANGELOG.md` entry, not the PR/MR body.
+To add a summary or extra sections, edit the changelog on the release branch:
 
-```yaml
-release:
-  auto_merge: true
-  auto_merge_mode: provider
-  auto_merge_method: squash
-  reviewers:
-    - alice
+```md
+## [v2.0.0](https://github.com/org/repo/compare/v1.4.0...v2.0.0) (2026-09-25)
+
+Units replace targets. Most configs need a one-line rename.
+
+### Migration Notes
+
+Run database migrations before deploying workers.
+
+### ⚠ BREAKING CHANGES
 ```
 
-```yaml
-release:
-  pr_body_header: "## Release"
-  pr_body_footer: "_Automated._"
-  pr_body_max_length: 4000
-```
+Refreshes keep text before the first section, your own `###` sections, and a closing paragraph separated by a blank line.
+Generated sections are rebuilt, so edits inside them are lost.
+For notes on individual changes, use [release notes in commits](commits.md#release-notes).
 
-### Monorepo release units
+## Monorepo release units
 
-Combined mode is the default and preserves one release wave.
-Opt into independently managed release units in the checked-in configuration:
+By default, one release PR/MR covers every target with changes.
+For separate PRs/MRs, switch to independent mode:
 
 ```yaml
 release:
   pull_request_mode: independent
   groups:
     backend:
-      targets:
-        - api
-        - worker
+      targets: [api, worker]
 ```
 
-Every ungrouped target receives its own release PR/MR.
-A group shares one atomic PR/MR, but only members with eligible changes are included.
-Selecting any grouped target with `--target` expands the selection to the whole group before eligibility is calculated.
+Each ungrouped target gets its own PR/MR, and each group shares one.
+Selecting a grouped target with `--target` selects the whole group.
+Independent units cannot write the same changelog or version file, so put such targets in one group.
 
-Independent units must not write the same changelog or version file.
-Put targets that intentionally share a writable file in one group, or configure separate files.
-Existing reviewers, labels, body wrappers, templates, channels, and auto-merge settings apply to every unit.
+## Reviewers
 
-### Labels
+```yaml
+release:
+  reviewers:
+    - alice
+```
+
+Reviewers are requested when the PR/MR is created. Later changes you make by hand are kept.
+
+| Provider | Identifier | Notes |
+|---|---|---|
+| GitHub | Username | Must be a collaborator. A personal token's owner cannot review their own PR |
+| GitLab | Username | Must be a project member |
+| Azure DevOps | Email or display name | Prefer email. Needs the Identity (Read) scope |
+
+## Labels
 
 ```yaml
 release:
@@ -67,168 +73,45 @@ release:
     pending: 'autorelease: pending'
     tagged: 'autorelease: tagged'
     yeet: true
-    extra:
-      - release
-      - automated
+    extra: [release, automated]
 ```
 
-| Event | Pending | Tagged | Managed and extra labels |
-|---|---|---|---|
-| Create release | Add | Remove if present | Add `yeet` unless disabled, then add every `extra` label |
-| Refresh open release | Keep current state | Keep current state | Preserve manual changes, do not restore removed labels |
-| Finalize release | Remove | Add | Leave every other label unchanged |
+yeet tracks releases through the `pending` and `tagged` labels. It also adds a `yeet` label unless disabled, plus any `extra` labels.
+On GitHub and GitLab, extra labels must already exist. yeet creates the others.
 
-GitHub and GitLab create missing lifecycle labels and the managed `yeet` label when a release is opened or adopted.
-Extra labels must already exist.
-Before publication, yeet checks that the tagged label still exists.
-Azure DevOps cannot inspect label definitions, so it attaches configured labels directly.
+Only rename `pending` or `tagged` when no release is open or waiting to be tagged. See [Troubleshooting](troubleshooting.md#release-labels).
 
-GitHub and Azure DevOps match lifecycle names case-insensitively.
-GitLab matches exactly.
-Label names cannot contain a comma or equal `any` or `none`, because those values conflict with GitLab label filters.
-
-For renamed, missing, or conflicting labels, follow the [label recovery table](troubleshooting.md#release-labels).
-
-### Branch, subject, and release name templates
+## Titles, branches, and body
 
 ```yaml
 release:
-  branch_template: 'automation/release-{{ .Branch }}'
-  name_template: '{{ .Target }} {{ .Version }}'
   pr_title: 'chore({{ .Target }}): release {{ .Tag }}'
   pr_title_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
   commit_subject: 'chore({{ .Target }}): release {{ .Tag }}'
   commit_subject_group: 'chore({{ .Branch }}): release {{ .TargetCount }} components'
+  name_template: '{{ .Target }} {{ .Version }}'
+  branch_template: 'automation/release-{{ .Branch }}'
+  pr_body_header: '## Release'
+  pr_body_footer: '_Automated._'
 ```
 
-The branch template receives `.Branch`, `.Channel`, and the branch-safe `.Unit`.
-It must render a nonempty valid Git branch that differs from the base branch.
-The combined default is `yeet/release-{{ .Branch }}`.
-Independent mode adds a deterministic unit suffix to that default.
-Custom templates in independent mode must use `.Unit` when needed to produce a unique branch for every configured unit and channel.
+Templates use Go [`text/template`](https://pkg.go.dev/text/template) syntax.
 
-Single-target subject templates receive `.Branch`, `.Channel`, `.Target`, `.Version`, and `.Tag`.
-Group subject templates receive `.Branch`, `.Channel`, and `.TargetCount`.
-`.Version` omits the tag prefix, while `.Tag` includes it.
+| Template | Fields |
+|---|---|
+| `pr_title`, `commit_subject`, `name_template` | `.Branch`, `.Channel`, `.Target`, `.Version`, `.Tag` |
+| `pr_title_group`, `commit_subject_group` | `.Branch`, `.Channel`, `.TargetCount` |
+| `branch_template` | `.Branch`, `.Channel`, `.Unit` |
 
-The provider release `name_template` receives the same fields as a single-target subject.
-Its default is the release tag.
-Existing provider releases are never renamed.
+`.Version` is `1.2.3`, `.Tag` includes the prefix, such as `v1.2.3`.
+`name_template` sets the provider release name and defaults to the tag.
+In independent mode, include `.Unit` in a custom `branch_template` so every unit gets its own branch.
 
-Templates use Go `text/template` without custom functions.
-Rendered values must be nonempty and single-line.
-An empty subject template keeps the built-in value.
-Titles and commit subjects are independent, and existing release titles are regenerated on refresh.
-
-### Auto-merge modes
-
-`auto_merge_mode`, or the one-run `--auto-merge-mode` override, accepts `provider` or `direct`.
-Selecting a mode does not enable auto-merge.
-Use `auto_merge: true` or `--auto-merge` to enable the selected mode.
-
-| Mode | What happens | Next step |
-|---|---|---|
-| `provider` (default) | GitHub or GitLab schedules the merge and enforces its checks, approvals, merge queue, or merge train | CI must run `yeet release` again on the base branch after the merge to publish the release |
-| `direct` | yeet checks readiness, merges the PR/MR, and publishes in the same run | None |
-
-Provider mode requires native auto-merge to be enabled in the repository and the token to have permission to request it.
-
-| Provider | Provider mode | Direct mode |
-|---|---|---|
-| GitHub | Supported. GitHub Enterprise Server 3.17 or newer, earlier versions are untested | Supported |
-| GitLab | Supported on GitLab 17.11 or newer | Supported |
-| Azure DevOps | Not supported | Supported |
-
-```yaml
-release:
-  auto_merge: true
-  auto_merge_mode: direct
-```
-
-Disabling auto-merge does not cancel a merge the provider already scheduled.
-Cancel it in the provider.
-
-A scheduled merge stays active while yeet refreshes the release branch and PR/MR.
-After a successful refresh, yeet schedules the merge again if the provider canceled it.
-A failed refresh leaves the scheduled merge in place, so the provider can merge before the refresh finishes.
-
-### Merge methods
-
-`auto_merge_method`, or the one-run `--auto-merge-method` override, accepts `auto`, `squash`, `rebase`, or `merge`.
-
-| Provider | `auto` behavior | Provider limitation |
-|---|---|---|
-| GitHub | Tries squash, then rebase, then merge when no queue is required. A required queue follows its configured method | Fails when no method is enabled or an explicit method conflicts with the required queue |
-| GitLab | Requests squash unless `squash_option` is `never`. A required train follows the project's configured method | Fails when an explicit method conflicts with the project or train settings |
-| Azure DevOps | Requests squash | yeet cannot inspect merge-strategy capabilities |
-
-An explicit method asks the provider for that strategy and fails if the provider rejects it or cannot guarantee it for the required queue or train.
-
-In direct mode, yeet waits up to 2 minutes for the merge commit to appear.
-Raise the timeout if a slow installation reports a merge timeout:
-
-```yaml
-release:
-  merge_polling:
-    initial_interval: 500ms
-    max_interval: 10s
-    timeout: 5m
-```
-
-### Reviewers
-
-Reviewers are assigned only when the PR/MR is created.
-Refreshes preserve manual changes.
-Resolution or assignment failure stops the create flow.
-
-| Provider | Identifier | Permission and limitation |
-|---|---|---|
-| GitHub | Username | Must be a repository collaborator. A PAT owner cannot review their own PR, so omit that user when a personal token creates the release |
-| GitLab | Username | Must be a project member, including inherited members. Some tiers accept fewer reviewers, so yeet verifies the created MR |
-| Azure DevOps | Email or display name | Requires Identity (Read), `vso.identity`. Ambiguous names fail, and display names can match groups, so prefer email |
-
-### PR/MR body limits
-
-`pr_body_max_length` caps the generated body.
-If the changelog does not fit but the fallback does, yeet keeps the header, footer, and hidden release manifest while replacing the changelog with a link notice.
-If the fallback also exceeds the limit, the run fails before updating the branch.
-`0` uses only the provider limit.
-Azure DevOps always enforces 4000 characters.
-
-The default header is `## ٩(^ᴗ^)۶ release created`.
-Replacing `pr_body_footer` also replaces the default preview notice and attribution.
-An empty footer removes it.
-The body is regenerated on every run.
-
-## Release notes
-
-Final release notes come from the matching generated `CHANGELOG.md` entry, not the PR/MR body.
-Per-change notes come from `release-note` fences in commit messages, see [Release notes](changelog-generation.md#release-notes).
-Edit the changelog on the release branch to add a short summary above the sections:
-
-```md
-## [v2.0.0](https://github.com/org/repo/compare/v1.4.0...v2.0.0) (2026-09-25)
-
-Units replace targets. Most configs need a one-line rename.
-
-### ⚠ BREAKING CHANGES
-```
-
-You can also add manual sections:
-
-````md
-### Migration Notes
-
-Run database migrations before deploying workers.
-````
-
-Refreshes preserve manual `###` sections, freeform text before the first section, and an outro separated from generated content by a blank line.
-Conventional-commit sections are regenerated, so manual edits inside or between them are replaced.
+When the changelog makes the body too long, yeet links to it instead. Set `pr_body_max_length` to use a lower limit.
 
 ## Prerelease channels
 
-Prerelease channels are branch-scoped and semver-only.
-`stable` is reserved.
+Release prereleases such as `v1.3.0-beta.1` from dedicated branches:
 
 ```yaml
 branch: main
@@ -238,27 +121,17 @@ release:
     beta:
       branch: beta
       prerelease: beta
-    rc:
-      branch: rc
-      prerelease: rc
 ```
 
-A run on `beta` creates a beta release PR/MR and later publishes a version such as `v1.3.0-beta.1`.
-Stable releases ignore prerelease tags when selecting their baseline.
+- A channel uses its own changelog, such as `CHANGELOG.beta.md`. Single-target setups can set `changelog_file` instead.
+- Stable releases ignore prerelease tags.
+- yeet fails on branches that are neither `branch` nor a channel branch.
+- `yeet release --dry-run --channel beta` previews a channel from any branch.
 
-Channels use separate changelogs by default.
-`CHANGELOG.md` becomes `CHANGELOG.beta.md`, and `services/api/CHANGELOG.md` becomes `services/api/CHANGELOG.beta.md`.
-A single-target channel may set `changelog_file`.
-Multi-target configurations always use derived names.
-Version files still receive the prerelease version.
-
-Runs fail on unconfigured branches.
-`--channel <name>` selects a configured channel, but non-dry runs still require its branch.
-`--dry-run` can preview stable or a selected channel from any branch.
+Channels require semver.
 
 ## Related documentation
 
-- [Documentation index](README.md)
+- [Auto-merge](auto-merge.md)
+- [Changelog](changelog-generation.md)
 - [Troubleshooting](troubleshooting.md)
-- [Versioning](versioning.md)
-- [Changelog generation](changelog-generation.md)

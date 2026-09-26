@@ -1,6 +1,6 @@
 # Configuration
 
-Run `yeet init` to create a `.yeet.yaml` with one target for the current repository:
+`yeet init` creates a `.yeet.yaml` with one target for the current repository:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/main/yeet.schema.json
@@ -12,131 +12,19 @@ targets:
     tag_prefix: v
 ```
 
-Most single-repository users edit only the target name, `path`, and `tag_prefix`.
-The target name appears in release output, `path` selects relevant commits, and `tag_prefix` controls tags such as `v1.2.3`.
+For a single repository, you usually only adjust `tag_prefix` so it matches your existing tags, such as `v` for `v1.2.3`.
+yeet continues from the latest matching tag.
 
-The [JSON schema](../yeet.schema.json) is the complete reference for fields, defaults, and descriptions.
-It also powers editor validation and autocompletion.
-
-yeet reads the nearest ancestor `.yeet.yaml`.
-Pass `--config` to read or create another path.
-
-## Repository targeting
-
-Repository detection uses these sources from highest to lowest priority:
-
-1. CLI flags, `--provider`, `--remote`, `--host`, `--owner`, `--repo`, and `--project`
-2. Explicit values under `repository:`
-3. The configured `repository.remote`
-4. The `origin` remote
-
-The coordinate flags require an explicit `--provider`.
-GitLab uses `--project` rather than `--owner` and `--repo`.
-Azure DevOps does not accept `--owner`.
-
-Automatic provider detection recognizes only `github.com`, `gitlab.com`, and `dev.azure.com`.
-Set `provider` for enterprise or self-hosted domains.
-Usually the remote still supplies the host and project path, so add `repository:` only when remote discovery is incomplete or must be overridden.
-
-Exactly one provider subsection may be configured, and it must match `provider`:
-
-```yaml
-# GitHub (including Enterprise)
-provider: github
-repository:
-  remote: upstream
-  github:
-    host: github.example.com
-    api_url: https://github.example.com/api/v3/
-    web_url: https://github.example.com
-    owner: acme
-    repo: widgets
-    # project: acme/widgets
-```
-
-```yaml
-# GitLab (self-managed)
-provider: gitlab
-repository:
-  gitlab:
-    host: gitlab.example.com
-    api_url: https://gitlab.example.com/api/v4
-    web_url: https://gitlab.example.com
-    project: group/sub/widgets
-```
-
-```yaml
-# Azure DevOps
-provider: azuredevops
-repository:
-  azuredevops:
-    host: dev.azure.com
-    api_url: https://dev.azure.com
-    web_url: https://dev.azure.com
-    organization: contoso
-    project: MyProject
-    repo: widgets
-    # collection: DefaultCollection
-```
-
-`api_url` and `web_url` are useful when a self-hosted provider uses a path prefix or separate API and browser roots.
-Both must be absolute HTTPS URLs without credentials, query parameters, or fragments.
-The `api_url` hostname must match the resolved repository host because yeet sends provider credentials to it.
-Environment overrides are covered in [Authentication](authentication.md#self-hosted-providers).
-
-## Network requests
-
-Provider requests time out after 30 seconds and make at most four total attempts by default.
-Durations use Go syntax such as `500ms`, `30s`, or `2m`:
-
-```yaml
-network:
-  request_timeout: 45s
-  retry:
-    max_attempts: 5
-    min_backoff: 1s
-    max_backoff: 15s
-```
-
-Retries apply only when the request can be repeated safely, or when a provider returns a rate-limit response.
-Azure DevOps honors `request_timeout` but ignores the `retry` settings.
-
-## Release timezone
-
-`timezone` controls both CalVer calculations and generated changelog dates.
-It accepts `Local`, `UTC`, or an IANA location such as `Europe/Berlin`:
-
-```yaml
-timezone: America/Los_Angeles
-```
-
-The compatibility default is `Local`, which uses the machine's local timezone.
-A release run captures one timestamp, so every target in the run uses the same calendar date.
+yeet uses the nearest `.yeet.yaml` in the current or a parent directory. Pass `--config` to use another file.
+The [JSON schema](../yeet.schema.json) lists every field and default, and gives your editor validation and autocompletion.
 
 ## Targets
 
-yeet plans each target independently.
-By default, all planned changes share one release PR/MR per base branch.
-Set `release.pull_request_mode: independent` to give targets their own PR/MR, see [Monorepo release units](release.md#monorepo-release-units).
-Use `--target` repeatedly to limit a run.
+A target is something yeet versions and tags.
+By default, all targets with changes share one release PR/MR. For one PR/MR per target, see [Monorepo release units](release.md#monorepo-release-units).
+Use `--target <name>` to release only some targets.
 
-### Single repository target
-
-Use a path target rooted at `.`.
-Choose a prefix that matches existing tags so version discovery continues from the correct release.
-
-```yaml
-targets:
-  widgets:
-    type: path
-    path: .
-    tag_prefix: v
-```
-
-### Monorepo path targets
-
-Each path target receives only commits that changed its path.
-`exclude_paths` removes subtrees from that match.
+### Monorepo
 
 ```yaml
 targets:
@@ -146,83 +34,52 @@ targets:
     tag_prefix: api-v
     exclude_paths:
       - services/api/testdata
-
-  web:
-    type: path
-    path: apps/web
-    tag_prefix: web-v
-```
-
-### Derived targets
-
-A derived target releases when any included target releases.
-An optional `path` also lets it match direct commits.
-
-```yaml
-targets:
-  api:
-    type: path
-    path: services/api
-    tag_prefix: api-v
   web:
     type: path
     path: apps/web
     tag_prefix: web-v
   root:
     type: derived
-    includes:
-      - api
-      - web
+    includes: [api, web]
     path: .
     tag_prefix: v
 ```
 
-Targets can override `versioning`, both pre-major settings, `version_files`, `changelog`, and `calver`.
-Release PR/MR settings remain top-level because they apply to every release PR/MR.
+A `path` target only picks up commits that touch its path, minus `exclude_paths`.
+A `derived` target releases whenever one of its `includes` releases, and optionally for commits under its own `path`.
 
-## Bump types
-
-By default, `feat` produces a minor bump and `fix` or `perf` produces a patch bump.
-Customize the mapping when the repository uses additional conventional commit types:
-
-```yaml
-bump_types:
-  minor:
-    - feat
-    - improvement
-  patch:
-    - fix
-    - perf
-    - deps
-```
-
-Unlisted types do not bump unless the commit is breaking.
-See [Versioning](versioning.md) for pre-1.0 behavior.
+Targets can override `versioning`, `calver`, `changelog`, `version_files`, and the pre-major settings.
 
 ## Version files
 
-`yeet release` changes only files listed in `version_files`.
-Plain string entries use comment markers:
+yeet updates only the files listed in `version_files`.
+Mark the version in a comment on the same line, or wrap lines in a block:
+
+```yaml
+version_files:
+  - README.md
+  - chart/Chart.yaml
+```
 
 ```txt
-# inline markers (semver project)
 VERSION = "1.2.3" # x-yeet-version
-MAJOR = 1 # x-yeet-major
-MINOR = 2 # x-yeet-minor
-PATCH = 3 # x-yeet-patch
 
-# block markers
 # x-yeet-start-version
 image: ghcr.io/acme/app:1.2.3
 appVersion: "1.2.3"
 # x-yeet-end
 ```
 
-Markers must be in a real `#`, `//`, `/* */`, `--`, `;`, or `<!-- -->` comment.
-Every listed marker file must contain a valid marker.
-Lines inside a block without a version value remain unchanged.
+Markers work in `#`, `//`, `/* */`, `--`, `;`, and `<!-- -->` comments, and every listed file must contain one.
 
-JSON files use a JSON Pointer because JSON has no comments:
+| Versioning | Marker scopes |
+|---|---|
+| semver | `version`, `major`, `minor`, `patch` |
+| calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` if the format has them |
+
+Use `x-yeet-<scope>` inline, or `x-yeet-start-<scope>` with `x-yeet-end` for a block.
+
+JSON has no comments, so point at the value instead:
 
 ```yaml
 version_files:
@@ -231,21 +88,67 @@ version_files:
     json_pointer: /version
 ```
 
-The pointer must resolve to a string.
-Nested values use RFC 6901 syntax such as `/packages/0/version`, and yeet preserves the existing JSON formatting.
+## Bump types
 
-| Scheme | Marker scopes |
-|---|---|
-| semver | `version`, `major`, `minor`, `patch` |
-| calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` when present in the configured format |
+Add commit types that should bump the version:
 
-Block markers use `x-yeet-start-<scope>` and `x-yeet-end`.
-Calver substitution preserves token width, so `0M` produces a zero-padded month.
+```yaml
+bump_types:
+  minor: [feat, improvement]
+  patch: [fix, perf, deps]
+```
+
+See [Versioning](versioning.md) for how bumps work.
+
+## Timezone
+
+`timezone` sets the date used for calver versions and changelog entries.
+It accepts `Local` (default), `UTC`, or an IANA name such as `Europe/Berlin`.
+Set it explicitly so local previews and CI produce the same date.
+
+## Self-hosted providers
+
+yeet detects `github.com`, `gitlab.com`, and `dev.azure.com` from the `origin` remote.
+For any other host, set `provider`:
+
+```yaml
+provider: gitlab
+```
+
+Add a `repository` section only when the remote does not provide everything, for example a path prefix:
+
+```yaml
+provider: github
+repository:
+  remote: upstream
+  github:
+    host: github.example.com
+    api_url: https://github.example.com/root/api/v3/
+    web_url: https://github.example.com/root
+    owner: acme
+    repo: widgets
+```
+
+GitLab uses `project: group/sub/repo`. Azure DevOps uses `organization`, `project`, `repo`, and optionally `collection`.
+`api_url` and `web_url` must be HTTPS URLs on the repository host.
+See [Authentication](authentication.md#self-hosted-providers) for tokens and environment overrides.
+
+## Network
+
+Slow or unreliable provider connections can use a longer timeout or more retries:
+
+```yaml
+network:
+  request_timeout: 45s
+  retry:
+    max_attempts: 5
+```
+
+Defaults are a 30 second timeout and 4 attempts. Azure DevOps ignores `retry`.
 
 ## Related documentation
 
-- [Documentation index](README.md)
-- [Telemetry](telemetry.md)
 - [Versioning](versioning.md)
-- [Changelog generation](changelog-generation.md)
+- [Changelog](changelog-generation.md)
 - [Release PRs and MRs](release.md)
+- [Telemetry](telemetry.md)

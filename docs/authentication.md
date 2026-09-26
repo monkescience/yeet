@@ -1,149 +1,66 @@
 # Authentication
 
-yeet reads provider credentials from environment variables.
-It never accepts tokens through flags or `.yeet.yaml`.
+yeet reads the provider token from an environment variable, never from flags or `.yeet.yaml`.
 
-| Provider | Variables, in precedence order | Minimum token or app access |
+| Provider | Variable | Alternative |
 |---|---|---|
-| GitHub | `GITHUB_TOKEN`, `GH_TOKEN` | Contents (write) and Pull requests (write) |
-| GitLab | `GITLAB_TOKEN`, `GL_TOKEN` | `api` scope and Developer role |
-| Azure DevOps | `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN`, `AZURE_DEVOPS_EXT_PAT` | Code (read and write) for PATs, plus repository permissions |
+| GitHub | `GITHUB_TOKEN` | `GH_TOKEN` |
+| GitLab | `GITLAB_TOKEN` | `GL_TOKEN` |
+| Azure DevOps | `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` (pipelines) | `AZURE_DEVOPS_EXT_PAT` (local) |
+
+If both are set, the first one wins.
 
 ## GitHub
 
-Export either token variable.
-`GITHUB_TOKEN` wins when both are set.
+In GitHub Actions, use a GitHub App token, see the [workflow example](ci.md#github-actions).
+Locally, a fine-grained personal access token works.
 
-```sh
-export GITHUB_TOKEN=github_pat_xxx
-yeet release --dry-run
-```
+Grant these repository permissions:
 
-For GitHub Actions, use a GitHub App installation token.
-See the complete [GitHub Actions example](ci.md#github-actions-with-a-github-app).
+| Permission | Access |
+|---|---|
+| Contents | Read and write |
+| Pull requests | Read and write |
+| Workflows | Write, only if yeet updates files under `.github/workflows/` |
 
-For a GitHub App or fine-grained personal access token, grant these repository permissions:
+The token must also be allowed to force-push the release branch (`yeet/release-*` by default) and, with auto-merge, to merge or enable auto-merge.
 
-| Permission | Access | Used for |
-|---|---|---|
-| Contents | Read and write | Reading and updating release files and branches, then creating tags and releases |
-| Pull requests | Read and write | Creating, updating, labeling, requesting reviewers for, and merging release pull requests |
-
-Add Workflows (write) when a configured `version_files` or changelog path is under `.github/workflows/`.
-
-Install the App on each repository it releases.
-Allow it to create and force-update the generated release branch.
-In provider auto-merge mode, allow it to enable pull request auto-merge or add the pull request to a required merge queue.
-In direct mode, allow it to merge into the base branch after required checks, approvals, and branch rules pass.
-
-A classic personal access token needs `repo` for a private repository or `public_repo` for a public repository.
-For an organization-owned repository with `release.reviewers`, use `repo` and `read:org` even when the repository is public.
-Add `workflow` when yeet changes a workflow file.
-See [GitHub's REST permission table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
+A classic token needs `repo` (or `public_repo` for public repositories). Add `read:org` for reviewers in an organization repository, and `workflow` for workflow files.
 
 ## GitLab
 
-Export either token variable.
-`GITLAB_TOKEN` wins when both are set.
+Use a project, group, or personal access token with the `api` scope and at least the Developer role.
 
-```sh
-export GITLAB_TOKEN=glpat-xxx
-yeet release --dry-run
-```
-
-A project access token needs the `api` scope and Developer role under Settings > Access tokens.
-A group or personal access token needs the `api` scope and an identity with at least the Developer role in the project.
-
-Repository access requirements:
-
-- If a protected branch rule matches the generated release branch, allow the token identity to push and enable force pushes for that rule.
-- If a protected tag rule matches a release tag, add the token role or identity to Allowed to create.
-- In provider auto-merge mode, the token identity must be allowed to enable auto-merge or add the merge request to a required merge train.
-- In direct mode, the target branch must allow the token identity to merge after its checks and approvals pass.
-
-See GitLab's documentation for [`api` scope](https://docs.gitlab.com/security/tokens/access_token_scopes/), [project roles](https://docs.gitlab.com/user/permissions/), [protected branches](https://docs.gitlab.com/user/project/repository/branches/protected/), and [protected tags](https://docs.gitlab.com/user/project/protected_tags/).
+If protected branch or tag rules match the release branch or release tags, allow the token to push and force-push the branch and to create the tags.
+With auto-merge, it must also be allowed to merge into the base branch.
 
 ## Azure DevOps
 
-Azure Pipelines should map `System.AccessToken` to yeet's provider-specific variable:
+In Azure Pipelines, map the job token:
 
 ```yaml
 env:
   AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 ```
 
-For local use or external CI, use the Azure DevOps CLI-compatible PAT variable:
+Locally, use a PAT with Code (Read and write). Add Identity (Read) when `release.reviewers` is set.
 
-```sh
-export AZURE_DEVOPS_EXT_PAT=xxx
-yeet release --dry-run
-```
+Grant these permissions under Project settings > Repositories > the repository > Security.
+For pipelines, grant them to `<project> Build Service (<organization>)`, or to `Project Collection Build Service (<organization>)` for collection-scoped jobs. For a PAT, grant them to its user.
 
-`AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` wins when both are set.
-
-For a PAT, select Code (Read and write), `vso.code_write`.
-When `release.reviewers` is configured, also select Identity (Read), `vso.identity`.
-The PAT user also needs the repository permissions below.
-
-`System.AccessToken` uses a pipeline build service identity.
-For a project-scoped job token, grant the permissions below to `<project> Build Service (<organization>)`.
-For a collection-scoped token, grant them to `Project Collection Build Service (<organization>)`.
-
-Set repository permissions under Project settings > Repositories > the target repository > Security:
-
-| Permission | Scope | Used for |
-|---|---|---|
-| Read | Repository | Reading files, refs, tags, and pull requests |
-| Contribute | Repository | Pushing release commits and completing pull requests |
-| Contribute to pull requests | Repository | Creating, updating, and labeling pull requests |
-| Create branch | Repository | Creating the generated release branch |
-| Create tag | Repository | Publishing a release tag |
-| Force push | Generated release branch | Resetting the release branch to the current base before each refresh |
-
-The build service needs effective Force push permission on the generated release branch, either inherited when it creates the branch or granted explicitly.
-Azure DevOps supports direct auto-merge mode only.
-Direct mode needs Contribute permission on the target branch, and all branch policies must pass.
-
-Authorization for identity reads through `System.AccessToken` depends on the organization and job authorization settings.
-Verify it when `release.reviewers` is configured.
-See Azure DevOps documentation for [job access tokens](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/access-tokens), [token scopes](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth#oauth-scopes), and [Git repository permissions](https://learn.microsoft.com/en-us/azure/devops/organizations/security/permissions#git-repository-object-level).
+- Read
+- Contribute
+- Contribute to pull requests
+- Create branch
+- Create tag
+- Force push, at least on the release branch
 
 ## Self-hosted providers
 
-Set `provider` and, when needed, `api_url` and `web_url` in `.yeet.yaml` as described in [Repository targeting](configuration.md#repository-targeting).
-yeet sends the token only to the Git remote host or a recognized public provider host, so a checked-in host alone cannot redirect it.
+Set `provider` in `.yeet.yaml`, see [Self-hosted providers](configuration.md#self-hosted-providers).
+yeet derives the API URL from the host (`/api/v3/` for GitHub, `/api/v4` for GitLab).
 
-`GITHUB_URL`, `GITLAB_URL`, and `AZURE_DEVOPS_URL` override the API URL for the current environment, even for public hosts.
-yeet sends the token to that URL, so set these only in environments you control.
-
-### GitHub Enterprise
-
-For a configured custom host, yeet derives `https://<host>/api/v3/`.
-Configure a path prefix in `.yeet.yaml`:
-
-```yaml
-provider: github
-repository:
-  github:
-    host: github.example.com
-    api_url: https://github.example.com/root/api/v3/
-    web_url: https://github.example.com/root
-    owner: acme
-    repo: widgets
-```
-
-An environment override remains available for operator-controlled routing:
-
-```sh
-export GITHUB_TOKEN=github_pat_xxx
-export GITHUB_URL=https://github.example.com/api/v3/
-yeet release
-```
-
-### Self-managed GitLab
-
-For a configured custom host, yeet derives `https://<host>/api/v4`.
-Use `repository.gitlab.api_url` and `web_url` for a checked-in relative path, or override it for the current environment:
+To point yeet at a different API URL in one environment, set `GITHUB_URL`, `GITLAB_URL`, or `AZURE_DEVOPS_URL`:
 
 ```sh
 export GITLAB_TOKEN=glpat-xxx
@@ -151,18 +68,9 @@ export GITLAB_URL=https://example.com/gitlab/api/v4
 yeet release
 ```
 
-### Azure DevOps Server
-
-Use `repository.azuredevops.api_url` and `web_url` for a checked-in server path, or set the server URL explicitly for the current environment:
-
-```sh
-export AZURE_DEVOPS_EXT_PAT=xxx
-export AZURE_DEVOPS_URL=https://devops.example.com/tfs
-yeet release
-```
+yeet sends the token to that URL, so only set it in environments you control.
 
 ## Related documentation
 
-- [Documentation index](README.md)
 - [CI setup](ci.md)
 - [Troubleshooting](troubleshooting.md)

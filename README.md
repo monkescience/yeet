@@ -9,110 +9,67 @@
 
 Automate releases on **GitHub, GitLab, or Azure DevOps** from your [conventional commits](https://www.conventionalcommits.org/).
 
-With yeet, you can calculate the next semver or calver version, generate a changelog, open a release PR/MR, and publish the release after it merges.
-yeet ships as a single static binary with no runtime dependencies.
+yeet calculates the next semver or calver version, updates your changelog, opens a release PR/MR, and publishes the release once you merge it.
+It is a single static binary that you run in CI on every push to your release branch.
 
-yeet is designed to run from CI on every push to a release branch.
-The local CLI is the setup and preview tool.
-Your CI workflow performs the recurring release work.
+- One workflow for GitHub, GitLab, and Azure DevOps, including self-hosted installations
+- Single repositories and monorepos
+- Semver or calver, prerelease channels, and optional auto-merge
+- One YAML file with a JSON schema for editor autocompletion
 
 ## Quick start
 
-### 1. Preview locally
+1. **Install and preview locally.**
 
-For a GitHub repository, install yeet, export a token, generate the default config, and preview the release:
+   ```sh
+   brew install monkescience/tap/yeet
+   export GITHUB_TOKEN=github_pat_xxx # or GITLAB_TOKEN, AZURE_DEVOPS_EXT_PAT
+   yeet init
+   yeet release --dry-run
+   ```
 
-```sh
-brew install monkescience/tap/yeet
-export GITHUB_TOKEN=github_pat_xxx
-yeet init
-yeet release --dry-run
-```
+   `yeet init` creates `.yeet.yaml`. See [Authentication](docs/authentication.md) for token permissions.
 
-Use `GITLAB_TOKEN` or `AZURE_DEVOPS_EXT_PAT` for another provider.
-See [Authentication](docs/authentication.md) for token permissions and CI variables.
+2. **Add the release pipeline.** Copy the example for your provider from [CI setup](docs/ci.md), then commit it together with `.yeet.yaml`.
 
-`yeet init` creates only `.yeet.yaml`.
-The generated config is provider-neutral and auto-detects the public provider from the Git remote.
-
-### 2. Automate it in CI
-
-Add the matching release pipeline from [CI setup](docs/ci.md).
-GitHub repositories normally use the [GitHub Actions workflow](docs/ci.md#github-actions-with-a-github-app).
-GitLab and Azure DevOps use the equivalent examples on that page.
-
-Commit `.yeet.yaml` and the workflow.
-From then on, CI runs `yeet release` on pushes to the configured release branch.
-
-### 3. Create the first release
-
-Merge a `feat`, `fix`, or `perf` conventional commit into the release branch.
-CI opens the release PR/MR.
-Merge that release, then the next CI run creates the tag and provider release.
+3. **Release.** Merge a `feat`, `fix`, or `perf` commit into the release branch.
+   CI opens a release PR/MR. Merge it, and the next CI run creates the tag and the release.
 
 ## Install
 
-Other installation options:
-
 ```sh
+brew install monkescience/tap/yeet
 go install github.com/monkescience/yeet/cmd/yeet@v0.16.2 # x-yeet-version
 docker run --rm ghcr.io/monkescience/yeet:v0.16.2 --help # x-yeet-version
 ```
 
-On Windows, install with [Scoop](https://scoop.sh):
+On Windows, use [Scoop](https://scoop.sh):
 
 ```sh
 scoop bucket add monkescience https://github.com/monkescience/scoop-bucket
 scoop install yeet
 ```
 
-Shell completions are available through `yeet completion bash|zsh|fish|powershell`.
-
-## Why yeet
-
-- One release workflow across GitHub, GitLab, and Azure DevOps
-- Monorepo targets with combined or independent release PRs/MRs
-- Semver, calver, changelog, reviewer, and prerelease configuration
-- GitHub Enterprise, self-managed GitLab, and Azure DevOps Server support
-- One YAML file backed by a JSON schema
-
-## Command reference
-
-| Command | Purpose |
-|---|---|
-| `yeet init` | Create a `.yeet.yaml` configuration file |
-| `yeet release` | Preview or perform the release workflow |
-| `yeet version` | Print build and version information |
-| `yeet completion` | Generate shell completion scripts |
-
-Run `yeet --help` or `yeet <command> --help` for generated CLI help.
-The [configuration guide](docs/configuration.md) covers common tasks, and [`yeet.schema.json`](yeet.schema.json) is the complete field reference.
-
-## How it works
-
-1. **Plan:** yeet analyzes conventional commits and opens a labelled release PR/MR.
-2. **Refresh:** later runs update that open release instead of creating another one.
-3. **Finalize:** after merge, the next run creates the tag and provider release, then marks the PR/MR as tagged.
-
-See [Release PRs and MRs](docs/release.md) for lifecycle, labels, auto-merge, reviewers, release notes, and prerelease channels.
-
-## Verify a release
-
-Archives and container images are signed with Sigstore and carry GitHub build provenance.
-Follow [Artifact verification](docs/verification.md) for the expected identities and copyable verification commands.
+Run `yeet completion bash|zsh|fish|powershell` for shell completions and `yeet --help` for all commands and flags.
+To check a download, see [Artifact verification](docs/verification.md).
 
 ## Documentation
 
-| Task | Guide |
+| Guide | Covers |
 |---|---|
-| Add provider CI | [CI setup](docs/ci.md) |
-| Configure a repository or monorepo | [Configuration](docs/configuration.md) |
-| Customize versions and changelogs | [Versioning](docs/versioning.md) and [Changelog generation](docs/changelog-generation.md) |
-| Review or disable anonymous analytics | [Telemetry](docs/telemetry.md) |
-| Recover from a failed release | [Troubleshooting](docs/troubleshooting.md) |
-| Migrate from release-please | [Migration guide](docs/migrate-from-release-please.md) |
+| [Authentication](docs/authentication.md) | Tokens, permissions, and self-hosted providers |
+| [CI setup](docs/ci.md) | GitHub Actions, GitLab CI, and Azure Pipelines examples |
+| [Configuration](docs/configuration.md) | `.yeet.yaml`, monorepo targets, and version files |
+| [Writing commits](docs/commits.md) | Commit format, breaking changes, and release notes |
+| [Versioning](docs/versioning.md) | Semver and calver rules |
+| [Changelog](docs/changelog-generation.md) | Sections and issue links |
+| [Release PRs and MRs](docs/release.md) | Labels, reviewers, templates, and prerelease channels |
+| [Auto-merge](docs/auto-merge.md) | Merging release PRs/MRs automatically |
+| [Troubleshooting](docs/troubleshooting.md) | Recovering from failed releases |
+| [Migrating from release-please](docs/migrate-from-release-please.md) | Moving an existing repository to yeet |
+| [Telemetry](docs/telemetry.md) | What anonymous usage data is sent and how to turn it off |
 
-Open the [complete documentation index](docs/README.md) to find every task and advanced guide.
+The complete `.yeet.yaml` reference is [`yeet.schema.json`](yeet.schema.json).
 
 ## Feedback and contributions
 

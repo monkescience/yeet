@@ -1,69 +1,34 @@
 # Versioning
 
-yeet uses top-level `versioning`, default `semver`.
-A monorepo target can override the strategy.
+Set `versioning` to `semver` (default) or `calver`.
+Monorepo targets can each choose their own strategy.
 
-## Commit message format
+## Semver
 
-yeet reads [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) in the form `type(scope)!: description`, with an optional scope and `!`.
-Commit types are case-insensitive, so `feat:` and `FEAT:` behave the same.
-Use lowercase types in configuration.
+From `1.0.0` onward:
 
-Separate the body or footer from the header with a blank line.
-Otherwise yeet ignores the whole commit, including any `!` or `Release-As` footer:
-
-```text
-feat!: replace authentication API
-
-Clients must use the new login endpoint.
-```
-
-A breaking footer must be written exactly as `BREAKING CHANGE: <description>` or `BREAKING-CHANGE: <description>`, in uppercase.
-Run with `--verbose` to see why a commit was ignored or not treated as breaking.
-
-## Semantic Versioning (semver)
-
-For versions at or above `1.0.0`:
-
-| Commit | Default bump |
+| Commit | Bump |
 |---|---|
 | `feat` | minor |
 | `fix`, `perf` | patch |
-| `!` or `BREAKING CHANGE` footer | major |
+| Breaking (`!` or `BREAKING CHANGE`) | major |
 
-For versions below `1.0.0`, both pre-major options default to `true`:
+Before `1.0.0`, bumps are one step smaller by default:
 
-| Commit | Default bump | Setting that restores normal semver behavior |
+| Commit | Bump | To use normal semver |
 |---|---|---|
-| `feat` | patch | `pre_major_features_bump_patch: false` makes it minor |
-| `fix`, `perf` | patch | None |
-| `!` or `BREAKING CHANGE` footer | minor | `pre_major_breaking_bumps_minor: false` makes it major |
+| `feat` | patch | `pre_major_features_bump_patch: false` |
+| `fix`, `perf` | patch | |
+| Breaking | minor | `pre_major_breaking_bumps_minor: false` |
 
-These rules also apply to custom types in [Bump types](configuration.md#bump-types).
-Targets may override both pre-major settings.
+Other commit types do not bump the version unless they are breaking.
+To change which types bump, see [Bump types](configuration.md#bump-types).
+To pick a version yourself, use a [`Release-As` footer](commits.md#force-a-version).
 
-### Release-As overrides
+## Calver
 
-A `Release-As` commit footer overrides automatic semver calculation:
-
-```text
-chore: request a stable release
-
-Release-As: 1.0.0
-```
-
-The value must be a stable semver version greater than the current version.
-The footer is case-insensitive and has no effect on calver targets.
-Every `Release-As` footer in one release must request the same version.
-
-On a [prerelease channel](release.md#prerelease-channels), the footer selects the stable base and yeet adds the channel suffix, such as `1.0.0-beta.1`.
-
-## Calendar Versioning (calver)
-
-The default format is `YYYY.0M.MICRO`.
-`MICRO` increments within the selected calendar period and resets when that period changes.
-
-Minimal configuration:
+The default format is `YYYY.0M.MICRO`, for example `2026.09.3`.
+`MICRO` counts releases within the period and resets when the period changes.
 
 ```yaml
 versioning: calver
@@ -71,7 +36,7 @@ calver:
   format: YYYY.0M.0D.MICRO
 ```
 
-| Component | Supported tokens |
+| Component | Tokens |
 |---|---|
 | Year | `YYYY`, `YY`, `0Y` |
 | Month | `MM`, `0M` |
@@ -79,16 +44,13 @@ calver:
 | Day | `DD`, `0D` |
 | Counter | `MICRO` |
 
-Tokens are dot-separated, the format includes exactly one year token, and `MICRO` is required as the final token.
-These combinations are incompatible:
+A format needs exactly one year token and must end with `MICRO`.
+Tokens starting with `0` are zero-padded.
+Week cannot be combined with month or day, and day requires month.
 
-- Week with month or day
-- Day without month
-- More than one token for the same calendar component
+Dates follow the configured [timezone](configuration.md#timezone).
 
 ## Related documentation
 
-- [Documentation index](README.md)
+- [Writing commits](commits.md)
 - [Configuration](configuration.md)
-- [Changelog generation](changelog-generation.md)
-- [Release PRs and MRs](release.md)

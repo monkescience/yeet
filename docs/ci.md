@@ -1,17 +1,15 @@
 # CI setup
 
-yeet reads commit history from the local checkout, so every pipeline needs full history and a checkout of the latest commit on the release branch.
-yeet refuses to run on shallow, outdated, pull request, and tag checkouts.
-Run it from a job triggered by a push to the release branch.
+Run `yeet release` on every push to the release branch.
+The job needs a full-history checkout (no shallow clone) of the latest commit on that branch.
+yeet refuses to run on pull request and tag checkouts.
 
-The copyable examples use a release tag so yeet can keep them synchronized through `x-yeet-version`.
-If your policy requires an immutable image reference, resolve the digest for that exact tag and append `@sha256:<digest>`.
-Update the tag and digest together.
-When they disagree, container tooling follows the digest and can silently run the older image.
+If a newer push lands while a run is in progress, yeet skips that run with a warning, and the run for the newer commit releases it.
 
-## GitHub Actions with a GitHub App
+## GitHub Actions
 
-Configure a GitHub App with the [required repository permissions](authentication.md#github), install it on the release repository, store its client ID as the `YEET_APP_ID` repository variable, and store its private key as the `YEET_APP_PRIVATE_KEY` repository secret.
+Create a GitHub App with the [required permissions](authentication.md#github) and install it on the repository.
+Store its client ID as the `YEET_APP_ID` variable and its private key as the `YEET_APP_PRIVATE_KEY` secret.
 
 ```yaml
 name: Release
@@ -56,9 +54,8 @@ jobs:
 
 ## GitLab CI
 
-Create a token with the [required scope, role, and repository access](authentication.md#gitlab), then store it as a masked `GITLAB_TOKEN` CI/CD variable.
-Protect the variable only when this job always runs on a protected branch.
-The empty entrypoint lets GitLab run the job script with `sh`.
+Create a token with the [required access](authentication.md#gitlab) and store it as a masked `GITLAB_TOKEN` CI/CD variable.
+Only mark it protected if the job always runs on a protected branch.
 
 ```yaml
 release:
@@ -77,8 +74,7 @@ release:
 
 ## Azure Pipelines
 
-Grant the build service identity selected by the pipeline's job authorization scope the [required repository permissions](authentication.md#azure-devops).
-This pipeline maps `System.AccessToken` explicitly and forwards the branch ref into the container.
+Grant the pipeline's build service the [required repository permissions](authentication.md#azure-devops).
 
 ```yaml
 trigger:
@@ -107,22 +103,11 @@ steps:
       AZURE_DEVOPS_SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 ```
 
-## Local checkout requirement
+## Pinning the image
 
-| Provider | Full-history setting | Release branch signal | Credential mapping |
-|---|---|---|---|
-| GitHub Actions | `fetch-depth: 0` | `GITHUB_REF` or `GITHUB_REF_NAME` | App token to `GITHUB_TOKEN` |
-| GitLab CI | `GIT_DEPTH: "0"` | `CI_COMMIT_BRANCH` | Masked `GITLAB_TOKEN` |
-| Azure Pipelines | `fetchDepth: 0` | `BUILD_SOURCEBRANCH` | `System.AccessToken` to `AZURE_DEVOPS_SYSTEM_ACCESSTOKEN` |
-
-The checkout must match the provider's current remote head.
-A full history alone does not make a stale or detached checkout usable.
-When the remote branch has moved past the checkout, for example because a newer push landed during the run, yeet skips the release with a warning and exits successfully.
-The run for the newer commit releases it, as long as that commit triggers a run.
-Any other mismatch, such as unpushed or diverged commits, fails the run.
+To pin the image by digest, append `@sha256:<digest>` for the same tag, and update both together when you upgrade.
 
 ## Related documentation
 
-- [Documentation index](README.md)
 - [Authentication](authentication.md)
 - [Troubleshooting](troubleshooting.md)
