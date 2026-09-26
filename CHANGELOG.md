@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.17.0](https://github.com/monkescience/yeet/compare/v0.16.2...v0.17.0) (2026-09-26)
+
+### ⚠ BREAKING CHANGES
+
+- **changelog:** add release notes from commit messages ([e2e7b87](https://github.com/monkescience/yeet/commit/e2e7b87f793816c836eaf07926ee107707399a0e))
+  > Add a `release-note` fenced code block to a commit body to quote a
+  > note under that change in the changelog and release PR:
+  >
+  > ```text
+  > ~~~release-note
+  > Set `release.auto_merge: true` to merge release PRs automatically.
+  > ~~~
+  > ```
+  >
+  > Breaking change entries now show the commit description, with the
+  > `BREAKING CHANGE` footer text quoted below it as the note. Write
+  > breaking commit descriptions that stand on their own. Existing
+  > changelog entries are not rewritten.
+  >
+  > See [Release notes](https://github.com/monkescience/yeet/blob/main/docs/changelog-generation.md#release-notes).
+
+### Features
+
+- **changelog:** add release notes from commit messages ([e2e7b87](https://github.com/monkescience/yeet/commit/e2e7b87f793816c836eaf07926ee107707399a0e))
+
+### Bug Fixes
+
+- **deps:** update module github.com/google/go-github/v91 to v92 (#289) ([5c986c5](https://github.com/monkescience/yeet/commit/5c986c5226f26f535cb1b0619f6e167d6ef0cf8d))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.12.0 (#288) ([6bf48ca](https://github.com/monkescience/yeet/commit/6bf48ca8342a42144f519542732d532714692815))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.5 (#287) ([7ab4609](https://github.com/monkescience/yeet/commit/7ab4609f0e1a6115cb3154803b09698feacf1d94))
+
 ## [v0.16.2](https://github.com/monkescience/yeet/compare/v0.16.1...v0.16.2) (2026-09-24)
 
 ### Features
