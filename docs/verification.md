@@ -21,14 +21,14 @@ For the container image:
 cosign verify \
   --certificate-identity-regexp 'https://github.com/monkescience/yeet/.github/workflows/image.yaml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/monkescience/yeet:v0.16.2 # x-yeet-version
+  ghcr.io/monkescience/yeet:v0.17.0 # x-yeet-version
 ```
 
 ## Provenance
 
 ```sh
 gh attestation verify yeet_linux_amd64.tar.gz --repo monkescience/yeet
-gh attestation verify oci://ghcr.io/monkescience/yeet:v0.16.2 --repo monkescience/yeet # x-yeet-version
+gh attestation verify oci://ghcr.io/monkescience/yeet:v0.17.0 --repo monkescience/yeet # x-yeet-version
 ```
 
 Both commands confirm the artifact was built from `monkescience/yeet` and report the workflow and commit that produced it.

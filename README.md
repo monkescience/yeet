@@ -39,8 +39,8 @@ It is a single static binary that you run in CI on every push to your release br
 
 ```sh
 brew install monkescience/tap/yeet
-go install github.com/monkescience/yeet/cmd/yeet@v0.16.2 # x-yeet-version
-docker run --rm ghcr.io/monkescience/yeet:v0.16.2 --help # x-yeet-version
+go install github.com/monkescience/yeet/cmd/yeet@v0.17.0 # x-yeet-version
+docker run --rm ghcr.io/monkescience/yeet:v0.17.0 --help # x-yeet-version
 ```
 
 On Windows, use [Scoop](https://scoop.sh):
