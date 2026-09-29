@@ -3329,11 +3329,13 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		// when: creating a release PR for only the derived root target
 		result, err := releaseSelectedTargets(context.Background(), r, false, []string{"root"})
 
-		// then: the derived target compare link points at the newest included commit overall
+		// then: the release compares to its tag and the preview compares to the newest included commit
 		testastic.NoError(t, err)
 		testastic.Equal(t, 1, len(result.Plans))
 		testastic.Equal(t, "root", result.Plans[0].ID)
 		testastic.Equal(t, apiSHA, result.Plans[0].PRCompareRef)
+		testastic.Equal(t, stub.repoURL+"/compare/v3.0.0...v3.1.0", result.Plans[0].Entry.CompareURL)
+		testastic.Equal(t, stub.repoURL+"/compare/v3.0.0..."+apiSHA, result.Plans[0].PREntry.CompareURL)
 
 		testastic.AssertFile(
 			t,

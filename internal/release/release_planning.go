@@ -266,7 +266,7 @@ func (a *releaseAnalyzer) planDirectTarget(
 		return TargetPlan{}, false, nil
 	}
 
-	plan := a.newTargetPlan(
+	plan := a.newDirectTargetPlan(
 		ctx,
 		target,
 		inputs.history.currentVersion,
@@ -479,15 +479,12 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 	bumpType commit.BumpType,
 	inputs derivedPlanContext,
 ) TargetPlan {
-	plan := a.newTargetPlan(
-		ctx,
+	plan := newTargetPlan(
 		target,
 		inputs.history.currentVersion,
 		nextVersion,
 		bumpType,
 		inputs.history.ref,
-		inputs.directEntries,
-		inputs.directCommits,
 	)
 	plan.PRCompareRef = derivedPRCompareRef(
 		inputs.history.entries,
@@ -504,28 +501,31 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
 	}
 
-	plan.Entry = derivedChangelogEntry(
+	direct := newTargetChangelogEntry(
 		ctx,
 		target,
 		plan.NextTag,
 		inputs.history.ref,
 		inputs.directCommits,
-		inputs.childPlans,
-		plan.PRCompareRef,
-		derivedChangelogRelease,
 		a.core.timestamp(),
 		a.core.metadata,
 	)
-	plan.PREntry = derivedChangelogEntry(
-		ctx,
-		target,
-		plan.NextTag,
-		inputs.history.ref,
-		inputs.directCommits,
+	plan.Entry = derivedChangelogEntry(
+		direct,
+		target.Includes,
 		inputs.childPlans,
+		inputs.history.ref,
+		plan.PRCompareRef,
+		derivedChangelogRelease,
+		a.core.metadata,
+	)
+	plan.PREntry = derivedChangelogEntry(
+		direct,
+		target.Includes,
+		inputs.childPlans,
+		inputs.history.ref,
 		plan.PRCompareRef,
 		derivedChangelogPreview,
-		a.core.timestamp(),
 		a.core.metadata,
 	)
 
@@ -545,33 +545,42 @@ func derivedCommitCount(hashes []string, directCommits []commit.Commit, childPla
 	return count
 }
 
-func (a *releaseAnalyzer) newTargetPlan(
-	ctx context.Context,
+func newTargetPlan(
 	target config.ResolvedTarget,
-	currentVersion string,
-	baseVersion string,
+	currentVersion, nextVersion string,
 	bumpType commit.BumpType,
 	ref string,
-	entries []history.CommitEntry,
-	commits []commit.Commit,
 ) TargetPlan {
-	strategy := versionStrategyForResolvedTarget(target)
 	plan := TargetPlan{
 		ID:             target.ID,
 		Type:           target.Type,
 		CurrentVersion: currentVersion,
 		BumpType:       bumpType,
 		ChangelogFile:  target.Changelog.File,
-		commitHashes:   uniqueEntryHashes(entries),
 		previousRef:    strings.TrimSpace(ref),
 	}
+
+	setPlanVersions(&plan, versionStrategyForResolvedTarget(target), nextVersion)
+
+	return plan
+}
+
+func (a *releaseAnalyzer) newDirectTargetPlan(
+	ctx context.Context,
+	target config.ResolvedTarget,
+	currentVersion, nextVersion string,
+	bumpType commit.BumpType,
+	ref string,
+	entries []history.CommitEntry,
+	commits []commit.Commit,
+) TargetPlan {
+	plan := newTargetPlan(target, currentVersion, nextVersion, bumpType, ref)
+	plan.commitHashes = uniqueEntryHashes(entries)
 
 	plan.CommitCount = len(plan.commitHashes)
 	if plan.CommitCount == 0 {
 		plan.CommitCount = len(commits)
 	}
-
-	setPlanVersions(&plan, strategy, baseVersion)
 
 	entry := newTargetChangelogEntry(
 		ctx,

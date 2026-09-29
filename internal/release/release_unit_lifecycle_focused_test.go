@@ -143,15 +143,14 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 			NextTag:         "v3.1.0",
 			IncludedTargets: []string{"web"},
 			Entry: derivedChangelogEntry(
-				t.Context(),
-				r.core.targets["root"],
-				"v3.1.0",
-				"",
-				nil,
+				newTargetChangelogEntry(
+					t.Context(), r.core.targets["root"], "v3.1.0", "", nil, r.core.timestamp(), r.core.metadata,
+				),
+				r.core.targets["root"].Includes,
 				[]TargetPlan{webPlan},
 				"",
+				"",
 				derivedChangelogRelease,
-				r.core.timestamp(),
 				r.core.metadata,
 			),
 		}

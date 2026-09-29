@@ -94,19 +94,13 @@ func changelogEntryWithCompare(
 }
 
 func derivedChangelogEntry(
-	ctx context.Context,
-	target config.ResolvedTarget,
-	nextTag string,
-	ref string,
-	directCommits []commit.Commit,
+	direct changelog.Entry,
+	includedTargets []string,
 	childPlans []TargetPlan,
-	prCompareRef string,
+	ref, prCompareRef string,
 	mode derivedChangelogMode,
-	date time.Time,
 	metadata repoMetadataProvider,
 ) changelog.Entry {
-	direct := newTargetChangelogEntry(ctx, target, nextTag, ref, directCommits, date, metadata)
-
 	children := make([]changelog.Section, 0, len(childPlans))
 	for _, childPlan := range childPlans {
 		children = append(children, changelog.Section{
@@ -115,13 +109,9 @@ func derivedChangelogEntry(
 		})
 	}
 
-	entry := changelog.DerivedEntry(direct, target.Includes, children)
+	entry := changelog.DerivedEntry(direct, includedTargets, children)
 
-	if ref == "" {
-		return entry
-	}
-
-	compareTarget := nextTag
+	compareTarget := direct.Version
 	if mode == derivedChangelogPreview {
 		compareTarget = prCompareRef
 	}

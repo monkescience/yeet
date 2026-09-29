@@ -3,6 +3,7 @@ package integration_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -1490,11 +1491,12 @@ func TestReleaseDerivedTarget(t *testing.T) {
 	t.Run("github derived root target aggregates included path plans", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a path target `api` and a derived `root` that includes `api`
+		// given: a derived root target with its own fix and an included API feature
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v1.0.0", Tag: "v1.0.0", Files: map[string]string{"CHANGELOG.md": "changelog\n"}},
 				{Message: "feat: add api endpoint", Files: map[string]string{"services/api/handler.go": "api handler\n"}},
+				{Message: "fix: tidy repo metadata", Files: map[string]string{"README.md": "repo metadata\n"}},
 			})
 
 		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
@@ -1502,7 +1504,7 @@ func TestReleaseDerivedTarget(t *testing.T) {
 			Repo:          "testrepo",
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   shas[0],
-			BranchHeadSHA: shas[1],
+			BranchHeadSHA: shas[2],
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -1524,15 +1526,16 @@ func TestReleaseDerivedTarget(t *testing.T) {
 			},
 		})
 
-		// when: invoking `yeet release`
+		// when: releasing both targets with changelog generation diagnostics enabled
 		result := binary.RunWithOptions(t,
-			[]string{"release", "--config", configPath},
+			[]string{"release", "--verbose", "--no-color", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: the derived target rolls up the included path plans and exits 0
+		// then: the release succeeds and each target generates its direct changelog once
 		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, 2, strings.Count(result.Stderr, "changelog: generated entry"))
 	})
 }
 
