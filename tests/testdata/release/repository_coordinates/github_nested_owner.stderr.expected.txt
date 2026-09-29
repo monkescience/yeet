@@ -1,0 +1,1 @@
+ERROR invalid configuration: repository.github.owner must not contain '/' path={{anyString}} provider=github remote=origin

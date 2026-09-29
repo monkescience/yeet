@@ -1,0 +1,12 @@
+provider: azuredevops
+branch: main
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v
+repository:
+  azuredevops:
+    organization: Organization
+    project: Project
+    repo: service

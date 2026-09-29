@@ -160,6 +160,46 @@ func TestRecordReleaseOmitsInvalidAutoMergeMode(t *testing.T) {
 	testastic.Equal(t, "", events[0].Payload.ReleaseAutoMerge)
 }
 
+func TestRecordReleaseProviderValues(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name     string
+		provider string
+		expected string
+	}{
+		{name: "auto", provider: "auto", expected: "auto"},
+		{name: "github", provider: "github", expected: "github"},
+		{name: "gitlab", provider: "gitlab", expected: "gitlab"},
+		{name: "azuredevops", provider: "azuredevops", expected: "azuredevops"},
+		{name: "invalid", provider: "wrongo", expected: ""},
+		{name: "empty", provider: "", expected: ""},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: enabled telemetry and a release invocation with a provider flag
+			var events []wireEvent
+
+			manager := testManager(nil, roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				err := json.UnmarshalRead(request.Body, &events)
+				testastic.NoError(t, err)
+
+				return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody}, nil
+			}))
+			path := repositoryConfig(t, new(true))
+			opts := release.Options{Provider: &scenario.provider}
+
+			// when: recording the failed release invocation
+			manager.RecordRelease(t.Context(), manager.now(), path, opts, nil, config.ErrInvalidConfig)
+
+			// then: the delivered event includes valid providers and omits invalid values
+			testastic.Equal(t, 1, len(events))
+			testastic.Equal(t, scenario.expected, events[0].Payload.ReleaseProvider)
+		})
+	}
+}
+
 func TestDeliveryIsBoundedAndBestEffort(t *testing.T) {
 	t.Parallel()
 

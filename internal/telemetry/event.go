@@ -212,12 +212,12 @@ func releaseUnitCount(result *release.Result) string {
 }
 
 func allowedProvider(provider config.ProviderType) string {
-	switch provider {
-	case config.ProviderAuto, config.ProviderGitHub, config.ProviderGitLab, config.ProviderAzureDevOps:
-		return string(provider)
-	default:
+	err := provider.Validate()
+	if err != nil {
 		return ""
 	}
+
+	return string(provider)
 }
 
 func releaseLayout(cfg *config.Config) string {

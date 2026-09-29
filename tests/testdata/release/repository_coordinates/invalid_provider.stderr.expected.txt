@@ -1,0 +1,1 @@
+ERROR invalid configuration: provider must be "auto", "github", "gitlab", or "azuredevops", got "wrongo" path={{anyString}} provider=wrongo remote=origin

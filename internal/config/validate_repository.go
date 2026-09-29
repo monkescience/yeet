@@ -14,15 +14,6 @@ var (
 	errHTTPSURLFragment    = errors.New("must not contain a fragment")
 )
 
-func validateProvider(provider ProviderType) error {
-	switch provider {
-	case ProviderAuto, ProviderGitHub, ProviderGitLab, ProviderAzureDevOps:
-		return nil
-	default:
-		return Invalidf("provider must be \"auto\", \"github\", \"gitlab\", or \"azuredevops\", got %q", provider)
-	}
-}
-
 func validateRepositorySubsection(repository *RepositoryConfig, provider ProviderType) error {
 	set := []ProviderType{}
 	if repository.GitHub != nil {
@@ -81,7 +72,7 @@ func validateGitHubRepositoryConfig(github *GitHubRepositoryConfig) error {
 	host := strings.TrimSpace(github.Host)
 	owner := strings.TrimSpace(github.Owner)
 	repo := strings.TrimSpace(github.Repo)
-	project := normalizeRepositoryProjectPath(github.Project)
+	project := NormalizeRepositoryProjectPath(github.Project)
 
 	if github.Host != "" && host == "" {
 		return Invalidf("repository.github.host must not be blank")
@@ -104,26 +95,7 @@ func validateGitHubRepositoryConfig(github *GitHubRepositoryConfig) error {
 		return Invalidf("repository.github.project must not be blank")
 	}
 
-	if (owner == "") != (repo == "") {
-		return Invalidf("repository.github.owner and repository.github.repo must be set together")
-	}
-
-	if project != "" && owner != "" && repo != "" && project != owner+"/"+repo {
-		return Invalidf("repository.github.project must match repository.github.owner/repo")
-	}
-
-	if strings.Contains(owner, "/") {
-		return Invalidf("repository.github.owner must not contain '/'")
-	}
-
-	if project != "" {
-		projectOwner, _, ok := splitGitHubProjectPath(project)
-		if !ok || strings.Contains(projectOwner, "/") {
-			return Invalidf("repository.github.project must be in owner/repo form")
-		}
-	}
-
-	return nil
+	return github.ValidateCoordinates()
 }
 
 func validateGitLabRepositoryConfig(gitlab *GitLabRepositoryConfig) error {
@@ -132,7 +104,7 @@ func validateGitLabRepositoryConfig(gitlab *GitLabRepositoryConfig) error {
 	}
 
 	host := strings.TrimSpace(gitlab.Host)
-	project := normalizeRepositoryProjectPath(gitlab.Project)
+	project := NormalizeRepositoryProjectPath(gitlab.Project)
 
 	if gitlab.Host != "" && host == "" {
 		return Invalidf("repository.gitlab.host must not be blank")
@@ -157,7 +129,7 @@ func validateAzureDevOpsRepositoryConfig(azure *AzureDevOpsRepositoryConfig) err
 
 	host := strings.TrimSpace(azure.Host)
 	organization := strings.TrimSpace(azure.Organization)
-	project := normalizeRepositoryProjectPath(azure.Project)
+	project := NormalizeRepositoryProjectPath(azure.Project)
 	repo := strings.TrimSpace(azure.Repo)
 	collection := strings.TrimSpace(azure.Collection)
 
@@ -186,19 +158,7 @@ func validateAzureDevOpsRepositoryConfig(azure *AzureDevOpsRepositoryConfig) err
 		return Invalidf("repository.azuredevops.collection must not be blank")
 	}
 
-	if organization == "" {
-		return Invalidf("repository.azuredevops.organization is required")
-	}
-
-	if project == "" {
-		return Invalidf("repository.azuredevops.project is required")
-	}
-
-	if repo == "" {
-		return Invalidf("repository.azuredevops.repo is required")
-	}
-
-	return nil
+	return azure.ValidateCoordinates()
 }
 
 func validateRepositoryURLs(path, apiURL, webURL string) error {
@@ -245,24 +205,4 @@ func validateHTTPSURL(value string) error {
 	}
 
 	return nil
-}
-
-func normalizeRepositoryProjectPath(project string) string {
-	return strings.Trim(strings.TrimSpace(project), "/")
-}
-
-func splitGitHubProjectPath(project string) (string, string, bool) {
-	parts := strings.Split(project, "/")
-	if len(parts) != githubProjectSegments {
-		return "", "", false
-	}
-
-	owner := strings.TrimSpace(parts[0])
-	repo := strings.TrimSpace(parts[1])
-
-	if owner == "" || repo == "" {
-		return "", "", false
-	}
-
-	return owner, repo, true
 }

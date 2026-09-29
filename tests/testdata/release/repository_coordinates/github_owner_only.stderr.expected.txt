@@ -1,0 +1,1 @@
+ERROR invalid configuration: repository.github.owner and repository.github.repo must be set together path={{anyString}} provider=github remote=origin

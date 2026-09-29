@@ -1,0 +1,6 @@
+branch: main
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

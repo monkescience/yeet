@@ -1,0 +1,1 @@
+ERROR invalid configuration: repository.azuredevops.project is required path={{anyString}} provider=azuredevops remote=origin

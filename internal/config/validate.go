@@ -20,7 +20,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	err = validateProvider(c.Provider)
+	err = c.Provider.Validate()
 	if err != nil {
 		return err
 	}

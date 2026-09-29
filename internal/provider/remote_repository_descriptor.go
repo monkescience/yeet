@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/monkescience/yeet/internal/config"
 )
 
 var (
@@ -147,7 +149,7 @@ func normalizeRepositoryDescriptor(repository *repositoryDescriptor) {
 	repository.WebURL = strings.TrimSpace(repository.WebURL)
 	repository.Owner = strings.TrimSpace(repository.Owner)
 	repository.Repo = strings.TrimSpace(repository.Repo)
-	repository.Project = strings.Trim(strings.TrimSpace(repository.Project), "/")
+	repository.Project = config.NormalizeRepositoryProjectPath(repository.Project)
 	repository.Organization = strings.TrimSpace(repository.Organization)
 	repository.Collection = strings.TrimSpace(repository.Collection)
 	repository.Remote = strings.TrimSpace(repository.Remote)
