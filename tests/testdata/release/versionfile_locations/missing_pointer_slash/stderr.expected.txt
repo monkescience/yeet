@@ -1,0 +1,1 @@
+ERROR invalid configuration: version_files json_pointer: must start with / path={{anyString}}

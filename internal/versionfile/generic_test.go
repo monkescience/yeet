@@ -16,9 +16,10 @@ func TestApplyGenericMarkers_InvalidScheme(t *testing.T) {
 
 	// given: a CalVer scheme without a compiled format
 	scheme := versionfile.CalVerScheme(nil)
+	location := newVersionFileLocation(t, versionfile.FormatMarkers, "")
 
 	// when: applying a version marker with the invalid scheme
-	_, _, err := versionfile.ApplyGenericMarkers("# x-yeet-version: 1.2.3", "2026.07.1", scheme)
+	_, _, err := location.Apply("# x-yeet-version: 1.2.3", "2026.07.1", scheme)
 
 	// then: the invalid scheme is rejected instead of being treated as SemVer
 	testastic.ErrorIs(t, err, versionfile.ErrInvalidScheme)
@@ -27,6 +28,8 @@ func TestApplyGenericMarkers_InvalidScheme(t *testing.T) {
 func TestApplyGenericMarkers_SemVer(t *testing.T) {
 	t.Parallel()
 
+	location := newVersionFileLocation(t, versionfile.FormatMarkers, "")
+
 	t.Run("replaces inline version marker", func(t *testing.T) {
 		t.Parallel()
 
@@ -34,7 +37,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "image: ghcr.io/acme/app:1.2.3 # x-yeet-version"
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.3.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.3.0", versionfile.SemVerScheme())
 
 		// then: the version is updated
 		testastic.NoError(t, err)
@@ -50,7 +53,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "4.5.6", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "4.5.6", versionfile.SemVerScheme())
 
 		// then: all numeric scopes are updated
 		testastic.NoError(t, err)
@@ -66,7 +69,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "2.0.0", versionfile.SemVerScheme())
 
 		// then: versions inside the block are updated and outside is unchanged
 		testastic.NoError(t, err)
@@ -81,7 +84,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "version = \"1.2.3\" # x-release-please-version"
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2.4", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.2.4", versionfile.SemVerScheme())
 
 		// then: absence of yeet markers surfaces as a config error
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
@@ -97,7 +100,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements with a two-part version
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.2", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "1.2", versionfile.SemVerScheme())
 
 		// then: the malformed next version surfaces as a loud error rather than silently no-op'ing
 		testastic.ErrorIs(t, err, versionfile.ErrInvalidNextVersion)
@@ -112,7 +115,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "PATCH=1 # x-yeet-patch"
 
 		// when: applying marker replacements with a prerelease version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2.3-rc.1", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.2.3-rc.1", versionfile.SemVerScheme())
 
 		// then: patch value is the numeric part only, suffix stripped
 		testastic.NoError(t, err)
@@ -127,7 +130,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := ""
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.0.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.0.0", versionfile.SemVerScheme())
 
 		// then: nothing changes and no marker-absence error is raised
 		testastic.NoError(t, err)
@@ -142,7 +145,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "name = \"app\" # x-yeet-major"
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2.0.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "2.0.0", versionfile.SemVerScheme())
 
 		// then: the mismatch surfaces as a config error
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerNoMatch)
@@ -158,7 +161,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "2.0.0", versionfile.SemVerScheme())
 
 		// then: the unclosed block surfaces as a structural error
 		testastic.ErrorIs(t, err, versionfile.ErrUnclosedBlockMarker)
@@ -174,7 +177,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2.0.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "2.0.0", versionfile.SemVerScheme())
 
 		// then: the nested start surfaces as a structural error
 		testastic.ErrorIs(t, err, versionfile.ErrNestedBlockMarker)
@@ -190,7 +193,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.2.4", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "1.2.4", versionfile.SemVerScheme())
 
 		// then: missing markers surface as a config error
 		testastic.ErrorIs(t, err, versionfile.ErrNoMarkersFound)
@@ -206,7 +209,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "1.3.0", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(string(input), "1.3.0", versionfile.SemVerScheme())
 
 		// then: only the real marker line is rewritten, prose mentions are left alone
 		testastic.NoError(t, err)
@@ -221,7 +224,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "version = \"1.2.3\" # x-yeet-version"
 
 		// when: applying marker replacements with the same version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2.3", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.2.3", versionfile.SemVerScheme())
 
 		// then: no error, no change
 		testastic.NoError(t, err)
@@ -236,7 +239,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		content := "DAY=2 # x-yeet-day"
 
 		// when: applying marker replacements with semver
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "1.2.3", versionfile.SemVerScheme())
+		updated, changed, err := location.Apply(content, "1.2.3", versionfile.SemVerScheme())
 
 		// then: the scope/scheme mismatch surfaces with a suggested replacement
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
@@ -251,7 +254,7 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.Equal(t, content, updated)
 		testastic.Equal(
 			t,
-			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
+			"apply markers: yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
 				"valid for semver (use \"x-yeet-patch\")",
 			err.Error(),
 		)
@@ -260,6 +263,8 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 
 func TestApplyGenericMarkers_CalVer(t *testing.T) {
 	t.Parallel()
+
+	location := newVersionFileLocation(t, versionfile.FormatMarkers, "")
 
 	defaultScheme := mustCalVerScheme(t, "")
 
@@ -270,7 +275,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		content := "version = \"2026.02.7\" # x-yeet-version"
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(content, "2026.03.1", defaultScheme)
 
 		// then: calver value is updated
 		testastic.NoError(t, err)
@@ -286,7 +291,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(string(input), "2026.03.1", defaultScheme)
 
 		// then: each marker is updated and 0M zero-padding is preserved
 		testastic.NoError(t, err)
@@ -303,7 +308,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		scheme := mustCalVerScheme(t, "YYYY.0M.0D.MICRO")
 
 		// when: applying marker replacements with next calver version on day 5
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.03.05.1", scheme)
+		updated, changed, err := location.Apply(string(input), "2026.03.05.1", scheme)
 
 		// then: day segment renders as 05 not 5, preserving 0D width
 		testastic.NoError(t, err)
@@ -320,7 +325,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		scheme := mustCalVerScheme(t, "YYYY.WW.MICRO")
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.18.1", scheme)
+		updated, changed, err := location.Apply(string(input), "2026.18.1", scheme)
 
 		// then: week segment is updated and other segments follow
 		testastic.NoError(t, err)
@@ -339,7 +344,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		scheme := mustCalVerScheme(t, "YYYY.0M.0D.MICRO")
 
 		// when: applying marker replacements with a four-part calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.04.26.1", scheme)
+		updated, changed, err := location.Apply(content, "2026.04.26.1", scheme)
 
 		// then: the whole version and final micro segment are updated
 		expected := strings.Join([]string{
@@ -360,7 +365,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// when: applying marker replacements with next calver version
-		updated, changed, err := versionfile.ApplyGenericMarkers(string(input), "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(string(input), "2026.03.1", defaultScheme)
 
 		// then: values inside block are updated and outside is unchanged
 		testastic.NoError(t, err)
@@ -376,7 +381,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		scheme := mustCalVerScheme(t, "YYYY.MICRO")
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2027.1", scheme)
+		updated, changed, err := location.Apply(content, "2027.1", scheme)
 
 		// then: the version pattern matches even with only two segments
 		testastic.NoError(t, err)
@@ -392,7 +397,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		scheme := mustCalVerScheme(t, "YY.0M.MICRO")
 
 		// when: applying marker replacements crossing the boundary
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "100.03.1", scheme)
+		updated, changed, err := location.Apply(content, "100.03.1", scheme)
 
 		// then: the rendered width changes from 2 to 3 chars, YY is unpadded by spec
 		testastic.NoError(t, err)
@@ -407,7 +412,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		content := "MAJOR=2025 # x-yeet-major"
 
 		// when: applying marker replacements with default calver
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(content, "2026.03.1", defaultScheme)
 
 		// then: the scope/scheme mismatch surfaces with the year suggestion
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
@@ -415,7 +420,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(t, content, updated)
 		testastic.Equal(
 			t,
-			"yeet marker scope not valid for configured scheme: \"x-yeet-major\" at line 1 is not "+
+			"apply markers: yeet marker scope not valid for configured scheme: \"x-yeet-major\" at line 1 is not "+
 				"valid for calver format \"YYYY.0M.MICRO\" (use \"x-yeet-year\")",
 			err.Error(),
 		)
@@ -428,7 +433,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		content := "DAY=2 # x-yeet-day"
 
 		// when: applying marker replacements with default calver (YYYY.0M.MICRO)
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(content, "2026.03.1", defaultScheme)
 
 		// then: the scope/format mismatch surfaces with a calver-format hint
 		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
@@ -436,7 +441,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(t, content, updated)
 		testastic.Equal(
 			t,
-			"yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
+			"apply markers: yeet marker scope not valid for configured scheme: \"x-yeet-day\" at line 1 is not "+
 				"valid for calver format \"YYYY.0M.MICRO\" "+
 				"(the configured calver format has no day token)",
 			err.Error(),
@@ -450,7 +455,7 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		content := "config: month=11 retries=4 timeout=30 # x-yeet-month"
 
 		// when: applying marker replacements
-		updated, changed, err := versionfile.ApplyGenericMarkers(content, "2026.03.1", defaultScheme)
+		updated, changed, err := location.Apply(content, "2026.03.1", defaultScheme)
 
 		// then: only the first numeric (11→03) is replaced, later 4 and 30 are untouched
 		testastic.NoError(t, err)

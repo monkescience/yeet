@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/versionfile"
 )
 
 const combinedReleaseUnitID = "combined"
@@ -207,8 +208,7 @@ func validateReleaseUnitFileOwnership(
 }
 
 type plannedVersionFileEffect struct {
-	format      config.VersionFileFormat
-	jsonPointer string
+	location    versionfile.Location
 	versioning  config.VersioningStrategy
 	nextVersion string
 }
@@ -222,9 +222,13 @@ func validateReleaseUnitFileEffects(targets map[string]config.ResolvedTarget, un
 		changelogPaths[target.Changelog.File] = struct{}{}
 
 		for _, versionFile := range target.VersionFiles {
+			location, err := versionfile.NewLocation(versionFile.Format, versionFile.JSONPointer)
+			if err != nil {
+				return &VersionFileError{Target: target.ID, Path: versionFile.Path, cause: err}
+			}
+
 			effect := plannedVersionFileEffect{
-				format:      versionFile.Format,
-				jsonPointer: versionFile.JSONPointer,
+				location:    location,
 				versioning:  target.Versioning,
 				nextVersion: plan.NextVersion,
 			}
@@ -261,11 +265,11 @@ func validateReleaseUnitFileEffects(targets map[string]config.ResolvedTarget, un
 }
 
 func versionFileEffectsConflict(left, right plannedVersionFileEffect) bool {
-	if left.format != right.format {
+	if left.location.Format() != right.location.Format() {
 		return true
 	}
 
-	if left.format == config.VersionFileFormatJSON && left.jsonPointer != right.jsonPointer {
+	if !left.location.Overlaps(right.location) {
 		return false
 	}
 

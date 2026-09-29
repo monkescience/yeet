@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/monkescience/yeet/internal/commit"
+	"github.com/monkescience/yeet/internal/versionfile"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -98,11 +99,11 @@ type NetworkRetryConfig struct {
 	MaxBackoff  time.Duration `yaml:"max_backoff"`
 }
 
-type VersionFileFormat string
+type VersionFileFormat = versionfile.Format
 
 const (
-	VersionFileFormatMarkers VersionFileFormat = "markers"
-	VersionFileFormatJSON    VersionFileFormat = "json"
+	VersionFileFormatMarkers = versionfile.FormatMarkers
+	VersionFileFormatJSON    = versionfile.FormatJSON
 )
 
 type VersionFile struct {
@@ -297,11 +298,7 @@ var (
 	errEmptyRepoPath          = errors.New("must not be empty")
 	errPathMustBeRepoRelative = errors.New("must be repo-relative")
 	errPathMustReferToFile    = errors.New("must refer to a file")
-
-	errJSONPointerMustStartWithSlash = errors.New("must start with /")
 )
-
-var errJSONPointerInvalidEscape = errors.New("contains invalid escape")
 
 func load(ctx context.Context, path string) (*Config, error) {
 	return loadFile(ctx, path, true)

@@ -19,12 +19,7 @@ var (
 	ErrJSONPointerNonString = errors.New("json pointer does not resolve to a string")
 )
 
-func ApplyJSONPointer(content, nextVersion, pointer string) (string, bool, error) {
-	path, err := parseJSONPointer(pointer)
-	if err != nil {
-		return content, false, err
-	}
-
+func applyJSONPointer(content, nextVersion string, path []string) (string, bool, error) {
 	data := []byte(content)
 	if !jsontext.Value(data).IsValid() {
 		return content, false, ErrInvalidJSON
@@ -54,7 +49,7 @@ type byteSpan struct {
 
 func parseJSONPointer(pointer string) ([]string, error) {
 	if pointer == "" || pointer[0] != '/' {
-		return nil, fmt.Errorf("%w: must start with /", ErrInvalidJSONPointer)
+		return nil, &JSONPointerError{Reason: JSONPointerMissingSlash}
 	}
 
 	parts := strings.Split(pointer[1:], "/")
@@ -81,7 +76,7 @@ func unescapeJSONPointerPart(part string) (string, error) {
 		}
 
 		if i+1 >= len(part) {
-			return "", fmt.Errorf("%w: invalid escape", ErrInvalidJSONPointer)
+			return "", &JSONPointerError{Reason: JSONPointerInvalidEscape}
 		}
 
 		switch part[i+1] {
@@ -90,7 +85,7 @@ func unescapeJSONPointerPart(part string) (string, error) {
 		case '1':
 			builder.WriteByte('/')
 		default:
-			return "", fmt.Errorf("%w: invalid escape", ErrInvalidJSONPointer)
+			return "", &JSONPointerError{Reason: JSONPointerInvalidEscape}
 		}
 
 		i++

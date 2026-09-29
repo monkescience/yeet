@@ -107,7 +107,7 @@ func CalVerScheme(calver *version.CalVerScheme) Scheme {
 	return Scheme{kind: schemeCalVer, calver: calver}
 }
 
-func ApplyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bool, error) {
+func applyGenericMarkers(content, nextVersion string, scheme Scheme) (string, bool, error) {
 	if content == "" {
 		return content, false, nil
 	}

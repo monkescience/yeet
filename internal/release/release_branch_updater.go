@@ -100,7 +100,12 @@ func (u *releaseBranchUpdater) updateVersionFiles(
 			return &VersionFileError{Target: target.ID, Path: versionFile.Path, cause: fileErr}
 		}
 
-		updatedContent, changed, markerErr := applyVersionFile(content, nextVersion, scheme, versionFile)
+		location, locationErr := versionfile.NewLocation(versionFile.Format, versionFile.JSONPointer)
+		if locationErr != nil {
+			return &VersionFileError{Target: target.ID, Path: versionFile.Path, cause: locationErr}
+		}
+
+		updatedContent, changed, markerErr := location.Apply(content, nextVersion, scheme)
 		if markerErr != nil {
 			return &VersionFileError{
 				Target: target.ID, Path: versionFile.Path,
@@ -144,29 +149,6 @@ func (u *releaseBranchUpdater) versionFileContent(
 	}
 
 	return content, true, nil
-}
-
-func applyVersionFile(
-	content string,
-	nextVersion string,
-	scheme versionfile.Scheme,
-	versionFile config.VersionFile,
-) (string, bool, error) {
-	if versionFile.Format == config.VersionFileFormatJSON {
-		updated, changed, err := versionfile.ApplyJSONPointer(content, nextVersion, versionFile.JSONPointer)
-		if err != nil {
-			return content, false, fmt.Errorf("apply json pointer: %w", err)
-		}
-
-		return updated, changed, nil
-	}
-
-	updated, changed, err := versionfile.ApplyGenericMarkers(content, nextVersion, scheme)
-	if err != nil {
-		return content, false, fmt.Errorf("apply markers: %w", err)
-	}
-
-	return updated, changed, nil
 }
 
 func (u *releaseBranchUpdater) releaseChangelogFileContent(

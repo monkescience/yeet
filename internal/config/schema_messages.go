@@ -1,11 +1,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/versionfile"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
@@ -136,12 +138,19 @@ func versionFileRules(prefix []string) []schemaRule {
 			path:    slices.Clone(pointer),
 			keyword: keywordPattern,
 			message: func(found violation) string {
-				err := validateJSONPointerSyntax(scalar(found.value))
-				if err == nil {
+				_, err := versionfile.NewLocation(versionfile.FormatJSON, scalar(found.value))
+
+				pointerErr, ok := errors.AsType[*versionfile.JSONPointerError](err)
+				if !ok {
 					return container(found.location, versionFileEntryDepth) + " json_pointer is malformed"
 				}
 
-				return fmt.Sprintf("%s json_pointer: %v", container(found.location, versionFileEntryDepth), err)
+				problem := "contains invalid escape"
+				if pointerErr.Reason == versionfile.JSONPointerMissingSlash {
+					problem = "must start with /"
+				}
+
+				return fmt.Sprintf("%s json_pointer: %s", container(found.location, versionFileEntryDepth), problem)
 			},
 		},
 		containerRule(entry, keywordNot, "json_pointer requires format "+strconv.Quote(
@@ -520,26 +529,6 @@ func scalar(value any) string {
 	}
 
 	return fmt.Sprint(value)
-}
-
-func validateJSONPointerSyntax(pointer string) error {
-	if pointer == "" || pointer[0] != '/' {
-		return errJSONPointerMustStartWithSlash
-	}
-
-	for i := 0; i < len(pointer); i++ {
-		if pointer[i] != '~' {
-			continue
-		}
-
-		if i+1 >= len(pointer) || (pointer[i+1] != '0' && pointer[i+1] != '1') {
-			return errJSONPointerInvalidEscape
-		}
-
-		i++
-	}
-
-	return nil
 }
 
 func schemaContainer(location []string) string {
