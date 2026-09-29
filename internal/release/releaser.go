@@ -79,11 +79,6 @@ type releaser struct {
 	lifecycle *releaseUnitLifecycle
 }
 
-type versionStrategy struct {
-	strategy version.Strategy
-	prefix   string
-}
-
 func newReleaseCore(
 	ctx context.Context,
 	cfg *config.Config,
@@ -110,7 +105,14 @@ func newReleaseCoreAt(
 		return nil, fmt.Errorf("resolve release targets: %w", err)
 	}
 
-	targets, err = run.withChannelChangelogs(targets)
+	releaseTime := now.In(location)
+
+	strategies, err := newVersionStrategies(targets, func() time.Time { return releaseTime })
+	if err != nil {
+		return nil, err
+	}
+
+	targets, err = run.withChannelChangelogs(targets, strategies)
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +121,10 @@ func newReleaseCoreAt(
 		cfg:         cfg,
 		run:         run,
 		targets:     targets,
+		strategies:  strategies,
 		layout:      cfg.ReleaseLayout(),
 		metadata:    metadata,
-		releaseTime: now.In(location),
+		releaseTime: releaseTime,
 	}, nil
 }
 
@@ -134,7 +137,7 @@ func newReleaser(
 		return nil, errNilHistorySource
 	}
 
-	text, err := newReleaseText(core.cfg, core.run, core.targets, core.layout)
+	text, err := newReleaseText(core)
 	if err != nil {
 		return nil, err
 	}

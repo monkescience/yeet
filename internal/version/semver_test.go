@@ -11,7 +11,7 @@ import (
 func TestSemVerCurrent(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	t.Run("parses valid tag", func(t *testing.T) {
 		t.Parallel()
@@ -31,7 +31,7 @@ func TestSemVerCurrent(t *testing.T) {
 		t.Parallel()
 
 		// given: a semver with no matching prefix
-		noPrefixSV := &version.SemVer{Prefix: ""}
+		noPrefixSV := version.NewSemVer(version.SemVerOptions{Prefix: ""})
 
 		// when: parsing current version
 		v, err := noPrefixSV.Current("1.0.0")
@@ -73,11 +73,11 @@ func TestSemVerCurrent(t *testing.T) {
 func TestSemVerNext(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{
+	sv := version.NewSemVer(version.SemVerOptions{
 		Prefix:                     "v",
 		PreMajorBreakingBumpsMinor: true,
 		PreMajorFeaturesBumpPatch:  true,
-	}
+	})
 
 	t.Run("major bump", func(t *testing.T) {
 		t.Parallel()
@@ -207,11 +207,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: pre_major_breaking_bumps_minor is false
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: false,
 			PreMajorFeaturesBumpPatch:  true,
-		}
+		})
 
 		// when: applying a major bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMajor)
@@ -225,11 +225,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: pre_major_breaking_bumps_minor is false, pre_major_features_bump_patch is true
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: false,
 			PreMajorFeaturesBumpPatch:  true,
-		}
+		})
 
 		// when: applying a minor bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMinor)
@@ -243,11 +243,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: pre_major_features_bump_patch is false
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: true,
 			PreMajorFeaturesBumpPatch:  false,
-		}
+		})
 
 		// when: applying a minor bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMinor)
@@ -261,11 +261,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: pre_major_breaking_bumps_minor is true, pre_major_features_bump_patch is false
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: true,
 			PreMajorFeaturesBumpPatch:  false,
-		}
+		})
 
 		// when: applying a major bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMajor)
@@ -279,11 +279,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: both pre-major options disabled
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: false,
 			PreMajorFeaturesBumpPatch:  false,
-		}
+		})
 
 		// when: applying a major bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMajor)
@@ -297,11 +297,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: both pre-major options disabled
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: false,
 			PreMajorFeaturesBumpPatch:  false,
-		}
+		})
 
 		// when: applying a minor bump before 1.0.0
 		next, err := sv.Next("0.4.2", commit.BumpMinor)
@@ -315,11 +315,11 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		t.Parallel()
 
 		// given: both pre-major options enabled, version >= 1.0.0
-		sv := &version.SemVer{
+		sv := version.NewSemVer(version.SemVerOptions{
 			Prefix:                     "v",
 			PreMajorBreakingBumpsMinor: true,
 			PreMajorFeaturesBumpPatch:  true,
-		}
+		})
 
 		// when: applying a major bump after 1.0.0
 		next, err := sv.Next("1.2.3", commit.BumpMajor)
@@ -334,72 +334,11 @@ func TestSemVerInitialVersion(t *testing.T) {
 	t.Parallel()
 
 	// given: a semver strategy
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	// when: getting initial version
 	v := sv.InitialVersion()
 
 	// then: returns 0.0.0
 	testastic.Equal(t, "0.0.0", v)
-}
-
-func TestSemVerLess(t *testing.T) {
-	t.Parallel()
-
-	sv := &version.SemVer{Prefix: "v"}
-
-	t.Run("lower version is less", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two valid versions where left is lower
-		// when: comparing left and right
-		got := sv.Less("1.2.0", "1.3.0", "ignored", "ignored")
-
-		// then: left sorts first
-		testastic.True(t, got)
-	})
-
-	t.Run("higher version is not less", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two valid versions where left is higher
-		// when: comparing left and right
-		got := sv.Less("2.0.0", "1.9.9", "ignored", "ignored")
-
-		// then: left does not sort first
-		testastic.False(t, got)
-	})
-
-	t.Run("equal versions fall back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: identical versions with refs that order alphabetically
-		// when: comparing
-		got := sv.Less("1.2.3", "1.2.3", "abc", "xyz")
-
-		// then: ref tiebreak is used
-		testastic.True(t, got)
-	})
-
-	t.Run("unparseable left version falls back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: an unparseable left and a valid right
-		// when: comparing
-		got := sv.Less("garbage", "1.2.3", "abc", "xyz")
-
-		// then: ref ordering decides
-		testastic.True(t, got)
-	})
-
-	t.Run("unparseable right version falls back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a valid left and an unparseable right
-		// when: comparing
-		got := sv.Less("1.2.3", "garbage", "zzz", "aaa")
-
-		// then: ref ordering decides
-		testastic.False(t, got)
-	})
 }

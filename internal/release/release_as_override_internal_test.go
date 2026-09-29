@@ -43,10 +43,13 @@ func TestReleaseAsOverride(t *testing.T) {
 			releaseAsCommit("def5678", "3.0.0"),
 		}
 
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: the override is read for that target
 		override, err := releaseAsOverride(
 			t.Context(),
-			versionStrategyForResolvedTarget(target).strategy,
+			strategy,
 			target,
 			commits,
 			"",
@@ -70,10 +73,13 @@ func TestReleaseAsOverride(t *testing.T) {
 
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}
 
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: the override is read for that target
 		override, err := releaseAsOverride(
 			t.Context(),
-			versionStrategyForResolvedTarget(target).strategy,
+			strategy,
 			target,
 			[]commit.Commit{releaseAsCommit("abc1234", "2.0.0")},
 			"1.0.0",
@@ -89,10 +95,13 @@ func TestReleaseAsOverride(t *testing.T) {
 		// given: a Release-As footer with no value
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}
 
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: resolving the release-as override
 		_, err := releaseAsOverride(
 			t.Context(),
-			versionStrategyForResolvedTarget(target).strategy,
+			strategy,
 			target,
 			[]commit.Commit{releaseAsCommit("abc1234", "")},
 			"1.0.0",
@@ -115,10 +124,13 @@ func TestReleaseAsOverride(t *testing.T) {
 		// given: a Release-As footer that is not valid semver
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}
 
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: resolving the release-as override
 		_, err := releaseAsOverride(
 			t.Context(),
-			versionStrategyForResolvedTarget(target).strategy,
+			strategy,
 			target,
 			[]commit.Commit{releaseAsCommit("abc1234", "not-a-version")},
 			"1.0.0",

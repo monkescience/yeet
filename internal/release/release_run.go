@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
+	"github.com/monkescience/yeet/internal/version"
 )
 
 type releaseRun struct {
@@ -154,6 +155,7 @@ func (r releaseRun) isPrerelease() bool {
 
 func (r releaseRun) withChannelChangelogs(
 	targets map[string]config.ResolvedTarget,
+	strategies map[string]version.Strategy,
 ) (map[string]config.ResolvedTarget, error) {
 	if r.channelName == "" {
 		return targets, nil
@@ -161,7 +163,7 @@ func (r releaseRun) withChannelChangelogs(
 
 	channelTargets := make(map[string]config.ResolvedTarget, len(targets))
 	for targetID, target := range targets {
-		if !versionStrategyForResolvedTarget(target).strategy.SupportsPrerelease() {
+		if !strategies[targetID].SupportsPrerelease() {
 			//nolint:wrapcheck // config supplies the typed validation context.
 			return nil, config.Invalidf("prerelease channel %q supports semver targets only. Target %q uses %q", r.channelName,
 				targetID,

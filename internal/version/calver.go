@@ -25,9 +25,26 @@ const (
 )
 
 type CalVer struct {
-	Format string
-	Prefix string
-	Now    func() time.Time
+	format calverFormat
+	prefix string
+	clock  func() time.Time
+}
+
+func NewCalVer(format, prefix string, now func() time.Time) (*CalVer, error) {
+	if strings.TrimSpace(format) == "" {
+		format = DefaultCalVerFormat
+	}
+
+	compiled, err := compileCalVerFormat(format)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CalVer{format: compiled, prefix: prefix, clock: now}, nil
+}
+
+func (c *CalVer) Tag(version string) string {
+	return c.prefix + version
 }
 
 func (c *CalVer) SupportsReleaseAs() bool {
@@ -74,19 +91,17 @@ func ValidateCalVerFormat(format string) error {
 }
 
 func (c *CalVer) Current(tag string) (string, error) {
-	cleaned := strings.TrimPrefix(tag, c.Prefix)
-
-	format, err := c.compileFormat()
+	parts, err := c.parseRef(tag)
 	if err != nil {
 		return "", err
 	}
 
-	parts, err := format.parse(cleaned)
-	if err != nil {
-		return "", err
-	}
+	return c.format.render(parts), nil
+}
 
-	return format.render(parts), nil
+func (c *CalVer) OrderedRefs(refs []string, _ string) []string {
+	return orderedRefs(refs, c.parseRef, func(calverParts) bool { return true },
+		func(left, right calverParts) int { return compareCalVerParts(c.format, left, right) })
 }
 
 func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
@@ -94,82 +109,46 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return current, nil
 	}
 
-	format, err := c.compileFormat()
-	if err != nil {
-		return "", err
-	}
-
 	now := c.now()
-	nowParts := format.partsFromTime(now)
+	nowParts := c.format.partsFromTime(now)
 
 	if current == "" {
 		nowParts.Micro = 1
 
-		return format.render(nowParts), nil
+		return c.format.render(nowParts), nil
 	}
 
-	parts, err := format.parse(current)
+	parts, err := c.format.parse(current)
 	if err != nil {
 		return "", err
 	}
 
-	if compareCalVerPeriods(format, parts, nowParts) > 0 {
+	if compareCalVerPeriods(c.format, parts, nowParts) > 0 {
 		return "", fmt.Errorf("%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
 	}
 
 	nowParts.Micro = 1
-	if format.sameCalendarPeriod(parts, nowParts) {
+	if c.format.sameCalendarPeriod(parts, nowParts) {
 		nowParts.Micro = parts.Micro + 1
 	}
 
-	return format.render(nowParts), nil
+	return c.format.render(nowParts), nil
 }
 
 func (c *CalVer) InitialVersion() string {
 	return ""
 }
 
-func (c *CalVer) Less(leftVersion, rightVersion, leftRef, rightRef string) bool {
-	format, err := c.compileFormat()
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	leftParts, err := format.parse(leftVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	rightParts, err := format.parse(rightVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	if cmp := compareCalVerParts(format, leftParts, rightParts); cmp != 0 {
-		return cmp < 0
-	}
-
-	return leftRef < rightRef
+func (c *CalVer) parseRef(ref string) (calverParts, error) {
+	return c.format.parse(strings.TrimPrefix(ref, c.prefix))
 }
 
 func (c *CalVer) now() time.Time {
-	if c.Now != nil {
-		return c.Now()
+	if c.clock != nil {
+		return c.clock()
 	}
 
 	return time.Now()
-}
-
-func (c *CalVer) compileFormat() (calverFormat, error) {
-	return compileCalVerFormat(c.format())
-}
-
-func (c *CalVer) format() string {
-	if strings.TrimSpace(c.Format) == "" {
-		return DefaultCalVerFormat
-	}
-
-	return c.Format
 }
 
 type calverParts struct {

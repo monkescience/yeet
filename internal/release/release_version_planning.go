@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
@@ -13,53 +14,49 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
-func currentVersionOrInitial(target config.ResolvedTarget) string {
-	return versionStrategyForResolvedTarget(target).strategy.InitialVersion()
+func newVersionStrategies(
+	targets map[string]config.ResolvedTarget,
+	now func() time.Time,
+) (map[string]version.Strategy, error) {
+	strategies := make(map[string]version.Strategy, len(targets))
+	for targetID, target := range targets {
+		strategy, err := versionStrategyForResolvedTarget(target, now)
+		if err != nil {
+			return nil, fmt.Errorf("resolve version strategy for target %q: %w", targetID, err)
+		}
+
+		strategies[targetID] = strategy
+	}
+
+	return strategies, nil
 }
 
-func versionStrategyForResolvedTarget(target config.ResolvedTarget) versionStrategy {
-	var strategy version.Strategy
-
-	switch target.Versioning {
-	case config.VersioningCalVer:
-		strategy = calVerStrategy(target)
-	case config.VersioningSemver:
-		strategy = &version.SemVer{
+func versionStrategyForResolvedTarget(
+	target config.ResolvedTarget,
+	now func() time.Time,
+) (version.Strategy, error) {
+	if target.Versioning == config.VersioningSemver {
+		return version.NewSemVer(version.SemVerOptions{
 			Prefix:                     target.TagPrefix,
 			PreMajorBreakingBumpsMinor: target.PreMajorBreakingBumpsMinor,
 			PreMajorFeaturesBumpPatch:  target.PreMajorFeaturesBumpPatch,
-		}
-	default:
-		strategy = calVerStrategy(target)
+		}), nil
 	}
 
-	return versionStrategy{strategy: strategy, prefix: target.TagPrefix}
-}
-
-func calVerStrategy(target config.ResolvedTarget) *version.CalVer {
-	return &version.CalVer{
-		Format: target.CalVer.Format,
-		Prefix: target.TagPrefix,
-	}
-}
-
-func (c *releaseCore) versionStrategyForPlanning(target config.ResolvedTarget) versionStrategy {
-	strategy := versionStrategyForResolvedTarget(target)
-
-	calver, isCalVer := strategy.strategy.(*version.CalVer)
-	if isCalVer {
-		calver.Now = c.timestamp
+	strategy, err := version.NewCalVer(target.CalVer.Format, target.TagPrefix, now)
+	if err != nil {
+		return nil, fmt.Errorf("compile calver format: %w", err)
 	}
 
-	return strategy
+	return strategy, nil
 }
 
-func currentVersionWithInitial(target config.ResolvedTarget, currentVersion string) string {
+func currentVersionWithInitial(strategy version.Strategy, currentVersion string) string {
 	if currentVersion != "" {
 		return currentVersion
 	}
 
-	return currentVersionOrInitial(target)
+	return strategy.InitialVersion()
 }
 
 func (a *releaseAnalyzer) nextVersionPlan(
@@ -69,8 +66,8 @@ func (a *releaseAnalyzer) nextVersionPlan(
 	currentVersion string,
 	bumpType commit.BumpType,
 ) (string, commit.BumpType, bool, error) {
-	strategy := a.core.versionStrategyForPlanning(target).strategy
-	current := currentVersionWithInitial(target, currentVersion)
+	strategy := a.core.strategies[target.ID]
+	current := currentVersionWithInitial(strategy, currentVersion)
 
 	releaseAsVersion, err := releaseAsOverride(ctx, strategy, target, commits, current)
 	if err != nil {

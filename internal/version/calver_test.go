@@ -80,10 +80,22 @@ func TestValidateCalVerFormat(t *testing.T) {
 	}
 }
 
+func TestNewCalVer(t *testing.T) {
+	t.Parallel()
+
+	// given: a format without a micro token
+	// when: constructing a calendar version strategy
+	cv, err := version.NewCalVer("YYYY.0M", "v", nil)
+
+	// then: construction rejects the format and returns no strategy
+	testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	testastic.True(t, cv == nil)
+}
+
 func TestCalVerCurrent(t *testing.T) {
 	t.Parallel()
 
-	cv := &version.CalVer{Prefix: "v"}
+	cv := newCalVer(t, "", "v", nil)
 
 	t.Run("parses valid tag", func(t *testing.T) {
 		t.Parallel()
@@ -158,7 +170,7 @@ func TestCalVerCurrent(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag using YY.MM.MICRO
-		cv := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YY.MM.MICRO", "v", nil)
 		tag := "v26.02.7"
 
 		// when: parsing current version
@@ -173,7 +185,7 @@ func TestCalVerCurrent(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag using YYYY.0M.0D.MICRO
-		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0M.0D.MICRO", "v", nil)
 		tag := "v2026.2.3.7"
 
 		// when: parsing current version
@@ -231,7 +243,7 @@ func TestCalVerInitialVersion(t *testing.T) {
 	t.Parallel()
 
 	// given: a calver strategy
-	cv := &version.CalVer{Prefix: "v"}
+	cv := newCalVer(t, "", "v", nil)
 
 	// when: requesting the initial version
 	initial := cv.InitialVersion()
@@ -247,10 +259,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy set to Feb 2026
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: calculating next from an empty version
 		next, err := cv.Next("", commit.BumpMinor)
@@ -264,10 +273,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy with existing version in same month
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: calculating next from existing version in same month
 		next, err := cv.Next("2026.02.3", commit.BumpPatch)
@@ -281,10 +287,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: current version from January, now it's February
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: calculating next
 		next, err := cv.Next("2026.01.5", commit.BumpPatch)
@@ -333,11 +336,7 @@ func TestCalVerNext(t *testing.T) {
 				t.Parallel()
 
 				// given: the current version belongs to a calendar period after the fixed clock
-				cv := &version.CalVer{
-					Format: testCase.format,
-					Prefix: "v",
-					Now:    testCase.now,
-				}
+				cv := newCalVer(t, testCase.format, "v", testCase.now)
 
 				// when: calculating the next version
 				_, err := cv.Next(testCase.current, commit.BumpPatch)
@@ -475,11 +474,7 @@ func TestCalVerNext(t *testing.T) {
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
-				cv := &version.CalVer{
-					Format: testCase.format,
-					Prefix: "v",
-					Now:    fixedDate(2026, time.August, 10),
-				}
+				cv := newCalVer(t, testCase.format, "v", fixedDate(2026, time.August, 10))
 
 				for _, comparison := range testCase.comparisons {
 					t.Run(comparison.name, func(t *testing.T) {
@@ -504,10 +499,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: current version
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: applying no bump
 		next, err := cv.Next("2026.02.1", commit.BumpNone)
@@ -521,10 +513,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy with existing version using non-zero-padded month
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: calculating next from "2026.2.3" (non-zero-padded)
 		next, err := cv.Next("2026.2.3", commit.BumpPatch)
@@ -538,10 +527,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: current version from last year
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2027, time.January),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2027, time.January))
 
 		// when: calculating next
 		next, err := cv.Next("2026.12.7", commit.BumpMinor)
@@ -555,11 +541,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy with YY.MM.MICRO
-		cv := &version.CalVer{
-			Format: "YY.MM.MICRO",
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "YY.MM.MICRO", "v", fixedTime(2026, time.February))
 
 		// when: calculating next from existing version in same month
 		next, err := cv.Next("26.2.3", commit.BumpPatch)
@@ -573,11 +555,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy with YYYY.0M.0D.MICRO
-		cv := &version.CalVer{
-			Format: "YYYY.0M.0D.MICRO",
-			Prefix: "v",
-			Now:    fixedDate(2026, time.February, 3),
-		}
+		cv := newCalVer(t, "YYYY.0M.0D.MICRO", "v", fixedDate(2026, time.February, 3))
 
 		// when: calculating next from the previous day
 		next, err := cv.Next("2026.02.02.7", commit.BumpPatch)
@@ -591,11 +569,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a week-based calver strategy fixed mid-week
-		cv := &version.CalVer{
-			Format: "YYYY.0W.MICRO",
-			Prefix: "v",
-			Now:    fixedDate(2026, time.February, 4),
-		}
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2026, time.February, 4))
 
 		// when: calculating next within the same week
 		next, err := cv.Next("2026.05.2", commit.BumpPatch)
@@ -609,11 +583,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a week-based calver strategy moved into the next week
-		cv := &version.CalVer{
-			Format: "YYYY.0W.MICRO",
-			Prefix: "v",
-			Now:    fixedDate(2026, time.February, 8),
-		}
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2026, time.February, 8))
 
 		// when: calculating next after the week rolls over
 		next, err := cv.Next("2026.05.4", commit.BumpPatch)
@@ -627,11 +597,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a week-based calver strategy on the first day of a new year
-		cv := &version.CalVer{
-			Format: "YYYY.0W.MICRO",
-			Prefix: "v",
-			Now:    fixedDate(2027, time.January, 1),
-		}
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2027, time.January, 1))
 
 		// when: calculating next from the previous year's final week
 		next, err := cv.Next("2026.53.4", commit.BumpPatch)
@@ -645,11 +611,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy using the 0Y year-pad token
-		cv := &version.CalVer{
-			Format: "0Y.0M.MICRO",
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "0Y.0M.MICRO", "v", fixedTime(2026, time.February))
 
 		// when: rendering the first version of the period
 		next, err := cv.Next("", commit.BumpMinor)
@@ -663,11 +625,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a 0Y format computed for an early-millennium year
-		cv := &version.CalVer{
-			Format: "0Y.0M.MICRO",
-			Prefix: "v",
-			Now:    fixedTime(2007, time.March),
-		}
+		cv := newCalVer(t, "0Y.0M.MICRO", "v", fixedTime(2007, time.March))
 
 		// when: rendering the first version of the period
 		next, err := cv.Next("", commit.BumpMinor)
@@ -681,11 +639,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy using non-padded day token
-		cv := &version.CalVer{
-			Format: "YYYY.MM.DD.MICRO",
-			Prefix: "v",
-			Now:    fixedDate(2026, time.February, 3),
-		}
+		cv := newCalVer(t, "YYYY.MM.DD.MICRO", "v", fixedDate(2026, time.February, 3))
 
 		// when: rendering the first version of the period
 		next, err := cv.Next("", commit.BumpMinor)
@@ -699,10 +653,7 @@ func TestCalVerNext(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy and an unparseable current value
-		cv := &version.CalVer{
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.February))
 
 		// when: calculating next from a malformed current
 		_, err := cv.Next("not a calver", commit.BumpPatch)
@@ -710,111 +661,6 @@ func TestCalVerNext(t *testing.T) {
 		// then: the parse error surfaces
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
-	})
-
-	t.Run("rejects invalid configured format", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a calver strategy with an invalid format
-		cv := &version.CalVer{
-			Format: "YYYY.0M",
-			Prefix: "v",
-			Now:    fixedTime(2026, time.February),
-		}
-
-		// when: calculating next
-		_, err := cv.Next("", commit.BumpMinor)
-
-		// then: format validation surfaces
-		testastic.Error(t, err)
-		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
-	})
-}
-
-func TestCalVerLess(t *testing.T) {
-	t.Parallel()
-
-	cv := &version.CalVer{Prefix: "v"}
-
-	t.Run("earlier calendar period is less", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two valid versions where left is earlier
-		// when: comparing left and right
-		got := cv.Less("2026.01.5", "2026.02.1", "ignored", "ignored")
-
-		// then: left sorts first
-		testastic.True(t, got)
-	})
-
-	t.Run("later calendar period is greater", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two valid versions where left is later
-		// when: comparing left and right
-		got := cv.Less("2027.01.1", "2026.12.9", "ignored", "ignored")
-
-		// then: left does not sort first
-		testastic.False(t, got)
-	})
-
-	t.Run("equal versions fall back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: identical versions with refs that order alphabetically
-		// when: comparing
-		got := cv.Less("2026.02.1", "2026.02.1", "abc", "xyz")
-
-		// then: ref tiebreak is used
-		testastic.True(t, got)
-	})
-
-	t.Run("unparseable left version falls back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: an unparseable left and a valid right
-		// when: comparing
-		got := cv.Less("garbage", "2026.02.1", "abc", "xyz")
-
-		// then: ref ordering decides
-		testastic.True(t, got)
-	})
-
-	t.Run("unparseable right version falls back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a valid left and an unparseable right
-		// when: comparing
-		got := cv.Less("2026.02.1", "garbage", "zzz", "aaa")
-
-		// then: ref ordering decides
-		testastic.False(t, got)
-	})
-
-	t.Run("invalid format falls back to ref", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a strategy with an invalid format
-		cvBad := &version.CalVer{Format: "YYYY.0M", Prefix: "v"}
-
-		// when: comparing
-		got := cvBad.Less("2026.02.1", "2026.02.2", "abc", "xyz")
-
-		// then: ref ordering decides
-		testastic.True(t, got)
-	})
-
-	t.Run("configured short year and unpadded month", func(t *testing.T) {
-		t.Parallel()
-
-		// given: two YY.MM.MICRO versions that do not sort correctly as strings
-		cvShort := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
-
-		// when: comparing with the configured format
-		got := cvShort.Less("26.2.9", "26.10.1", "ref-a", "ref-b")
-
-		// then: the earlier month is less
-		testastic.True(t, got)
 	})
 }
 
@@ -825,7 +671,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a tag with characters past the format
-		cv := &version.CalVer{Prefix: "v"}
+		cv := newCalVer(t, "", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.02.1-extra")
@@ -839,7 +685,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a tag with consecutive separators
-		cv := &version.CalVer{Prefix: "v"}
+		cv := newCalVer(t, "", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026..1")
@@ -853,7 +699,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a tag missing the trailing separator before MICRO
-		cv := &version.CalVer{Prefix: "v"}
+		cv := newCalVer(t, "", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026021")
@@ -867,7 +713,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag with February 30
-		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0M.0D.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.02.30.1")
@@ -882,7 +728,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag with day 32
-		cv := &version.CalVer{Format: "YYYY.0M.0D.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0M.0D.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.01.32.1")
@@ -896,7 +742,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag with week 54
-		cv := &version.CalVer{Format: "YYYY.0W.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.54.1")
@@ -910,7 +756,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver tag with week 0
-		cv := &version.CalVer{Format: "YYYY.0W.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.00.1")
@@ -924,7 +770,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: YYYY format with three-digit year
-		cv := &version.CalVer{Format: "YYYY.0M.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.0M.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v202.02.1")
@@ -938,7 +784,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: YY format with a negative year segment
-		cv := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YY.MM.MICRO", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v-1.02.1")
@@ -952,7 +798,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a tag where the month segment is not numeric
-		cv := &version.CalVer{Prefix: "v"}
+		cv := newCalVer(t, "", "v", nil)
 
 		// when: parsing
 		_, err := cv.Current("v2026.foo.1")
@@ -966,7 +812,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: YYYY.MM.DD.MICRO with valid input
-		cv := &version.CalVer{Format: "YYYY.MM.DD.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.MM.DD.MICRO", "v", nil)
 
 		// when: parsing
 		v, err := cv.Current("v2026.2.3.7")
@@ -980,7 +826,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: 0Y.0W.MICRO with valid input
-		cv := &version.CalVer{Format: "0Y.0W.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "0Y.0W.MICRO", "v", nil)
 
 		// when: parsing
 		v, err := cv.Current("v26.05.2")
@@ -994,7 +840,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: YYYY.WW.MICRO with valid input
-		cv := &version.CalVer{Format: "YYYY.WW.MICRO", Prefix: "v"}
+		cv := newCalVer(t, "YYYY.WW.MICRO", "v", nil)
 
 		// when: parsing
 		v, err := cv.Current("v2026.5.2")
@@ -1008,7 +854,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver strategy without an injected clock
-		cv := &version.CalVer{Prefix: "v"}
+		cv := newCalVer(t, "", "v", nil)
 
 		// when: calculating next from empty current with a bump
 		next, err := cv.Next("", commit.BumpMinor)
@@ -1017,4 +863,13 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.True(t, next != "")
 	})
+}
+
+func newCalVer(t *testing.T, format, prefix string, now func() time.Time) *version.CalVer {
+	t.Helper()
+
+	cv, err := version.NewCalVer(format, prefix, now)
+	testastic.NoError(t, err)
+
+	return cv
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/monkescience/yeet/internal/config"
@@ -38,7 +37,7 @@ func (a *releaseAnalyzer) currentVersionFromReleaseHistory(
 }
 
 func (a *releaseAnalyzer) versionHistoryRefs(scan *historyScan, target config.ResolvedTarget) []string {
-	return a.orderedVersionRefs(target, scan.tags, "")
+	return a.core.strategies[target.ID].OrderedRefs(scan.tags, a.core.run.prerelease)
 }
 
 func (a *releaseAnalyzer) currentVersionFromReachableRef(
@@ -65,19 +64,19 @@ func (a *releaseAnalyzer) currentVersionFromReachableRef(
 }
 
 func (a *releaseAnalyzer) currentVersionFromRef(target config.ResolvedTarget, ref string) (string, bool) {
-	strategy := versionStrategyForResolvedTarget(target)
+	strategy := a.core.strategies[target.ID]
 
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return "", false
 	}
 
-	currentVersion, err := strategy.strategy.Current(ref)
+	currentVersion, err := strategy.Current(ref)
 	if err != nil {
 		return "", false
 	}
 
-	if strategy.strategy.SupportsPrerelease() && !a.channelRefAllowed(strategy.strategy, currentVersion) {
+	if strategy.SupportsPrerelease() && !a.channelRefAllowed(strategy, currentVersion) {
 		return "", false
 	}
 
@@ -111,54 +110,6 @@ func (a *releaseAnalyzer) refReachableFromBranch(ctx context.Context, scan *hist
 	}
 
 	return reachable, nil
-}
-
-func (a *releaseAnalyzer) orderedVersionRefs(
-	target config.ResolvedTarget,
-	refs []string,
-	excludeRef string,
-) []string {
-	orderedRefs := make([]string, 0, len(refs))
-	seen := make(map[string]struct{}, len(refs))
-	excludeRef = strings.TrimSpace(excludeRef)
-
-	for _, ref := range refs {
-		ref = strings.TrimSpace(ref)
-		if ref == "" || ref == excludeRef {
-			continue
-		}
-
-		if _, exists := seen[ref]; exists {
-			continue
-		}
-
-		if _, ok := a.currentVersionFromRef(target, ref); !ok {
-			continue
-		}
-
-		orderedRefs = append(orderedRefs, ref)
-		seen[ref] = struct{}{}
-	}
-
-	sort.SliceStable(orderedRefs, func(leftIdx, rightIdx int) bool {
-		return a.versionRefLess(target, orderedRefs[rightIdx], orderedRefs[leftIdx])
-	})
-
-	return orderedRefs
-}
-
-func (a *releaseAnalyzer) versionRefLess(target config.ResolvedTarget, leftRef, rightRef string) bool {
-	leftVersion, ok := a.currentVersionFromRef(target, leftRef)
-	if !ok {
-		return false
-	}
-
-	rightVersion, ok := a.currentVersionFromRef(target, rightRef)
-	if !ok {
-		return false
-	}
-
-	return versionStrategyForResolvedTarget(target).strategy.Less(leftVersion, rightVersion, leftRef, rightRef)
 }
 
 func (a *releaseAnalyzer) branchAncestryError(target config.ResolvedTarget, ref string) error {

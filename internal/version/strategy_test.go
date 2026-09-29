@@ -11,7 +11,7 @@ import (
 func TestSemVerNextRelease(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	for _, testCase := range []struct {
 		name          string
@@ -118,7 +118,7 @@ func TestSemVerNextRelease(t *testing.T) {
 func TestSemVerNextReleaseErrors(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	t.Run("rejects a release-as that does not advance", func(t *testing.T) {
 		t.Parallel()
@@ -170,7 +170,7 @@ func TestSemVerNextReleaseErrors(t *testing.T) {
 func TestSemVerPrereleaseAllowed(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	t.Run("admits stable versions when no channel is active", func(t *testing.T) {
 		t.Parallel()
@@ -198,7 +198,7 @@ func TestSemVerPrereleaseAllowed(t *testing.T) {
 func TestSemVerSupportedReleaseControls(t *testing.T) {
 	t.Parallel()
 
-	sv := &version.SemVer{Prefix: "v"}
+	sv := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 
 	// given: a semver target
 	// when: its release controls are queried
@@ -210,7 +210,7 @@ func TestSemVerSupportedReleaseControls(t *testing.T) {
 func TestCalVerReleaseControls(t *testing.T) {
 	t.Parallel()
 
-	cv := &version.CalVer{Format: "YY.MM.MICRO", Prefix: "v"}
+	cv := newCalVer(t, "YY.MM.MICRO", "v", nil)
 
 	t.Run("supports neither release-as nor a prerelease channel", func(t *testing.T) {
 		t.Parallel()

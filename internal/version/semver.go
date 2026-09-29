@@ -19,7 +19,8 @@ var _ Strategy = (*SemVer)(nil)
 
 type Strategy interface {
 	Current(tag string) (string, error)
-	Less(leftVersion, rightVersion, leftRef, rightRef string) bool
+	OrderedRefs(refs []string, prereleaseIdentifier string) []string
+	Tag(version string) string
 	InitialVersion() string
 	SupportsReleaseAs() bool
 	SupportsPrerelease() bool
@@ -41,21 +42,43 @@ func ValidatePrereleaseIdentifier(identifier string) error {
 	return nil
 }
 
-type SemVer struct {
+type SemVerOptions struct {
 	Prefix                     string
 	PreMajorBreakingBumpsMinor bool
 	PreMajorFeaturesBumpPatch  bool
 }
 
-func (s *SemVer) Current(tag string) (string, error) {
-	cleaned := strings.TrimPrefix(tag, s.Prefix)
+type SemVer struct {
+	prefix                     string
+	preMajorBreakingBumpsMinor bool
+	preMajorFeaturesBumpPatch  bool
+}
 
-	v, err := semver.StrictNewVersion(cleaned)
+func NewSemVer(options SemVerOptions) *SemVer {
+	return &SemVer{
+		prefix:                     options.Prefix,
+		preMajorBreakingBumpsMinor: options.PreMajorBreakingBumpsMinor,
+		preMajorFeaturesBumpPatch:  options.PreMajorFeaturesBumpPatch,
+	}
+}
+
+func (s *SemVer) Current(tag string) (string, error) {
+	v, err := s.parseRef(tag)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", ErrInvalidVersion, tag, err)
+		return "", err
 	}
 
 	return v.String(), nil
+}
+
+func (s *SemVer) Tag(version string) string {
+	return s.prefix + version
+}
+
+func (s *SemVer) OrderedRefs(refs []string, prereleaseIdentifier string) []string {
+	return orderedRefs(refs, s.parseRef,
+		func(parsed *semver.Version) bool { return semverPrereleaseAllowed(parsed, prereleaseIdentifier) },
+		func(left, right *semver.Version) int { return left.Compare(right) })
 }
 
 func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
@@ -67,11 +90,11 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 	if v.Major() == 0 {
 		switch bump {
 		case commit.BumpMajor:
-			if s.PreMajorBreakingBumpsMinor {
+			if s.preMajorBreakingBumpsMinor {
 				bump = commit.BumpMinor
 			}
 		case commit.BumpMinor:
-			if s.PreMajorFeaturesBumpPatch {
+			if s.preMajorFeaturesBumpPatch {
 				bump = commit.BumpPatch
 			}
 		case commit.BumpPatch, commit.BumpNone:
@@ -94,24 +117,6 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 	}
 
 	return next.String(), nil
-}
-
-func (s *SemVer) Less(leftVersion, rightVersion, leftRef, rightRef string) bool {
-	leftSemver, err := semver.StrictNewVersion(leftVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	rightSemver, err := semver.StrictNewVersion(rightVersion)
-	if err != nil {
-		return leftRef < rightRef
-	}
-
-	if !leftSemver.Equal(rightSemver) {
-		return leftSemver.LessThan(rightSemver)
-	}
-
-	return leftRef < rightRef
 }
 
 func (s *SemVer) InitialVersion() string {
@@ -172,6 +177,19 @@ func (s *SemVer) PrereleaseAllowed(version, identifier string) bool {
 		return false
 	}
 
+	return semverPrereleaseAllowed(parsed, identifier)
+}
+
+func (s *SemVer) parseRef(tag string) (*semver.Version, error) {
+	v, err := semver.StrictNewVersion(strings.TrimPrefix(tag, s.prefix))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", ErrInvalidVersion, tag, err)
+	}
+
+	return v, nil
+}
+
+func semverPrereleaseAllowed(parsed *semver.Version, identifier string) bool {
 	prerelease := strings.TrimSpace(parsed.Prerelease())
 	if identifier == "" {
 		return prerelease == ""

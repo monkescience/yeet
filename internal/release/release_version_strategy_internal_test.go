@@ -29,7 +29,8 @@ func TestVersionStrategyForResolvedTarget(t *testing.T) {
 		target := config.ResolvedTarget{ID: "app", Versioning: "unknown", TagPrefix: "v"}
 
 		// when: the strategy is resolved and asked what it supports
-		strategy := versionStrategyForResolvedTarget(target).strategy
+		strategy, err := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, err)
 
 		// then: callers get an answer instead of a nil interface
 		testastic.Equal(t, false, strategy.SupportsPrerelease())
@@ -55,7 +56,7 @@ func TestChannelRefAllowed(t *testing.T) {
 		analyzer := analyzerWithPrerelease("")
 
 		// when: a stable version is offered as a version boundary
-		allowed := analyzer.channelRefAllowed(&version.SemVer{Prefix: "v"}, "1.2.3")
+		allowed := analyzer.channelRefAllowed(version.NewSemVer(version.SemVerOptions{Prefix: "v"}), "1.2.3")
 
 		// then: it still counts, so the target does not re-plan from no version
 		testastic.Equal(t, true, allowed)
@@ -68,7 +69,7 @@ func TestChannelRefAllowed(t *testing.T) {
 		analyzer := analyzerWithPrerelease("")
 
 		// when: a prerelease version is offered as a version boundary
-		allowed := analyzer.channelRefAllowed(&version.SemVer{Prefix: "v"}, "1.2.3-beta.1")
+		allowed := analyzer.channelRefAllowed(version.NewSemVer(version.SemVerOptions{Prefix: "v"}), "1.2.3-beta.1")
 
 		// then: no channel claims it
 		testastic.Equal(t, false, allowed)
@@ -79,7 +80,7 @@ func TestChannelRefAllowed(t *testing.T) {
 
 		// given: an active beta channel and a strategy that counts membership checks
 		analyzer := analyzerWithPrerelease("beta")
-		strategy := &prereleaseCountingStrategy{Strategy: &version.SemVer{Prefix: "v"}}
+		strategy := &prereleaseCountingStrategy{Strategy: version.NewSemVer(version.SemVerOptions{Prefix: "v"})}
 
 		// when: a beta version is offered as a version boundary
 		allowed := analyzer.channelRefAllowed(strategy, "1.2.3-beta.1")
@@ -110,10 +111,13 @@ func TestReleaseRunWithChannelChangelogs(t *testing.T) {
 			},
 		}
 
+		strategies, strategyErr := newVersionStrategies(targets, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: resolving targets for the active channel
 		run, err := resolveRun(cfg, "beta", Options{})
 		testastic.NoError(t, err)
-		resolved, err := run.withChannelChangelogs(targets)
+		resolved, err := run.withChannelChangelogs(targets, strategies)
 
 		// then: the channel changelog path is cleaned before use
 		testastic.NoError(t, err)
@@ -132,10 +136,13 @@ func TestReleaseRunWithChannelChangelogs(t *testing.T) {
 			"app": {ID: "app", Versioning: "unknown", TagPrefix: "v"},
 		}
 
+		strategies, strategyErr := newVersionStrategies(targets, nil)
+		testastic.NoError(t, strategyErr)
+
 		// when: the channel narrows the target set
 		run, err := resolveRun(cfg, "beta", Options{})
 		testastic.NoError(t, err)
-		_, err = run.withChannelChangelogs(targets)
+		_, err = run.withChannelChangelogs(targets, strategies)
 
 		// then: the target is reported as unsupported rather than panicking
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)

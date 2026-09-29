@@ -8,6 +8,7 @@ import (
 	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/forge"
+	"github.com/monkescience/yeet/internal/version"
 )
 
 const prBodyPartSeparator = "\n\n"
@@ -16,11 +17,12 @@ const prBodyOmittedNotice = "_Release notes omitted to fit this provider's pull 
 	"See the changelog in this pull request for the full notes._"
 
 type releaseText struct {
-	cfg     *config.Config
-	run     releaseRun
-	targets map[string]config.ResolvedTarget
-	layout  config.ReleaseLayout
-	titles  *releaseTitleTemplates
+	cfg        *config.Config
+	run        releaseRun
+	targets    map[string]config.ResolvedTarget
+	strategies map[string]version.Strategy
+	layout     config.ReleaseLayout
+	titles     *releaseTitleTemplates
 }
 
 type RenderedRelease struct {
@@ -31,18 +33,16 @@ type RenderedRelease struct {
 	bodyLimit     int
 }
 
-func newReleaseText(
-	cfg *config.Config,
-	run releaseRun,
-	targets map[string]config.ResolvedTarget,
-	layout config.ReleaseLayout,
-) (*releaseText, error) {
-	titles, err := newReleaseTitleTemplates(cfg.Release)
+func newReleaseText(core *releaseCore) (*releaseText, error) {
+	titles, err := newReleaseTitleTemplates(core.cfg.Release)
 	if err != nil {
 		return nil, err
 	}
 
-	return &releaseText{cfg: cfg, run: run, targets: targets, layout: layout, titles: titles}, nil
+	return &releaseText{
+		cfg: core.cfg, run: core.run, targets: core.targets, strategies: core.strategies,
+		layout: core.layout, titles: titles,
+	}, nil
 }
 
 func (t *releaseText) validate(plans []TargetPlan, bodyLimit int) error {
@@ -142,12 +142,12 @@ func (t *releaseText) configuredManifestTargets(unitID string) []releaseManifest
 }
 
 func (t *releaseText) nameForManifest(entry releaseManifestEntry) (string, error) {
-	target, exists := t.targets[entry.ID]
+	strategy, exists := t.strategies[entry.ID]
 	if !exists {
 		return "", fmt.Errorf("%w: unknown target %q", errInvalidReleaseManifest, entry.ID)
 	}
 
-	versionValue, err := versionStrategyForResolvedTarget(target).strategy.Current(entry.Tag)
+	versionValue, err := strategy.Current(entry.Tag)
 	if err != nil {
 		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, entry.ID, err)
 	}

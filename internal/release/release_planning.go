@@ -458,8 +458,10 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		return directNextVersion, finalBumpType, true, nil
 	}
 
-	nextVersion, _, _, err := a.core.versionStrategyForPlanning(target).strategy.NextRelease(
-		currentVersionWithInitial(target, currentVersion),
+	strategy := a.core.strategies[target.ID]
+
+	nextVersion, _, _, err := strategy.NextRelease(
+		currentVersionWithInitial(strategy, currentVersion),
 		finalBumpType,
 		"",
 		a.core.run.prerelease,
@@ -479,7 +481,7 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 	bumpType commit.BumpType,
 	inputs derivedPlanContext,
 ) TargetPlan {
-	plan := newTargetPlan(
+	plan := a.core.newTargetPlan(
 		target,
 		inputs.history.currentVersion,
 		nextVersion,
@@ -545,7 +547,7 @@ func derivedCommitCount(hashes []string, directCommits []commit.Commit, childPla
 	return count
 }
 
-func newTargetPlan(
+func (c *releaseCore) newTargetPlan(
 	target config.ResolvedTarget,
 	currentVersion, nextVersion string,
 	bumpType commit.BumpType,
@@ -555,12 +557,12 @@ func newTargetPlan(
 		ID:             target.ID,
 		Type:           target.Type,
 		CurrentVersion: currentVersion,
+		NextVersion:    nextVersion,
+		NextTag:        c.strategies[target.ID].Tag(nextVersion),
 		BumpType:       bumpType,
 		ChangelogFile:  target.Changelog.File,
 		previousRef:    strings.TrimSpace(ref),
 	}
-
-	setPlanVersions(&plan, versionStrategyForResolvedTarget(target), nextVersion)
 
 	return plan
 }
@@ -574,7 +576,7 @@ func (a *releaseAnalyzer) newDirectTargetPlan(
 	entries []history.CommitEntry,
 	commits []commit.Commit,
 ) TargetPlan {
-	plan := newTargetPlan(target, currentVersion, nextVersion, bumpType, ref)
+	plan := a.core.newTargetPlan(target, currentVersion, nextVersion, bumpType, ref)
 	plan.commitHashes = uniqueEntryHashes(entries)
 
 	plan.CommitCount = len(plan.commitHashes)
@@ -600,11 +602,6 @@ func (a *releaseAnalyzer) newDirectTargetPlan(
 	}
 
 	return plan
-}
-
-func setPlanVersions(plan *TargetPlan, strategy versionStrategy, nextVersion string) {
-	plan.NextVersion = nextVersion
-	plan.NextTag = strategy.prefix + nextVersion
 }
 
 func derivedPRCompareRef(

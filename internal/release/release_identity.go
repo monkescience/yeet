@@ -369,9 +369,7 @@ func (c *releaseCore) validateReleaseManifestEntry(
 		return "", fmt.Errorf("%w: target %q tag has an invalid prefix", errInvalidReleaseManifest, targetID)
 	}
 
-	strategy := versionStrategyForResolvedTarget(target)
-
-	_, err = strategy.strategy.Current(entry.Tag)
+	_, err = c.strategies[target.ID].Current(entry.Tag)
 	if err != nil {
 		return "", fmt.Errorf("%w: target %q tag is invalid: %v", errInvalidReleaseManifest, targetID, err)
 	}
