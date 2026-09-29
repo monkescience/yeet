@@ -298,8 +298,8 @@ func (l *releaseUnitLifecycle) reconcile(
 			)
 		}
 
-		reconciled, err := l.createOrUpdate(ctx, unit)
 		unitOutcome := &outcome.units[index]
+		reconciled, err := l.createOrUpdate(ctx, unit, unitOutcome.text)
 		unitOutcome.pullRequest = reconciled.pullRequest
 		unitOutcome.plans = reconciled.plans
 
@@ -520,8 +520,9 @@ func multiplePendingReleasePRError(pendingPRs []*forge.PullRequest) error {
 func (l *releaseUnitLifecycle) createOrUpdate(
 	ctx context.Context,
 	unit releaseUnit,
+	rendered *RenderedRelease,
 ) (releaseUnitOutcome, error) {
-	outcome := releaseUnitOutcome{unit: unit.ID, plans: slices.Clone(unit.Plans)}
+	outcome := releaseUnitOutcome{unit: unit.ID, plans: slices.Clone(unit.Plans), text: rendered}
 
 	pendingPRs, err := l.findPendingPRs(ctx, unit)
 	if err != nil {
@@ -536,17 +537,9 @@ func (l *releaseUnitLifecycle) createOrUpdate(
 		return l.refreshExisting(ctx, pendingPRs[0], unit)
 	}
 
-	releaseBranch := unit.ReleaseBranch
-
-	rendered, err := l.render(ctx, outcome.plans, releaseBranch, unit.ID)
-	if err != nil {
-		return outcome, err
-	}
-
-	outcome.text = rendered
 	outcome.pullRequest, err = l.createNew(
 		ctx,
-		releaseBranch,
+		unit.ReleaseBranch,
 		rendered.PROptions,
 		rendered.CommitSubject,
 		outcome.plans,
