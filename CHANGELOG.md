@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.17.1](https://github.com/monkescience/yeet/compare/v0.17.0...v0.17.1) (2026-10-09)
+
+### Bug Fixes
+
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.6 (#303) ([30104f4](https://github.com/monkescience/yeet/commit/30104f4ff780ab2c0bcaec4917ae9e41f23f088e))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.14.0 (#299) ([ef9b396](https://github.com/monkescience/yeet/commit/ef9b396a4f40915e79e705ca8d2bd57dad93f4f0))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.13.0 (#293) ([ef4e39c](https://github.com/monkescience/yeet/commit/ef4e39c99c3c5047d194773b2471f3579ac87725))
+
 ## [v0.17.0](https://github.com/monkescience/yeet/compare/v0.16.2...v0.17.0) (2026-09-26)
 
 ### ⚠ BREAKING CHANGES
