@@ -110,14 +110,16 @@ func (g *Generator) Generate(ctx context.Context, version string, previousTag st
 		entry.CompareURL = g.compareURL(previousTag, version)
 	}
 
-	slog.DebugContext(ctx, "changelog: generated entry",
-		slog.String("version", version),
-		slog.String("previous_tag", previousTag),
-		slog.Int("commits_in", len(commits)),
-		slog.Int("commits_included", len(relevant)),
-		slog.Int("sections", len(sections)),
-		slog.Int("bytes", len(renderSections(sections))),
-	)
+	if slog.Default().Enabled(ctx, slog.LevelDebug) {
+		slog.DebugContext(ctx, "changelog: generated entry",
+			slog.String("version", version),
+			slog.String("previous_tag", previousTag),
+			slog.Int("commits_in", len(commits)),
+			slog.Int("commits_included", len(relevant)),
+			slog.Int("sections", len(sections)),
+			slog.Int("bytes", len(renderSections(sections))),
+		)
+	}
 
 	return entry
 }
