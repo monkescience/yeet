@@ -259,12 +259,12 @@ func TestHandleReleaseResult(t *testing.T) {
 
 		// given: a result with one plan and dry-run enabled
 		result := &release.Result{
-			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+			Units: []release.UnitResult{{Unit: "combined", Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
 				Title:         "chore: release 1.1.0",
 				Body:          dryRunTestBody,
 				BaseBranch:    "main",
 				ReleaseBranch: "release",
-			}},
+			}}}},
 			Plans: []release.TargetPlan{
 				{
 					ID:             "default",
@@ -650,12 +650,12 @@ func TestPrintDryRun(t *testing.T) {
 
 		// given: a result with one plan
 		result := &release.Result{
-			Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
+			Units: []release.UnitResult{{Unit: "combined", Text: &release.RenderedRelease{PROptions: forge.ReleasePROptions{
 				Title:         "chore: release 1.1.0",
 				Body:          dryRunTestBody,
 				BaseBranch:    "main",
 				ReleaseBranch: "release",
-			}},
+			}}}},
 			Plans: []release.TargetPlan{
 				{
 					ID:             "default",
@@ -677,22 +677,6 @@ func TestPrintDryRun(t *testing.T) {
 		// then: output matches expected layout
 		output := ansi.Strip(buf.String())
 		testastic.AssertFile(t, "testdata/dry_run_single_target.expected.txt", output)
-	})
-
-	t.Run("prints no changed targets for empty plans", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a result with no plans
-		result := &release.Result{}
-
-		var buf bytes.Buffer
-
-		// when: printing the dry run
-		testastic.NoError(t, printDryRun(&buf, result))
-
-		// then: output matches expected empty layout
-		output := ansi.Strip(buf.String())
-		testastic.AssertFile(t, "testdata/dry_run_empty.expected.txt", output)
 	})
 
 	t.Run("prints every independent release unit", func(t *testing.T) {

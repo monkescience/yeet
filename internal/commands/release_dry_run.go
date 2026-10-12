@@ -39,15 +39,6 @@ func formatDryRun(result *release.Result) (string, error) {
 	_, _ = fmt.Fprintln(&output, ui.Header.Render("Dry Run"))
 	_, _ = fmt.Fprintln(&output, ui.Faint.Render("No changes will be made."))
 
-	if len(result.Plans) == 0 {
-		_, _ = fmt.Fprintln(&output)
-		_, _ = fmt.Fprintln(&output, ui.Faint.Render("No changed targets."))
-		_, _ = fmt.Fprintln(&output)
-		printDryRunSummary(&output, result, 0, 0)
-
-		return output.String(), nil
-	}
-
 	_, _ = fmt.Fprintln(&output)
 	_, _ = fmt.Fprintln(&output, ui.Header.Render("Release Plan"))
 	_, _ = fmt.Fprintln(&output)
@@ -63,27 +54,15 @@ func formatDryRun(result *release.Result) (string, error) {
 		commitCount += plan.CommitCount
 	}
 
-	pullRequestCount := len(result.Units)
-	if pullRequestCount == 0 && result.Text != nil {
-		pullRequestCount = 1
-	}
-
-	if len(result.Units) > 0 {
-		for index, unit := range result.Units {
-			err := printDryRunPullRequest(&output, unit.Text, unit.Unit, index, len(result.Units))
-			if err != nil {
-				return "", err
-			}
-		}
-	} else if result.Text != nil {
-		err := printDryRunPullRequest(&output, result.Text, "", 0, 1)
+	for index, unit := range result.Units {
+		err := printDryRunPullRequest(&output, unit.Text, unit.Unit, index, len(result.Units))
 		if err != nil {
 			return "", err
 		}
 	}
 
 	_, _ = fmt.Fprintln(&output)
-	printDryRunSummary(&output, result, commitCount, pullRequestCount)
+	printDryRunSummary(&output, result, commitCount, len(result.Units))
 
 	return output.String(), nil
 }
