@@ -157,7 +157,7 @@ func TestRecordReleaseOmitsInvalidAutoMergeMode(t *testing.T) {
 	// then: the failure event is delivered without the unvalidated flag value
 	testastic.Equal(t, 1, len(events))
 	testastic.Equal(t, "failure", events[0].Payload.Outcome)
-	testastic.Equal(t, "", events[0].Payload.ReleaseAutoMerge)
+	testastic.Equal(t, "", events[0].Payload.AutoMerge)
 }
 
 func TestRecordReleaseProviderValues(t *testing.T) {
@@ -195,7 +195,7 @@ func TestRecordReleaseProviderValues(t *testing.T) {
 
 			// then: the delivered event includes valid providers and omits invalid values
 			testastic.Equal(t, 1, len(events))
-			testastic.Equal(t, scenario.expected, events[0].Payload.ReleaseProvider)
+			testastic.Equal(t, scenario.expected, events[0].Payload.Provider)
 		})
 	}
 }
@@ -360,7 +360,7 @@ func TestEventFields(t *testing.T) {
 			profile := releaseProfile(cfg, test.options, nil)
 
 			// then: the field reports the release package's resolved mode
-			testastic.Equal(t, test.expected, profile.autoMerge)
+			testastic.Equal(t, test.expected, profile.AutoMerge)
 		})
 	}
 
@@ -432,7 +432,7 @@ func TestEventFields(t *testing.T) {
 		profile := releaseProfile(cfg, release.Options{}, &release.Result{Provider: config.ProviderGitLab})
 
 		// then: the actual provider overrides the unresolved configuration
-		testastic.Equal(t, string(config.ProviderGitLab), profile.provider)
+		testastic.Equal(t, string(config.ProviderGitLab), profile.Provider)
 	})
 }
 

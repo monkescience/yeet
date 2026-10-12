@@ -36,32 +36,25 @@ type wireEvent struct {
 }
 
 type eventFields struct {
-	EventDay                  string `json:"Yeet.eventDay"`
-	Version                   string `json:"Yeet.version,omitempty"`
-	OS                        string `json:"Yeet.os"`
-	Arch                      string `json:"Yeet.arch"`
-	Command                   string `json:"Yeet.command"`
-	Outcome                   string `json:"Yeet.outcome"`
-	FailureCategory           string `json:"Yeet.failure.category,omitempty"`
-	ReleaseProvider           string `json:"Yeet.release.provider,omitempty"`
-	ReleaseLayout             string `json:"Yeet.release.layout,omitempty"`
-	ReleasePullRequestMode    string `json:"Yeet.release.pullRequestMode,omitempty"`
-	ReleaseUnitCount          string `json:"Yeet.release.unitCount,omitempty"`
-	ReleaseVersioning         string `json:"Yeet.release.versioning,omitempty"`
-	ReleaseDryRun             string `json:"Yeet.release.dryRun,omitempty"`
-	ReleaseChannelsConfigured string `json:"Yeet.release.channelsConfigured,omitempty"`
-	ReleaseAutoMerge          string `json:"Yeet.release.autoMerge,omitempty"`
+	EventDay        string `json:"Yeet.eventDay"`
+	Version         string `json:"Yeet.version,omitempty"`
+	OS              string `json:"Yeet.os"`
+	Arch            string `json:"Yeet.arch"`
+	Command         string `json:"Yeet.command"`
+	Outcome         string `json:"Yeet.outcome"`
+	FailureCategory string `json:"Yeet.failure.category,omitempty"`
+	releaseFields
 }
 
 type releaseFields struct {
-	provider           string
-	layout             string
-	pullRequestMode    string
-	unitCount          string
-	versioning         string
-	dryRun             string
-	channelsConfigured string
-	autoMerge          string
+	Provider           string `json:"Yeet.release.provider,omitempty"`
+	Layout             string `json:"Yeet.release.layout,omitempty"`
+	PullRequestMode    string `json:"Yeet.release.pullRequestMode,omitempty"`
+	UnitCount          string `json:"Yeet.release.unitCount,omitempty"`
+	Versioning         string `json:"Yeet.release.versioning,omitempty"`
+	DryRun             string `json:"Yeet.release.dryRun,omitempty"`
+	ChannelsConfigured string `json:"Yeet.release.channelsConfigured,omitempty"`
+	AutoMerge          string `json:"Yeet.release.autoMerge,omitempty"`
 }
 
 func newEvent(
@@ -86,14 +79,7 @@ func newEvent(
 	}
 
 	if profile != nil {
-		fields.ReleaseProvider = profile.provider
-		fields.ReleaseLayout = profile.layout
-		fields.ReleasePullRequestMode = profile.pullRequestMode
-		fields.ReleaseUnitCount = profile.unitCount
-		fields.ReleaseVersioning = profile.versioning
-		fields.ReleaseDryRun = profile.dryRun
-		fields.ReleaseChannelsConfigured = profile.channelsConfigured
-		fields.ReleaseAutoMerge = profile.autoMerge
+		fields.releaseFields = *profile
 	}
 
 	return wireEvent{
@@ -174,14 +160,14 @@ func releaseProfile(cfg *config.Config, opts release.Options, result *release.Re
 	}
 
 	return &releaseFields{
-		provider:           allowedProvider(provider),
-		layout:             releaseLayout(cfg),
-		pullRequestMode:    allowedPullRequestMode(cfg.Release.PullRequestMode),
-		unitCount:          releaseUnitCount(result),
-		versioning:         releaseVersioning(cfg),
-		dryRun:             boolString(opts.DryRun),
-		channelsConfigured: boolString(len(cfg.Release.Channels) > 0),
-		autoMerge:          allowedAutoMergeMode(opts.ResolveAutoMerge(cfg.Release)),
+		Provider:           allowedProvider(provider),
+		Layout:             releaseLayout(cfg),
+		PullRequestMode:    allowedPullRequestMode(cfg.Release.PullRequestMode),
+		UnitCount:          releaseUnitCount(result),
+		Versioning:         releaseVersioning(cfg),
+		DryRun:             boolString(opts.DryRun),
+		ChannelsConfigured: boolString(len(cfg.Release.Channels) > 0),
+		AutoMerge:          allowedAutoMergeMode(opts.ResolveAutoMerge(cfg.Release)),
 	}
 }
 
