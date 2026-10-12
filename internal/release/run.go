@@ -113,12 +113,6 @@ func repositoryOverrides(options Options) provider.RepositoryOverrides {
 	}
 }
 
-func prepare(ctx context.Context, options Options) (*config.Config, releaseRun, error) {
-	cfg, run, _, err := prepareWithPath(ctx, config.DefaultFile, options)
-
-	return cfg, run, err
-}
-
 func prepareWithPath(
 	ctx context.Context,
 	configPath string,

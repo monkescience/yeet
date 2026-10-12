@@ -227,7 +227,7 @@ func TestReleasePRBody(t *testing.T) {
 func TestReleaseTextRender(t *testing.T) {
 	t.Parallel()
 
-	t.Run("validate and render agree at the same body limit", func(t *testing.T) {
+	t.Run("render returns publication values at the body limit", func(t *testing.T) {
 		t.Parallel()
 
 		// given: configured templates and one complete release plan
@@ -244,12 +244,10 @@ func TestReleaseTextRender(t *testing.T) {
 			),
 		}}
 
-		// when: validating and rendering with the same provider limit
-		validateErr := r.lifecycle.text.validate(plans, 4000)
+		// when: rendering with the provider limit
 		rendered, renderErr := r.lifecycle.text.render(plans, "existing-release-branch", 4000, combinedReleaseUnitID)
 
-		// then: both calls succeed and render returns the complete publication values
-		testastic.NoError(t, validateErr)
+		// then: render returns the complete publication values
 		testastic.NoError(t, renderErr)
 		testastic.Equal(t, "PR v1.2.4", rendered.PROptions.Title)
 		testastic.Equal(t, "existing-release-branch", rendered.PROptions.ReleaseBranch)
@@ -266,14 +264,11 @@ func TestReleaseTextRender(t *testing.T) {
 		r := newTestReleaser(t, cfg, newProviderStub())
 		plans := []TargetPlan{{ID: "default", NextVersion: "1.2.4", NextTag: "v1.2.4"}}
 
-		// when: validating and rendering the same release data
-		validateErr := r.lifecycle.text.validate(plans, 4000)
+		// when: rendering the release data
 		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000, combinedReleaseUnitID)
 
-		// then: both report the same failure and no partial value escapes
-		testastic.ErrorIs(t, validateErr, config.ErrInvalidConfig)
+		// then: render reports the failure and no partial value escapes
 		testastic.ErrorIs(t, renderErr, config.ErrInvalidConfig)
-		testastic.Equal(t, validateErr.Error(), renderErr.Error())
 		testastic.Equal(t, (*RenderedRelease)(nil), rendered)
 	})
 }

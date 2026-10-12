@@ -74,7 +74,7 @@ func assertProviderTraceEvent(
 func fastRetryClient(t *testing.T) *http.Client {
 	t.Helper()
 
-	client := newTracedRetryableClient(providerNameGitHub)
+	client := newTracedRetryableClientWithConfig(providerNameGitHub, config.Default().Network)
 	client.RetryWaitMin = time.Millisecond
 	client.RetryWaitMax = 5 * time.Millisecond
 
@@ -123,8 +123,8 @@ func TestCreateProviderBuildsSharedClientSettingsForEveryForge(t *testing.T) {
 
 	// when: creating every provider through the factory
 	for forge, descriptor := range descriptors {
-		created, err := createProvider(descriptor, func(name string) *retryablehttp.Client {
-			client := newTracedRetryableClient(name)
+		created, err := createProviderConfigured(descriptor, providerSettings{}, func(name string) *retryablehttp.Client {
+			client := newTracedRetryableClientWithConfig(name, config.Default().Network)
 			constructedWith[name] = client
 
 			return client
@@ -220,15 +220,16 @@ func TestAzureDevOpsSDKUsesSharedHTTPClient(t *testing.T) {
 		slog.SetDefault(previousLogger)
 	})
 
-	created, err := createProvider(
+	created, err := createProviderConfigured(
 		&resolvedAzureDevOpsRepository{
 			Host:         DefaultAzureDevOpsHost,
 			Organization: "platform",
 			Project:      "release-tools",
 			Repo:         "yeet",
 		},
+		providerSettings{},
 		func(forge string) *retryablehttp.Client {
-			client := newTracedRetryableClient(forge)
+			client := newTracedRetryableClientWithConfig(forge, config.Default().Network)
 			client.RetryWaitMin = time.Millisecond
 			client.RetryWaitMax = 5 * time.Millisecond
 
@@ -449,10 +450,11 @@ func TestGitLabMutationRequestsAreNotRetried(t *testing.T) {
 	t.Setenv("GITLAB_TOKEN", "test-token")
 	t.Setenv(gitlabURLEnv, server.URL+"/api/v4")
 
-	created, err := createProvider(
+	created, err := createProviderConfigured(
 		&resolvedGitLabRepository{Project: "group/project"},
+		providerSettings{},
 		func(forge string) *retryablehttp.Client {
-			client := newTracedRetryableClient(forge)
+			client := newTracedRetryableClientWithConfig(forge, config.Default().Network)
 			client.RetryWaitMin = time.Millisecond
 			client.RetryWaitMax = 5 * time.Millisecond
 

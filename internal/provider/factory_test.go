@@ -19,11 +19,11 @@ func TestCreateGitHubProviderPrefersGitHubURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://ghe-proxy.example/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := create(&resolvedGitHubRepository{
+	githubProvider, err := createConfigured(&resolvedGitHubRepository{
 		Host:  "github.company.com",
 		Owner: "platform",
 		Repo:  "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the explicit GITHUB_URL wins over the URL derived from the repository host
 	testastic.NoError(t, err)
@@ -36,11 +36,11 @@ func TestCreateGitHubProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "")
 
 	// when: creating the github provider
-	githubProvider, err := create(&resolvedGitHubRepository{
+	githubProvider, err := createConfigured(&resolvedGitHubRepository{
 		Host:  "github.company.com",
 		Owner: "platform",
 		Repo:  "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the API URL is derived from the repository host
 	testastic.NoError(t, err)
@@ -53,13 +53,13 @@ func TestCreateGitHubProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv(githubURLEnv, "")
 
 	// when: creating the GitHub provider
-	created, err := create(&resolvedGitHubRepository{
+	created, err := createConfigured(&resolvedGitHubRepository{
 		Host:   "github.company.com",
 		APIURL: "https://github.company.com/root/api/v3/",
 		WebURL: "https://github.company.com/root",
 		Owner:  "platform",
 		Repo:   "yeet",
-	})
+	}, providerSettings{})
 
 	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
@@ -76,13 +76,13 @@ func TestCreateGitHubProviderEnvironmentURLWinsOverConfiguredAPIURL(t *testing.T
 	t.Setenv(githubURLEnv, "https://proxy.example/api/v3/")
 
 	// when: creating the GitHub provider
-	created, err := create(&resolvedGitHubRepository{
+	created, err := createConfigured(&resolvedGitHubRepository{
 		Host:   "github.company.com",
 		APIURL: "https://github.company.com/root/api/v3/",
 		WebURL: "https://github.company.com/root",
 		Owner:  "platform",
 		Repo:   "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the environment controls API requests while browser links retain their configured root
 	testastic.NoError(t, err)
@@ -177,11 +177,11 @@ func TestCreateGitHubProviderFallsBackToGHToken(t *testing.T) {
 	t.Setenv("GITHUB_URL", "")
 
 	// when: creating the github provider
-	githubProvider, err := create(&resolvedGitHubRepository{
+	githubProvider, err := createConfigured(&resolvedGitHubRepository{
 		Host:  DefaultGitHubHost,
 		Owner: "platform",
 		Repo:  "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the fallback variable authenticates the client
 	testastic.NoError(t, err)
@@ -194,11 +194,11 @@ func TestCreateGitHubProviderReportsBothTokenNames(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 
 	// when: creating the github provider
-	_, err := create(&resolvedGitHubRepository{
+	_, err := createConfigured(&resolvedGitHubRepository{
 		Host:  DefaultGitHubHost,
 		Owner: "platform",
 		Repo:  "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the error names both supported environment variables
 	testastic.ErrorIs(t, err, ErrMissingToken)
@@ -216,10 +216,10 @@ func TestCreateGitLabProviderFallsBackToGLToken(t *testing.T) {
 	t.Setenv("GITLAB_URL", "")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := create(&resolvedGitLabRepository{
+	gitlabProvider, err := createConfigured(&resolvedGitLabRepository{
 		Host:    DefaultGitLabHost,
 		Project: "group/subgroup/service",
-	})
+	}, providerSettings{})
 
 	// then: the fallback variable authenticates the client
 	testastic.NoError(t, err)
@@ -232,10 +232,10 @@ func TestCreateGitLabProviderReportsBothTokenNames(t *testing.T) {
 	t.Setenv("GL_TOKEN", "")
 
 	// when: creating the gitlab provider
-	_, err := create(&resolvedGitLabRepository{
+	_, err := createConfigured(&resolvedGitLabRepository{
 		Host:    DefaultGitLabHost,
 		Project: "group/subgroup/service",
-	})
+	}, providerSettings{})
 
 	// then: the error names both supported environment variables
 	testastic.ErrorIs(t, err, ErrMissingToken)
@@ -252,10 +252,10 @@ func TestCreateGitLabProviderPrefersGitLabURLOverRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://gitlab-proxy.example/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := create(&resolvedGitLabRepository{
+	gitlabProvider, err := createConfigured(&resolvedGitLabRepository{
 		Host:    "gitlab.company.com",
 		Project: "group/subgroup/service",
-	})
+	}, providerSettings{})
 
 	// then: the explicit GITLAB_URL wins over the URL derived from the repository host
 	testastic.NoError(t, err)
@@ -268,10 +268,10 @@ func TestCreateGitLabProviderDerivesURLFromRepositoryHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := create(&resolvedGitLabRepository{
+	gitlabProvider, err := createConfigured(&resolvedGitLabRepository{
 		Host:    "gitlab.company.com",
 		Project: "group/subgroup/service",
-	})
+	}, providerSettings{})
 
 	// then: the API URL is derived from the repository host
 	testastic.NoError(t, err)
@@ -284,12 +284,12 @@ func TestCreateGitLabProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv(gitlabURLEnv, "")
 
 	// when: creating the GitLab provider
-	created, err := create(&resolvedGitLabRepository{
+	created, err := createConfigured(&resolvedGitLabRepository{
 		Host:    "gitlab.company.com",
 		APIURL:  "https://gitlab.company.com/root/api/v4",
 		WebURL:  "https://gitlab.company.com/root",
 		Project: "group/service",
-	})
+	}, providerSettings{})
 
 	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
@@ -306,11 +306,11 @@ func TestCreateGitHubProviderHonorsGitHubURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITHUB_URL", "https://example.test/api/v3/")
 
 	// when: creating the github provider
-	githubProvider, err := create(&resolvedGitHubRepository{
+	githubProvider, err := createConfigured(&resolvedGitHubRepository{
 		Host:  DefaultGitHubHost,
 		Owner: "platform",
 		Repo:  "yeet",
-	})
+	}, providerSettings{})
 
 	// then: GITHUB_URL is honored on the default host
 	testastic.NoError(t, err)
@@ -323,10 +323,10 @@ func TestCreateGitLabProviderHonorsGitLabURLOnDefaultHost(t *testing.T) {
 	t.Setenv("GITLAB_URL", "https://example.test/api/v4")
 
 	// when: creating the gitlab provider
-	gitlabProvider, err := create(&resolvedGitLabRepository{
+	gitlabProvider, err := createConfigured(&resolvedGitLabRepository{
 		Host:    DefaultGitLabHost,
 		Project: "group/subgroup/service",
-	})
+	}, providerSettings{})
 
 	// then: GITLAB_URL is honored on the default host
 	testastic.NoError(t, err)
@@ -338,12 +338,12 @@ func TestCreateAzureDevOpsProviderUsesNativePATEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := create(&resolvedAzureDevOpsRepository{
+	azureDevOpsProvider, err := createConfigured(&resolvedAzureDevOpsRepository{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
 		Repo:         "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the provider is constructed with the configured repository URL
 	testastic.NoError(t, err)
@@ -356,7 +356,7 @@ func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 	t.Setenv(azureURLEnv, "")
 
 	// when: creating the Azure DevOps provider
-	created, err := create(&resolvedAzureDevOpsRepository{
+	created, err := createConfigured(&resolvedAzureDevOpsRepository{
 		Host:         "devops.company.com",
 		APIURL:       "https://devops.company.com/api/tfs",
 		WebURL:       "https://devops.company.com/web/tfs",
@@ -364,7 +364,7 @@ func TestCreateAzureDevOpsProviderUsesConfiguredAPIAndWebURLs(t *testing.T) {
 		Collection:   "collection",
 		Project:      "release-tools",
 		Repo:         "yeet",
-	})
+	}, providerSettings{})
 
 	// then: API requests and browser links use their separately configured roots
 	testastic.NoError(t, err)
@@ -385,12 +385,12 @@ func TestCreateAzureDevOpsProviderNormalizesLegacyHost(t *testing.T) {
 	t.Setenv(azureURLEnv, "")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := create(&resolvedAzureDevOpsRepository{
+	azureDevOpsProvider, err := createConfigured(&resolvedAzureDevOpsRepository{
 		Host:         "contoso.visualstudio.com",
 		Organization: "contoso",
 		Project:      "release-tools",
 		Repo:         "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the legacy host is normalized before the organization is appended
 	testastic.NoError(t, err)
@@ -402,12 +402,12 @@ func TestCreateAzureDevOpsProviderUsesNativeSystemAccessTokenEnv(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_SYSTEM_ACCESSTOKEN", "test-token")
 
 	// when: creating the Azure DevOps provider
-	azureDevOpsProvider, err := create(&resolvedAzureDevOpsRepository{
+	azureDevOpsProvider, err := createConfigured(&resolvedAzureDevOpsRepository{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
 		Repo:         "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the provider is constructed with the configured repository URL
 	testastic.NoError(t, err)
@@ -420,12 +420,12 @@ func TestCreateAzureDevOpsProviderReportsNativeTokenNames(t *testing.T) {
 	t.Setenv("AZURE_DEVOPS_EXT_PAT", "")
 
 	// when: creating the Azure DevOps provider
-	_, err := create(&resolvedAzureDevOpsRepository{
+	_, err := createConfigured(&resolvedAzureDevOpsRepository{
 		Host:         "dev.azure.com",
 		Organization: "platform",
 		Project:      "release-tools",
 		Repo:         "yeet",
-	})
+	}, providerSettings{})
 
 	// then: the error names both supported environment variables
 	testastic.Error(t, err)

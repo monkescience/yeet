@@ -29,7 +29,7 @@ func TestOpen(t *testing.T) {
 		remoteLookedUp := false
 
 		// when: opening the configured provider
-		actual, err := open(t.Context(), cfg, providerSettings{releaseBranch: "automation/main"}, openDependencies{
+		actual, _, err := openResolved(t.Context(), cfg, providerSettings{releaseBranch: "automation/main"}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				remoteLookedUp = true
 
@@ -95,7 +95,7 @@ func TestOpen(t *testing.T) {
 		constructed := false
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
+		_, _, err := openResolved(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "git@code.company.com:team/service.git", nil
 			},
@@ -130,7 +130,7 @@ func TestOpen(t *testing.T) {
 		constructed := false
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
+		_, _, err := openResolved(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "git@other.company.com:platform/yeet.git", nil
 			},
@@ -156,7 +156,7 @@ func TestOpen(t *testing.T) {
 		cause := errors.New("adapter construction failed")
 
 		// when: opening the provider
-		_, err := open(t.Context(), cfg, providerSettings{}, openDependencies{
+		_, _, err := openResolved(t.Context(), cfg, providerSettings{}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
 				return "", errors.New("git remote lookup should not run")
 			},

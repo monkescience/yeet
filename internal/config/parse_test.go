@@ -549,7 +549,7 @@ func TestLoad(t *testing.T) {
 		path := "testdata/does_not_exist.yaml"
 
 		// when: loading the config
-		_, err := load(context.Background(), path)
+		_, err := loadFile(context.Background(), path, true)
 
 		// then: load returns a contextual error
 		testastic.Error(t, err)
@@ -568,7 +568,7 @@ func TestLoad(t *testing.T) {
 		path := "testdata/minimal/input.yaml"
 
 		// when: loading the config
-		cfg, err := load(context.Background(), path)
+		cfg, err := loadFile(context.Background(), path, true)
 
 		// then: it succeeds
 		testastic.NoError(t, err)

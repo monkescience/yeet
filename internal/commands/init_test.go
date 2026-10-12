@@ -105,7 +105,7 @@ func executeRootCommand(t *testing.T, args ...string) error {
 }
 
 func newTestRoot() *cobra.Command {
-	return NewRoot(telemetry.New("dev"))
+	return newRoot(&bootstrapOptions{}, telemetry.New("dev"))
 }
 
 func setCommandWriters(command *cobra.Command, stdout *bytes.Buffer, stderr *bytes.Buffer) {

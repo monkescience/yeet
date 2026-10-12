@@ -99,10 +99,6 @@ var forgeSpecs = map[string]forgeSpec{
 	},
 }
 
-func create(repository resolvedRepository) (forge.Provider, error) {
-	return createProvider(repository, newTracedRetryableClient)
-}
-
 func createConfigured(repository resolvedRepository, settings providerSettings) (forge.Provider, error) {
 	network := config.Default().Network
 	if settings.network != nil {
@@ -112,13 +108,6 @@ func createConfigured(repository resolvedRepository, settings providerSettings) 
 	return createProviderConfigured(repository, settings, func(forge string) *retryablehttp.Client {
 		return newTracedRetryableClientWithConfig(forge, network)
 	})
-}
-
-func createProvider(
-	repository resolvedRepository,
-	newHTTPClient func(forge string) *retryablehttp.Client,
-) (forge.Provider, error) {
-	return createProviderConfigured(repository, providerSettings{}, newHTTPClient)
 }
 
 func createProviderConfigured(

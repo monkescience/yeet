@@ -41,10 +41,6 @@ func (t requestMethodTransport) RoundTrip(request *http.Request) (*http.Response
 	return response, nil
 }
 
-func newTracedRetryableClient(forge string) *retryablehttp.Client {
-	return newTracedRetryableClientWithConfig(forge, config.Default().Network)
-}
-
 func newTracedRetryableClientWithConfig(
 	forge string,
 	network config.NetworkConfig,

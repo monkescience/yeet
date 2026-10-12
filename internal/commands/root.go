@@ -23,12 +23,6 @@ type bootstrapOptions struct {
 	loggerConfigured bool
 }
 
-func NewRoot(manager *telemetry.Manager) *cobra.Command {
-	options := &bootstrapOptions{}
-
-	return newRoot(options, manager)
-}
-
 func newRoot(options *bootstrapOptions, manager *telemetry.Manager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   build.ServiceName,

@@ -34,19 +34,6 @@ func Open(
 	}, overrides)
 }
 
-//nolint:unparam // the explicit override record keeps the internal opening seam aligned with Open
-func open(
-	ctx context.Context,
-	cfg *config.Config,
-	settings providerSettings,
-	dependencies openDependencies,
-	overrides RepositoryOverrides,
-) (forge.Provider, error) {
-	provider, _, err := openResolved(ctx, cfg, settings, dependencies, overrides)
-
-	return provider, err
-}
-
 func openResolved(
 	ctx context.Context,
 	cfg *config.Config,

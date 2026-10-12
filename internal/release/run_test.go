@@ -35,7 +35,7 @@ func TestPrepare(t *testing.T) {
 			writeTestConfig(t, func(cfg *config.Config) {})
 
 			// when: resolving release configuration for a dry run
-			cfg, run, err := prepare(context.Background(), Options{DryRun: true})
+			cfg, run, _, err := prepareWithPath(context.Background(), config.DefaultFile, Options{DryRun: true})
 
 			// then: stable preview mode is selected despite the synthetic PR ref
 			testastic.NoError(t, err)
@@ -58,7 +58,7 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration
-		_, _, err := prepare(t.Context(), Options{DryRun: true})
+		_, _, _, err := prepareWithPath(t.Context(), config.DefaultFile, Options{DryRun: true})
 
 		// then: the coordinates are rejected instead of being silently discarded
 		testastic.Error(t, err)
@@ -78,7 +78,7 @@ func TestPrepare(t *testing.T) {
 		writeTestConfig(t, func(_ *config.Config) {})
 
 		// when: preparing a dry-run release
-		_, _, err := prepare(t.Context(), Options{
+		_, _, _, err := prepareWithPath(t.Context(), config.DefaultFile, Options{
 			AutoMerge:       new(true),
 			AutoMergeMethod: new("wrongo"),
 			DryRun:          true,
@@ -114,7 +114,7 @@ func TestPrepare(t *testing.T) {
 		})
 
 		// when: resolving release configuration without a detectable branch
-		_, _, err := prepare(t.Context(), Options{DryRun: true})
+		_, _, _, err := prepareWithPath(t.Context(), config.DefaultFile, Options{DryRun: true})
 
 		// then: the fallback is logged without compressed punctuation
 		testastic.NoError(t, err)

@@ -45,16 +45,6 @@ func newReleaseText(core *releaseCore) (*releaseText, error) {
 	}, nil
 }
 
-func (t *releaseText) validate(plans []TargetPlan, bodyLimit int) error {
-	if len(plans) == 0 {
-		return nil
-	}
-
-	_, err := t.render(plans, t.run.releaseBranch, bodyLimit, combinedReleaseUnitID)
-
-	return err
-}
-
 func (t *releaseText) render(
 	plans []TargetPlan,
 	releaseBranch string,

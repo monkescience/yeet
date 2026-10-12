@@ -298,10 +298,6 @@ var (
 	errPathMustReferToFile    = errors.New("must refer to a file")
 )
 
-func load(ctx context.Context, path string) (*Config, error) {
-	return loadFile(ctx, path, true)
-}
-
 func loadFile(ctx context.Context, path string, logLoad bool) (*Config, error) {
 	if logLoad {
 		slog.DebugContext(ctx, "config: loading file", slog.String("path", path))

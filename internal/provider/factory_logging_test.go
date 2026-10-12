@@ -33,7 +33,7 @@ func TestCreateGitLabProviderLogsHTTP(t *testing.T) {
 		slog.SetDefault(previousLogger)
 	})
 
-	gitLabProvider, err := create(&resolvedGitLabRepository{Project: "group/private"})
+	gitLabProvider, err := createConfigured(&resolvedGitLabRepository{Project: "group/private"}, providerSettings{})
 	testastic.NoError(t, err)
 
 	// when: the provider lists repository tags
