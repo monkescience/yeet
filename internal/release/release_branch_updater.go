@@ -173,7 +173,7 @@ func (u *releaseBranchUpdater) releaseChangelogFileContent(
 	existing, err := u.source.GetFile(ctx, target.Changelog.File)
 	if err != nil {
 		if errors.Is(err, forge.ErrFileNotFound) {
-			return forge.FileUpdate{Content: changelog.Prepend("", changelogEntry)}, nil
+			return forge.FileUpdate{Content: changelog.PrependEntry("", changelogEntry)}, nil
 		}
 
 		return forge.FileUpdate{}, fmt.Errorf("get changelog file %s: %w", target.Changelog.File, err)

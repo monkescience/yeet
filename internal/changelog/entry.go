@@ -64,26 +64,8 @@ func RenderBody(entry Entry) string {
 	return strings.Join(blocks, "\n\n") + "\n"
 }
 
-func RenderSections(sections []Section) string {
-	return renderSections(sections)
-}
-
 func renderFreeform(lines []string) string {
 	return strings.Join(trimBlankEdges(lines), "\n")
-}
-
-func PrependEntry(existing, newEntry string) string {
-	if strings.TrimSpace(existing) == "" {
-		return Prepend("", newEntry)
-	}
-
-	if strings.HasPrefix(existing, "# ") {
-		return Prepend(existing, newEntry)
-	}
-
-	combined := strings.TrimRight(newEntry, "\n") + "\n\n" + strings.TrimLeft(existing, "\n")
-
-	return Prepend("", combined)
 }
 
 func DirectSections(sections []Section) []Section {
@@ -119,13 +101,17 @@ func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entr
 	return derived
 }
 
-func Prepend(existing, newEntry string) string {
+func PrependEntry(existing, newEntry string) string {
 	const header = "# Changelog\n\n"
 
 	entry := strings.TrimRight(newEntry, "\n")
 
-	if existing == "" {
+	if strings.TrimSpace(existing) == "" {
 		return header + entry + "\n"
+	}
+
+	if !strings.HasPrefix(existing, "# ") {
+		return header + entry + "\n\n" + strings.Trim(existing, "\n") + "\n"
 	}
 
 	releaseStart := -1
@@ -138,18 +124,14 @@ func Prepend(existing, newEntry string) string {
 		}
 	}
 
-	if strings.HasPrefix(existing, "# ") {
-		if releaseStart >= 0 {
-			preamble := strings.TrimRight(existing[:releaseStart], "\n")
-			releases := strings.TrimLeft(existing[releaseStart:], "\n")
+	if releaseStart >= 0 {
+		preamble := strings.TrimRight(existing[:releaseStart], "\n")
+		releases := strings.TrimLeft(existing[releaseStart:], "\n")
 
-			return preamble + "\n\n" + entry + "\n\n" + releases
-		}
-
-		return strings.TrimRight(existing, "\n") + "\n\n" + entry + "\n"
+		return preamble + "\n\n" + entry + "\n\n" + releases
 	}
 
-	return header + entry + "\n\n" + strings.TrimLeft(existing, "\n")
+	return strings.TrimRight(existing, "\n") + "\n\n" + entry + "\n"
 }
 
 func isReleaseHeading(heading string) bool {

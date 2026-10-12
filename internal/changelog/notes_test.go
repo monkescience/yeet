@@ -76,7 +76,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// then: fences win over footers, commits without either have no note, breaking notes stay in their section
 		testastic.AssertFile(t, "testdata/generate_notes/chooses_the_note_source_by_priority/body.expected.md",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("keeps footer line breaks and escapes footer headings", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestGenerateNotes(t *testing.T) {
 		// then: the note keeps its lines and renders every heading as text
 		testastic.AssertFile(t,
 			"testdata/generate_notes/keeps_footer_line_breaks_and_escapes_footer_headings/body.expected.md",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("escapes an unclosed fence in footer notes", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// then: the unclosed fence renders as text and the closed block stays verbatim
 		testastic.AssertFile(t, "testdata/generate_notes/escapes_an_unclosed_fence_in_footer_notes/body.expected.md",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("escapes headings exposed by earlier heading escapes", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestGenerateNotes(t *testing.T) {
 		entry := gen.Generate(t.Context(), "v2.0.0", "", []commit.Commit{c})
 
 		// then: both heading markers are escaped
-		testastic.Contains(t, changelog.RenderSections(entry.Sections), "  > \\# Steps\n  > \\---")
+		testastic.Contains(t, changelog.RenderSectionsForTest(entry.Sections), "  > \\# Steps\n  > \\---")
 	})
 
 	t.Run("preserves comment markers in note code", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// when: rendering both note sources
 		entry := gen.Generate(t.Context(), "v2.0.0", "", commits)
-		rendered := changelog.RenderSections(entry.Sections)
+		rendered := changelog.RenderSectionsForTest(entry.Sections)
 
 		// then: code stays literal and prose markers are escaped for both entries
 		quoted := "  > Use `<!-- A -->`.\n  >\n  > ```mermaid\n  > A --> B\n  > ```\n  >\n" +
@@ -188,7 +188,7 @@ func TestGenerateNotes(t *testing.T) {
 		// then: the inner code blocks render verbatim
 		testastic.AssertFile(t,
 			"testdata/generate_notes/renders_nested_code_blocks_from_longer_and_tilde_outer_fences/body.expected.md",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("sanitizes control characters and comment markers in notes", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestGenerateNotes(t *testing.T) {
 		// then: control characters are stripped, markers escaped, newlines and tabs kept
 		testastic.AssertFile(t,
 			"testdata/generate_notes/sanitizes_control_characters_and_comment_markers_in_notes/body.expected.md",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("lists breaking commits of types outside include only in the breaking section", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestGenerateNotes(t *testing.T) {
 		// then: the breaking commits appear in the breaking section and get no type section
 		testastic.Equal(t, "### ⚠ BREAKING CHANGES\n\n- require TLS 1.3 (1111111)\n- **auth:** drop basic auth (3333333)\n\n"+
 			"### Features\n\n- add flag (2222222)\n",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("keeps an entry that ends with breaking notes stable across refreshes", func(t *testing.T) {
@@ -269,11 +269,11 @@ func TestGenerateNotes(t *testing.T) {
 
 		// when: generating the entry and indexing it inside a changelog
 		entry := gen.Generate(t.Context(), "v2.0.0", "", []commit.Commit{c})
-		doc := changelog.Prepend("", changelog.Render(entry)+"\n## v1.0.0\n\n### Features\n\n- init (def5678)\n")
+		doc := changelog.PrependEntry("", changelog.Render(entry)+"\n## v1.0.0\n\n### Features\n\n- init (def5678)\n")
 
 		// then: the opening tag renders as text and later entries stay reachable
 		testastic.Equal(t, "### ⚠ BREAKING CHANGES\n\n- drop legacy (abc1234)\n  > run\n  > \\<pre>\n  > yeet migrate\n",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 
 		older, err := changelog.EntryByTag(doc, "v1.0.0")
 		testastic.NoError(t, err)
@@ -298,7 +298,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// then: the opening tags render as text and the container markers stay intact
 		testastic.Equal(t, "### ⚠ BREAKING CHANGES\n\n- drop legacy (abc1234)\n  > run\n  > > \\<pre>\n"+
-			"  > > yeet migrate\n  >\n  > - \\<script>\n  >   x\n", changelog.RenderSections(entry.Sections))
+			"  > > yeet migrate\n  >\n  > - \\<script>\n  >   x\n", changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("escapes nested headings in footer notes", func(t *testing.T) {
@@ -319,7 +319,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// then: every heading renders as text
 		testastic.Equal(t, "### ⚠ BREAKING CHANGES\n\n- drop legacy (abc1234)\n  > steps\n"+
-			"  > > \\# Quote\n  > - \\## Item\n  > - Title\n  >   \\===\n", changelog.RenderSections(entry.Sections))
+			"  > > \\# Quote\n  > - \\## Item\n  > - Title\n  >   \\===\n", changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("lists breaking commits without notes as bullets", func(t *testing.T) {
@@ -337,7 +337,7 @@ func TestGenerateNotes(t *testing.T) {
 
 		// then: the breaking section has a bullet and there is no notes section
 		testastic.Equal(t, "### ⚠ BREAKING CHANGES\n\n- add flag (1111111)\n\n### Features\n\n- add flag (1111111)\n",
-			changelog.RenderSections(entry.Sections))
+			changelog.RenderSectionsForTest(entry.Sections))
 	})
 
 	t.Run("regenerates the breaking section of a release branch entry", func(t *testing.T) {

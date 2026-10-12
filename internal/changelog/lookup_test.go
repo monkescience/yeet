@@ -162,7 +162,7 @@ func TestEntryByTagPreservesATXReleaseSemantics(t *testing.T) {
 	})
 }
 
-func TestPrependIgnoresNestedReleaseHeadings(t *testing.T) {
+func TestPrependEntryIgnoresNestedReleaseHeadings(t *testing.T) {
 	t.Parallel()
 
 	// given: a preamble with headings nested in a blockquote and list
@@ -173,7 +173,7 @@ func TestPrependIgnoresNestedReleaseHeadings(t *testing.T) {
 	newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
 
 	// when: prepending the new release
-	result := changelog.Prepend(existing, newEntry)
+	result := changelog.PrependEntry(existing, newEntry)
 
 	// then: the complete preamble stays before the new release
 	testastic.Equal(

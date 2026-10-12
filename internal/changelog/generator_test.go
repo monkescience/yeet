@@ -52,7 +52,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/generates_changelog_with_sections/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -79,7 +79,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/includes_breaking_changes_section/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -125,7 +125,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/short_hash_in_output/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -153,7 +153,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/includes_revert_section/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -177,7 +177,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/uses_capitalize_first_fallback_for_unmapped_commit_type/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -219,7 +219,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/linked_commit_hashes_with_repo_u_r_l/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -245,7 +245,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/linked_commit_hashes_with_gitlab_path_prefix/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -338,7 +338,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/unlinked_hashes_without_repo_u_r_l/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -367,7 +367,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/inline_pattern_replaces_reference_with_link/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -396,7 +396,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/inline_pattern_with_empty_u_r_l_leaves_text_as_is/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -428,7 +428,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/footer_reference_appended_after_hash/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -460,7 +460,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/footer_reference_with_empty_u_r_l_renders_plain_text/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -495,7 +495,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/multiple_footers_on_one_commit/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -522,7 +522,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/no_references_configured_leaves_output_unchanged/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -554,7 +554,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/non_matching_footer_key_is_ignored/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -589,7 +589,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/references_in_breaking_changes_section/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -618,7 +618,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/invalid_regex_pattern_is_skipped/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -654,7 +654,7 @@ func TestGenerate(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate/both_inline_patterns_and_footer_references/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 }
@@ -799,7 +799,7 @@ func TestDerivedEntry(t *testing.T) {
 	})
 }
 
-func TestPrepend(t *testing.T) {
+func TestPrependEntry(t *testing.T) {
 	t.Parallel()
 
 	t.Run("prepend to empty changelog", func(t *testing.T) {
@@ -809,7 +809,7 @@ func TestPrepend(t *testing.T) {
 		newEntry := readTestFile(t, "testdata/prepend/prepend_to_empty_changelog/new_entry.input.md")
 
 		// when: prepending
-		result := changelog.Prepend("", newEntry)
+		result := changelog.PrependEntry("", newEntry)
 
 		// then: header is added
 		testastic.AssertFile(
@@ -827,7 +827,7 @@ func TestPrepend(t *testing.T) {
 		newEntry := readTestFile(t, "testdata/prepend/prepend_to_existing_changelog/new_entry.input.md")
 
 		// when: prepending
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: new entry is before old entry
 		testastic.AssertFile(
@@ -855,7 +855,7 @@ func TestPrepend(t *testing.T) {
 		)
 
 		// when: prepending the entry
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: adjacent release entries remain separated by a blank line
 		testastic.AssertFile(
@@ -873,7 +873,7 @@ func TestPrepend(t *testing.T) {
 		newEntry := readTestFile(t, "testdata/prepend/preserves_header_without_trailing_blank_line/new_entry.input.md")
 
 		// when: prepending the entry
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: the existing H1 is reused instead of duplicated
 		testastic.AssertFile(
@@ -901,7 +901,7 @@ func TestPrepend(t *testing.T) {
 		)
 
 		// when: prepending the entry
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: the old release heading remains attached to its body
 		testastic.AssertFile(
@@ -919,7 +919,7 @@ func TestPrepend(t *testing.T) {
 		newEntry := readTestFile(t, "testdata/prepend/preserves_preamble_before_release_entries/new_entry.input.md")
 
 		// when: prepending the entry
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: the preamble remains above the new release
 		testastic.AssertFile(
@@ -940,7 +940,7 @@ func TestPrepend(t *testing.T) {
 		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
 
 		// when: prepending the new release
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: the complete preamble remains above the new release
 		testastic.Equal(
@@ -962,13 +962,45 @@ func TestPrepend(t *testing.T) {
 		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
 
 		// when: prepending the new release
-		result := changelog.Prepend(existing, newEntry)
+		result := changelog.PrependEntry(existing, newEntry)
 
 		// then: the complete preamble remains above the new release
 		testastic.Equal(
 			t,
 			"# Changelog\n\n## About\n\nRelease notes for this project.\n\n## Q1-2026\n\nPlanned work.\n\n"+
 				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## api-v1.0.0-beta.1\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("treats a whitespace-only changelog as empty", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing changelog that contains only blank lines
+		existing := "\n  \n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the changelog starts fresh with a header and the new release
+		testastic.Equal(t, "# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n", result)
+	})
+
+	t.Run("adds a header above an untitled changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing changelog without an H1 and with surrounding blank lines
+		existing := "\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n\n\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: a header is added and the new release precedes the existing content
+		testastic.Equal(
+			t,
+			"# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
 			result,
 		)
 	})
@@ -999,7 +1031,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/keeps_line_breaks_in_multiline_footer_notes/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -1027,7 +1059,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 			t,
 			"testdata/generate_sanitizes_commit_text/"+
 				"neutralizes_a_forged_manifest_marker_in_a_commit_description/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -1056,7 +1088,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/neutralizes_a_marker_reassembled_from_control_split_bytes/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 
@@ -1080,7 +1112,7 @@ func TestGenerateSanitizesCommitText(t *testing.T) {
 		testastic.AssertFile(
 			t,
 			"testdata/generate_sanitizes_commit_text/strips_control_characters_from_commit_text/body.expected.md",
-			changelog.RenderSections(entry.Sections),
+			changelog.RenderSectionsForTest(entry.Sections),
 		)
 	})
 }
