@@ -18,7 +18,7 @@ func (g *GitHub) GetReleaseByTag(ctx context.Context, tag string) (*forge.Releas
 
 	release, resp, err := g.client.Repositories.GetReleaseByTag(ctx, g.repo.Owner, g.repo.Name, tag)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			g.logger.DebugContext(ctx, "release not found",
 				slog.String("tag", tag),
 				slog.Int("status", resp.StatusCode),
@@ -84,9 +84,9 @@ func (g *GitHub) CreateRelease(ctx context.Context, opts forge.ReleaseOptions) (
 }
 
 func (g *GitHub) tagExists(ctx context.Context, tag string) (bool, error) {
-	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
+	_, _, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, "tags/"+tag)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			return false, nil
 		}
 

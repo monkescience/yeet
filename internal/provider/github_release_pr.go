@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
@@ -591,9 +590,9 @@ func (g *GitHub) addIssueLabels(ctx context.Context, number int, labels []string
 }
 
 func (g *GitHub) removeIssueLabel(ctx context.Context, number int, label string) error {
-	resp, err := g.client.Issues.RemoveLabelForIssue(ctx, g.repo.Owner, g.repo.Name, number, label)
+	_, err := g.client.Issues.RemoveLabelForIssue(ctx, g.repo.Owner, g.repo.Name, number, label)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			return nil
 		}
 

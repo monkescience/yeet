@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -29,7 +28,7 @@ func (g *GitHub) GetFile(ctx context.Context, branch, path string) (string, erro
 		&github.RepositoryContentGetOptions{Ref: branch},
 	)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			g.logger.DebugContext(ctx, "file not found",
 				slog.String("path", path),
 				slog.String("ref", branch),
@@ -271,9 +270,9 @@ func (g *GitHub) upsertBranchRef(ctx context.Context, branch, sha string) error 
 		SHA: sha,
 	}
 
-	_, resp, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, refName)
+	_, _, err := g.client.Git.GetRef(ctx, g.repo.Owner, g.repo.Name, refName)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			_, _, err = g.client.Git.CreateRef(ctx, g.repo.Owner, g.repo.Name, createRef)
 			if err != nil {
 				return fmt.Errorf("create branch %s: %w", branch, err)

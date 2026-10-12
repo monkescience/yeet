@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -223,7 +224,7 @@ func (g *GitLab) ensureGitLabMergeTrain(
 	mergeRequest *gitlab.MergeRequest,
 	acceptOptions *gitlab.AcceptMergeRequestOptions,
 ) error {
-	entry, response, err := g.client.MergeTrains.GetMergeRequestOnAMergeTrain(
+	entry, _, err := g.client.MergeTrains.GetMergeRequestOnAMergeTrain(
 		g.projectID,
 		int64(number),
 		gitlab.WithContext(ctx),
@@ -241,7 +242,7 @@ func (g *GitLab) ensureGitLabMergeTrain(
 		)
 	}
 
-	if response == nil || response.StatusCode != http.StatusNotFound {
+	if !errors.Is(err, gitlab.ErrNotFound) {
 		return fmt.Errorf("check %s merge train: %w", reference, err)
 	}
 

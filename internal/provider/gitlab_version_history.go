@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -54,9 +55,9 @@ func (g *GitLab) GetBranchHead(ctx context.Context, branch string) (string, erro
 		return "", fmt.Errorf("%w: empty branch", forge.ErrRefNotFound)
 	}
 
-	branchInfo, resp, err := g.client.Branches.GetBranch(g.projectID, branch, gitlab.WithContext(ctx))
+	branchInfo, _, err := g.client.Branches.GetBranch(g.projectID, branch, gitlab.WithContext(ctx))
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if errors.Is(err, gitlab.ErrNotFound) {
 			return "", fmt.Errorf("%w: branch %q", forge.ErrRefNotFound, branch)
 		}
 
@@ -77,7 +78,7 @@ func (g *GitLab) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA stri
 		gitlab.WithContext(ctx),
 	)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if errors.Is(err, gitlab.ErrNotFound) {
 			return false, nil
 		}
 

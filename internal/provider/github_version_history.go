@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 
 	"github.com/google/go-github/v92/github"
@@ -39,7 +38,7 @@ func (g *GitHub) GetBranchHead(ctx context.Context, branch string) (string, erro
 }
 
 func (g *GitHub) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA string) (bool, error) {
-	comparison, resp, err := g.client.Repositories.CompareCommits(
+	comparison, _, err := g.client.Repositories.CompareCommits(
 		ctx,
 		g.repo.Owner,
 		g.repo.Name,
@@ -48,7 +47,7 @@ func (g *GitHub) IsAncestor(ctx context.Context, ancestorSHA, descendantSHA stri
 		&github.ListOptions{PerPage: 1},
 	)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			return false, fmt.Errorf("%w: compare %q with %q", forge.ErrRefNotFound, ancestorSHA, descendantSHA)
 		}
 
@@ -82,9 +81,9 @@ func (g *GitHub) tagPages(ctx context.Context, handle func(*github.RepositoryTag
 }
 
 func (g *GitHub) resolveCommitSHA(ctx context.Context, ref string) (string, error) {
-	commit, resp, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
+	commit, _, err := g.client.Repositories.GetCommit(ctx, g.repo.Owner, g.repo.Name, ref, nil)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if isGitHubNotFound(err) {
 			return "", fmt.Errorf("%w: ref %q", forge.ErrRefNotFound, ref)
 		}
 
