@@ -1720,6 +1720,54 @@ func TestReleaseUpdatesExistingPR(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 
+	t.Run("azuredevops reads the full open release PR body beyond the list truncation", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an open release PR whose manifest marker is cut off by the 400-character list truncation
+		existingBody := readTestFile(
+			t,
+			"testdata/release/"+
+				"azuredevops_reads_the_full_open_release_p_r_body/"+
+				"existing_pull_request_body.input.md",
+		)
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://dev.azure.com/contoso/platform/_git/yeet", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization:              "contoso",
+			Project:                   "platform",
+			Repo:                      "yeet",
+			LatestTag:                 "v1.0.0",
+			BoundarySHA:               shas[0],
+			BranchHeadSHA:             shas[1],
+			ExistingOpenReleasePRBody: existingBody,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "azuredevops",
+			Branch:       "main",
+			Host:         "dev.azure.com",
+			Organization: "contoso",
+			Repo:         "yeet",
+			Project:      "platform",
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+		)
+
+		// then: yeet reads the complete body and updates the existing PR
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "updated release pull request")
+	})
+
 	t.Run("github updates the open release PR while preserving manual sections", func(t *testing.T) {
 		t.Parallel()
 

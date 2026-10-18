@@ -240,11 +240,16 @@ func (a *AzureDevOps) azureDevOpsPendingReleasePRs(
 			return nil, err
 		}
 
+		full, err := a.getPullRequest(ctx, number)
+		if err != nil {
+			return nil, err
+		}
+
 		pending = append(pending, &forge.PullRequest{
 			Number:            number,
 			Reference:         azureDevOpsPullRequestReference(number),
-			Title:             derefString(pr.Title),
-			Body:              derefString(pr.Description),
+			Title:             derefString(full.Title),
+			Body:              derefString(full.Description),
 			URL:               a.pullRequestWebURL(number),
 			Branch:            branch,
 			NeedsPendingLabel: needsLabel,

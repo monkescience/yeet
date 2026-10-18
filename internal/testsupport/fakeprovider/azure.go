@@ -317,7 +317,7 @@ func azurePullRequestsListHandler(opts AzureOptions, merged *atomic.Bool) http.H
 
 		if status == azureStatusActive && opts.ExistingOpenReleasePRBody != "" {
 			pr := azurePendingPR(opts, azureFakePRID)
-			pr["description"] = opts.ExistingOpenReleasePRBody
+			pr["description"] = azureListDescription(opts.ExistingOpenReleasePRBody)
 
 			writeJSON(w, map[string]any{
 				azureKeyCount: 1,
@@ -424,7 +424,12 @@ func registerAzurePullRequests(mux *http.ServeMux, repoAPI string, opts AzureOpt
 			return
 		}
 
-		writeJSON(w, azureFakePR(opts))
+		pr := azureFakePR(opts)
+		if opts.ExistingOpenReleasePRBody != "" {
+			pr["description"] = opts.ExistingOpenReleasePRBody
+		}
+
+		writeJSON(w, pr)
 	})
 
 	mux.HandleFunc("GET "+repoAPI+"/pullRequests/{id}/labels", func(w http.ResponseWriter, _ *http.Request) {
@@ -603,7 +608,17 @@ const (
 	azureStatusCompleted     = "completed"
 	azureMultipleOpenPRCount = 2
 	azureCommitIDKey         = "commitId"
+	azureListDescriptionMax  = 400
 )
+
+func azureListDescription(description string) string {
+	runes := []rune(description)
+	if len(runes) <= azureListDescriptionMax {
+		return description
+	}
+
+	return string(runes[:azureListDescriptionMax])
+}
 
 const azureReleaseManifest = "<!-- yeet-release-manifest\n" +
 	`{"base_branch":"main","targets":[{"id":"default","type":"path","tag":"v1.1.0","changelog_file":"CHANGELOG.md"}]}` +

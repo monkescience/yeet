@@ -1423,6 +1423,10 @@ func azureDevOpsFindOpenPRsHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if writeAzureDevOpsOpenPRDetail(t, w, r) {
+			return
+		}
+
 		if !isAzureDevOpsPullRequestsListRequest(r) {
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 
@@ -1444,6 +1448,10 @@ func azureDevOpsFindOpenPRsForBaseHandler(t *testing.T) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if writeAzureDevOpsOpenPRDetail(t, w, r) {
+			return
+		}
+
 		if !isAzureDevOpsPullRequestsListRequest(r) {
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 
@@ -1460,6 +1468,10 @@ func azureDevOpsFindOpenPRsFixtureHandler(t *testing.T, dir string) http.Handler
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if writeAzureDevOpsOpenPRDetail(t, w, r) {
+			return
+		}
+
 		if !isAzureDevOpsPullRequestsListRequest(r) {
 			fatalUnexpectedProviderRequest(t, "Azure DevOps", r)
 
@@ -1468,6 +1480,18 @@ func azureDevOpsFindOpenPRsFixtureHandler(t *testing.T, dir string) http.Handler
 
 		writeJSONFixture(t, w, azureDevOpsContractFixture(dir, "pull_requests.json"))
 	}
+}
+
+func writeAzureDevOpsOpenPRDetail(t *testing.T, w http.ResponseWriter, r *http.Request) bool {
+	t.Helper()
+
+	if r.Method != http.MethodGet || r.URL.Path != azureDevOpsContractPullRequestAPI() {
+		return false
+	}
+
+	writeJSONFixture(t, w, azureDevOpsContractFixture("find_open_prs", "pull_request.json"))
+
+	return true
 }
 
 func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
