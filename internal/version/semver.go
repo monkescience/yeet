@@ -87,23 +87,9 @@ func (s *SemVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", fmt.Errorf("%w: %s: %v", ErrInvalidVersion, current, err)
 	}
 
-	if v.Major() == 0 {
-		switch bump {
-		case commit.BumpMajor:
-			if s.preMajorBreakingBumpsMinor {
-				bump = commit.BumpMinor
-			}
-		case commit.BumpMinor:
-			if s.preMajorFeaturesBumpPatch {
-				bump = commit.BumpPatch
-			}
-		case commit.BumpPatch, commit.BumpNone:
-		}
-	}
-
 	var next semver.Version
 
-	switch bump {
+	switch s.effectiveBump(v, bump) {
 	case commit.BumpMajor:
 		next = v.IncMajor()
 	case commit.BumpMinor:
@@ -180,6 +166,26 @@ func (s *SemVer) PrereleaseAllowed(version, identifier string) bool {
 	return semverPrereleaseAllowed(parsed, identifier)
 }
 
+func (s *SemVer) effectiveBump(v *semver.Version, bump commit.BumpType) commit.BumpType {
+	if v.Major() != 0 {
+		return bump
+	}
+
+	switch bump {
+	case commit.BumpMajor:
+		if s.preMajorBreakingBumpsMinor {
+			return commit.BumpMinor
+		}
+	case commit.BumpMinor:
+		if s.preMajorFeaturesBumpPatch {
+			return commit.BumpPatch
+		}
+	case commit.BumpPatch, commit.BumpNone:
+	}
+
+	return bump
+}
+
 func (s *SemVer) parseRef(tag string) (*semver.Version, error) {
 	v, err := semver.StrictNewVersion(strings.TrimPrefix(tag, s.prefix))
 	if err != nil {
@@ -220,12 +226,26 @@ func (s *SemVer) nextPrerelease(
 		return "", bump, false, nil
 	}
 
-	nextPrerelease, ok, err := incrementPrerelease(current, prereleaseIdentifier)
-	if ok || err != nil {
-		return nextPrerelease, bump, ok, err
+	parsed, err := semver.StrictNewVersion(current)
+	if err != nil {
+		return "", commit.BumpNone, false, fmt.Errorf("parse current prerelease version %q: %w", current, err)
 	}
 
-	nextBase, err := s.Next(current, bump)
+	nextPrerelease, ok, err := incrementPrerelease(parsed, prereleaseIdentifier)
+	if err != nil {
+		return "", commit.BumpNone, false, err
+	}
+
+	base := current
+	if ok {
+		base = versionCore(parsed)
+
+		if s.prereleaseBaseCovers(parsed, bump) {
+			return nextPrerelease, bump, true, nil
+		}
+	}
+
+	nextBase, err := s.Next(base, bump)
 	if err != nil {
 		return "", commit.BumpNone, false, fmt.Errorf("calculate next prerelease base version: %w", err)
 	}
@@ -265,26 +285,42 @@ func (s *SemVer) applyReleaseAs(current, releaseAs string) (string, commit.BumpT
 	return target.String(), inferBump(currentVersion, target), nil
 }
 
+func (s *SemVer) prereleaseBaseCovers(v *semver.Version, bump commit.BumpType) bool {
+	return commit.CompareBump(s.effectiveBump(v, bump), baseBump(v)) <= 0
+}
+
+func baseBump(v *semver.Version) commit.BumpType {
+	switch {
+	case v.Patch() != 0:
+		return commit.BumpPatch
+	case v.Minor() != 0:
+		return commit.BumpMinor
+	case v.Major() != 0:
+		return commit.BumpMajor
+	default:
+		return commit.BumpNone
+	}
+}
+
 func stableBase(version string) string {
 	parsed, err := semver.StrictNewVersion(version)
 	if err != nil {
 		return version
 	}
 
-	return fmt.Sprintf("%d.%d.%d", parsed.Major(), parsed.Minor(), parsed.Patch())
+	return versionCore(parsed)
+}
+
+func versionCore(v *semver.Version) string {
+	return fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch())
 }
 
 func firstPrerelease(baseVersion, prereleaseIdentifier string) string {
 	return baseVersion + "-" + prereleaseIdentifier + ".1"
 }
 
-func incrementPrerelease(current, prereleaseIdentifier string) (string, bool, error) {
-	parsed, err := semver.StrictNewVersion(current)
-	if err != nil {
-		return "", false, fmt.Errorf("parse current prerelease version %q: %w", current, err)
-	}
-
-	prerelease := parsed.Prerelease()
+func incrementPrerelease(current *semver.Version, prereleaseIdentifier string) (string, bool, error) {
+	prerelease := current.Prerelease()
 	if prerelease == "" {
 		return "", false, nil
 	}
@@ -299,7 +335,7 @@ func incrementPrerelease(current, prereleaseIdentifier string) (string, bool, er
 		return "", false, err
 	}
 
-	return fmt.Sprintf("%s-%s.%d", stableBase(current), prereleaseIdentifier, counter+1), true, nil
+	return fmt.Sprintf("%s-%s.%d", versionCore(current), prereleaseIdentifier, counter+1), true, nil
 }
 
 func parsePrereleaseCounter(counterText string) (int64, error) {

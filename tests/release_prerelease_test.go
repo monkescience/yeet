@@ -59,6 +59,51 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		)
 	})
 
+	t.Run("github beta channel opens a major line for a breaking change", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel on a minor prerelease line and a new breaking change
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "beta",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0-beta.1", Tag: "v1.1.0-beta.1"},
+				{Message: "feat!: drop the old api"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.1.0-beta.1",
+			ExtraTags:     []string{"v1.0.0"},
+			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v1.1.0-beta.1": shas[1], "v1.0.0": shas[0]},
+			BranchHeadSHA: shas[2],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+			},
+		})
+
+		// when: invoking `yeet release --dry-run --channel beta`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "beta")...),
+		)
+
+		// then: yeet starts the 2.0.0 prerelease line instead of advancing the 1.1.0 counter
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "1.1.0-beta.1 → 2.0.0-beta.1")
+		testastic.Contains(t, result.Stdout, "Tag         v2.0.0-beta.1")
+	})
+
 	t.Run("github beta channel honours Release-As on top of prerelease", func(t *testing.T) {
 		t.Parallel()
 

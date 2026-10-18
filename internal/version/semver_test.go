@@ -328,6 +328,63 @@ func TestSemVerPreMajorOptions(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2.0.0", next)
 	})
+
+	t.Run("scaled breaking change stays inside a minor prerelease line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: breaking changes bump minor before 1.0.0
+		sv := version.NewSemVer(version.SemVerOptions{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: true,
+		})
+
+		// when: a breaking change lands on a minor prerelease line and on a patch prerelease line
+		minorLine, _, _, minorErr := sv.NextRelease("0.5.0-beta.1", commit.BumpMajor, "", "beta")
+		patchLine, _, _, patchErr := sv.NextRelease("0.4.3-beta.1", commit.BumpMajor, "", "beta")
+
+		// then: the minor line advances its counter and the patch line opens the next minor line
+		testastic.NoError(t, minorErr)
+		testastic.Equal(t, "0.5.0-beta.2", minorLine)
+		testastic.NoError(t, patchErr)
+		testastic.Equal(t, "0.5.0-beta.1", patchLine)
+	})
+
+	t.Run("scaled feature stays inside a patch prerelease line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: features bump patch before 1.0.0
+		sv := version.NewSemVer(version.SemVerOptions{
+			Prefix:                    "v",
+			PreMajorFeaturesBumpPatch: true,
+		})
+
+		// when: a feature lands on a patch prerelease line
+		next, _, _, err := sv.NextRelease("0.5.1-beta.1", commit.BumpMinor, "", "beta")
+
+		// then: the patch line advances its counter
+		testastic.NoError(t, err)
+		testastic.Equal(t, "0.5.1-beta.2", next)
+	})
+
+	t.Run("a 0.0.0 prerelease line opens the line the bump requires", func(t *testing.T) {
+		t.Parallel()
+
+		// given: breaking changes bump minor before 1.0.0
+		sv := version.NewSemVer(version.SemVerOptions{
+			Prefix:                     "v",
+			PreMajorBreakingBumpsMinor: true,
+		})
+
+		// when: a fix and a breaking change land on a 0.0.0 prerelease line
+		fixLine, _, _, fixErr := sv.NextRelease("0.0.0-beta.1", commit.BumpPatch, "", "beta")
+		breakingLine, _, _, breakingErr := sv.NextRelease("0.0.0-beta.1", commit.BumpMajor, "", "beta")
+
+		// then: each opens the line its bump requires from 0.0.0
+		testastic.NoError(t, fixErr)
+		testastic.Equal(t, "0.0.1-beta.1", fixLine)
+		testastic.NoError(t, breakingErr)
+		testastic.Equal(t, "0.1.0-beta.1", breakingLine)
+	})
 }
 
 func TestSemVerInitialVersion(t *testing.T) {
