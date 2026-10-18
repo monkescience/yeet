@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.17.3](https://github.com/monkescience/yeet/compare/v0.17.2...v0.17.3) (2026-10-18)
+
+### Bug Fixes
+
+- **version:** start a new prerelease line when commits need a bigger bump ([8b88d01](https://github.com/monkescience/yeet/commit/8b88d01a36e182efb404aadca5133ad7313d8e22))
+- **release:** allow unit-only branch templates in independent mode ([2af4a5b](https://github.com/monkescience/yeet/commit/2af4a5bbe29040d09b3893dc60b7717a0c69ceff))
+- **provider:** read full Azure DevOps open release PR body ([1d3edf9](https://github.com/monkescience/yeet/commit/1d3edf9b704313458808972601a54f182cd88a3f))
+- **provider:** verify defaulted host against git remote ([75b0e67](https://github.com/monkescience/yeet/commit/75b0e678655bcc0bb3e566cf0a6db8de47a76e4f))
+
 ## [v0.17.2](https://github.com/monkescience/yeet/compare/v0.17.1...v0.17.2) (2026-10-16)
 
 ### Bug Fixes
