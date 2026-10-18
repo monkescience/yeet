@@ -56,6 +56,10 @@ func parseRemoteURL(remoteURL string) (*repositoryDescriptor, error) {
 }
 
 func parseSCPRemote(remoteURL string) (*repositoryDescriptor, error) {
+	if strings.Contains(remoteURL, "://") {
+		return nil, ErrUnknownRemote
+	}
+
 	matches := scpLikeRemotePattern.FindStringSubmatch(remoteURL)
 	if matches == nil {
 		return nil, ErrUnknownRemote

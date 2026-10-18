@@ -427,3 +427,268 @@ func TestResolveRepositoryWrapsGitRemoteFailure(t *testing.T) {
 	testastic.False(t, errors.Is(err, ErrUntrustedHost))
 	testastic.ErrorIs(t, err, ErrGitRemoteNotFound)
 }
+
+func TestResolveRepositoryDefaultedHostTrust(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rejects a defaulted gitlab host when the remote is self-hosted", func(t *testing.T) {
+		t.Parallel()
+
+		// given: gitlab coordinates without a host and a remote on a self-hosted gitlab
+		cfg := config.Default()
+		cfg.Provider = config.ProviderGitLab
+		cfg.Repository.GitLab = &config.GitLabRepositoryConfig{Project: "group/sub/repo"}
+
+		// when: resolving the repository
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@gitlab.company.com:group/sub/repo.git", nil
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the token is not sent to the public default host
+		testastic.ErrorIs(t, err, ErrUntrustedHost)
+
+		var setup *SetupError
+		testastic.True(t, errors.As(err, &setup))
+		testastic.Equal(t, "gitlab.com", setup.Host)
+		testastic.Equal(t, "gitlab.company.com", setup.RemoteHost)
+		testastic.Equal(t, "provider host does not match git remote host", setup.Problem)
+		testastic.Equal(
+			t,
+			"provider host is not trusted: default host \"gitlab.com\" does not match git remote host "+
+				"\"gitlab.company.com\"",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects a defaulted github host from flag overrides on an enterprise checkout", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github coordinates passed as flags and a remote on github enterprise
+		provider, owner, repo := "github", "acme", "widgets"
+
+		// when: resolving the repository
+		_, err := resolveRepository(
+			context.Background(),
+			config.Default(),
+			func(context.Context, string) (string, error) {
+				return "https://github.company.com/acme/widgets.git", nil
+			},
+			RepositoryOverrides{Provider: &provider, Owner: &owner, Repo: &repo},
+		)
+
+		// then: the defaulted public host is rejected
+		testastic.ErrorIs(t, err, ErrUntrustedHost)
+		testastic.ErrorContains(t, err, "does not match git remote host \"github.company.com\"")
+	})
+
+	t.Run("accepts a defaulted host when the remote is on the public host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github coordinates without a host and a remote on github.com
+		cfg := githubTrustConfig("")
+
+		// when: resolving the repository
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@github.com:platform/yeet.git", nil
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the default host is used
+		testastic.NoError(t, err)
+		testastic.Equal(t, DefaultGitHubHost, repository.Host)
+	})
+
+	t.Run("accepts a defaulted azure host when the remote uses the azure ssh host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: azure coordinates without a host and a remote on the azure ssh host
+		cfg := config.Default()
+		cfg.Provider = config.ProviderAzureDevOps
+		cfg.Repository.AzureDevOps = &config.AzureDevOpsRepositoryConfig{
+			Organization: "org",
+			Project:      "project",
+			Repo:         "repo",
+		}
+
+		// when: resolving the repository
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@ssh.dev.azure.com:v3/org/project/repo", nil
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the default host is used
+		testastic.NoError(t, err)
+		testastic.Equal(t, DefaultAzureDevOpsHost, repository.Host)
+	})
+
+	acceptedRemotes := []struct {
+		name      string
+		provider  config.ProviderType
+		remoteURL string
+		host      string
+	}{
+		{
+			name:      "public host with an explicit port",
+			provider:  config.ProviderGitHub,
+			remoteURL: "https://github.com:443/platform/yeet.git",
+			host:      DefaultGitHubHost,
+		},
+		{
+			name:      "github ssh over the https port",
+			provider:  config.ProviderGitHub,
+			remoteURL: "ssh://git@ssh.github.com:443/platform/yeet.git",
+			host:      DefaultGitHubHost,
+		},
+		{
+			name:      "gitlab ssh over the https port",
+			provider:  config.ProviderGitLab,
+			remoteURL: "ssh://git@altssh.gitlab.com:443/platform/yeet.git",
+			host:      DefaultGitLabHost,
+		},
+		{
+			name:      "local file remote",
+			provider:  config.ProviderGitHub,
+			remoteURL: "file:///srv/git/yeet.git",
+			host:      DefaultGitHubHost,
+		},
+		{
+			name:      "remote without a parseable host",
+			provider:  config.ProviderGitHub,
+			remoteURL: "/srv/git/yeet.git",
+			host:      DefaultGitHubHost,
+		},
+	}
+
+	for _, tc := range acceptedRemotes {
+		t.Run("accepts a defaulted host for a "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: coordinates without a host and a remote that does not name another forge
+			cfg := config.Default()
+			cfg.Provider = tc.provider
+			cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
+
+			if tc.provider == config.ProviderGitLab {
+				cfg.Repository.GitHub = nil
+				cfg.Repository.GitLab = &config.GitLabRepositoryConfig{Project: "platform/yeet"}
+			}
+
+			// when: resolving the repository
+			repository, err := resolveRepository(
+				context.Background(),
+				cfg,
+				func(context.Context, string) (string, error) {
+					return tc.remoteURL, nil
+				},
+				RepositoryOverrides{},
+			)
+
+			// then: the default host is used
+			testastic.NoError(t, err)
+			testastic.Equal(t, tc.host, repository.Host)
+		})
+	}
+
+	t.Run("rejects a defaulted host when the remote is on another public forge", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github coordinates without a host and a remote on gitlab.com
+		cfg := githubTrustConfig("")
+
+		// when: resolving the repository
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@gitlab.com:platform/yeet.git", nil
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the token is not sent to the default github host
+		testastic.ErrorIs(t, err, ErrUntrustedHost)
+		testastic.ErrorContains(t, err, "does not match git remote host \"gitlab.com\"")
+	})
+
+	t.Run("rejects a defaulted host for an ssh alias and hints at an explicit host", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github coordinates without a host and a remote using an ssh config alias
+		cfg := githubTrustConfig("")
+
+		// when: resolving the repository
+		_, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "git@github-work:platform/yeet.git", nil
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the alias is rejected with a hint to configure the host explicitly
+		testastic.ErrorIs(t, err, ErrUntrustedHost)
+
+		var setup *SetupError
+		testastic.True(t, errors.As(err, &setup))
+		testastic.Equal(t, "github-work", setup.RemoteHost)
+		testastic.Equal(t, "set the provider host explicitly to the forge serving this repository", setup.Hint)
+	})
+
+	t.Run("accepts a defaulted host when no git remote is available", func(t *testing.T) {
+		t.Parallel()
+
+		// given: github coordinates without a host and no readable git remote
+		cfg := githubTrustConfig("")
+
+		// when: resolving the repository
+		repository, err := resolveRepository(
+			context.Background(),
+			cfg,
+			func(context.Context, string) (string, error) {
+				return "", ErrGitRemoteNotFound
+			},
+			RepositoryOverrides{},
+		)
+
+		// then: the default host is used because nothing points elsewhere
+		testastic.NoError(t, err)
+		testastic.Equal(t, DefaultGitHubHost, repository.Host)
+	})
+}
+
+func TestResolveRepositoryDefaultedHostHonorsProviderURLEnv(t *testing.T) {
+	// given: an operator-set GITLAB_URL and gitlab coordinates without a host
+	t.Setenv(gitlabURLEnv, "https://gitlab.company.com/api/v4")
+
+	cfg := config.Default()
+	cfg.Provider = config.ProviderGitLab
+	cfg.Repository.GitLab = &config.GitLabRepositoryConfig{Project: "group/service"}
+
+	// when: resolving with a getter that fails if called
+	repository, err := resolveRepository(
+		context.Background(),
+		cfg,
+		func(context.Context, string) (string, error) {
+			return "", errors.New("git remote lookup should not run with a provider url override")
+		},
+		RepositoryOverrides{},
+	)
+
+	// then: the operator-controlled endpoint is trusted without consulting the remote
+	testastic.NoError(t, err)
+	testastic.Equal(t, DefaultGitLabHost, repository.Host)
+}

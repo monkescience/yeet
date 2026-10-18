@@ -14,6 +14,11 @@ var (
 	ErrUntrustedHost = errors.New("provider host is not trusted")
 )
 
+var publicSSHHostProviders = map[string]string{
+	"ssh.github.com":    providerNameGitHub,
+	"altssh.gitlab.com": providerNameGitLab,
+}
+
 type untrustedHostError struct {
 	host   string
 	remote string
@@ -129,6 +134,66 @@ func validateRemoteHostTrust(
 	return nil
 }
 
+func validateDefaultedHostRemote(
+	ctx context.Context,
+	repository *repositoryDescriptor,
+	getRemoteURL gitRemoteURLGetter,
+) error {
+	if spec, known := forgeSpecs[repository.Provider]; !known || spec.endpointOverride() != "" {
+		return nil
+	}
+
+	remoteURL, err := getRemoteURL(ctx, repository.Remote)
+	if err != nil {
+		return nil //nolint:nilerr // without a readable remote nothing contradicts the default host
+	}
+
+	detected, err := parseRemote(remoteURL)
+	if err != nil {
+		return nil //nolint:nilerr // an unparseable remote names no host to contradict the default
+	}
+
+	if publicRemoteHostProvider(detected.Host) == repository.Provider {
+		return nil
+	}
+
+	setup := hostTrustError(
+		repository,
+		fmt.Errorf(
+			"%w: default host %q does not match git remote host %q",
+			ErrUntrustedHost, repository.Host, detected.Host,
+		),
+	)
+	setup.RemoteHost = detected.Host
+	setup.Problem = "provider host does not match git remote host"
+	setup.Hint = "set the provider host explicitly to the forge serving this repository"
+
+	return setup
+}
+
+func publicRemoteHostProvider(remoteHost string) string {
+	hostname := strings.ToLower(hostnameOf(remoteHost))
+	if provider, known := publicSSHHostProviders[hostname]; known {
+		return provider
+	}
+
+	provider, err := detectType(hostname)
+	if err != nil {
+		return ""
+	}
+
+	return provider
+}
+
+func hostnameOf(host string) string {
+	parsed, err := url.Parse("https://" + host)
+	if err != nil {
+		return host
+	}
+
+	return parsed.Hostname()
+}
+
 func repositoryLookupSetupError(repository *repositoryDescriptor, host string, err error) *SetupError {
 	diagnosis := setupProblem(err)
 	if !diagnosis.repositoryFailure {
@@ -164,12 +229,7 @@ func validateConfiguredAPIHost(apiURL, repositoryHost string) (string, error) {
 		return "", fmt.Errorf("%w: configured api_url is invalid", ErrUntrustedHost)
 	}
 
-	repositoryHostname := repositoryHost
-
-	parsedRepositoryHost, parseErr := url.Parse("https://" + repositoryHost)
-	if parseErr == nil {
-		repositoryHostname = parsedRepositoryHost.Hostname()
-	}
+	repositoryHostname := hostnameOf(repositoryHost)
 
 	if !strings.EqualFold(parsed.Hostname(), repositoryHostname) {
 		return parsed.Hostname(), fmt.Errorf(

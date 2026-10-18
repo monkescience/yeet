@@ -84,6 +84,35 @@ func TestReleaseHostTrust(t *testing.T) {
 		)
 	})
 
+	t.Run("rejects a defaulted public host when the git remote is self-hosted", func(t *testing.T) {
+		t.Parallel()
+
+		// given: provider coordinates without a host and a remote on a self-hosted forge.
+		repoDir := fixture.WriteRepo(t, "git@github.example:acme/repo.git")
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: planning a release.
+		result := binary.RunWithOptions(
+			t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv("GITHUB_TOKEN=test-token"),
+		)
+
+		// then: yeet refuses to send the token to the public default host.
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/defaulted_host_self_hosted_remote/stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
 	t.Run("rejects a provider host containing a scheme", func(t *testing.T) {
 		t.Parallel()
 

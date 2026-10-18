@@ -54,6 +54,19 @@ func TestParseRemote(t *testing.T) {
 		testastic.Equal(t, "unable to parse remote URL: https://***@", err.Error())
 	})
 
+	t.Run("rejects a file url instead of reading it as scp syntax", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a local file url remote
+		url := "file:///srv/git/repo.git"
+
+		// when: parsing the remote
+		_, err := provider.ParseRemoteForTest(url)
+
+		// then: the remote is unknown rather than hosted on "file"
+		testastic.ErrorIs(t, err, provider.ErrUnknownRemote)
+	})
+
 	t.Run("unknown remote error redacts username-only token", func(t *testing.T) {
 		t.Parallel()
 

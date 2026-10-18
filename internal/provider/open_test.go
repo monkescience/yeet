@@ -14,7 +14,7 @@ import (
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
-	t.Run("explicit coordinates avoid remote lookup and use provider defaults", func(t *testing.T) {
+	t.Run("explicit coordinates without a git remote use provider defaults", func(t *testing.T) {
 		t.Parallel()
 
 		// given: explicit GitHub coordinates and a selected adapter
@@ -26,14 +26,10 @@ func TestOpen(t *testing.T) {
 		cfg.Repository.GitHub = &config.GitHubRepositoryConfig{Owner: "platform", Repo: "yeet"}
 		expected := &GitHub{}
 
-		remoteLookedUp := false
-
-		// when: opening the configured provider
+		// when: opening the configured provider without a readable git remote
 		actual, _, err := openResolved(t.Context(), cfg, providerSettings{releaseBranch: "automation/main"}, openDependencies{
 			getRemoteURL: func(context.Context, string) (string, error) {
-				remoteLookedUp = true
-
-				return "", errors.New("git remote lookup should not run")
+				return "", ErrGitRemoteNotFound
 			},
 			create: func(repository resolvedRepository, settings providerSettings) (forge.Provider, error) {
 				githubRepository, ok := repository.(*resolvedGitHubRepository)
@@ -51,9 +47,8 @@ func TestOpen(t *testing.T) {
 			},
 		}, RepositoryOverrides{})
 
-		// then: opening returns the selected adapter without consulting Git
+		// then: opening returns the selected adapter on the default host
 		testastic.NoError(t, err)
-		testastic.False(t, remoteLookedUp)
 		testastic.Equal(t, forge.Provider(expected), actual)
 	})
 

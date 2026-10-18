@@ -48,7 +48,7 @@ func TestResolveRepository(t *testing.T) {
 		testastic.Equal(t, "origin", repository.Remote)
 	})
 
-	t.Run("uses explicit github coordinates without git remote access", func(t *testing.T) {
+	t.Run("prefers explicit github coordinates over the git remote", func(t *testing.T) {
 		t.Parallel()
 
 		// given: explicit github coordinates in config
@@ -59,23 +59,18 @@ func TestResolveRepository(t *testing.T) {
 			Repo:  "yeet",
 		}
 
-		remoteLookedUp := false
-
-		// when: resolving the repository
+		// when: resolving the repository with a remote naming other coordinates on the default host
 		repository, err := resolveRepository(
 			context.Background(),
 			cfg,
 			func(context.Context, string) (string, error) {
-				remoteLookedUp = true
-
-				return "", errors.New("git remote lookup should not run")
+				return "https://github.com/other/fork.git", nil
 			},
 			RepositoryOverrides{},
 		)
 
-		// then: explicit github coordinates resolve without git remote access
+		// then: explicit github coordinates win and the default host is used
 		testastic.NoError(t, err)
-		testastic.False(t, remoteLookedUp)
 		testastic.Equal(t, "github", repository.Provider)
 		testastic.Equal(t, "github.com", repository.Host)
 		testastic.Equal(t, "platform", repository.Owner)

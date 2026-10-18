@@ -25,6 +25,8 @@ func resolveRepository(
 		return nil, err
 	}
 
+	hostDefaulted := repository.Host == ""
+
 	applyRepositoryProviderDefaults(repository)
 	normalizeRepositoryDescriptor(repository)
 
@@ -36,6 +38,13 @@ func resolveRepository(
 	err = validateProviderHostTrust(ctx, repository, getRemoteURL)
 	if err != nil {
 		return nil, err
+	}
+
+	if hostDefaulted {
+		err = validateDefaultedHostRemote(ctx, repository, getRemoteURL)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return repository, nil
