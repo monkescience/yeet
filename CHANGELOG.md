@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.17.2](https://github.com/monkescience/yeet/compare/v0.17.1...v0.17.2) (2026-10-16)
+
+### Bug Fixes
+
+- **deps:** update module github.com/charmbracelet/x/ansi to v0.11.9 (#312) ([1a01af2](https://github.com/monkescience/yeet/commit/1a01af2a3927a75dcaf127cb272e939b6e6bb598))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.17.0 (#313) ([9029f0f](https://github.com/monkescience/yeet/commit/9029f0fc63ba59c31be567d9483aed215109e1c6))
+
 ## [v0.17.1](https://github.com/monkescience/yeet/compare/v0.17.0...v0.17.1) (2026-10-11)
 
 ### Bug Fixes
