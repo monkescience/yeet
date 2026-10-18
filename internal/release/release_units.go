@@ -34,7 +34,7 @@ func planReleaseUnits(core *releaseCore, plans []TargetPlan) ([]releaseUnit, err
 
 		return []releaseUnit{{
 			ID:            combinedReleaseUnitID,
-			ReleaseBranch: core.run.releaseBranch,
+			ReleaseBranch: core.run.combinedBranch,
 			Plans:         slices.Clone(plans),
 		}}, nil
 	}
@@ -70,7 +70,7 @@ func configuredReleaseUnits(core *releaseCore) ([]releaseUnit, error) {
 	if core.cfg.Release.PullRequestMode != config.PullRequestModeIndependent {
 		return []releaseUnit{{
 			ID:            combinedReleaseUnitID,
-			ReleaseBranch: core.run.releaseBranch,
+			ReleaseBranch: core.run.combinedBranch,
 			Plans:         plans,
 		}}, nil
 	}
@@ -94,9 +94,13 @@ func configuredReleaseUnits(core *releaseCore) ([]releaseUnit, error) {
 		}
 	}
 
+	if core.run.combinedBranch == "" {
+		return units, nil
+	}
+
 	units = append(units, releaseUnit{
 		ID:            combinedReleaseUnitID,
-		ReleaseBranch: core.run.releaseBranch,
+		ReleaseBranch: core.run.combinedBranch,
 		Plans:         plans,
 	})
 

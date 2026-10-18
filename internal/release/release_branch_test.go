@@ -22,7 +22,7 @@ func TestReleaseBranchTemplate(t *testing.T) {
 
 		// then: the existing branch convention is preserved
 		testastic.NoError(t, err)
-		testastic.Equal(t, "yeet/release-main", run.releaseBranch)
+		testastic.Equal(t, "yeet/release-main", run.combinedBranch)
 	})
 
 	t.Run("renders branch and channel fields", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestReleaseBranchTemplate(t *testing.T) {
 
 		// then: both allowlisted fields are rendered
 		testastic.NoError(t, err)
-		testastic.Equal(t, "automation/beta/release/beta", run.releaseBranch)
+		testastic.Equal(t, "automation/beta/release/beta", run.combinedBranch)
 	})
 }
 

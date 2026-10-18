@@ -446,7 +446,7 @@ func TestIndependentReleaseWorkflow(t *testing.T) {
 				Number:         3,
 				URL:            "https://example.com/pr/3",
 				Body:           marker,
-				Branch:         r.core.run.releaseBranch,
+				Branch:         r.core.run.combinedBranch,
 				MergeCommitSHA: "legacy-merge-sha",
 			},
 		}

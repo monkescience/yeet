@@ -46,7 +46,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	p, resolvedProvider, err := provider.Open(ctx, cfg, run.releaseBranch, repositoryOverrides(options))
+	p, resolvedProvider, err := provider.Open(ctx, cfg, run.combinedBranch, repositoryOverrides(options))
 	if err != nil {
 		if errors.Is(err, config.ErrInvalidConfig) {
 			return nil, resolvedConfigPath, fmt.Errorf("invalid release options: %w", err)

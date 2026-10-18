@@ -317,7 +317,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 			// given: a valid release manifest altered at one trust boundary
 			cfg := config.Default()
 			r := newTestReleaser(t, cfg, newProviderStub())
-			pullRequest := &forge.PullRequest{Branch: r.core.run.releaseBranch}
+			pullRequest := &forge.PullRequest{Branch: r.core.run.combinedBranch}
 			manifest := releaseManifest{
 				BaseBranch: cfg.Branch,
 				Targets: []releaseManifestEntry{
@@ -333,7 +333,7 @@ func TestValidateReleaseManifest(t *testing.T) {
 
 			// when: validating the altered manifest against the active release configuration
 			_, err := r.core.validateReleaseManifest(pullRequest, manifest, releaseUnit{
-				ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.releaseBranch,
+				ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.combinedBranch,
 			})
 
 			// then: the manifest fails closed
@@ -348,7 +348,7 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 	// given: a manifest whose changelog path is equivalent after cleaning
 	cfg := config.Default()
 	r := newTestReleaser(t, cfg, newProviderStub())
-	pullRequest := &forge.PullRequest{Branch: r.core.run.releaseBranch}
+	pullRequest := &forge.PullRequest{Branch: r.core.run.combinedBranch}
 	manifest := releaseManifest{
 		BaseBranch: cfg.Branch,
 		Targets: []releaseManifestEntry{
@@ -363,7 +363,7 @@ func TestValidateReleaseManifestAcceptsEquivalentChangelogPath(t *testing.T) {
 
 	// when: validating the manifest against the configured release unit
 	_, err := r.core.validateReleaseManifest(pullRequest, manifest, releaseUnit{
-		ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.releaseBranch,
+		ID: combinedReleaseUnitID, ReleaseBranch: r.core.run.combinedBranch,
 	})
 
 	// then: the equivalent path is accepted

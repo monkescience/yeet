@@ -265,7 +265,7 @@ func TestReleaseTextRender(t *testing.T) {
 		plans := []TargetPlan{{ID: "default", NextVersion: "1.2.4", NextTag: "v1.2.4"}}
 
 		// when: rendering the release data
-		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000, combinedReleaseUnitID)
+		rendered, renderErr := r.lifecycle.text.render(plans, r.core.run.combinedBranch, 4000, combinedReleaseUnitID)
 
 		// then: render reports the failure and no partial value escapes
 		testastic.ErrorIs(t, renderErr, config.ErrInvalidConfig)
@@ -289,7 +289,7 @@ func TestReleaseTextRenderOmittingNotesDoesNotLog(t *testing.T) {
 	warnings := captureWarnings(t)
 
 	// when: rendering at the provider limit
-	rendered, err := r.lifecycle.text.render(plans, r.core.run.releaseBranch, 4000, combinedReleaseUnitID)
+	rendered, err := r.lifecycle.text.render(plans, r.core.run.combinedBranch, 4000, combinedReleaseUnitID)
 
 	// then: the result reports omission and the pure renderer emits no warning
 	testastic.NoError(t, err)

@@ -10,12 +10,12 @@ import (
 )
 
 type releaseRun struct {
-	baseBranch    string
-	releaseBranch string
-	channelName   string
-	prerelease    string
-	autoMerge     autoMergeSettings
-	changelogFile string
+	baseBranch     string
+	combinedBranch string
+	channelName    string
+	prerelease     string
+	autoMerge      autoMergeSettings
+	changelogFile  string
 }
 
 type autoMergeSettings struct {
@@ -61,8 +61,12 @@ func resolveRun(cfg *config.Config, currentBranch string, options Options) (rele
 		return releaseRun{}, err
 	}
 
-	run.releaseBranch, err = renderReleaseBranch(tmpl, run.baseBranch, run.channelName, "")
+	run.combinedBranch, err = renderReleaseBranch(tmpl, run.baseBranch, run.channelName, "")
 	if err != nil {
+		if cfg.Release.PullRequestMode == config.PullRequestModeIndependent {
+			return run, nil
+		}
+
 		return releaseRun{}, err
 	}
 
