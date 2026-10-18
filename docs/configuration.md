@@ -43,10 +43,14 @@ targets:
     includes: [api, web]
     path: .
     tag_prefix: v
+    exclude_paths:
+      - services/api
+      - apps/web
 ```
 
 A `path` target only picks up commits that touch its path, minus `exclude_paths`.
 A `derived` target releases whenever one of its `includes` releases, and optionally for commits under its own `path`.
+Each path must belong to at most one target, so a `derived` target with its own `path` must exclude the paths of its `includes`.
 
 Targets can override `versioning`, `calver`, `changelog`, `version_files`, and the pre-major settings.
 
