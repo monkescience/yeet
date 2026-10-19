@@ -973,6 +973,49 @@ func TestPrependEntry(t *testing.T) {
 		)
 	})
 
+	t.Run("inserts before Keep a Changelog release headings", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a Keep a Changelog file with bracketed releases and link references
+		existing := "# Changelog\n\n" +
+			"## [Unreleased]\n\n" +
+			"## [1.0.0] - 2026-01-01\n\nPrevious release.\n\n" +
+			"[1.0.0]: https://example.com/releases/1.0.0\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the new release precedes the first existing release
+		testastic.Equal(
+			t,
+			"# Changelog\n\n## [Unreleased]\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## [1.0.0] - 2026-01-01\n\nPrevious release.\n\n"+
+				"[1.0.0]: https://example.com/releases/1.0.0\n",
+			result,
+		)
+	})
+
+	t.Run("inserts before release headings with a leading word", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog whose release headings start with a word before the version
+		existing := "# Changelog\n\n## Upgrading from 1.x to 2.0\n\nSee docs.\n\n## Version 1.0.0\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the new release follows the preamble and precedes the existing release
+		testastic.Equal(
+			t,
+			"# Changelog\n\n## Upgrading from 1.x to 2.0\n\nSee docs.\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## Version 1.0.0\n\nPrevious release.\n",
+			result,
+		)
+	})
+
 	t.Run("treats a whitespace-only changelog as empty", func(t *testing.T) {
 		t.Parallel()
 

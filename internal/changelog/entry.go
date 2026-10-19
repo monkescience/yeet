@@ -135,25 +135,37 @@ func PrependEntry(existing, newEntry string) string {
 }
 
 func isReleaseHeading(heading string) bool {
+	text := strings.TrimSpace(trimClosingHeadingHashes(heading))
+
+	entry := Entry{}
+	parseHeadingFields(text, &entry)
+
+	if isVersion(entry.Version) {
+		return true
+	}
+
+	fields := strings.Fields(text)
+
+	return len(fields) > 1 && strings.EqualFold(fields[0], "version") && isVersion(fields[1])
+}
+
+func isVersion(text string) bool {
 	const (
 		minimumVersionParts = 2
 		semverParts         = 3
 	)
 
-	entry := Entry{}
-	parseHeadingFields(strings.TrimSpace(trimClosingHeadingHashes(heading)), &entry)
-
-	for start := range len(entry.Version) {
-		if entry.Version[start] < '0' || entry.Version[start] > '9' {
+	for start := range len(text) {
+		if text[start] < '0' || text[start] > '9' {
 			continue
 		}
 
 		parts := 0
 		position := start
 
-		for position < len(entry.Version) {
+		for position < len(text) {
 			partStart := position
-			for position < len(entry.Version) && entry.Version[position] >= '0' && entry.Version[position] <= '9' {
+			for position < len(text) && text[position] >= '0' && text[position] <= '9' {
 				position++
 			}
 
@@ -162,15 +174,15 @@ func isReleaseHeading(heading string) bool {
 			}
 
 			parts++
-			if position == len(entry.Version) {
+			if position == len(text) {
 				return parts >= minimumVersionParts
 			}
 
-			if parts >= semverParts && (entry.Version[position] == '-' || entry.Version[position] == '+') {
-				return position+1 < len(entry.Version)
+			if parts >= semverParts && (text[position] == '-' || text[position] == '+') {
+				return position+1 < len(text)
 			}
 
-			if entry.Version[position] != '.' {
+			if text[position] != '.' {
 				break
 			}
 

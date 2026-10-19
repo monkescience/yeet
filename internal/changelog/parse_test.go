@@ -43,6 +43,20 @@ func TestParseEntry(t *testing.T) {
 		testastic.Equal(t, "2026-03-21", entry.Date.Format("2006-01-02"))
 	})
 
+	t.Run("reads a Keep a Changelog heading", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an entry whose bracketed version heading has no link
+		text := "## [1.2.3] - 2026-03-21\n\n### Added\n\n- add tokens\n"
+
+		// when: parsing the entry
+		entry := changelog.ParseEntry(text)
+
+		// then: the version is read from the brackets
+		testastic.Equal(t, "1.2.3", entry.Version)
+		testastic.Equal(t, "", entry.CompareURL)
+	})
+
 	t.Run("reads a CommonMark indented heading", func(t *testing.T) {
 		t.Parallel()
 

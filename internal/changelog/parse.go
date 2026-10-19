@@ -59,6 +59,9 @@ func parseHeadingFields(heading string, entry *Entry) {
 			entry.Version = version
 			entry.CompareURL = compareURL
 			rest = remaining
+		} else if version, remaining, found := bracketTag(rest); found {
+			entry.Version = version
+			rest = strings.TrimSpace(remaining)
 		}
 	} else if fields := strings.Fields(rest); len(fields) > 0 {
 		entry.Version = fields[0]
