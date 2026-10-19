@@ -64,6 +64,50 @@ func TestReleaseCalVerFormats(t *testing.T) {
 	}
 }
 
+func TestReleaseCalVerDayFirstFormatUsesLatestTag(t *testing.T) {
+	t.Parallel()
+
+	// given: a day-first calver project whose newest tag sorts lower by leading day token
+	repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release", Tag: "v20.02.2026.1"},
+			{Message: "feat: already released feature", Tag: "v05.03.2026.1"},
+			{Message: "feat: unreleased feature"},
+		})
+
+	server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+		Owner:         "testorg",
+		Repo:          "testrepo",
+		LatestTag:     "v05.03.2026.1",
+		ExtraTags:     []string{"v20.02.2026.1"},
+		BoundarySHA:   shas[1],
+		TagSHAs:       map[string]string{"v20.02.2026.1": shas[0], "v05.03.2026.1": shas[1]},
+		BranchHeadSHA: shas[2],
+	})
+
+	configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+		Provider:     "github",
+		Branch:       "main",
+		Host:         "github.com",
+		Owner:        "testorg",
+		Repo:         "testrepo",
+		Versioning:   "calver",
+		CalVerFormat: "0D.0M.YYYY.MICRO",
+	})
+
+	// when: invoking `yeet release --dry-run`
+	result := binary.RunWithOptions(t,
+		[]string{"release", "--dry-run", "--config", configPath},
+		testastic.WithRunWorkDir(repoDir),
+		testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+	)
+
+	// then: only commits after the chronologically latest tag are planned
+	testastic.Equal(t, 0, result.ExitCode)
+	testastic.Contains(t, result.Stdout, "unreleased feature")
+	testastic.NotContains(t, result.Stdout, "already released feature")
+}
+
 func TestReleaseCalVerInvalidFormats(t *testing.T) {
 	t.Parallel()
 

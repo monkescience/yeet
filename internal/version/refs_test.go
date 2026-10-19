@@ -75,9 +75,14 @@ func TestCalVerOrderedRefs(t *testing.T) {
 			want: []string{"v27.1.1", "v26.10.1", "v26.2.9", "v25.12.9"},
 		},
 		{
-			name: "honors configured token order", format: "0M.YYYY.MICRO",
+			name: "orders month-first formats chronologically", format: "0M.YYYY.MICRO",
 			refs: []string{"v01.2027.1", "v12.2026.1", "v02.2026.10", "v02.2026.2"},
-			want: []string{"v12.2026.1", "v02.2026.10", "v02.2026.2", "v01.2027.1"},
+			want: []string{"v01.2027.1", "v12.2026.1", "v02.2026.10", "v02.2026.2"},
+		},
+		{
+			name: "orders day-first formats chronologically", format: "0D.0M.YYYY.MICRO",
+			refs: []string{"v20.02.2026.1", "v05.03.2026.1", "v05.03.2026.2", "v31.12.2025.9"},
+			want: []string{"v05.03.2026.2", "v05.03.2026.1", "v20.02.2026.1", "v31.12.2025.9"},
 		},
 		{
 			name: "filters impossible dates", format: "YYYY.0M.0D.MICRO",

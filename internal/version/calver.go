@@ -1,6 +1,7 @@
 package version
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -541,54 +542,28 @@ func (f calverFormat) sameCalendarPeriod(left, right calverParts) bool {
 
 func compareCalVerPeriods(format calverFormat, left, right calverParts) int {
 	if left.Year != right.Year {
-		return left.Year - right.Year
+		return cmp.Compare(left.Year, right.Year)
 	}
 
 	if format.hasMonth && left.Month != right.Month {
-		return left.Month - right.Month
+		return cmp.Compare(left.Month, right.Month)
 	}
 
 	if format.hasWeek && left.Week != right.Week {
-		return left.Week - right.Week
+		return cmp.Compare(left.Week, right.Week)
 	}
 
 	if format.hasDay && left.Day != right.Day {
-		return left.Day - right.Day
+		return cmp.Compare(left.Day, right.Day)
 	}
 
 	return 0
 }
 
 func compareCalVerParts(format calverFormat, left, right calverParts) int {
-	for _, token := range format.tokens {
-		leftValue := calVerTokenValue(token, left)
-		rightValue := calVerTokenValue(token, right)
-
-		if leftValue < rightValue {
-			return -1
-		}
-
-		if leftValue > rightValue {
-			return 1
-		}
+	if period := compareCalVerPeriods(format, left, right); period != 0 {
+		return period
 	}
 
-	return 0
-}
-
-func calVerTokenValue(token calverToken, parts calverParts) int {
-	switch token {
-	case calverTokenYearFull, calverTokenYearShort, calverTokenYearPad:
-		return parts.Year
-	case calverTokenMonth, calverTokenMonthPad:
-		return parts.Month
-	case calverTokenWeek, calverTokenWeekPad:
-		return parts.Week
-	case calverTokenDay, calverTokenDayPad:
-		return parts.Day
-	case calverTokenMicro:
-		return parts.Micro
-	default:
-		return 0
-	}
+	return cmp.Compare(left.Micro, right.Micro)
 }
