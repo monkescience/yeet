@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.17.4](https://github.com/monkescience/yeet/compare/v0.17.3...v0.17.4) (2026-10-23)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.26.0 (#326) ([10522bc](https://github.com/monkescience/yeet/commit/10522bcdf647e3e8f54b23a7f13b2729e86a8eda))
+- **changelog:** recognize Keep a Changelog release headings ([15116cc](https://github.com/monkescience/yeet/commit/15116ccb9463776ca2cbec5e86cdca98e059afe8))
+- **version:** order calver refs chronologically regardless of format token order ([ad35482](https://github.com/monkescience/yeet/commit/ad35482ad54899271d350925eba4b6d3a256245e))
+
 ## [v0.17.3](https://github.com/monkescience/yeet/compare/v0.17.2...v0.17.3) (2026-10-18)
 
 ### Bug Fixes
