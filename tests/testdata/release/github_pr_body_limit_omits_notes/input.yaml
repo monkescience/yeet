@@ -1,0 +1,15 @@
+provider: github
+branch: main
+repository:
+  github:
+    host: github.com
+    owner: testorg
+    repo: testrepo
+release:
+  pr_body_header: ""
+  pr_body_footer: ""
+targets:
+  default:
+    type: path
+    path: .
+    tag_prefix: v

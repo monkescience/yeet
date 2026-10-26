@@ -350,7 +350,7 @@ func TestMaxPRBodyLength(t *testing.T) {
 		testastic.Equal(t, 4000, limit)
 	})
 
-	t.Run("github reports no enforced limit", func(t *testing.T) {
+	t.Run("github enforces its 65536 character limit", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a GitHub provider
@@ -362,8 +362,8 @@ func TestMaxPRBodyLength(t *testing.T) {
 		// when: reading its max PR body length
 		limit := gh.MaxPRBodyLength()
 
-		// then: no limit is enforced
-		testastic.Equal(t, 0, limit)
+		// then: the GitHub hard limit is reported
+		testastic.Equal(t, 65536, limit)
 	})
 
 	t.Run("gitlab reports no enforced limit", func(t *testing.T) {

@@ -12,6 +12,8 @@ import (
 	"github.com/monkescience/yeet/internal/logattr"
 )
 
+const gitHubMaxPRBodyLength = 65536
+
 var _ forgeMerge[forge.MergeMethod] = (*gitHubMerge)(nil)
 
 func (g *GitHub) CreateReleasePR(ctx context.Context, opts forge.ReleasePROptions) (*forge.PullRequest, error) {
@@ -95,7 +97,7 @@ func (g *GitHub) validateReviewers(ctx context.Context, reviewers []string) erro
 }
 
 func (g *GitHub) MaxPRBodyLength() int {
-	return 0
+	return gitHubMaxPRBodyLength
 }
 
 func (g *GitHub) UpdateReleasePR(ctx context.Context, number int, opts forge.ReleasePROptions) error {

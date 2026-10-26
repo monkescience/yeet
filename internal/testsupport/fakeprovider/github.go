@@ -1,8 +1,10 @@
 package fakeprovider
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json/v2"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -11,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/monkescience/testastic"
 )
@@ -1092,7 +1095,7 @@ func registerGitHubPullsWrite(
 
 	mux.HandleFunc(
 		"POST "+prefix+"/pulls",
-		githubCreatePullRequestHandler(t, opts, pullRequestExpectations),
+		githubRejectLongPRBody(githubCreatePullRequestHandler(t, opts, pullRequestExpectations)),
 	)
 
 	mux.HandleFunc("PATCH "+prefix+"/pulls/{number}", func(w http.ResponseWriter, r *http.Request) {
@@ -1132,6 +1135,40 @@ func registerGitHubPullsWrite(
 		"POST "+prefix+"/pulls/{number}/requested_reviewers",
 		githubRequestReviewersHandler(opts, reviewersRequested),
 	)
+}
+
+// GitHub rejects long bodies only on create. Updates are never rejected and silently keep the old
+// body above 262144 UTF-8 bytes, which a body within the character limit cannot reach.
+func githubRejectLongPRBody(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "invalid pull request", http.StatusBadRequest)
+
+			return
+		}
+
+		var payload struct {
+			Body string `json:"body"`
+		}
+
+		err = json.Unmarshal(raw, &payload)
+		if err != nil {
+			http.Error(w, "invalid pull request", http.StatusBadRequest)
+
+			return
+		}
+
+		if utf8.RuneCountInString(payload.Body) > githubMaxPRBodyLength {
+			message := "body is too long (maximum is " + strconv.Itoa(githubMaxPRBodyLength) + " characters)"
+			http.Error(w, message, http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		next(w, r)
+	}
 }
 
 func githubPullRequestHandler(

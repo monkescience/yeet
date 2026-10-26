@@ -40,3 +40,35 @@ func TestReleaseNewPROmitsNotesWarningOnce(t *testing.T) {
 	testastic.Equal(t, 1, strings.Count(result.Stderr, "created release pull request"))
 	testastic.Equal(t, 1, strings.Count(result.Stderr, "omitted release notes from pull request body"))
 }
+
+func TestReleaseNewPROmitsNotesOverGitHubBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	// given: release notes larger than the GitHub PR body limit and no configured limit
+	repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+		[]fixture.RepoCommit{
+			{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+			{Message: "feat: " + strings.Repeat("additional release detail ", 2600)},
+		})
+	server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+		Owner:         "testorg",
+		Repo:          "testrepo",
+		LatestTag:     "v1.0.0",
+		BoundarySHA:   shas[0],
+		BranchHeadSHA: shas[1],
+		ExpectPRTitle: "chore: release 1.1.0",
+	})
+	configPath := absoluteTestFile(t, "testdata/release/github_pr_body_limit_omits_notes/input.yaml")
+
+	// when: creating the release PR
+	result := binary.RunWithOptions(t,
+		[]string{"release", "--no-color", "--config", configPath},
+		testastic.WithRunWorkDir(repoDir),
+		testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+	)
+
+	// then: the PR is created with the release notes omitted
+	testastic.Equal(t, 0, result.ExitCode)
+	testastic.Equal(t, 1, strings.Count(result.Stderr, "created release pull request"))
+	testastic.Equal(t, 1, strings.Count(result.Stderr, "omitted release notes from pull request body"))
+}

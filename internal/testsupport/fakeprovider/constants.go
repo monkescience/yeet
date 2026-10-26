@@ -11,6 +11,8 @@ const (
 	keyStatus         = "status"
 )
 
+const githubMaxPRBodyLength = 65536
+
 const (
 	azureKeyCount    = "count"
 	azureKeyValue    = "value"
