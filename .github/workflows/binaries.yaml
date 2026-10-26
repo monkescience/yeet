@@ -18,8 +18,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GORELEASER_VERSION: v2.18.3 # renovate: datasource=github-releases depName=goreleaser/goreleaser
-  COSIGN_VERSION: v3.1.4 # renovate: datasource=github-releases depName=sigstore/cosign
+  # renovate: datasource=github-releases depName=goreleaser/goreleaser
+  GORELEASER_VERSION: v2.18.3
+  # renovate: datasource=github-releases depName=sigstore/cosign
+  COSIGN_VERSION: v3.1.4
 
 jobs:
   publish:
