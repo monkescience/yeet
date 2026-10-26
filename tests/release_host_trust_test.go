@@ -54,6 +54,49 @@ func TestReleaseHostTrust(t *testing.T) {
 		testastic.AssertFile(t, "testdata/release/github_https/stdout.expected.txt", result.Stdout)
 	})
 
+	t.Run("accepts a custom host matching an ssh git remote with a port", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an explicit custom host and an ssh remote on a non-default ssh port.
+		repoDir, shas := fixture.WriteRepoWithHistory(
+			t,
+			"ssh://git@github.example:2222/acme/repo.git",
+			"main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat: add a thing"},
+			},
+		)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.example",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: planning a release through the configured provider endpoint.
+		result := binary.RunWithOptions(
+			t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the ssh port is ignored during host validation and the release plan is printed.
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(t, "testdata/release/github_https/stdout.expected.txt", result.Stdout)
+	})
+
 	t.Run("rejects a custom host that differs from the git remote", func(t *testing.T) {
 		t.Parallel()
 

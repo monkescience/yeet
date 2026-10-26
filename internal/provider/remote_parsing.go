@@ -52,7 +52,12 @@ func parseRemoteURL(remoteURL string) (*repositoryDescriptor, error) {
 		return nil, ErrUnknownRemote
 	}
 
-	return newRepositoryDescriptor(parsedURL.Host, parsedURL.Path)
+	host := parsedURL.Host
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		host = strings.TrimSuffix(host, ":"+parsedURL.Port())
+	}
+
+	return newRepositoryDescriptor(host, parsedURL.Path)
 }
 
 func parseSCPRemote(remoteURL string) (*repositoryDescriptor, error) {

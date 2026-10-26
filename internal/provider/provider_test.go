@@ -148,6 +148,66 @@ func TestParseRemote(t *testing.T) {
 		testastic.Equal(t, "group/subgroup/service", info.Project)
 	})
 
+	t.Run("ssh url with a port", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab SSH URL remote on a non-default ssh port
+		url := "ssh://git@gitlab.company.com:2222/group/subgroup/service.git"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemoteForTest(url)
+
+		// then: the ssh port is not part of the host
+		testastic.NoError(t, err)
+		testastic.Equal(t, "gitlab.company.com", info.Host)
+		testastic.Equal(t, "group/subgroup/service", info.Project)
+	})
+
+	t.Run("ssh url with an ipv6 host and a port", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an SSH URL remote with a bracketed IPv6 host on a non-default ssh port
+		url := "ssh://git@[fd00::1]:2222/group/service.git"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemoteForTest(url)
+
+		// then: the ssh port is dropped and the IPv6 host keeps its brackets
+		testastic.NoError(t, err)
+		testastic.Equal(t, "[fd00::1]", info.Host)
+		testastic.Equal(t, "group/service", info.Project)
+	})
+
+	t.Run("git protocol url with a port", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git protocol remote on the git daemon port
+		url := "git://gitlab.company.com:9418/group/service.git"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemoteForTest(url)
+
+		// then: the git daemon port is not part of the host
+		testastic.NoError(t, err)
+		testastic.Equal(t, "gitlab.company.com", info.Host)
+		testastic.Equal(t, "group/service", info.Project)
+	})
+
+	t.Run("https url with a port", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a GitLab HTTPS remote on a non-default port
+		url := "https://gitlab.company.com:8443/group/service.git"
+
+		// when: parsing the remote
+		info, err := provider.ParseRemoteForTest(url)
+
+		// then: the https port stays part of the host
+		testastic.NoError(t, err)
+		testastic.Equal(t, "gitlab.company.com:8443", info.Host)
+		testastic.Equal(t, "group/service", info.Project)
+	})
+
 	t.Run("repo names with dots", func(t *testing.T) {
 		t.Parallel()
 
