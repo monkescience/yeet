@@ -44,10 +44,10 @@ func TestDiagnosticsHTTPFailures(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("X-GitHub-Request-Id", "request-123")
+				w.Header().Set("X-Github-Request-Id", "request-123")
 
 				if scenario.rateLimit {
-					w.Header().Set("X-RateLimit-Remaining", "0")
+					w.Header().Set("X-Ratelimit-Remaining", "0")
 				}
 
 				w.WriteHeader(scenario.status)

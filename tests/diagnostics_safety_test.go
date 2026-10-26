@@ -126,9 +126,9 @@ func TestDiagnosticsProviderCause(t *testing.T) {
 					if strings.HasSuffix(r.URL.Path, "/commits/heads/main") {
 						w.Header().Set("Content-Type", "application/json")
 
-						w.Header().Set("X-GitHub-Request-Id", "E123:ABC:456")
-						w.Header().Set("X-RateLimit-Remaining", "100")
-						w.Header().Set("X-RateLimit-Reset", "1700000000")
+						w.Header().Set("X-Github-Request-Id", "E123:ABC:456")
+						w.Header().Set("X-Ratelimit-Remaining", "100")
+						w.Header().Set("X-Ratelimit-Reset", "1700000000")
 						w.Header().Set("Retry-After", "60")
 						w.WriteHeader(http.StatusForbidden)
 						_, err := w.Write([]byte(readTestFile(t, "testdata/diagnostics/provider_cause/response.json")))
