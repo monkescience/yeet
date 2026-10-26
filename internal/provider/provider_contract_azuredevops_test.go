@@ -269,7 +269,7 @@ func writeAzureDevOpsTruncatedRefs(
 		}
 	}
 
-	w.Header().Set("x-ms-continuationtoken", azureDevOpsContractRefContinuationToken)
+	w.Header().Set("X-Ms-Continuationtoken", azureDevOpsContractRefContinuationToken)
 	writeJSON(t, w, map[string]any{"count": len(siblings), "value": siblings})
 }
 
@@ -1244,7 +1244,7 @@ func azureDevOpsListTagsPagedHandler(t *testing.T) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("x-ms-continuationtoken", azureDevOpsContractRefContinuationToken)
+		w.Header().Set("X-Ms-Continuationtoken", azureDevOpsContractRefContinuationToken)
 		writeJSONFixture(t, w, azureDevOpsContractFixture("list_tags", "tags.json"))
 	}
 }
@@ -1785,7 +1785,7 @@ func azureDevOpsTagPaginationLimitHandler(t *testing.T) http.HandlerFunc {
 		}
 
 		page := pages.Add(1)
-		w.Header().Set("x-ms-continuationtoken", fmt.Sprintf("refs-page-%d", page+1))
+		w.Header().Set("X-Ms-Continuationtoken", fmt.Sprintf("refs-page-%d", page+1))
 		writeJSON(t, w, map[string]any{
 			"count": 1,
 			"value": []map[string]any{{
