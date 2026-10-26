@@ -1,4 +1,4 @@
-defaultBaseImage: cgr.dev/chainguard/busybox:latest@sha256:db1930eb13e4acdd7f448dda7b7264b55b00858a528eb7c8d32d9cbfaee77b81
+defaultBaseImage: cgr.dev/chainguard/busybox:latest@sha256:0abad9455d4c16651e71b3840794fff3a92ce37d2a2afaef607aed8ca3077b97
 defaultPlatforms:
   - linux/amd64
   - linux/arm64
