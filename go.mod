@@ -20,7 +20,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/yuin/goldmark/v2 v2.1.6
-	gitlab.com/gitlab-org/api/client-go/v3 v3.26.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.29.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 )
 
@@ -67,5 +67,5 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 )
