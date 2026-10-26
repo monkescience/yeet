@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"io"
 	"log/slog"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -409,6 +411,53 @@ func TestMethodAwareRetryPolicyRetriesIdempotentTransportFailures(t *testing.T) 
 			testastic.True(t, retry)
 		})
 	}
+}
+
+func TestMethodAwareRetryPolicyDoesNotRetryClientErrorsWithoutTimeout(t *testing.T) {
+	t.Parallel()
+
+	// given: a read rejected by the HTTP client itself rather than by a timeout
+	err := &url.Error{Op: "Get", URL: "https://example.com", Err: errors.New("stopped after 10 redirects")}
+
+	// when: the shared retry policy classifies the client failure
+	retry, policyErr := methodAwareRetryPolicy(context.Background(), nil, err)
+
+	// then: the request is not retried because repeating it fails the same way
+	testastic.NoError(t, policyErr)
+	testastic.False(t, retry)
+}
+
+func TestTracedRetryableClientDoesNotRetryTimedOutMutations(t *testing.T) {
+	t.Parallel()
+
+	// given: a mutation endpoint that responds after the request timeout
+	var attempts atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts.Add(1)
+		time.Sleep(300 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	network := config.Default().Network
+	network.RequestTimeout = 100 * time.Millisecond
+	client := newTracedRetryableClientWithConfig(providerNameGitHub, network)
+	client.RetryWaitMin = time.Millisecond
+	client.RetryWaitMax = time.Millisecond
+
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL, nil)
+	testastic.NoError(t, err)
+
+	// when: issuing the mutation through the shared client
+	response, err := client.StandardClient().Do(request)
+	if response != nil {
+		testastic.NoError(t, response.Body.Close())
+	}
+
+	// then: the timed-out mutation is not repeated because the server may have applied it
+	testastic.Error(t, err)
+	testastic.Equal(t, int32(1), attempts.Load())
 }
 
 func TestTracedRetryableClientStopsWhenContextIsCanceled(t *testing.T) {

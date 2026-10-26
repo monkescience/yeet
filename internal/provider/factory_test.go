@@ -2,8 +2,11 @@ package provider //nolint:testpackage // validates unexported provider construct
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,17 +126,69 @@ func TestCreateGitHubProviderAppliesConfiguredReleaseBranch(t *testing.T) {
 	testastic.Equal(t, 3*time.Minute, githubProvider.polling.timeout)
 }
 
-func TestCreateConfiguredProviderAppliesRequestTimeout(t *testing.T) {
+func TestCreateConfiguredProviderAppliesRequestTimeoutPerAttempt(t *testing.T) {
 	network := config.Default().Network
-	network.RequestTimeout = 45 * time.Second
+	network.RequestTimeout = 500 * time.Millisecond
+	network.Retry.MaxAttempts = 2
+	network.Retry.MinBackoff = 200 * time.Millisecond
+	network.Retry.MaxBackoff = 200 * time.Millisecond
 	settings := providerSettings{network: &network}
 
+	slowFirstAttemptServer := func(t *testing.T) (*httptest.Server, *atomic.Int32) {
+		t.Helper()
+
+		var attempts atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) == 1 {
+				time.Sleep(350 * time.Millisecond)
+				w.WriteHeader(http.StatusBadGateway)
+
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		return server, &attempts
+	}
+
+	assertAttemptTimesOut := func(t *testing.T, client *http.Client) {
+		t.Helper()
+
+		var attempts atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempts.Add(1)
+
+			select {
+			case <-time.After(700 * time.Millisecond):
+				w.WriteHeader(http.StatusOK)
+			case <-r.Context().Done():
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+		testastic.NoError(t, err)
+
+		response, err := client.Do(request)
+		if err == nil {
+			testastic.NoError(t, response.Body.Close())
+		}
+
+		testastic.Error(t, err)
+		testastic.Equal(t, int32(network.Retry.MaxAttempts), attempts.Load())
+	}
+
 	t.Run("github", func(t *testing.T) {
-		// given: GitHub credentials and a configured request timeout
+		// given: a GitHub adapter whose first attempt is slow and fails with a retryable status
 		t.Setenv("GITHUB_TOKEN", "test-token")
 		t.Setenv(githubURLEnv, "")
 
-		// when: constructing the configured GitHub adapter
+		server, attempts := slowFirstAttemptServer(t)
+
 		created, err := createConfigured(&resolvedGitHubRepository{
 			Host:  DefaultGitHubHost,
 			Owner: "platform",
@@ -141,18 +196,35 @@ func TestCreateConfiguredProviderAppliesRequestTimeout(t *testing.T) {
 		}, settings)
 		testastic.NoError(t, err)
 
-		// then: the effective GitHub HTTP client carries the configured timeout
 		githubProvider, ok := created.(*GitHub)
 		testastic.True(t, ok)
-		testastic.Equal(t, network.RequestTimeout, githubProvider.client.Client().Timeout)
+		assertAttemptTimesOut(t, githubProvider.client.Client())
+
+		// when: sending a request through the effective GitHub HTTP client
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+		testastic.NoError(t, err)
+
+		response, err := githubProvider.client.Client().Do(request)
+
+		// then: the timeout bounds each attempt, so the retry succeeds
+		testastic.NoError(t, err)
+
+		if err != nil {
+			return
+		}
+
+		testastic.Equal(t, http.StatusOK, response.StatusCode)
+		testastic.NoError(t, response.Body.Close())
+		testastic.Equal(t, int32(2), attempts.Load())
 	})
 
 	t.Run("azure devops", func(t *testing.T) {
-		// given: Azure DevOps credentials and a configured request timeout
+		// given: an Azure DevOps adapter whose first attempt is slow and fails with a retryable status
 		t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
 		t.Setenv(azureURLEnv, "")
 
-		// when: constructing the configured Azure DevOps adapter
+		server, attempts := slowFirstAttemptServer(t)
+
 		created, err := createConfigured(&resolvedAzureDevOpsRepository{
 			Host:         DefaultAzureDevOpsHost,
 			Organization: "platform",
@@ -161,12 +233,142 @@ func TestCreateConfiguredProviderAppliesRequestTimeout(t *testing.T) {
 		}, settings)
 		testastic.NoError(t, err)
 
-		// then: the SDK connection carries the configured timeout
+		azureProvider, ok := created.(*AzureDevOps)
+		testastic.True(t, ok)
+		assertAttemptTimesOut(t, azureProvider.httpClient)
+
+		// when: sending a request through the HTTP client used by the Azure DevOps git client
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+		testastic.NoError(t, err)
+
+		response, err := azureProvider.httpClient.Do(request)
+
+		// then: the timeout bounds each attempt, so the retry succeeds
+		testastic.NoError(t, err)
+
+		if err != nil {
+			return
+		}
+
+		testastic.Equal(t, http.StatusOK, response.StatusCode)
+		testastic.NoError(t, response.Body.Close())
+		testastic.Equal(t, int32(2), attempts.Load())
+
+		// then: the non-retrying SDK connection keeps the configured timeout
+		expectedTimeout := network.RequestTimeout
+		testastic.DeepEqual(t, &expectedTimeout, azureProvider.conn.Timeout)
+	})
+}
+
+func TestCreateConfiguredProviderRetriesTimedOutAttempt(t *testing.T) {
+	network := config.Default().Network
+	network.RequestTimeout = 300 * time.Millisecond
+	network.Retry.MinBackoff = time.Millisecond
+	network.Retry.MaxBackoff = time.Millisecond
+	settings := providerSettings{network: &network}
+
+	hungFirstAttemptServer := func(t *testing.T) (*httptest.Server, *atomic.Int32) {
+		t.Helper()
+
+		var attempts atomic.Int32
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) == 1 {
+				time.Sleep(500 * time.Millisecond)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{}`))
+		}))
+		t.Cleanup(server.Close)
+
+		return server, &attempts
+	}
+
+	sendGet := func(t *testing.T, client *http.Client, url string) error {
+		t.Helper()
+
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		testastic.NoError(t, err)
+
+		response, err := client.Do(request)
+		if err != nil {
+			return err
+		}
+
+		return response.Body.Close()
+	}
+
+	t.Run("github", func(t *testing.T) {
+		// given: a GitHub adapter whose first attempt exceeds the request timeout
+		t.Setenv("GITHUB_TOKEN", "test-token")
+		t.Setenv(githubURLEnv, "")
+
+		server, attempts := hungFirstAttemptServer(t)
+
+		created, err := createConfigured(&resolvedGitHubRepository{
+			Host:  DefaultGitHubHost,
+			Owner: "platform",
+			Repo:  "yeet",
+		}, settings)
+		testastic.NoError(t, err)
+
+		githubProvider, ok := created.(*GitHub)
+		testastic.True(t, ok)
+
+		// when: sending a read through the effective GitHub HTTP client
+		err = sendGet(t, githubProvider.client.Client(), server.URL)
+
+		// then: the timed-out attempt is retried
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(2), attempts.Load())
+	})
+
+	t.Run("gitlab", func(t *testing.T) {
+		// given: a GitLab adapter whose first attempt exceeds the request timeout
+		server, attempts := hungFirstAttemptServer(t)
+
+		t.Setenv("GITLAB_TOKEN", "test-token")
+		t.Setenv(gitlabURLEnv, server.URL)
+
+		created, err := createConfigured(&resolvedGitLabRepository{Project: "group/service"}, settings)
+		testastic.NoError(t, err)
+
+		gitlabProvider, ok := created.(*GitLab)
+		testastic.True(t, ok)
+
+		// when: sending a read through the GitLab SDK
+		_, _, err = gitlabProvider.client.Version.GetVersion()
+
+		// then: the timed-out attempt is retried
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(2), attempts.Load())
+	})
+
+	t.Run("azure devops", func(t *testing.T) {
+		// given: an Azure DevOps adapter whose first attempt exceeds the request timeout
+		t.Setenv("AZURE_DEVOPS_EXT_PAT", "test-token")
+		t.Setenv(azureURLEnv, "")
+
+		server, attempts := hungFirstAttemptServer(t)
+
+		created, err := createConfigured(&resolvedAzureDevOpsRepository{
+			Host:         DefaultAzureDevOpsHost,
+			Organization: "platform",
+			Project:      "release-tools",
+			Repo:         "yeet",
+		}, settings)
+		testastic.NoError(t, err)
+
 		azureProvider, ok := created.(*AzureDevOps)
 		testastic.True(t, ok)
 
-		expectedTimeout := network.RequestTimeout
-		testastic.DeepEqual(t, &expectedTimeout, azureProvider.conn.Timeout)
+		// when: sending a read through the HTTP client used by the Azure DevOps git client
+		err = sendGet(t, azureProvider.httpClient, server.URL)
+
+		// then: the timed-out attempt is retried
+		testastic.NoError(t, err)
+		testastic.Equal(t, int32(2), attempts.Load())
 	})
 }
 

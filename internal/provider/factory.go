@@ -222,11 +222,8 @@ func newGitHubProvider(
 	httpClient *retryablehttp.Client,
 	settings providerSettings,
 ) (forge.Provider, error) {
-	standardClient := httpClient.StandardClient()
-	standardClient.Timeout = httpClient.HTTPClient.Timeout
-
 	opts := []github.ClientOptionsFunc{
-		github.WithHTTPClient(standardClient),
+		github.WithHTTPClient(httpClient.StandardClient()),
 		github.WithAuthToken(token.value),
 	}
 
@@ -261,9 +258,9 @@ func newGitLabProvider(
 	opts := []gitlab.ClientOptionFunc{
 		gitlab.WithHTTPClient(httpClient.HTTPClient),
 		gitlab.WithRequestLogHook(httpClient.RequestLogHook),
+		gitlab.WithCustomRetry(httpClient.CheckRetry),
 		gitlab.WithCustomRetryMax(httpClient.RetryMax),
 		gitlab.WithCustomRetryWaitMinMax(httpClient.RetryWaitMin, httpClient.RetryWaitMax),
-		gitlab.WithOnlyIdempotentRetries(),
 	}
 
 	if baseURL := spec.apiBaseURL(repository.APIURL, repository.Host); baseURL != "" {
@@ -303,28 +300,14 @@ func newAzureDevOpsProvider(
 
 	project := strings.TrimSpace(repository.Project)
 	repo := strings.TrimSpace(repository.Repo)
-	standardClient := httpClient.StandardClient()
-	standardClient.Timeout = httpClient.HTTPClient.Timeout
 
+	newProvider := NewAzureDevOps
 	if token.envVar == azureDevOpsSystemAccessTokenEnv {
-		provider := NewAzureDevOpsWithSystemAccessToken(slog.Default(),
-			standardClient,
-			baseURL,
-			token.value,
-			organization,
-			collection,
-			project,
-			repo,
-			configuredMergePollingOptions(settings)...,
-		)
-		provider.baseURL = spec.webBaseURL(repository.WebURL, repository.Host)
-		provider.releaseBranch = settings.releaseBranch
-
-		return provider, nil
+		newProvider = NewAzureDevOpsWithSystemAccessToken
 	}
 
-	provider := NewAzureDevOps(slog.Default(),
-		standardClient,
+	provider := newProvider(slog.Default(),
+		httpClient.StandardClient(),
 		baseURL,
 		token.value,
 		organization,
@@ -333,6 +316,11 @@ func newAzureDevOpsProvider(
 		repo,
 		configuredMergePollingOptions(settings)...,
 	)
+
+	if timeout := httpClient.HTTPClient.Timeout; timeout > 0 {
+		provider.conn.Timeout = &timeout
+	}
+
 	provider.baseURL = spec.webBaseURL(repository.WebURL, repository.Host)
 	provider.releaseBranch = settings.releaseBranch
 

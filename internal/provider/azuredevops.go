@@ -70,11 +70,6 @@ func newAzureDevOps(logger *slog.Logger,
 	connectionURL := fmt.Sprintf("%s/%s", baseURL, collection)
 	conn := connectionFactory(connectionURL, token)
 
-	if httpClient != nil && httpClient.Timeout > 0 {
-		timeout := httpClient.Timeout
-		conn.Timeout = &timeout
-	}
-
 	return &AzureDevOps{
 		logger:       providerLogger(logger, providerNameAzureDevOps),
 		conn:         conn,

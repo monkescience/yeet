@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -91,6 +92,12 @@ func requestMethod(response *http.Response, err error) string {
 
 	if methodErr, ok := errors.AsType[*requestMethodError](err); ok {
 		return methodErr.method
+	}
+
+	// net/http replaces the transport error on Client.Timeout, so only url.Error.Op retains the method.
+	urlErr, ok := errors.AsType[*url.Error](err)
+	if ok && urlErr.Timeout() {
+		return strings.ToUpper(urlErr.Op)
 	}
 
 	return ""
