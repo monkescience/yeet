@@ -1127,3 +1127,114 @@ func TestCalVerCurrentPrerelease(t *testing.T) {
 		})
 	}
 }
+
+func TestCalVerReleaseAs(t *testing.T) {
+	t.Parallel()
+
+	november := fixedTime(2026, time.November)
+
+	t.Run("normalizes the footer to the format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a footer with an unpadded month
+		cv := newCalVer(t, "", "v", november)
+
+		// when: the footer is normalized
+		normalized, err := cv.NormalizeReleaseAs("2026.1.5")
+
+		// then: it is rendered in the configured format
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.01.5", normalized)
+	})
+
+	validCases := []struct {
+		name, current, releaseAs, channel, want string
+		bump, wantBump                          commit.BumpType
+	}{
+		{
+			name: "sets the next stable version", current: "2026.11.1", releaseAs: "2026.11.5",
+			bump: commit.BumpNone, want: "2026.11.5", wantBump: commit.BumpPatch,
+		},
+		{
+			name: "sets the first version", releaseAs: "2026.11.3",
+			bump: commit.BumpPatch, want: "2026.11.3", wantBump: commit.BumpPatch,
+		},
+		{
+			name: "keeps the commit bump", current: "2026.10.4", releaseAs: "2026.11.2",
+			bump: commit.BumpMinor, want: "2026.11.2", wantBump: commit.BumpMinor,
+		},
+		{
+			name: "adds the channel suffix", current: "2026.11.2-beta.1", releaseAs: "2026.11.5", channel: "beta",
+			bump: commit.BumpPatch, want: "2026.11.5-beta.1", wantBump: commit.BumpPatch,
+		},
+	}
+
+	for _, testCase := range validCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with a fixed clock and a Release-As footer
+			cv := newCalVer(t, "", "v", november)
+
+			// when: the next release is resolved
+			next, bump, shouldRelease, err := cv.NextRelease(
+				testCase.current, testCase.bump, testCase.releaseAs, testCase.channel)
+
+			// then: the footer sets the version
+			testastic.NoError(t, err)
+			testastic.Equal(t, testCase.want, next)
+			testastic.Equal(t, testCase.wantBump, bump)
+			testastic.Equal(t, true, shouldRelease)
+		})
+	}
+
+	invalidCases := []struct {
+		name, current, releaseAs, channel, problem string
+	}{
+		{
+			name: "rejects a version in another format", current: "2026.11.1", releaseAs: "2.0.0",
+			problem: "requested version does not match the calver format YYYY.0M.MICRO",
+		},
+		{
+			name: "rejects a prerelease", current: "2026.11.1", releaseAs: "2026.11.5-beta.1",
+			problem: "requested version must be stable",
+		},
+		{
+			name: "rejects a future period", current: "2026.11.1", releaseAs: "2026.12.1",
+			problem: "requested version is from a future calendar period",
+		},
+		{
+			name: "rejects the current version", current: "2026.11.1", releaseAs: "2026.11.1",
+			problem: "requested version is not newer than the current version",
+		},
+		{
+			name: "rejects the base of the current prerelease", current: "2026.11.2-beta.1", releaseAs: "2026.11.2",
+			channel: "beta", problem: "requested version is not newer than the current version",
+		},
+	}
+
+	for _, testCase := range invalidCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with a fixed clock and an invalid Release-As footer
+			cv := newCalVer(t, "", "v", november)
+
+			// when: the next release is resolved
+			_, _, _, err := cv.NextRelease(testCase.current, commit.BumpPatch, testCase.releaseAs, testCase.channel)
+
+			// then: the footer is rejected with the problem
+			testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
+
+			var releaseAs *version.ReleaseAsError
+
+			testastic.ErrorAs(t, err, &releaseAs)
+
+			if releaseAs == nil {
+				return
+			}
+
+			testastic.Equal(t, testCase.problem, releaseAs.Problem)
+		})
+	}
+}

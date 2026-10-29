@@ -238,6 +238,48 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		)
 	})
 
+	t.Run("github rejects calver Release-As value in another format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver project and a commit whose Release-As footer is a semver version
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.05.3", Tag: "v2025.05.3"},
+				{Message: "feat: bad pin\n\nRelease-As: 2.0.0"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2025.05.3",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.MICRO",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 and names the calver format
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr,
+			"invalid release version override: requested version does not match the calver format YYYY.0M.MICRO")
+		testastic.Contains(t, result.Stderr, "requested=2.0.0 current=2025.05.3")
+	})
+
 	t.Run("github reports malformed remote tag metadata", func(t *testing.T) {
 		t.Parallel()
 

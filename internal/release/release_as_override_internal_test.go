@@ -24,6 +24,14 @@ func captureWarnings(t *testing.T) *bytes.Buffer {
 	return buffer
 }
 
+type noReleaseAsStrategy struct {
+	version.Strategy
+}
+
+func (noReleaseAsStrategy) SupportsReleaseAs() bool {
+	return false
+}
+
 func releaseAsCommit(hash, value string) commit.Commit {
 	return commit.Commit{
 		Hash:    hash,
@@ -33,8 +41,8 @@ func releaseAsCommit(hash, value string) commit.Commit {
 }
 
 func TestReleaseAsOverride(t *testing.T) {
-	t.Run("reports every commit a calver target cannot honour", func(t *testing.T) {
-		// given: a calver target and two commits asking for an explicit version
+	t.Run("reports every commit a target cannot honour", func(t *testing.T) {
+		// given: a strategy without Release-As support and two commits asking for an explicit version
 		logs := captureWarnings(t)
 
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningCalVer, TagPrefix: "v"}
@@ -43,8 +51,7 @@ func TestReleaseAsOverride(t *testing.T) {
 			releaseAsCommit("def5678", "3.0.0"),
 		}
 
-		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
-		testastic.NoError(t, strategyErr)
+		strategy := noReleaseAsStrategy{Strategy: version.NewSemVer(version.SemVerOptions{Prefix: "v"})}
 
 		// when: the override is read for that target
 		override, err := releaseAsOverride(
@@ -88,6 +95,33 @@ func TestReleaseAsOverride(t *testing.T) {
 		// then: the requested version is returned and nothing is reported
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2.0.0", override)
+		testastic.Equal(t, "", logs.String())
+	})
+
+	t.Run("honours the footer on a calver target", func(t *testing.T) {
+		// given: a calver target and a commit asking for an explicit version with an unpadded month
+		logs := captureWarnings(t)
+
+		target := config.ResolvedTarget{
+			ID: "app", Versioning: config.VersioningCalVer, TagPrefix: "v",
+			CalVer: config.CalVerConfig{Format: version.DefaultCalVerFormat},
+		}
+
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
+		// when: the override is read for that target
+		override, err := releaseAsOverride(
+			t.Context(),
+			strategy,
+			target,
+			[]commit.Commit{releaseAsCommit("abc1234", "2026.1.5")},
+			"2026.01.4",
+		)
+
+		// then: the requested version is returned in the configured format and nothing is reported
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.01.5", override)
 		testastic.Equal(t, "", logs.String())
 	})
 

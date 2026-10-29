@@ -112,7 +112,7 @@ func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget,
 				slog.String("versioning", string(target.Versioning)),
 				slog.String("field", "Release-As"),
 				slog.String("value", strings.TrimSpace(footer.Value)),
-				logattr.Hint("remove the Release-As footer for this target, only semver supports it"),
+				logattr.Hint("remove the Release-As footer for this target, its versioning does not support it"),
 			)
 		}
 	}

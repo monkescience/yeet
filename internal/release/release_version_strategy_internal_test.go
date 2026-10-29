@@ -42,7 +42,7 @@ func TestVersionStrategyForResolvedTarget(t *testing.T) {
 
 		// then: callers get an answer instead of a nil interface
 		testastic.Equal(t, true, strategy.SupportsPrerelease())
-		testastic.Equal(t, false, strategy.SupportsReleaseAs())
+		testastic.Equal(t, true, strategy.SupportsReleaseAs())
 	})
 }
 

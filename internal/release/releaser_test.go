@@ -872,10 +872,45 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
-	t.Run("ignores override for calver", func(t *testing.T) {
+	t.Run("honours override for calver", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a calver repo with only a Release-As chore commit
+		// given: a calver repo with only a Release-As chore commit and a fixed release time
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 2026.11.5",
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the footer sets the calver version
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 1)
+		testastic.Equal(t, "2026.11.5", result.Plans[0].NextVersion)
+	})
+
+	t.Run("rejects calver override in another format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with a semver Release-As footer
 		cfg := config.Default()
 		cfg.Versioning = config.VersioningCalVer
 
@@ -888,11 +923,10 @@ func TestReleaseAsFooter(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		result, err := r.Release(context.Background(), true)
+		_, err := r.Release(context.Background(), true)
 
-		// then: release-as footer is ignored for calver
-		testastic.NoError(t, err)
-		testastic.Equal(t, 0, len(result.Plans))
+		// then: the footer is rejected
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 }
 

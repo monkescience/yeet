@@ -50,7 +50,7 @@ func (c *CalVer) Tag(version string) string {
 }
 
 func (c *CalVer) SupportsReleaseAs() bool {
-	return false
+	return true
 }
 
 func (c *CalVer) SupportsPrerelease() bool {
@@ -58,15 +58,37 @@ func (c *CalVer) SupportsPrerelease() bool {
 }
 
 func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
-	return "", releaseAsError(value, "", "calver targets do not support Release-As",
-		fmt.Errorf("%w: calver targets do not support %q", ErrInvalidReleaseAs, value))
+	parts, err := c.parseReleaseAs(value, "")
+	if err != nil {
+		return "", err
+	}
+
+	return c.format.render(parts), nil
 }
 
 func (c *CalVer) NextRelease(
 	current string,
 	bump commit.BumpType,
-	_, prereleaseIdentifier string,
+	releaseAs, prereleaseIdentifier string,
 ) (string, commit.BumpType, bool, error) {
+	if releaseAs != "" {
+		next, err := c.applyReleaseAs(current, releaseAs)
+		if err != nil {
+			return "", commit.BumpNone, false, err
+		}
+
+		if prereleaseIdentifier != "" {
+			next.Prerelease = prereleaseIdentifier + ".1"
+		}
+
+		// Calver has no bump levels, so a forced release counts as at least a patch.
+		if bump == commit.BumpNone {
+			bump = commit.BumpPatch
+		}
+
+		return c.format.render(next), bump, true, nil
+	}
+
 	if bump == commit.BumpNone {
 		return "", bump, false, nil
 	}
@@ -203,6 +225,58 @@ func (c *CalVer) nextPrerelease(current, prereleaseIdentifier string) (string, e
 	}
 
 	return c.format.render(next), nil
+}
+
+func (c *CalVer) parseReleaseAs(releaseAs, current string) (calverParts, error) {
+	parts, err := c.format.parse(releaseAs)
+	if err != nil {
+		return calverParts{}, releaseAsError(releaseAs, current,
+			"requested version does not match the calver format "+c.format.raw,
+			fmt.Errorf("%w: %q does not match calver format %q: %v", ErrInvalidReleaseAs, releaseAs, c.format.raw, err))
+	}
+
+	return parts, nil
+}
+
+// applyReleaseAs checks that releaseAs is a stable version after current and not in a future period.
+// A later period would stop the next releases until that period starts.
+func (c *CalVer) applyReleaseAs(current, releaseAs string) (calverParts, error) {
+	target, err := c.parseReleaseAs(releaseAs, current)
+	if err != nil {
+		return calverParts{}, err
+	}
+
+	if target.Prerelease != "" {
+		return calverParts{}, releaseAsError(releaseAs, current, "requested version must be stable",
+			fmt.Errorf("%w: %q must be a stable version", ErrInvalidReleaseAs, releaseAs))
+	}
+
+	if compareCalVerPeriods(c.format, target, c.format.partsFromTime(c.now())) > 0 {
+		return calverParts{}, releaseAsError(releaseAs, current, "requested version is from a future calendar period",
+			fmt.Errorf("%w: %q is from a future calendar period", ErrInvalidReleaseAs, releaseAs))
+	}
+
+	if current == "" {
+		return target, nil
+	}
+
+	currentParts, err := c.format.parse(current)
+	if err != nil {
+		return calverParts{}, releaseAsError(releaseAs, current, "current version is not valid calver",
+			fmt.Errorf("%w: parse current version %q: %v", ErrInvalidReleaseAs, current, err))
+	}
+
+	// On a channel, the requested version must be after the base of the current prerelease.
+	currentParts.Prerelease = ""
+
+	if compareCalVerParts(c.format, target, currentParts) <= 0 {
+		return calverParts{}, releaseAsError(c.format.render(target), c.format.render(currentParts),
+			"requested version is not newer than the current version",
+			fmt.Errorf("%w: %s must be greater than current version %s", ErrInvalidReleaseAs,
+				c.format.render(target), c.format.render(currentParts)))
+	}
+
+	return target, nil
 }
 
 func (c *CalVer) parseRef(ref string) (calverParts, error) {

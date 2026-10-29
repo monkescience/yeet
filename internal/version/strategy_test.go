@@ -257,44 +257,14 @@ func TestCalVerReleaseControls(t *testing.T) {
 
 	cv := newCalVer(t, "YY.MM.MICRO", "v", nil)
 
-	t.Run("supports a prerelease channel but not release-as", func(t *testing.T) {
+	t.Run("supports release-as and a prerelease channel", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver target
 		// when: its release controls are queried
-		// then: a channel is offered and a Release-As footer is refused
-		testastic.Equal(t, false, cv.SupportsReleaseAs())
+		// then: it honours both a Release-As footer and a prerelease channel
+		testastic.Equal(t, true, cv.SupportsReleaseAs())
 		testastic.Equal(t, true, cv.SupportsPrerelease())
-	})
-
-	t.Run("refuses to normalize a release-as value", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a footer asking for an explicit version
-		// when: the scheme is asked to canonicalize it
-		_, err := cv.NormalizeReleaseAs("2.0.0")
-
-		// then: the scheme reports that it has nothing to act on
-		testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
-		testastic.ErrorContains(t, err, `calver targets do not support "2.0.0"`)
-	})
-
-	t.Run("ignores release controls it does not support", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a bump offered alongside a release-as value
-		// when: the next release is resolved both with and without it
-		withControls, withBump, withShould, err := cv.NextRelease("24.01.0", commit.BumpPatch, "9.9.9", "")
-		testastic.NoError(t, err)
-
-		plain, plainBump, plainShould, err := cv.NextRelease("24.01.0", commit.BumpPatch, "", "")
-		testastic.NoError(t, err)
-
-		// then: the clock alone decides, so the extra argument changes nothing
-		testastic.Equal(t, plain, withControls)
-		testastic.Equal(t, plainBump, withBump)
-		testastic.Equal(t, plainShould, withShould)
-		testastic.Equal(t, true, withShould)
 	})
 
 	t.Run("reports nothing due without a bump", func(t *testing.T) {
