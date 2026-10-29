@@ -674,7 +674,7 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		cv := newCalVer(t, "", "v", nil)
 
 		// when: parsing
-		_, err := cv.Current("v2026.02.1-extra")
+		_, err := cv.Current("v2026.02.1+extra")
 
 		// then: the trailing data is rejected
 		testastic.Error(t, err)
@@ -872,4 +872,258 @@ func newCalVer(t *testing.T, format, prefix string, now func() time.Time) *versi
 	testastic.NoError(t, err)
 
 	return cv
+}
+
+func TestCalVerPrereleaseNextRelease(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		format  string
+		now     func() time.Time
+		current string
+		want    string
+	}{
+		{
+			name:    "first release starts the period at micro 1",
+			now:     fixedTime(2026, time.November),
+			current: "",
+			want:    "2026.11.1-beta.1",
+		},
+		{
+			name:    "stable release in the period takes the next micro",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.1",
+			want:    "2026.11.2-beta.1",
+		},
+		{
+			name:    "stable release from an earlier period resets micro",
+			now:     fixedTime(2026, time.November),
+			current: "2026.10.4",
+			want:    "2026.11.1-beta.1",
+		},
+		{
+			name:    "prerelease in the period increments the counter",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.2-beta.1",
+			want:    "2026.11.2-beta.2",
+		},
+		{
+			name:    "first prerelease of the period keeps micro 1",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.1-beta.1",
+			want:    "2026.11.1-beta.2",
+		},
+		{
+			name:    "counter compares numerically",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.2-beta.9",
+			want:    "2026.11.2-beta.10",
+		},
+		{
+			name:    "prerelease from an earlier period starts a new base",
+			now:     fixedTime(2026, time.December),
+			current: "2026.11.2-beta.3",
+			want:    "2026.12.1-beta.1",
+		},
+		{
+			name:    "prerelease from an earlier year starts a new base",
+			now:     fixedTime(2027, time.January),
+			current: "2026.12.1-beta.3",
+			want:    "2027.01.1-beta.1",
+		},
+		{
+			name:    "prerelease without a counter starts the counter",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.2-beta",
+			want:    "2026.11.2-beta.1",
+		},
+		{
+			name:    "unpadded format increments the counter",
+			format:  "YY.MM.MICRO",
+			now:     fixedTime(2026, time.February),
+			current: "26.2.4-beta.1",
+			want:    "26.2.4-beta.2",
+		},
+		{
+			name:    "unpadded format normalizes a padded tag",
+			format:  "YY.MM.MICRO",
+			now:     fixedTime(2026, time.February),
+			current: "26.02.3",
+			want:    "26.2.4-beta.1",
+		},
+		{
+			name:    "day format increments the counter on the same day",
+			format:  "YYYY.0M.0D.MICRO",
+			now:     fixedDate(2026, time.February, 3),
+			current: "2026.02.03.1-beta.2",
+			want:    "2026.02.03.1-beta.3",
+		},
+		{
+			name:    "day format starts a new base on the next day",
+			format:  "YYYY.0M.0D.MICRO",
+			now:     fixedDate(2026, time.February, 4),
+			current: "2026.02.03.1-beta.2",
+			want:    "2026.02.04.1-beta.1",
+		},
+		{
+			name:    "week format starts a new base in the next week",
+			format:  "YYYY.0W.MICRO",
+			now:     fixedDate(2026, time.February, 8),
+			current: "2026.05.2-beta.4",
+			want:    "2026.06.1-beta.1",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with a fixed clock and the latest version on the channel
+			cv := newCalVer(t, testCase.format, "v", testCase.now)
+
+			// when: the next beta release is resolved
+			next, bump, shouldRelease, err := cv.NextRelease(testCase.current, commit.BumpPatch, "", "beta")
+
+			// then: the version is the next stable base with the beta counter
+			testastic.NoError(t, err)
+			testastic.Equal(t, testCase.want, next)
+			testastic.Equal(t, commit.BumpPatch, bump)
+			testastic.Equal(t, true, shouldRelease)
+		})
+	}
+
+	t.Run("reports nothing due without a bump", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel and no releasable commits
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.November))
+
+		// when: the next beta release is resolved
+		next, bump, shouldRelease, err := cv.NextRelease("2026.11.2-beta.1", commit.BumpNone, "", "beta")
+
+		// then: no release is due
+		testastic.NoError(t, err)
+		testastic.Equal(t, "", next)
+		testastic.Equal(t, commit.BumpNone, bump)
+		testastic.Equal(t, false, shouldRelease)
+	})
+
+	t.Run("rejects a prerelease from a future calendar period", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the latest beta belongs to a period after the fixed clock
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.November))
+
+		// when: the next beta release is resolved
+		_, _, _, err := cv.NextRelease("2026.12.1-beta.1", commit.BumpPatch, "", "beta")
+
+		// then: the future version is rejected
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		testastic.ErrorContains(t, err, "future calendar period")
+	})
+
+	t.Run("rejects an invalid prerelease counter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the latest beta has a counter that is not a number
+		cv := newCalVer(t, "", "v", fixedTime(2026, time.November))
+
+		// when: the next beta release is resolved
+		_, _, _, err := cv.NextRelease("2026.11.2-beta.x", commit.BumpPatch, "", "beta")
+
+		// then: the counter is reported
+		testastic.ErrorContains(t, err, `invalid prerelease counter "x"`)
+	})
+}
+
+func TestCalVerNextAfterPrerelease(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		now     func() time.Time
+		current string
+		want    string
+	}{
+		{
+			name:    "stable release in the same period takes the prerelease base",
+			now:     fixedTime(2026, time.November),
+			current: "2026.11.2-beta.3",
+			want:    "2026.11.2",
+		},
+		{
+			name:    "stable release in a later period resets micro",
+			now:     fixedTime(2026, time.December),
+			current: "2026.11.2-beta.3",
+			want:    "2026.12.1",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: the latest version is a beta
+			cv := newCalVer(t, "", "v", testCase.now)
+
+			// when: the next stable version is calculated from it
+			next, err := cv.Next(testCase.current, commit.BumpPatch)
+
+			// then: the beta base is not skipped
+			testastic.NoError(t, err)
+			testastic.Equal(t, testCase.want, next)
+		})
+	}
+}
+
+func TestCalVerCurrentPrerelease(t *testing.T) {
+	t.Parallel()
+
+	validCases := []struct {
+		name, format, tag, want string
+	}{
+		{name: "keeps the prerelease suffix", tag: "v2026.11.2-beta.1", want: "2026.11.2-beta.1"},
+		{name: "normalizes the base", tag: "v2026.2.1-rc.1", want: "2026.02.1-rc.1"},
+		{name: "accepts a dotted suffix", tag: "v2026.11.2-beta.1.hotfix", want: "2026.11.2-beta.1.hotfix"},
+		{name: "uses the configured format", format: "YY.MM.MICRO", tag: "v26.02.1-beta.3", want: "26.2.1-beta.3"},
+	}
+
+	for _, testCase := range validCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a prerelease tag
+			cv := newCalVer(t, testCase.format, "v", nil)
+
+			// when: parsing the tag
+			current, err := cv.Current(testCase.tag)
+
+			// then: the base is rendered in the format and the suffix is kept
+			testastic.NoError(t, err)
+			testastic.Equal(t, testCase.want, current)
+		})
+	}
+
+	for _, tag := range []string{
+		"v2026.11.2-",
+		"v2026.11.2-beta..1",
+		"v2026.11.2-beta.01",
+		"v2026.11.2-beta.1+build",
+		"v2026.11.2-beta!",
+		"v2026.13.2-beta.1",
+	} {
+		t.Run("rejects "+tag, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a tag with an invalid base or prerelease suffix
+			cv := newCalVer(t, "", "v", nil)
+
+			// when: parsing the tag
+			_, err := cv.Current(tag)
+
+			// then: the tag is rejected
+			testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		})
+	}
 }

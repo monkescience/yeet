@@ -52,10 +52,30 @@ func TestSemVerOrderedRefs(t *testing.T) {
 func TestCalVerOrderedRefs(t *testing.T) {
 	t.Parallel()
 
+	prereleaseRefs := []string{
+		"v2026.11.1", "v2026.11.2-beta.1", "v2026.11.2-beta.10", "v2026.11.2-beta.2", "v2026.11.2",
+		"v2026.11.3-alpha.1", "v2026.11.2-betaish.1", "v2026.11.2-beta.01",
+	}
+
 	for _, scenario := range []struct {
-		name, format string
-		refs, want   []string
+		name, format, channel string
+		refs, want            []string
 	}{
+		{
+			name: "orders prereleases before their stable release", channel: "beta",
+			refs: prereleaseRefs,
+			want: []string{"v2026.11.2", "v2026.11.2-beta.10", "v2026.11.2-beta.2", "v2026.11.2-beta.1", "v2026.11.1"},
+		},
+		{
+			name: "orders the first prereleases of a period before its first release", channel: "beta",
+			refs: []string{"v2026.11.1", "v2026.11.1-beta.2", "v2026.10.3", "v2026.11.1-beta.1"},
+			want: []string{"v2026.11.1", "v2026.11.1-beta.2", "v2026.11.1-beta.1", "v2026.10.3"},
+		},
+		{
+			name: "stable runs ignore prereleases",
+			refs: prereleaseRefs,
+			want: []string{"v2026.11.2", "v2026.11.1"},
+		},
 		{
 			name: "normalizes versions and breaks ties by original ref",
 			refs: []string{
@@ -106,8 +126,8 @@ func TestCalVerOrderedRefs(t *testing.T) {
 			strategy := newCalVer(t, scenario.format, "v", nil)
 			original := slices.Clone(scenario.refs)
 
-			// when: ordering refs with the existing CalVer channel policy
-			ordered := strategy.OrderedRefs(scenario.refs, "beta")
+			// when: ordering refs for the channel of the scenario
+			ordered := strategy.OrderedRefs(scenario.refs, scenario.channel)
 
 			// then: the configured format controls ordering and invalid refs are filtered
 			testastic.SliceEqual(t, scenario.want, ordered)

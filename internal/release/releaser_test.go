@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
@@ -275,37 +276,105 @@ func TestReleaserInjectsPublisherIntoLifecycle(t *testing.T) {
 func TestPrereleaseChannels(t *testing.T) {
 	t.Parallel()
 
-	t.Run("calver target is rejected with an actionable error", func(t *testing.T) {
+	t.Run("calver target plans a prerelease", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a prerelease channel with a calver target
-		cfg := config.Default()
-		cfg.Versioning = config.VersioningCalVer
-		cfg.Targets = map[string]config.Target{
-			"default": {
-				Type:       config.TargetTypePath,
-				Path:       ".",
-				TagPrefix:  "v",
-				Versioning: config.VersioningCalVer,
+		november := time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC)
+		december := time.Date(2026, time.December, 1, 12, 0, 0, 0, time.UTC)
+
+		testCases := []struct {
+			name     string
+			channel  string
+			now      time.Time
+			tags     []string
+			boundary string
+			current  string
+			next     string
+		}{
+			{name: "without tags", channel: "beta", now: november, next: "2026.11.1-beta.1"},
+			{
+				name: "after the first beta tag of the period", channel: "beta", now: november,
+				tags: []string{"v2026.10.3", "v2026.11.1-beta.1"}, boundary: "v2026.11.1-beta.1",
+				current: "2026.11.1-beta.1", next: "2026.11.1-beta.2",
+			},
+			{
+				name: "stable run after the first betas of the period", now: november,
+				tags: []string{"v2026.10.3", "v2026.11.1-beta.2"}, boundary: "v2026.10.3",
+				current: "2026.10.3", next: "2026.11.1",
+			},
+			{
+				name: "after a stable tag in the period", channel: "beta", now: november,
+				tags: []string{"v2026.11.1"}, boundary: "v2026.11.1",
+				current: "2026.11.1", next: "2026.11.2-beta.1",
+			},
+			{
+				name: "after a beta tag in the period", channel: "beta", now: november,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.1"}, boundary: "v2026.11.2-beta.1",
+				current: "2026.11.2-beta.1", next: "2026.11.2-beta.2",
+			},
+			{
+				name: "after a beta tag in an earlier period", channel: "beta", now: december,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.1"}, boundary: "v2026.11.2-beta.1",
+				current: "2026.11.2-beta.1", next: "2026.12.1-beta.1",
+			},
+			{
+				name: "stable run after betas takes their base", now: november,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.3"}, boundary: "v2026.11.1",
+				current: "2026.11.1", next: "2026.11.2",
 			},
 		}
-		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
-			"beta": {Branch: "beta", Prerelease: "beta"},
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a calver target with a beta channel, its tags and a fixed release time
+				cfg := config.Default()
+				cfg.Versioning = config.VersioningCalVer
+				cfg.Targets = map[string]config.Target{
+					"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+				}
+				cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+					"beta": {Branch: "beta", Prerelease: "beta"},
+				}
+
+				stub := newProviderStub()
+				stub.tagList = testCase.tags
+				entries := []history.CommitEntry{{Hash: "abcdef1234567890", Message: "feat: add export command"}}
+				stub.commits = entries
+
+				if testCase.boundary != "" {
+					stub.commitsByRef = map[string][]history.CommitEntry{testCase.boundary: entries}
+				}
+
+				branch := cfg.Branch
+				options := Options{}
+
+				if testCase.channel != "" {
+					branch = cfg.Release.Channels[testCase.channel].Branch
+					options.Channel = new(testCase.channel)
+				}
+
+				run, err := resolveRun(cfg, branch, options)
+				testastic.NoError(t, err)
+
+				core, err := newReleaseCoreAt(t.Context(), cfg, stub, run, testCase.now)
+				testastic.NoError(t, err)
+
+				r, err := newReleaser(core, sourceFromTestDeps(branch, stub), stub)
+				testastic.NoError(t, err)
+
+				// when: planning the release
+				result, err := r.Release(t.Context(), true)
+
+				// then: the plan uses the calver base of the period and the channel counter
+				testastic.NoError(t, err)
+				testastic.Len(t, result.Plans, 1)
+				testastic.Equal(t, testCase.current, result.Plans[0].CurrentVersion)
+				testastic.Equal(t, testCase.next, result.Plans[0].NextVersion)
+				testastic.Equal(t, "v"+testCase.next, result.Plans[0].NextTag)
+			})
 		}
-
-		stub := newProviderStub()
-
-		// when: constructing the releaser
-		_, err := newStubReleaser(context.Background(), cfg, stub, Options{Channel: new("beta")})
-
-		// then: the error identifies the incompatible target
-		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.Equal(
-			t,
-			"invalid config: prerelease channel \"beta\" supports semver targets only. "+
-				"Target \"default\" uses \"calver\"",
-			err.Error(),
-		)
 	})
 
 	t.Run("stable release ignores prerelease refs", func(t *testing.T) {

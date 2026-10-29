@@ -169,7 +169,7 @@ func (r releaseRun) withChannelChangelogs(
 	for targetID, target := range targets {
 		if !strategies[targetID].SupportsPrerelease() {
 			//nolint:wrapcheck // config supplies the typed validation context.
-			return nil, config.Invalidf("prerelease channel %q supports semver targets only. Target %q uses %q", r.channelName,
+			return nil, config.Invalidf("prerelease channel %q does not support target %q with %q versioning", r.channelName,
 				targetID,
 				target.Versioning,
 			)
