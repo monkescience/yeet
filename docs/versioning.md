@@ -31,7 +31,7 @@ The default format is `YYYY.0M.MICRO`, for example `2026.09.3`.
 `MICRO` counts releases within the period and resets when the period changes.
 
 On a [prerelease channel](release.md#prerelease-channels), yeet adds the channel suffix to the version the next stable release would get, such as `2026.09.4-beta.1`.
-The counter increases while that version stays the same and restarts at 1 in a new period.
+The counter increases while that version stays the same and restarts at 1 when it changes, such as after a stable release or in a new period.
 A stable release in the same period then takes that version, such as `2026.09.4`.
 
 ```yaml
