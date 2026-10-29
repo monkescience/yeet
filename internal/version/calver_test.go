@@ -1204,6 +1204,7 @@ func TestCalVerReleaseAs(t *testing.T) {
 		{
 			name: "rejects a future period", current: "2026.11.1", releaseAs: "2026.12.1",
 			problem: "requested version is from a future calendar period",
+			reason:  version.ReleaseAsReasonFuturePeriod,
 		},
 		{
 			name: "rejects the current version", current: "2026.11.1", releaseAs: "2026.11.1",

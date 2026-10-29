@@ -255,8 +255,11 @@ func (c *CalVer) applyReleaseAs(current, releaseAs string) (calverParts, error) 
 	}
 
 	if compareCalVerPeriods(c.format, target, c.format.partsFromTime(c.now())) > 0 {
-		return calverParts{}, releaseAsError(releaseAs, current, "requested version is from a future calendar period",
+		futureErr := releaseAsError(releaseAs, current, "requested version is from a future calendar period",
 			fmt.Errorf("%w: %q is from a future calendar period", ErrInvalidReleaseAs, releaseAs))
+		futureErr.Reason = ReleaseAsReasonFuturePeriod
+
+		return calverParts{}, futureErr
 	}
 
 	if current == "" {

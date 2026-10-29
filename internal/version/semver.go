@@ -389,6 +389,8 @@ const (
 	ReleaseAsReasonOther ReleaseAsReason = iota
 	// ReleaseAsReasonFormat means that the value is not in the version format of the target.
 	ReleaseAsReasonFormat
+	// ReleaseAsReasonFuturePeriod means that the calver value is in a later calendar period.
+	ReleaseAsReasonFuturePeriod
 )
 
 type ReleaseAsError struct {
