@@ -536,6 +536,8 @@ func describeReleaseContent(d *diagnostic, failure *release.Failure) bool {
 			d.hint = "use a version in the version format of the target"
 		case version.ReleaseAsReasonFuturePeriod:
 			d.hint = "use a version from the current calendar period"
+		case version.ReleaseAsReasonLabel:
+			d.hint = "remove the label from the version, calver.label adds it"
 		case version.ReleaseAsReasonOther:
 		}
 

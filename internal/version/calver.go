@@ -292,8 +292,11 @@ func (c *CalVer) applyReleaseAs(current, releaseAs string) (calverParts, error) 
 	}
 
 	if target.Label != "" {
-		return calverParts{}, releaseAsError(releaseAs, current, "requested version must not include a label",
+		labelErr := releaseAsError(releaseAs, current, "requested version must not include a label",
 			fmt.Errorf("%w: %q must not include a label, calver.label adds it", ErrInvalidReleaseAs, releaseAs))
+		labelErr.Reason = ReleaseAsReasonLabel
+
+		return calverParts{}, labelErr
 	}
 
 	if compareCalVerPeriods(c.format, target, c.format.partsFromTime(c.now())) > 0 {

@@ -1447,10 +1447,13 @@ func TestCalVerLabelReleaseAs(t *testing.T) {
 		testastic.Equal(t, "2026.11.5-beta", next)
 	})
 
-	for _, testCase := range []struct{ name, current, releaseAs, problem string }{
+	for _, testCase := range []struct {
+		name, current, releaseAs, problem string
+		reason                            version.ReleaseAsReason
+	}{
 		{
 			name: "rejects a requested version with a label", current: "2026.11.1-beta", releaseAs: "2026.11.5-beta",
-			problem: "requested version must not include a label",
+			problem: "requested version must not include a label", reason: version.ReleaseAsReasonLabel,
 		},
 		{
 			name: "rejects the version of the current labeled release", current: "2026.11.2-beta", releaseAs: "2026.11.2",
@@ -1477,6 +1480,7 @@ func TestCalVerLabelReleaseAs(t *testing.T) {
 			}
 
 			testastic.Equal(t, testCase.problem, releaseAs.Problem)
+			testastic.Equal(t, testCase.reason, releaseAs.Reason)
 		})
 	}
 }

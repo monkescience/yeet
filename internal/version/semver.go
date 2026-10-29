@@ -391,6 +391,8 @@ const (
 	ReleaseAsReasonFormat
 	// ReleaseAsReasonFuturePeriod means that the calver value is in a later calendar period.
 	ReleaseAsReasonFuturePeriod
+	// ReleaseAsReasonLabel means that the calver value includes a label, which calver.label adds.
+	ReleaseAsReasonLabel
 )
 
 type ReleaseAsError struct {

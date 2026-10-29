@@ -87,6 +87,48 @@ func TestReleaseCalVerLabel(t *testing.T) {
 		})
 	}
 
+	t.Run("github rejects a calver Release-As value with a label", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a labeled calver project and a commit whose Release-As footer includes the label
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.05.3-beta", Tag: "v2025.05.3-beta"},
+				{Message: "feat: pin\n\nRelease-As: 2025.05.9-beta"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2025.05.3-beta",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.MICRO",
+			CalVerLabel:  "beta",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t, []string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 and the hint tells to remove the label
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr,
+			"invalid release version override: requested version must not include a label")
+		testastic.Contains(t, result.Stderr, `hint="remove the label from the version, calver.label adds it"`)
+	})
+
 	t.Run("rejects a dotted label", func(t *testing.T) {
 		t.Parallel()
 
