@@ -62,7 +62,7 @@ func (e *MarkerError) Unwrap() error {
 	return e.Err
 }
 
-var versionPattern = regexp.MustCompile(`\d+(?:\.\d+)+(?:-[\w.]+)?(?:\+[-\w.]+)?`)
+var versionPattern = regexp.MustCompile(`\d+(?:\.\d+)+(?:-[-\w.]+)?(?:\+[-\w.]+)?`)
 
 var majorPattern = regexp.MustCompile(`\d+\b`)
 
