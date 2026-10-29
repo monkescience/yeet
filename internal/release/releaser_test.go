@@ -1009,10 +1009,10 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.Equal(t, "2026.11.5", result.Plans[0].NextVersion)
 	})
 
-	t.Run("rejects calver override in another format", func(t *testing.T) {
+	t.Run("ignores calver override in another format", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a calver repo with a semver Release-As footer
+		// given: a calver repo with only a chore commit and a semver Release-As footer
 		cfg := config.Default()
 		cfg.Versioning = config.VersioningCalVer
 
@@ -1025,9 +1025,91 @@ func TestReleaseAsFooter(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 
 		// when: calculating a release
-		_, err := r.Release(context.Background(), true)
+		result, err := r.Release(context.Background(), true)
 
-		// then: the footer is rejected
+		// then: the footer is ignored and the chore commit does not release
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 0)
+	})
+
+	t.Run("applies a semver override to the semver target of a mixed repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver target and a calver target that one commit with a semver Release-As footer changes
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:       config.TargetTypePath,
+				Path:       "apps/web",
+				TagPrefix:  "app-v",
+				Versioning: config.VersioningCalVer,
+			},
+			"lib": {
+				Type:      config.TargetTypePath,
+				Path:      "libs/core",
+				TagPrefix: "lib-v",
+			},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: rework the shared api\n\nRelease-As: 2.0.0",
+			Paths:   []string{"apps/web/main.go", "libs/core/api.go"},
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the semver target takes the requested version and the calver target releases normally
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "app", result.Plans[0].ID)
+		testastic.Equal(t, "2026.11.1", result.Plans[0].NextVersion)
+		testastic.Equal(t, "lib", result.Plans[1].ID)
+		testastic.Equal(t, "2.0.0", result.Plans[1].NextVersion)
+	})
+
+	t.Run("rejects calver override from a future period", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with a Release-As footer in the next month
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 2026.12.1",
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		_, err = r.Release(t.Context(), true)
+
+		// then: a value in the calver format that breaks a rule still fails the release
 		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 }

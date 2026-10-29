@@ -381,11 +381,22 @@ func inferBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
 	return commit.BumpPatch
 }
 
+// ReleaseAsReason tells why a Release-As value is not valid.
+type ReleaseAsReason int
+
+const (
+	// ReleaseAsReasonOther is a problem that has no specific reason.
+	ReleaseAsReasonOther ReleaseAsReason = iota
+	// ReleaseAsReasonFormat means that the value is not in the version format of the target.
+	ReleaseAsReasonFormat
+)
+
 type ReleaseAsError struct {
 	Requested   string
 	Current     string
 	Conflicting string
 	Problem     string
+	Reason      ReleaseAsReason
 	cause       error
 }
 

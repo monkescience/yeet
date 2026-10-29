@@ -238,10 +238,10 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		)
 	})
 
-	t.Run("github rejects calver Release-As value in another format", func(t *testing.T) {
+	t.Run("github ignores calver Release-As value in another format", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a calver project and a commit whose Release-As footer is a semver version
+		// given: a calver project and a feat commit whose Release-As footer is a semver version
 		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
 			[]fixture.RepoCommit{
 				{Message: "chore: release v2025.05.3", Tag: "v2025.05.3"},
@@ -273,11 +273,12 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: yeet exits 1 and names the calver format
-		testastic.Equal(t, 1, result.ExitCode)
-		testastic.Contains(t, result.Stderr,
-			"invalid release version override: requested version does not match the calver format YYYY.0M.MICRO")
-		testastic.Contains(t, result.Stderr, "requested=2.0.0 current=2025.05.3")
+		// then: yeet warns, names the calver format, and plans the next calver release
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "ignoring release override in another version format")
+		testastic.Contains(t, result.Stderr, "value=2.0.0")
+		testastic.Contains(t, result.Stderr, `hint="use the calver format YYYY.0M.MICRO to set the version of this target"`)
+		testastic.Contains(t, result.Stdout, "2025.05.3 →")
 	})
 
 	t.Run("github reports malformed remote tag metadata", func(t *testing.T) {

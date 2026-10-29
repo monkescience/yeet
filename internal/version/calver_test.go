@@ -1190,10 +1190,12 @@ func TestCalVerReleaseAs(t *testing.T) {
 
 	invalidCases := []struct {
 		name, current, releaseAs, channel, problem string
+		reason                                     version.ReleaseAsReason
 	}{
 		{
 			name: "rejects a version in another format", current: "2026.11.1", releaseAs: "2.0.0",
 			problem: "requested version does not match the calver format YYYY.0M.MICRO",
+			reason:  version.ReleaseAsReasonFormat,
 		},
 		{
 			name: "rejects a prerelease", current: "2026.11.1", releaseAs: "2026.11.5-beta.1",
@@ -1235,6 +1237,7 @@ func TestCalVerReleaseAs(t *testing.T) {
 			}
 
 			testastic.Equal(t, testCase.problem, releaseAs.Problem)
+			testastic.Equal(t, testCase.reason, releaseAs.Reason)
 		})
 	}
 }

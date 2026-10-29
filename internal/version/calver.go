@@ -230,9 +230,12 @@ func (c *CalVer) nextPrerelease(current, prereleaseIdentifier string) (string, e
 func (c *CalVer) parseReleaseAs(releaseAs, current string) (calverParts, error) {
 	parts, err := c.format.parse(releaseAs)
 	if err != nil {
-		return calverParts{}, releaseAsError(releaseAs, current,
+		formatErr := releaseAsError(releaseAs, current,
 			"requested version does not match the calver format "+c.format.raw,
 			fmt.Errorf("%w: %q does not match calver format %q: %v", ErrInvalidReleaseAs, releaseAs, c.format.raw, err))
+		formatErr.Reason = ReleaseAsReasonFormat
+
+		return calverParts{}, formatErr
 	}
 
 	return parts, nil

@@ -125,6 +125,37 @@ func TestReleaseAsOverride(t *testing.T) {
 		testastic.Equal(t, "", logs.String())
 	})
 
+	t.Run("ignores a calver footer in another format", func(t *testing.T) {
+		// given: a calver target, a semver Release-As footer, and a calver Release-As footer
+		logs := captureWarnings(t)
+
+		target := config.ResolvedTarget{
+			ID: "app", Versioning: config.VersioningCalVer, TagPrefix: "v",
+			CalVer: config.CalVerConfig{Format: version.DefaultCalVerFormat},
+		}
+
+		strategy, strategyErr := versionStrategyForResolvedTarget(target, nil)
+		testastic.NoError(t, strategyErr)
+
+		// when: the override is read for that target
+		override, err := releaseAsOverride(
+			t.Context(),
+			strategy,
+			target,
+			[]commit.Commit{releaseAsCommit("abc1234", "2.0.0"), releaseAsCommit("def5678", "2026.01.5")},
+			"2026.01.4",
+		)
+
+		// then: the semver footer is reported and ignored, and the calver footer sets the version
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.01.5", override)
+		testastic.Equal(t, 1, strings.Count(logs.String(), "ignoring release override in another version format"))
+		testastic.Contains(t, logs.String(), "commit=abc1234")
+		testastic.Contains(t, logs.String(), "value=2.0.0")
+		testastic.Contains(t, logs.String(),
+			`hint="use the calver format YYYY.0M.MICRO to set the version of this target"`)
+	})
+
 	t.Run("describes an empty semver footer", func(t *testing.T) {
 		// given: a Release-As footer with no value
 		target := config.ResolvedTarget{ID: "app", Versioning: config.VersioningSemver, TagPrefix: "v"}

@@ -96,7 +96,7 @@ func releaseAsOverride(
 		return "", nil
 	}
 
-	return detectReleaseAs(strategy, commits, currentVersion)
+	return detectReleaseAs(ctx, strategy, target, commits, currentVersion)
 }
 
 func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget, commits []commit.Commit) {
@@ -106,19 +106,33 @@ func warnUnsupportedReleaseAs(ctx context.Context, target config.ResolvedTarget,
 				continue
 			}
 
-			slog.WarnContext(ctx, "ignoring unsupported release override",
-				slog.String("target", target.ID),
-				slog.String("commit", c.Hash),
-				slog.String("versioning", string(target.Versioning)),
-				slog.String("field", "Release-As"),
-				slog.String("value", strings.TrimSpace(footer.Value)),
-				logattr.Hint("remove the Release-As footer for this target, its versioning does not support it"),
-			)
+			warnIgnoredReleaseAs(ctx, "ignoring unsupported release override", target, c.Hash, footer.Value,
+				"remove the Release-As footer for this target, its versioning does not support it")
 		}
 	}
 }
 
-func detectReleaseAs(strategy version.Strategy, commits []commit.Commit, currentVersion string) (string, error) {
+func warnIgnoredReleaseAs(ctx context.Context, message string, target config.ResolvedTarget, hash, value, hint string) {
+	slog.WarnContext(ctx, message,
+		slog.String("target", target.ID),
+		slog.String("commit", hash),
+		slog.String("versioning", string(target.Versioning)),
+		slog.String("field", "Release-As"),
+		slog.String("value", strings.TrimSpace(value)),
+		logattr.Hint(hint),
+	)
+}
+
+// detectReleaseAs returns the version that the Release-As footers request.
+// It ignores a value in another version format with a warning, because one commit can change targets with different
+// versioning.
+func detectReleaseAs(
+	ctx context.Context,
+	strategy version.Strategy,
+	target config.ResolvedTarget,
+	commits []commit.Commit,
+	currentVersion string,
+) (string, error) {
 	releaseAsVersion := ""
 
 	for _, c := range commits {
@@ -141,6 +155,14 @@ func detectReleaseAs(strategy version.Strategy, commits []commit.Commit, current
 			normalizedCandidate, err := strategy.NormalizeReleaseAs(candidate)
 			if err != nil {
 				releaseAs, ok := errors.AsType[*version.ReleaseAsError](err)
+				if ok && releaseAs.Reason == version.ReleaseAsReasonFormat {
+					// Only calver reports this reason, so the hint names the calver format.
+					warnIgnoredReleaseAs(ctx, "ignoring release override in another version format", target, c.Hash,
+						candidate, "use the calver format "+target.CalVer.Format+" to set the version of this target")
+
+					continue
+				}
+
 				if ok && releaseAs.Current == "" {
 					releaseAs.Current = currentVersion
 				}
