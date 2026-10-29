@@ -872,6 +872,108 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
+	t.Run("honours calver override on a derived target when a child bumps higher", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver derived target with a Release-As chore commit and a child with a feature
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{
+				Hash:    "1234567890abcdef",
+				Message: "chore: request release\n\nRelease-As: 2026.11.9",
+				Paths:   []string{"README.md"},
+			},
+		}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the child bump does not replace the requested version of the derived target
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "2026.11.1", result.Plans[0].NextVersion)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "2026.11.9", result.Plans[1].NextVersion)
+	})
+
+	t.Run("honours semver override on a derived target when a child bumps higher", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver derived target with a patch Release-As chore commit and a child with a feature
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		entries := []history.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{
+				Hash:    "1234567890abcdef",
+				Message: "chore: request release\n\nRelease-As: 1.0.1",
+				Paths:   []string{"README.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v1.0.0", "api-v1.0.0"}
+		stub.commitsByRef = map[string][]history.CommitEntry{"v1.0.0": entries, "api-v1.0.0": entries}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the derived target takes the requested version, not the child bump
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "1.1.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "1.0.1", result.Plans[1].NextVersion)
+	})
+
 	t.Run("honours override for calver", func(t *testing.T) {
 		t.Parallel()
 
