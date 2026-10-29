@@ -357,6 +357,31 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(t, expected, updated)
 	})
 
+	t.Run("replaces calver markers with a prerelease version", func(t *testing.T) {
+		t.Parallel()
+
+		// given: full-version, month and micro markers on the default format
+		content := strings.Join([]string{
+			`version = "2026.11.1" # x-yeet-version`,
+			`month = 10 # x-yeet-month`,
+			`micro = 1 # x-yeet-micro`,
+		}, "\n")
+
+		// when: applying marker replacements with a calver prerelease
+		updated, changed, err := location.Apply(content, "2026.11.2-beta.1", defaultScheme)
+
+		// then: the full version keeps the suffix and the segments do not
+		expected := strings.Join([]string{
+			`version = "2026.11.2-beta.1" # x-yeet-version`,
+			`month = 11 # x-yeet-month`,
+			`micro = 2 # x-yeet-micro`,
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
+	})
+
 	t.Run("replaces calver markers in block", func(t *testing.T) {
 		t.Parallel()
 
