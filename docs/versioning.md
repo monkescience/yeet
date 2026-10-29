@@ -54,6 +54,24 @@ Week cannot be combined with month or day, and day requires month.
 
 Dates follow the configured [timezone](configuration.md#timezone).
 
+### Version label
+
+To put a fixed label on every stable version, for example during a public beta, set `calver.label`:
+
+```yaml
+versioning: calver
+calver:
+  label: beta
+```
+
+Versions then look like `2026.09.1-beta` and `2026.09.2-beta`.
+Labeled versions are normal releases: `MICRO` counts them, and the provider release is not marked as a prerelease.
+To release without the label, remove it. `MICRO` continues from the latest tag, such as `2026.09.3` after `2026.09.2-beta`.
+
+A label contains letters, digits, and hyphens, with at least one letter, and no dot.
+So a tag such as `v2026.09.2-beta` is a labeled release, and `v2026.09.2-beta.1` is a prerelease.
+Prerelease channel versions do not carry the label.
+
 ## Related documentation
 
 - [Writing commits](commits.md)

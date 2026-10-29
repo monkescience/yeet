@@ -84,6 +84,7 @@ The version must be stable and greater than the current version.
 All `Release-As` footers in one release must agree.
 On a [prerelease channel](release.md#prerelease-channels), yeet adds the channel suffix, such as `1.0.0-beta.1`.
 On calver targets, the version must use the configured format, such as `2026.09.5`, and must not be in a later period than the current date.
+With a calver [label](versioning.md#version-label), give the version without the label. yeet adds it.
 A calver target ignores a value in another format with a warning, so one commit can set the version of a semver target and still release a calver target.
 
 ## Commit overrides

@@ -129,6 +129,7 @@ release:
 - `yeet release --dry-run --channel beta` previews a channel from any branch.
 
 For calver prerelease versions, see [Versioning](versioning.md#calver).
+Calver versions with a [label](versioning.md#version-label), such as `2026.09.1-beta`, are stable releases, not prereleases.
 
 ## Related documentation
 
