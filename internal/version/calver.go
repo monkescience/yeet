@@ -736,6 +736,10 @@ func compareCalVerParts(format calverFormat, left, right calverParts) int {
 		return micro
 	}
 
+	if left.Prerelease == right.Prerelease {
+		return 0
+	}
+
 	// A stable version sorts after its prereleases.
 	return semver.New(0, 0, 0, left.Prerelease, "").Compare(semver.New(0, 0, 0, right.Prerelease, ""))
 }
