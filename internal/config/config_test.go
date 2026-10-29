@@ -2653,6 +2653,56 @@ func TestPreMajorOptions(t *testing.T) {
 			err.Error(),
 		)
 	})
+
+	t.Run("rejects invalid top-level calver label", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a config with a dotted calver label
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.CalVer.Label = "beta.1"
+		cfg.Targets = map[string]config.Target{
+			"app": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails with the label path
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: calver.label: calver label \"beta.1\" must contain only letters, digits, and hyphens",
+			err.Error(),
+		)
+	})
+
+	t.Run("rejects invalid target calver label", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a target with a numeric calver label
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:      config.TargetTypePath,
+				Path:      ".",
+				TagPrefix: "v",
+				CalVer:    config.CalVerConfig{Label: "1"},
+			},
+		}
+
+		// when: validating
+		err := cfg.Validate()
+
+		// then: validation fails with the target path
+		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
+		testastic.Equal(
+			t,
+			"invalid config: targets.app.calver.label: calver label \"1\" must contain a letter",
+			err.Error(),
+		)
+	})
 }
 
 func TestResolvedTargets_Merging(t *testing.T) {
@@ -2803,6 +2853,33 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		// then: target keeps its own format
 		testastic.NoError(t, err)
 		testastic.Equal(t, "YYYY.MM.MICRO", resolved["app"].CalVer.Format)
+	})
+
+	t.Run("target inherits and overrides the calver label", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a top-level calver label and one target with its own label
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.CalVer.Label = "beta"
+		cfg.Targets = map[string]config.Target{
+			"api": {Type: config.TargetTypePath, Path: "api", TagPrefix: "api-v"},
+			"web": {
+				Type:      config.TargetTypePath,
+				Path:      "web",
+				TagPrefix: "web-v",
+				CalVer:    config.CalVerConfig{Label: "preview"},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets(t.Context())
+
+		// then: the target without a label inherits it and the other keeps its own
+		testastic.NoError(t, err)
+		testastic.Equal(t, "beta", resolved["api"].CalVer.Label)
+		testastic.Equal(t, "preview", resolved["web"].CalVer.Label)
+		testastic.Equal(t, "YYYY.0M.MICRO", resolved["web"].CalVer.Format)
 	})
 
 	t.Run("target overrides version_files entirely", func(t *testing.T) {

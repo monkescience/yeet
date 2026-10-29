@@ -29,10 +29,12 @@ const (
 type CalVer struct {
 	format calverFormat
 	prefix string
+	label  string
 	clock  func() time.Time
 }
 
-func NewCalVer(format, prefix string, now func() time.Time) (*CalVer, error) {
+// NewCalVer returns a calver strategy. A non-empty label is added to every stable version, such as 2026.11.1-beta.
+func NewCalVer(format, prefix, label string, now func() time.Time) (*CalVer, error) {
 	if strings.TrimSpace(format) == "" {
 		format = DefaultCalVerFormat
 	}
@@ -42,7 +44,37 @@ func NewCalVer(format, prefix string, now func() time.Time) (*CalVer, error) {
 		return nil, err
 	}
 
-	return &CalVer{format: compiled, prefix: prefix, clock: now}, nil
+	if label != "" {
+		err = ValidateCalVerLabel(label)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &CalVer{format: compiled, prefix: prefix, label: label, clock: now}, nil
+}
+
+// ValidateCalVerLabel checks that label is one semver prerelease identifier with at least one letter.
+// A label has no dot, so it cannot be mistaken for a channel prerelease such as beta.1.
+func ValidateCalVerLabel(label string) error {
+	hasLetter := false
+
+	for _, ch := range label {
+		switch {
+		case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z':
+			hasLetter = true
+		case ch >= '0' && ch <= '9', ch == '-':
+		default:
+			return fmt.Errorf("%w: calver label %q must contain only letters, digits, and hyphens",
+				ErrInvalidVersion, label)
+		}
+	}
+
+	if !hasLetter {
+		return fmt.Errorf("%w: calver label %q must contain a letter", ErrInvalidVersion, label)
+	}
+
+	return nil
 }
 
 func (c *CalVer) Tag(version string) string {
@@ -79,6 +111,8 @@ func (c *CalVer) NextRelease(
 
 		if prereleaseIdentifier != "" {
 			next.Prerelease = prereleaseIdentifier + ".1"
+		} else {
+			next.Label = c.label
 		}
 
 		// Calver has no bump levels, so a forced release counts as at least a patch.
@@ -153,6 +187,8 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", err
 	}
 
+	next.Label = c.label
+
 	return c.format.render(next), nil
 }
 
@@ -160,8 +196,9 @@ func (c *CalVer) InitialVersion() string {
 	return ""
 }
 
-// nextStable returns the stable version that follows current at the current time.
+// nextStable returns the stable version that follows current at the current time, without a label.
 // A prerelease does not release its base version, so in the same period that base is next.
+// A labeled version is a release, so the next micro follows it.
 func (c *CalVer) nextStable(current string) (calverParts, error) {
 	nowParts := c.format.partsFromTime(c.now())
 	nowParts.Micro = 1
@@ -254,6 +291,11 @@ func (c *CalVer) applyReleaseAs(current, releaseAs string) (calverParts, error) 
 			fmt.Errorf("%w: %q must be a stable version", ErrInvalidReleaseAs, releaseAs))
 	}
 
+	if target.Label != "" {
+		return calverParts{}, releaseAsError(releaseAs, current, "requested version must not include a label",
+			fmt.Errorf("%w: %q must not include a label, calver.label adds it", ErrInvalidReleaseAs, releaseAs))
+	}
+
 	if compareCalVerPeriods(c.format, target, c.format.partsFromTime(c.now())) > 0 {
 		futureErr := releaseAsError(releaseAs, current, "requested version is from a future calendar period",
 			fmt.Errorf("%w: %q is from a future calendar period", ErrInvalidReleaseAs, releaseAs))
@@ -272,8 +314,9 @@ func (c *CalVer) applyReleaseAs(current, releaseAs string) (calverParts, error) 
 			fmt.Errorf("%w: parse current version %q: %v", ErrInvalidReleaseAs, current, err))
 	}
 
-	// On a channel, the requested version must be after the base of the current prerelease.
+	// The requested version must be after the base of the current prerelease or labeled release.
 	currentParts.Prerelease = ""
+	currentParts.Label = ""
 
 	if compareCalVerParts(c.format, target, currentParts) <= 0 {
 		return calverParts{}, releaseAsError(c.format.render(target), c.format.render(currentParts),
@@ -304,6 +347,8 @@ type calverParts struct {
 	Day        int
 	Micro      int
 	Prerelease string
+	// Label is a suffix without a dot, such as beta. Unlike a prerelease, a labeled version is a release.
+	Label string
 }
 
 type calverToken string
@@ -486,6 +531,7 @@ func countSeen(seen map[calverToken]bool, tokens ...calverToken) int {
 }
 
 // parse reads a version in the format, with an optional semver prerelease suffix such as -beta.1.
+// A suffix that is a valid label, such as -beta, is a label and not a prerelease.
 func (f calverFormat) parse(version string) (calverParts, error) {
 	version = strings.TrimSpace(version)
 
@@ -503,7 +549,11 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 			return calverParts{}, fmt.Errorf("%w: invalid prerelease %q in %q", ErrInvalidVersion, prerelease, version)
 		}
 
-		parts.Prerelease = prerelease
+		if ValidateCalVerLabel(prerelease) == nil {
+			parts.Label = prerelease
+		} else {
+			parts.Prerelease = prerelease
+		}
 	}
 
 	return parts, nil
@@ -654,8 +704,8 @@ func (f calverFormat) render(parts calverParts) string {
 		builder.WriteString(renderCalVerToken(part.token, parts))
 	}
 
-	if parts.Prerelease != "" {
-		builder.WriteString("-" + parts.Prerelease)
+	if suffix := parts.suffix(); suffix != "" {
+		builder.WriteString("-" + suffix)
 	}
 
 	return builder.String()
@@ -742,10 +792,20 @@ func compareCalVerParts(format calverFormat, left, right calverParts) int {
 		return micro
 	}
 
-	if left.Prerelease == right.Prerelease {
+	leftSuffix, rightSuffix := left.suffix(), right.suffix()
+	if leftSuffix == rightSuffix {
 		return 0
 	}
 
-	// A stable version sorts after its prereleases.
-	return semver.New(0, 0, 0, left.Prerelease, "").Compare(semver.New(0, 0, 0, right.Prerelease, ""))
+	// A version without a suffix sorts after its prereleases and labeled versions.
+	return semver.New(0, 0, 0, leftSuffix, "").Compare(semver.New(0, 0, 0, rightSuffix, ""))
+}
+
+// suffix returns the prerelease or the label. A version has at most one of them.
+func (p *calverParts) suffix() string {
+	if p.Prerelease != "" {
+		return p.Prerelease
+	}
+
+	return p.Label
 }

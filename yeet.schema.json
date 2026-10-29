@@ -717,6 +717,10 @@
           "description": "CalVer format template. Supports dot-separated YYYY, YY, 0Y, MM, 0M, WW, 0W, DD, 0D, and required final MICRO tokens. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.",
           "minLength": 1,
           "default": "YYYY.0M.MICRO"
+        },
+        "label": {
+          "type": "string",
+          "description": "Fixed label added to every stable version, such as beta for 2026.11.1-beta. Letters, digits, and hyphens with at least one letter. Labeled versions are normal releases and MICRO continues across them. Remove the label to release without it."
         }
       }
     },

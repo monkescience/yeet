@@ -43,7 +43,7 @@ func versionStrategyForResolvedTarget(
 		}), nil
 	}
 
-	strategy, err := version.NewCalVer(target.CalVer.Format, target.TagPrefix, now)
+	strategy, err := version.NewCalVer(target.CalVer.Format, target.TagPrefix, target.CalVer.Label, now)
 	if err != nil {
 		return nil, fmt.Errorf("compile calver format: %w", err)
 	}

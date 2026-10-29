@@ -77,6 +77,16 @@ func TestCalVerOrderedRefs(t *testing.T) {
 			want: []string{"v2026.11.2", "v2026.11.1"},
 		},
 		{
+			name: "stable runs order labeled releases before their unlabeled version",
+			refs: []string{"v2026.11.1-beta", "v2026.11.1", "v2026.11.2-beta", "v2026.11.2-beta.1", "v2026.10.9"},
+			want: []string{"v2026.11.2-beta", "v2026.11.1", "v2026.11.1-beta", "v2026.10.9"},
+		},
+		{
+			name: "channels keep labeled releases", channel: "beta",
+			refs: []string{"v2026.11.1-beta", "v2026.11.2-beta", "v2026.11.2-beta.1", "v2026.10.9"},
+			want: []string{"v2026.11.2-beta.1", "v2026.11.2-beta", "v2026.11.1-beta", "v2026.10.9"},
+		},
+		{
 			name: "normalizes versions and breaks ties by original ref",
 			refs: []string{
 				" v2026.2.9 ", "v2026.02.9", "2026.02.9", "v2026.10.1", "v2026.2.10",

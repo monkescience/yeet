@@ -382,6 +382,38 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.Equal(t, expected, updated)
 	})
 
+	t.Run("replaces calver markers with a labeled version and after the label is removed", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct{ name, current, next, micro string }{
+			{name: "labeled", current: "2026.11.1-beta", next: "2026.11.2-beta", micro: "2"},
+			{name: "label removed", current: "2026.11.2-beta", next: "2026.11.3", micro: "3"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: full-version and micro markers with the current version
+				content := strings.Join([]string{
+					`version = "` + testCase.current + `" # x-yeet-version`,
+					`micro = 1 # x-yeet-micro`,
+				}, "\n")
+
+				// when: applying marker replacements with the next version
+				updated, changed, err := location.Apply(content, testCase.next, defaultScheme)
+
+				// then: the full version replaces the old suffix and micro has no label
+				expected := strings.Join([]string{
+					`version = "` + testCase.next + `" # x-yeet-version`,
+					`micro = ` + testCase.micro + ` # x-yeet-micro`,
+				}, "\n")
+
+				testastic.NoError(t, err)
+				testastic.True(t, changed)
+				testastic.Equal(t, expected, updated)
+			})
+		}
+	})
+
 	t.Run("replaces calver markers in block", func(t *testing.T) {
 		t.Parallel()
 

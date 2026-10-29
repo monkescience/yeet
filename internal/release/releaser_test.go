@@ -579,6 +579,115 @@ func TestPrereleaseChannels(t *testing.T) {
 	})
 }
 
+func TestCalVerLabel(t *testing.T) {
+	t.Parallel()
+
+	november := time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC)
+	december := time.Date(2026, time.December, 1, 12, 0, 0, 0, time.UTC)
+
+	newLabelReleaser := func(
+		t *testing.T, label string, now time.Time, tags []string, boundary string, autoMerge bool,
+	) (*releaser, *providerStub) {
+		t.Helper()
+
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.CalVer.Label = label
+		cfg.Release.AutoMerge = autoMerge
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = tags
+		entries := []history.CommitEntry{{Hash: "abcdef1234567890", Message: "feat: add export command"}}
+		stub.commits = entries
+
+		if boundary != "" {
+			stub.commitsByRef = map[string][]history.CommitEntry{boundary: entries}
+		}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run, now)
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		return r, stub
+	}
+
+	testCases := []struct {
+		name     string
+		label    string
+		now      time.Time
+		tags     []string
+		boundary string
+		current  string
+		next     string
+	}{
+		{name: "without tags", label: "beta", now: november, next: "2026.11.1-beta"},
+		{
+			name: "after a labeled tag in the period", label: "beta", now: november,
+			tags: []string{"v2026.10.3", "v2026.11.1-beta"}, boundary: "v2026.11.1-beta",
+			current: "2026.11.1-beta", next: "2026.11.2-beta",
+		},
+		{
+			name: "after a labeled tag in an earlier period", label: "beta", now: december,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-beta"}, boundary: "v2026.11.2-beta",
+			current: "2026.11.2-beta", next: "2026.12.1-beta",
+		},
+		{
+			name: "label removed after a labeled tag", now: november,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-beta"}, boundary: "v2026.11.2-beta",
+			current: "2026.11.2-beta", next: "2026.11.3",
+		},
+		{
+			name: "labeled tag after channel prereleases", label: "beta", now: november,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-rc.1"}, boundary: "v2026.11.1-beta",
+			current: "2026.11.1-beta", next: "2026.11.2-beta",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver target with a label, its tags, and a fixed release time
+			r, _ := newLabelReleaser(t, testCase.label, testCase.now, testCase.tags, testCase.boundary, false)
+
+			// when: planning the release
+			result, err := r.Release(t.Context(), true)
+
+			// then: micro continues from the latest tag and the version carries the configured label
+			testastic.NoError(t, err)
+			testastic.Len(t, result.Plans, 1)
+			testastic.Equal(t, testCase.current, result.Plans[0].CurrentVersion)
+			testastic.Equal(t, testCase.next, result.Plans[0].NextVersion)
+			testastic.Equal(t, "v"+testCase.next, result.Plans[0].NextTag)
+		})
+	}
+
+	t.Run("auto-merged labeled release is not a provider prerelease", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled for a calver target with a label
+		r, stub := newLabelReleaser(t, "beta", november, []string{"v2026.11.1-beta"}, "v2026.11.1-beta", true)
+
+		// when: running the release flow end-to-end
+		result, err := r.Release(t.Context(), false)
+
+		// then: the labeled release is created as a normal provider release
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v2026.11.2-beta", result.Releases[0].Release.TagName)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.False(t, stub.createReleaseOpts[0].Prerelease)
+	})
+}
+
 func TestReleaseFallsBackToReachableTagWhenPreferredRefIsOffBranch(t *testing.T) {
 	t.Parallel()
 

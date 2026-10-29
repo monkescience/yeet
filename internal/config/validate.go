@@ -52,7 +52,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	err = validateCalVerConfig("calver.format", c.CalVer)
+	err = validateCalVerConfig("calver", c.CalVer)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,16 @@ func validatePreMajorCalVer(targetID string, versioning VersioningStrategy, targ
 func validateCalVerConfig(path string, calver CalVerConfig) error {
 	err := version.ValidateCalVerFormat(calver.Format)
 	if err != nil {
-		return InvalidWithCausef(err, "%s: %s", path, validationReason(err))
+		return InvalidWithCausef(err, "%s.format: %s", path, validationReason(err))
+	}
+
+	if calver.Label == "" {
+		return nil
+	}
+
+	err = version.ValidateCalVerLabel(calver.Label)
+	if err != nil {
+		return InvalidWithCausef(err, "%s.label: %s", path, validationReason(err))
 	}
 
 	return nil

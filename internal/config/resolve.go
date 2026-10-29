@@ -163,7 +163,7 @@ func validateTargetVersioning(targetID string, target ResolvedTarget) error {
 		)
 	}
 
-	return validateCalVerConfig("targets."+targetID+".calver.format", target.CalVer)
+	return validateCalVerConfig("targets."+targetID+".calver", target.CalVer)
 }
 
 func validateTargetChangelog(targetID string, changelog ChangelogConfig) error {
@@ -479,6 +479,10 @@ func mergeCalVerConfig(defaultConfig, overrideConfig CalVerConfig) CalVerConfig 
 
 	if overrideConfig.Format != "" {
 		merged.Format = overrideConfig.Format
+	}
+
+	if overrideConfig.Label != "" {
+		merged.Label = overrideConfig.Label
 	}
 
 	return merged
