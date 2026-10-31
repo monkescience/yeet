@@ -638,6 +638,62 @@ func TestGitHubCachesSuccessfulLabelDefinitionsAcrossReleasePhases(t *testing.T)
 	}
 }
 
+func TestGitHubEscapesLabelNamesInLabelPaths(t *testing.T) {
+	t.Parallel()
+
+	// given: a GitHub server that routes a label name as one path segment and
+	// knows every managed label, including names with reserved URL characters
+	var (
+		lookups  []string
+		attached []string
+		removed  []string
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /repos/o/r/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
+		lookups = append(lookups, r.PathValue("name"))
+		writeJSON(t, w, map[string]any{"name": r.PathValue("name")})
+	})
+	mux.HandleFunc("POST /repos/o/r/issues/42/labels", func(w http.ResponseWriter, r *http.Request) {
+		decodeJSONRequest(t, r, &attached)
+		writeJSON(t, w, []map[string]any{})
+	})
+	mux.HandleFunc("DELETE /repos/o/r/issues/42/labels/{name}", func(w http.ResponseWriter, r *http.Request) {
+		removed = append(removed, r.PathValue("name"))
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("/", func(_ http.ResponseWriter, r *http.Request) {
+		fatalUnexpectedProviderRequest(t, "GitHub", r)
+	})
+
+	server := httptest.NewTestServer(t, mux)
+	p := newGitHubContractProvider(t, server)
+	labels := forge.ReleasePRLabels{
+		Pending: "release/pending",
+		Tagged:  "release/tagged",
+		Extra:   []string{"kind/release", "ship?#100%"},
+	}
+
+	// when: PR 42 is put in the pending phase
+	err := p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhasePending)
+
+	// then: every label is found by its full name and none is recreated
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"kind/release", "ship?#100%", "release/pending", "release/tagged"}, lookups)
+	testastic.SliceEqual(t, []string{"release/pending", "kind/release", "ship?#100%"}, attached)
+	testastic.SliceEqual(t, []string{"release/tagged"}, removed)
+
+	// when: PR 42 is moved to the tagged phase
+	removed = nil
+	err = p.SetReleasePRLabels(context.Background(), 42, labels, forge.ReleasePRPhaseTagged)
+
+	// then: the pending label is removed by its full name
+	testastic.NoError(t, err)
+	testastic.SliceEqual(t, []string{"release/tagged"}, attached)
+	testastic.SliceEqual(t, []string{"release/pending"}, removed)
+}
+
 func handleGitHubMergeReleasePRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
 	t.Helper()
 

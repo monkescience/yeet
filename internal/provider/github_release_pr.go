@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -557,7 +558,7 @@ func isGitHubSameRepository(repo repoInfo, head *github.PullRequestBranch) bool 
 func (g *GitHub) labelDefinitions() labelDefinitions {
 	return labelDefinitions{
 		get: func(ctx context.Context, name string) error {
-			_, _, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, name)
+			_, _, err := g.client.Issues.GetLabel(ctx, g.repo.Owner, g.repo.Name, url.PathEscape(name))
 			if err != nil {
 				return fmt.Errorf("get label %q: %w", name, err)
 			}
@@ -592,7 +593,9 @@ func (g *GitHub) addIssueLabels(ctx context.Context, number int, labels []string
 }
 
 func (g *GitHub) removeIssueLabel(ctx context.Context, number int, label string) error {
-	_, err := g.client.Issues.RemoveLabelForIssue(ctx, g.repo.Owner, g.repo.Name, number, label)
+	_, err := g.client.Issues.RemoveLabelForIssue(
+		ctx, g.repo.Owner, g.repo.Name, number, url.PathEscape(label),
+	)
 	if err != nil {
 		if isGitHubNotFound(err) {
 			return nil
