@@ -123,6 +123,21 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.Equal(t, "PATCH=3 # x-yeet-patch", updated)
 	})
 
+	t.Run("replaces a version whose prerelease suffix has a hyphen", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an inline version marker with a hyphen in the prerelease suffix
+		content := `VERSION = "1.2.3-rc-1" # x-yeet-version`
+
+		// when: applying marker replacements with a stable version
+		updated, changed, err := location.Apply(content, "1.2.4", versionfile.SemVerScheme())
+
+		// then: the full old version is replaced, not only the part before the hyphen
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, `VERSION = "1.2.4" # x-yeet-version`, updated)
+	})
+
 	t.Run("empty content returns unchanged", func(t *testing.T) {
 		t.Parallel()
 
