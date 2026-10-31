@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.17.5](https://github.com/monkescience/yeet/compare/v0.17.4...v0.17.5) (2026-10-31)
+
+### Bug Fixes
+
+- **version:** reject four-digit years in short calver year formats ([26f4eb3](https://github.com/monkescience/yeet/commit/26f4eb3eebac5ced025ed1d148d1944b88230832))
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.33.0 (#342) ([0df4a58](https://github.com/monkescience/yeet/commit/0df4a5860371b1e85ade5c3f8346758f431fe31a))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.9 (#343) ([b1d1d7a](https://github.com/monkescience/yeet/commit/b1d1d7a31ca1c50ac22629b972fd3ae57a0035fc))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.8 (#340) ([ad279ca](https://github.com/monkescience/yeet/commit/ad279cae86cd82087483ae0fb6bf25f71b15a759))
+- **provider:** apply request_timeout per attempt instead of per retry loop ([5ca6728](https://github.com/monkescience/yeet/commit/5ca67289e0ba197a3dffd92af37f01906b780ae9))
+- **provider:** drop the ssh port from the remote host ([f05d6a6](https://github.com/monkescience/yeet/commit/f05d6a6e747ca76f07cf7d427c4e7d1861cbf23b))
+- **github:** enforce the 65536 character pull request body limit ([7826130](https://github.com/monkescience/yeet/commit/7826130fa88f613ceae366b4b4271b98cc0fe0fd))
+
 ## [v0.17.4](https://github.com/monkescience/yeet/compare/v0.17.3...v0.17.4) (2026-10-26)
 
 ### Bug Fixes
