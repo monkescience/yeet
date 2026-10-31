@@ -1,7 +1,9 @@
 package integration_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
@@ -119,6 +121,58 @@ func TestReleaseCalVerOptionalMicro(t *testing.T) {
 			// then: yeet plans from the tag only when it is a canonical version for the format
 			testastic.Equal(t, 0, result.ExitCode)
 			testastic.Contains(t, result.Stdout, tc.versionLine)
+		})
+	}
+}
+
+func TestReleaseCalVerDefaultTimezoneIsUTC(t *testing.T) {
+	t.Parallel()
+
+	for _, tz := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
+		t.Run("github calver with TZ="+tz, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a daily calver project without a timezone setting, run on a machine far from UTC
+			repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+				[]fixture.RepoCommit{
+					{Message: "chore: bootstrap"},
+					{Message: "feat: ship feature"},
+				})
+
+			server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+				Owner:         "testorg",
+				Repo:          "testrepo",
+				BranchHeadSHA: shas[1],
+			})
+
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider:     "github",
+				Branch:       "main",
+				Host:         "github.com",
+				Owner:        "testorg",
+				Repo:         "testrepo",
+				Versioning:   "calver",
+				CalVerFormat: "YYYY.0M.0D.MICRO",
+			})
+
+			// when: invoking `yeet release --dry-run`
+			before := time.Now().UTC().Format("2006.01.02")
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(append(fixture.GitHubEnv(server, "main"), "TZ="+tz)...),
+			)
+			after := time.Now().UTC().Format("2006.01.02")
+
+			// then: the planned version uses the UTC date, not the machine's local date
+			testastic.Equal(t, 0, result.ExitCode)
+
+			if before == after {
+				testastic.Contains(t, result.Stdout, " → "+before+".")
+			} else {
+				testastic.True(t, strings.Contains(result.Stdout, " → "+before+".") ||
+					strings.Contains(result.Stdout, " → "+after+"."))
+			}
 		})
 	}
 }

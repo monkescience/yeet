@@ -19,7 +19,7 @@ func TestDefault(t *testing.T) {
 	// then: sensible defaults are set
 	testastic.Equal(t, config.VersioningSemver, cfg.Versioning)
 	testastic.Equal(t, "main", cfg.Branch)
-	testastic.Equal(t, "Local", cfg.Timezone)
+	testastic.Equal(t, "UTC", cfg.Timezone)
 	testastic.Equal(t, config.ProviderAuto, cfg.Provider)
 	testastic.Equal(t, "origin", cfg.Repository.Remote)
 	testastic.Equal(t, 30*time.Second, cfg.Network.RequestTimeout)

@@ -24,10 +24,10 @@
     },
     "timezone": {
       "type": "string",
-      "description": "IANA timezone used for CalVer and changelog dates. Local preserves the machine's local timezone.",
+      "description": "IANA timezone used for CalVer and changelog dates. Local uses the machine's local timezone.",
       "minLength": 1,
       "pattern": "^\\S(.*\\S)?$",
-      "default": "Local"
+      "default": "UTC"
     },
     "provider": {
       "type": "string",

@@ -107,8 +107,8 @@ See [Versioning](versioning.md) for how bumps work.
 ## Timezone
 
 `timezone` sets the date used for calver versions and changelog entries.
-It accepts `Local` (default), `UTC`, or an IANA name such as `Europe/Berlin`.
-Set it explicitly so local previews and CI produce the same date.
+It accepts `UTC` (default), `Local`, or an IANA name such as `Europe/Berlin`.
+The UTC default follows the calver convention and gives local previews and CI the same date.
 
 ## Self-hosted providers
 

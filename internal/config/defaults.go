@@ -49,7 +49,7 @@ func Default() *Config {
 	return &Config{
 		Versioning:                 VersioningSemver,
 		Branch:                     "main",
-		Timezone:                   "Local",
+		Timezone:                   "UTC",
 		Provider:                   ProviderAuto,
 		PreMajorBreakingBumpsMinor: true,
 		PreMajorFeaturesBumpPatch:  true,
