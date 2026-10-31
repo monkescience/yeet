@@ -58,6 +58,12 @@ For example, with `YYYY.0W.MICRO` a release on 1 January 2027 is `2026.53.1`.
 
 Dates follow the configured [timezone](configuration.md#timezone).
 
+Choose the format before the first release.
+yeet reads existing tags with the current format, so changing it later is not supported.
+Old tags that no longer match the format are ignored, and old tags that still match are read with the new meaning.
+For example, after switching from `YYYY.0M.MICRO` to `YYYY.0W.MICRO`, the tag `2026.09.3` reads as week 9, and after switching to `YYYY.0M.0D[.MICRO]`, the tag `2026.09.30` reads as 30 September.
+This can produce a wrong next version or fail the release because the latest tag looks like a future date.
+
 ## Related documentation
 
 - [Writing commits](commits.md)
