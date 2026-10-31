@@ -18,7 +18,6 @@ const (
 	maxMonth = 12
 	maxDay   = 31
 	maxWeek  = 53
-	weekDays = 7
 
 	fullYearMinDigits = 4
 	shortYearBase     = 2000
@@ -461,6 +460,10 @@ func (p *calverParts) set(token calverToken, rawValue, version string) error {
 }
 
 func (f calverFormat) validateParts(parts calverParts, version string) error {
+	if f.hasWeek && parts.Week > isoWeeksInYear(parts.Year) {
+		return fmt.Errorf("%w: ISO year %d has no week %d in %q", ErrInvalidVersion, parts.Year, parts.Week, version)
+	}
+
 	if f.hasMonth && f.hasDay {
 		date := time.Date(parts.Year, time.Month(parts.Month), parts.Day, 0, 0, 0, 0, time.UTC)
 		if date.Year() != parts.Year || int(date.Month()) != parts.Month || date.Day() != parts.Day {
@@ -471,17 +474,24 @@ func (f calverFormat) validateParts(parts calverParts, version string) error {
 	return nil
 }
 
+func isoWeeksInYear(year int) int {
+	_, week := time.Date(year, time.December, 28, 0, 0, 0, 0, time.UTC).ISOWeek()
+
+	return week
+}
+
 func (f calverFormat) partsFromTime(t time.Time) calverParts {
+	if f.hasWeek {
+		year, week := t.ISOWeek()
+
+		return calverParts{Year: year, Week: week}
+	}
+
 	return calverParts{
 		Year:  t.Year(),
 		Month: int(t.Month()),
-		Week:  ordinalWeek(t),
 		Day:   t.Day(),
 	}
-}
-
-func ordinalWeek(t time.Time) int {
-	return ((t.YearDay() - 1) / weekDays) + 1
 }
 
 func (f calverFormat) render(parts calverParts) string {

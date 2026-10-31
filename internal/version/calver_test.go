@@ -338,7 +338,7 @@ func TestCalVerNext(t *testing.T) {
 			{
 				name:    "week format",
 				format:  "YYYY.0W.MICRO",
-				current: "2026.06.5",
+				current: "2026.07.5",
 				now:     fixedDate(2026, time.February, 4),
 			},
 		}
@@ -405,19 +405,19 @@ func TestCalVerNext(t *testing.T) {
 			{
 				name:     "year week",
 				format:   "YYYY.0W.MICRO",
-				wantNext: "2026.32.1",
+				wantNext: "2026.33.1",
 				comparisons: []comparisonCase{
-					{name: "year", future: "2027.01.5", past: "2025.53.7"},
-					{name: "week", future: "2026.33.5", past: "2026.31.7"},
+					{name: "year", future: "2027.01.5", past: "2025.52.7"},
+					{name: "week", future: "2026.34.5", past: "2026.32.7"},
 				},
 			},
 			{
 				name:     "week year",
 				format:   "0W.YYYY.MICRO",
-				wantNext: "32.2026.1",
+				wantNext: "33.2026.1",
 				comparisons: []comparisonCase{
-					{name: "year", future: "01.2027.5", past: "53.2025.7"},
-					{name: "week", future: "33.2026.5", past: "31.2026.7"},
+					{name: "year", future: "01.2027.5", past: "52.2025.7"},
+					{name: "week", future: "34.2026.5", past: "32.2026.7"},
 				},
 			},
 			{
@@ -584,11 +584,11 @@ func TestCalVerNext(t *testing.T) {
 		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2026, time.February, 4))
 
 		// when: calculating next within the same week
-		next, err := cv.Next("2026.05.2", commit.BumpPatch)
+		next, err := cv.Next("2026.06.2", commit.BumpPatch)
 
 		// then: micro increments
 		testastic.NoError(t, err)
-		testastic.Equal(t, "2026.05.3", next)
+		testastic.Equal(t, "2026.06.3", next)
 	})
 
 	t.Run("week format resets on new week", func(t *testing.T) {
@@ -605,18 +605,60 @@ func TestCalVerNext(t *testing.T) {
 		testastic.Equal(t, "2026.06.1", next)
 	})
 
-	t.Run("week format resets on new year", func(t *testing.T) {
+	t.Run("week format starts new weeks on monday", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a week-based calver strategy on the first day of a new year
+		// given: a week-based calver strategy on the Monday after ISO week 6
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2026, time.February, 9))
+
+		// when: calculating next from a release in ISO week 6
+		next, err := cv.Next("2026.06.4", commit.BumpPatch)
+
+		// then: micro resets for ISO week 7
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.07.1", next)
+	})
+
+	t.Run("week format keeps early january in the previous iso year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy on 1 January 2027, which is in ISO week 2026-W53
 		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2027, time.January, 1))
 
-		// when: calculating next from the previous year's final week
+		// when: calculating next from a release earlier in the same ISO week
 		next, err := cv.Next("2026.53.4", commit.BumpPatch)
 
-		// then: micro resets and year rolls over
+		// then: the version stays in the ISO week-year and micro increments
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.53.5", next)
+	})
+
+	t.Run("week format resets on first iso week of new year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy on 4 January 2027, the first day of ISO week 2027-W01
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", fixedDate(2027, time.January, 4))
+
+		// when: calculating next from the previous ISO year's final week
+		next, err := cv.Next("2026.53.5", commit.BumpPatch)
+
+		// then: micro resets and the ISO week-year rolls over
 		testastic.NoError(t, err)
 		testastic.Equal(t, "2027.01.1", next)
+	})
+
+	t.Run("week format assigns late december to the next iso year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a short-year week strategy on 30 December 2024, which is in ISO week 2025-W01
+		cv := newCalVer(t, "YY.0W.MICRO", "v", fixedDate(2024, time.December, 30))
+
+		// when: calculating next from the final ISO week of 2024
+		next, err := cv.Next("24.52.3", commit.BumpPatch)
+
+		// then: the version uses the next ISO week-year
+		testastic.NoError(t, err)
+		testastic.Equal(t, "25.01.1", next)
 	})
 
 	t.Run("year-pad format renders padded year", func(t *testing.T) {
@@ -696,9 +738,9 @@ func TestCalVerDeprecatedTokenAliases(t *testing.T) {
 		{
 			short:      "YYYY.W.MICRO",
 			deprecated: "YYYY.WW.MICRO",
-			current:    "v2026.5.1",
+			current:    "v2026.6.1",
 			now:        fixedDate(2026, time.February, 4),
-			next:       "2026.5.2",
+			next:       "2026.6.2",
 		},
 		{
 			short:      "YYYY.M.D.MICRO",
@@ -821,6 +863,34 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		// then: parsing rejects the week
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("rejects week 53 in a 52-week ISO year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy and 2027, which has 52 ISO weeks
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", nil)
+
+		// when: parsing a tag for week 53 of 2027
+		_, err := cv.Current("v2027.53.1")
+
+		// then: parsing rejects the week
+		testastic.Error(t, err)
+		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+	})
+
+	t.Run("accepts week 53 in a 53-week ISO year", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a week-based calver strategy and 2026, which has 53 ISO weeks
+		cv := newCalVer(t, "YYYY.0W.MICRO", "v", nil)
+
+		// when: parsing a tag for week 53 of 2026
+		current, err := cv.Current("v2026.53.1")
+
+		// then: parsing accepts the week
+		testastic.NoError(t, err)
+		testastic.Equal(t, "2026.53.1", current)
 	})
 
 	t.Run("rejects week zero", func(t *testing.T) {
