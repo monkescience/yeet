@@ -415,7 +415,7 @@
         },
         "channels": {
           "type": "object",
-          "description": "Named prerelease channels. Each channel runs only on its configured branch and creates semver prerelease versions.",
+          "description": "Named prerelease channels. Each channel runs only on its configured branch and creates prerelease versions.",
           "propertyNames": {
             "type": "string",
             "minLength": 1
