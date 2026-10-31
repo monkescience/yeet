@@ -75,6 +75,16 @@ func TestCalVerOrderedRefs(t *testing.T) {
 			want: []string{"v27.1.1", "v26.10.1", "v26.2.9", "v25.12.9"},
 		},
 		{
+			name: "filters four-digit years from short year formats", format: "YY.0M.MICRO",
+			refs: []string{"v2026.02.4", "v26.02.3", "v100.01.1", "v1000.01.1"},
+			want: []string{"v100.01.1", "v26.02.3"},
+		},
+		{
+			name: "filters four-digit years from padded short year formats", format: "0Y.0M.MICRO",
+			refs: []string{"v2026.02.4", "v26.02.3", "v07.03.1"},
+			want: []string{"v26.02.3", "v07.03.1"},
+		},
+		{
 			name: "orders month-first formats chronologically", format: "0M.YYYY.MICRO",
 			refs: []string{"v01.2027.1", "v12.2026.1", "v02.2026.10", "v02.2026.2"},
 			want: []string{"v01.2027.1", "v12.2026.1", "v02.2026.10", "v02.2026.2"},

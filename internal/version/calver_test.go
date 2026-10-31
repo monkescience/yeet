@@ -794,6 +794,22 @@ func TestCalVerCurrent_AdditionalFormats(t *testing.T) {
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
 	})
 
+	t.Run("rejects four-digit year in short year formats", func(t *testing.T) {
+		t.Parallel()
+
+		for _, format := range []string{"YY.0M.MICRO", "0Y.0M.MICRO"} {
+			// given: a short year format and a tag written with a four-digit year
+			cv := newCalVer(t, format, "v", nil)
+
+			// when: parsing
+			_, err := cv.Current("v2026.02.4")
+
+			// then: the four-digit year is not read as a short year
+			testastic.Error(t, err)
+			testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		}
+	})
+
 	t.Run("rejects non-numeric segment", func(t *testing.T) {
 		t.Parallel()
 

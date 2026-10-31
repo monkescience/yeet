@@ -414,7 +414,7 @@ func (p *calverParts) set(token calverToken, rawValue, version string) error {
 
 		p.Year = value
 	case calverTokenYearShort, calverTokenYearPad:
-		if value < 0 {
+		if value < 0 || len(rawValue) >= fullYearMinDigits {
 			return fmt.Errorf("%w: invalid year %q in %q", ErrInvalidVersion, rawValue, version)
 		}
 
