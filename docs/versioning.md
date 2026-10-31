@@ -39,13 +39,14 @@ calver:
 | Component | Tokens |
 |---|---|
 | Year | `YYYY`, `YY`, `0Y` |
-| Month | `MM`, `0M` |
-| ISO week | `WW`, `0W` |
-| Day | `DD`, `0D` |
+| Month | `M`, `0M` |
+| ISO week | `W`, `0W` |
+| Day | `D`, `0D` |
 | Counter | `MICRO` |
 
 A format needs exactly one year token and must end with `MICRO`.
 Tokens starting with `0` are zero-padded.
+`MM`, `WW`, and `DD` are deprecated aliases for `M`, `W`, and `D`. They are not zero-padded, and a format cannot use an alias together with its short form.
 Week cannot be combined with month or day, and day requires month.
 
 Dates follow the configured [timezone](configuration.md#timezone).

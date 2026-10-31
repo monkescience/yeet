@@ -20,6 +20,9 @@ func TestReleaseCalVerFormats(t *testing.T) {
 		{name: "YY.MM.MICRO", format: "YY.MM.MICRO", tag: "v25.5.0"},
 		{name: "YYYY.WW.MICRO", format: "YYYY.WW.MICRO", tag: "v2025.20.0"},
 		{name: "YYYY.0M.0D.MICRO", format: "YYYY.0M.0D.MICRO", tag: "v2025.05.14.0"},
+		{name: "YYYY.M.MICRO", format: "YYYY.M.MICRO", tag: "v2025.5.0"},
+		{name: "YYYY.W.MICRO", format: "YYYY.W.MICRO", tag: "v2025.20.0"},
+		{name: "YY.M.D.MICRO", format: "YY.M.D.MICRO", tag: "v25.5.14.0"},
 	}
 
 	for _, tc := range formats {
@@ -130,6 +133,11 @@ func TestReleaseCalVerInvalidFormats(t *testing.T) {
 			name:         "unknown token",
 			format:       "YYYY.MM.FOO",
 			expectedFile: "testdata/release/rejects_unknown_token/stderr.expected.txt",
+		},
+		{
+			name:         "short month with deprecated alias",
+			format:       "YYYY.M.MM.MICRO",
+			expectedFile: "testdata/release/rejects_short_month_with_deprecated_alias/stderr.expected.txt",
 		},
 	}
 

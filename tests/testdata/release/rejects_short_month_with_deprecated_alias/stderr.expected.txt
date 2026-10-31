@@ -1,0 +1,1 @@
+ERROR invalid configuration: calver.format: calver format uses M and MM, which are the same token: "YYYY.M.MM.MICRO" path={{anyString}}

@@ -29,6 +29,10 @@ func TestValidateCalVerFormat(t *testing.T) {
 		"YY.MM.MICRO",
 		"0Y.0W.MICRO",
 		"YYYY.0M.0D.MICRO",
+		"YYYY.M.MICRO",
+		"YY.W.MICRO",
+		"YYYY.M.D.MICRO",
+		"D.M.YYYY.MICRO",
 	}
 
 	for _, format := range validFormats {
@@ -59,6 +63,14 @@ func TestValidateCalVerFormat(t *testing.T) {
 		"YYYY.0M.WW.MICRO",
 		"0Y.WW.0W.MICRO",
 		"YYYY.0M.DD.0D.MICRO",
+		"YYYY.M.MM.MICRO",
+		"YYYY.MM.M.MICRO",
+		"YYYY.W.WW.MICRO",
+		"YYYY.M.D.DD.MICRO",
+		"YYYY.M.0M.MICRO",
+		"YYYY.M.W.MICRO",
+		"YYYY.D.MICRO",
+		"YYYY.MMM.MICRO",
 		"YYYY.YY.0M.MICRO",
 		".YYYY.0M.MICRO",
 		"   ",
@@ -662,6 +674,65 @@ func TestCalVerNext(t *testing.T) {
 		testastic.Error(t, err)
 		testastic.ErrorIs(t, err, version.ErrInvalidVersion)
 	})
+}
+
+func TestCalVerDeprecatedTokenAliases(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		short      string
+		deprecated string
+		current    string
+		now        func() time.Time
+		next       string
+	}{
+		{
+			short:      "YY.M.MICRO",
+			deprecated: "YY.MM.MICRO",
+			current:    "v26.2.3",
+			now:        fixedTime(2026, time.February),
+			next:       "26.2.4",
+		},
+		{
+			short:      "YYYY.W.MICRO",
+			deprecated: "YYYY.WW.MICRO",
+			current:    "v2026.5.1",
+			now:        fixedDate(2026, time.February, 4),
+			next:       "2026.5.2",
+		},
+		{
+			short:      "YYYY.M.D.MICRO",
+			deprecated: "YYYY.MM.DD.MICRO",
+			current:    "v2026.2.3.1",
+			now:        fixedDate(2026, time.February, 9),
+			next:       "2026.2.9.1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.deprecated+" matches "+tc.short, func(t *testing.T) {
+			t.Parallel()
+
+			// given: one strategy using the short tokens and one using the deprecated doubled tokens
+			short := newCalVer(t, tc.short, "v", tc.now)
+			deprecated := newCalVer(t, tc.deprecated, "v", tc.now)
+
+			// when: parsing the same tag and calculating the next version with both
+			shortCurrent, shortErr := short.Current(tc.current)
+			deprecatedCurrent, deprecatedErr := deprecated.Current(tc.current)
+			shortNext, shortNextErr := short.Next(shortCurrent, commit.BumpPatch)
+			deprecatedNext, deprecatedNextErr := deprecated.Next(deprecatedCurrent, commit.BumpPatch)
+
+			// then: both spellings parse and render identical unpadded versions
+			testastic.NoError(t, shortErr)
+			testastic.NoError(t, deprecatedErr)
+			testastic.NoError(t, shortNextErr)
+			testastic.NoError(t, deprecatedNextErr)
+			testastic.Equal(t, deprecatedCurrent, shortCurrent)
+			testastic.Equal(t, tc.next, shortNext)
+			testastic.Equal(t, tc.next, deprecatedNext)
+		})
+	}
 }
 
 func TestCalVerCurrent_AdditionalFormats(t *testing.T) {

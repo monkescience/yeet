@@ -166,11 +166,11 @@ const (
 	calverTokenYearFull  calverToken = "YYYY"
 	calverTokenYearShort calverToken = "YY"
 	calverTokenYearPad   calverToken = "0Y"
-	calverTokenMonth     calverToken = "MM"
+	calverTokenMonth     calverToken = "M"
 	calverTokenMonthPad  calverToken = "0M"
-	calverTokenWeek      calverToken = "WW"
+	calverTokenWeek      calverToken = "W"
 	calverTokenWeekPad   calverToken = "0W"
-	calverTokenDay       calverToken = "DD"
+	calverTokenDay       calverToken = "D"
 	calverTokenDayPad    calverToken = "0D"
 	calverTokenMicro     calverToken = "MICRO"
 )
@@ -199,10 +199,13 @@ var calverTokenSpecs = []calverTokenSpec{
 	{text: string(calverTokenYearFull), token: calverTokenYearFull},
 	{text: string(calverTokenYearShort), token: calverTokenYearShort},
 	{text: string(calverTokenYearPad), token: calverTokenYearPad},
+	{text: "MM", token: calverTokenMonth},
 	{text: string(calverTokenMonth), token: calverTokenMonth},
 	{text: string(calverTokenMonthPad), token: calverTokenMonthPad},
+	{text: "WW", token: calverTokenWeek},
 	{text: string(calverTokenWeek), token: calverTokenWeek},
 	{text: string(calverTokenWeekPad), token: calverTokenWeekPad},
+	{text: "DD", token: calverTokenDay},
 	{text: string(calverTokenDay), token: calverTokenDay},
 	{text: string(calverTokenDayPad), token: calverTokenDayPad},
 }
@@ -214,20 +217,15 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 	}
 
 	compiled := calverFormat{raw: format}
-	seen := make(map[calverToken]bool)
+	seen := make(map[calverToken]string)
 
 	for idx := 0; idx < len(format); {
 		if spec, ok := matchCalVerToken(format[idx:]); ok {
-			if seen[spec.token] {
-				return calverFormat{}, fmt.Errorf(
-					"%w: duplicate %s token in calver format %q",
-					ErrInvalidVersion,
-					spec.text,
-					format,
-				)
+			if first, ok := seen[spec.token]; ok {
+				return calverFormat{}, duplicateCalVerTokenError(first, spec.text, format)
 			}
 
-			seen[spec.token] = true
+			seen[spec.token] = spec.text
 			compiled.parts = append(compiled.parts, calverFormatPart{token: spec.token})
 			compiled.tokens = append(compiled.tokens, spec.token)
 			idx += len(spec.text)
@@ -263,12 +261,26 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 	return compiled, nil
 }
 
-func validateCompiledCalVerFormat(format string, compiled *calverFormat, seen map[calverToken]bool) error {
+func duplicateCalVerTokenError(first, second, format string) error {
+	if first != second {
+		return fmt.Errorf(
+			"%w: calver format uses %s and %s, which are the same token: %q",
+			ErrInvalidVersion,
+			first,
+			second,
+			format,
+		)
+	}
+
+	return fmt.Errorf("%w: duplicate %s token in calver format %q", ErrInvalidVersion, second, format)
+}
+
+func validateCompiledCalVerFormat(format string, compiled *calverFormat, seen map[calverToken]string) error {
 	if len(compiled.parts) == 0 || compiled.parts[0].literal != "" || compiled.parts[len(compiled.parts)-1].literal != "" {
 		return fmt.Errorf("%w: calver format must start and end with a token: %q", ErrInvalidVersion, format)
 	}
 
-	if !seen[calverTokenYearFull] && !seen[calverTokenYearShort] && !seen[calverTokenYearPad] {
+	if countSeen(seen, calverTokenYearFull, calverTokenYearShort, calverTokenYearPad) == 0 {
 		return fmt.Errorf("%w: calver format must include a year token: %q", ErrInvalidVersion, format)
 	}
 
@@ -276,7 +288,7 @@ func validateCompiledCalVerFormat(format string, compiled *calverFormat, seen ma
 		return fmt.Errorf("%w: calver format must include only one year token: %q", ErrInvalidVersion, format)
 	}
 
-	if !seen[calverTokenMicro] {
+	if countSeen(seen, calverTokenMicro) == 0 {
 		return fmt.Errorf("%w: calver format must include MICRO: %q", ErrInvalidVersion, format)
 	}
 
@@ -284,9 +296,9 @@ func validateCompiledCalVerFormat(format string, compiled *calverFormat, seen ma
 		return fmt.Errorf("%w: calver format must end with MICRO: %q", ErrInvalidVersion, format)
 	}
 
-	compiled.hasMonth = seen[calverTokenMonth] || seen[calverTokenMonthPad]
-	compiled.hasWeek = seen[calverTokenWeek] || seen[calverTokenWeekPad]
-	compiled.hasDay = seen[calverTokenDay] || seen[calverTokenDayPad]
+	compiled.hasMonth = countSeen(seen, calverTokenMonth, calverTokenMonthPad) > 0
+	compiled.hasWeek = countSeen(seen, calverTokenWeek, calverTokenWeekPad) > 0
+	compiled.hasDay = countSeen(seen, calverTokenDay, calverTokenDayPad) > 0
 
 	if countSeen(seen, calverTokenMonth, calverTokenMonthPad) > 1 {
 		return fmt.Errorf("%w: calver format must include only one month token: %q", ErrInvalidVersion, format)
@@ -327,11 +339,11 @@ func matchCalVerToken(s string) (calverTokenSpec, bool) {
 	return calverTokenSpec{}, false
 }
 
-func countSeen(seen map[calverToken]bool, tokens ...calverToken) int {
+func countSeen(seen map[calverToken]string, tokens ...calverToken) int {
 	count := 0
 
 	for _, token := range tokens {
-		if seen[token] {
+		if _, ok := seen[token]; ok {
 			count++
 		}
 	}
