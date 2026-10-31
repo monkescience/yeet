@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.18.0](https://github.com/monkescience/yeet/compare/v0.17.5...v0.18.0) (2026-10-31)
+
+### ⚠ BREAKING CHANGES
+
+- **config:** default timezone to UTC ([46c4518](https://github.com/monkescience/yeet/commit/46c4518d9cad97fe66849ec7e28a3d469802c81f))
+  > `timezone` now defaults to `UTC` instead of `Local`, following the calver convention.
+  > Calver versions and changelog dates use the UTC date, so local dry runs and CI agree.
+  >
+  > You are affected if you do not set `timezone` and run yeet on a machine whose local time is not UTC.
+  > Between midnight UTC and local midnight, the release date can now differ by one day from before.
+  > This applies to semver projects too, because `timezone` also sets changelog dates.
+  >
+  > To keep the previous behavior, set it explicitly in `.yeet.yaml`:
+  >
+  > ```yaml
+  > timezone: Local
+  > ```
+- **version:** number calver weeks by ISO 8601 ([4654d96](https://github.com/monkescience/yeet/commit/4654d966b28f42a770132c03483b7d1a8579b764))
+
+### Features
+
+- **config:** default timezone to UTC ([46c4518](https://github.com/monkescience/yeet/commit/46c4518d9cad97fe66849ec7e28a3d469802c81f))
+- **version:** support an optional trailing calver micro segment ([7e7bb77](https://github.com/monkescience/yeet/commit/7e7bb773305c28ec40586459b8698b0eca004c0b))
+- **version:** number calver weeks by ISO 8601 ([4654d96](https://github.com/monkescience/yeet/commit/4654d966b28f42a770132c03483b7d1a8579b764))
+- **version:** accept M, W, and D as short calver tokens ([dd2934d](https://github.com/monkescience/yeet/commit/dd2934d13c9e51a9f67e6dc4929351cd8fcc5928))
+
 ## [v0.17.5](https://github.com/monkescience/yeet/compare/v0.17.4...v0.17.5) (2026-10-31)
 
 ### Bug Fixes
