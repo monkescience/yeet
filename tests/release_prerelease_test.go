@@ -238,6 +238,91 @@ func TestReleaseAsFooterErrors(t *testing.T) {
 		)
 	})
 
+	t.Run("github ignores calver Release-As value in another format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver project and a feat commit whose Release-As footer is a semver version
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.05.3", Tag: "v2025.05.3"},
+				{Message: "feat: bad pin\n\nRelease-As: 2.0.0"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2025.05.3",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.MICRO",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet warns, names the calver format, and plans the next calver release
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "ignoring release override in another version format")
+		testastic.Contains(t, result.Stderr, "value=2.0.0")
+		testastic.Contains(t, result.Stderr, `hint="use the calver format YYYY.0M.MICRO to set the version of this target"`)
+		testastic.Contains(t, result.Stdout, "2025.05.3 →")
+	})
+
+	t.Run("github rejects calver Release-As value from a future period", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver project and a commit whose Release-As footer is in a later year
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v2025.05.3", Tag: "v2025.05.3"},
+				{Message: "feat: early pin\n\nRelease-As: 2999.01.1"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v2025.05.3",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.MICRO",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 and the hint names the calendar period, not a newer version
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr,
+			"invalid release version override: requested version is from a future calendar period")
+		testastic.Contains(t, result.Stderr, `hint="use a version from the current calendar period"`)
+	})
+
 	t.Run("github reports malformed remote tag metadata", func(t *testing.T) {
 		t.Parallel()
 

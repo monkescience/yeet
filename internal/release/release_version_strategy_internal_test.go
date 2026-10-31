@@ -8,6 +8,14 @@ import (
 	"github.com/monkescience/yeet/internal/version"
 )
 
+type noPrereleaseStrategy struct {
+	version.Strategy
+}
+
+func (noPrereleaseStrategy) SupportsPrerelease() bool {
+	return false
+}
+
 type prereleaseCountingStrategy struct {
 	version.Strategy
 	calls int
@@ -33,8 +41,8 @@ func TestVersionStrategyForResolvedTarget(t *testing.T) {
 		testastic.NoError(t, err)
 
 		// then: callers get an answer instead of a nil interface
-		testastic.Equal(t, false, strategy.SupportsPrerelease())
-		testastic.Equal(t, false, strategy.SupportsReleaseAs())
+		testastic.Equal(t, true, strategy.SupportsPrerelease())
+		testastic.Equal(t, true, strategy.SupportsReleaseAs())
 	})
 }
 
@@ -124,10 +132,10 @@ func TestReleaseRunWithChannelChangelogs(t *testing.T) {
 		testastic.Equal(t, "CHANGELOG.beta.md", resolved["app"].Changelog.File)
 	})
 
-	t.Run("rejects a scheme config validation would reject", func(t *testing.T) {
+	t.Run("rejects a target whose strategy has no prerelease support", func(t *testing.T) {
 		t.Parallel()
 
-		// given: an active prerelease channel and a target with an unknown scheme
+		// given: an active prerelease channel and a strategy without prerelease support
 		cfg := config.Default()
 		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
 			"beta": {Branch: "beta", Prerelease: "beta"},
@@ -135,17 +143,19 @@ func TestReleaseRunWithChannelChangelogs(t *testing.T) {
 		targets := map[string]config.ResolvedTarget{
 			"app": {ID: "app", Versioning: "unknown", TagPrefix: "v"},
 		}
-
-		strategies, strategyErr := newVersionStrategies(targets, nil)
-		testastic.NoError(t, strategyErr)
+		strategies := map[string]version.Strategy{
+			"app": noPrereleaseStrategy{Strategy: version.NewSemVer(version.SemVerOptions{Prefix: "v"})},
+		}
 
 		// when: the channel narrows the target set
 		run, err := resolveRun(cfg, "beta", Options{})
 		testastic.NoError(t, err)
 		_, err = run.withChannelChangelogs(targets, strategies)
 
-		// then: the target is reported as unsupported rather than panicking
+		// then: the target is reported as unsupported
 		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.Contains(t, err.Error(), `prerelease channel "beta" supports semver targets only`)
+		testastic.Equal(t,
+			`invalid config: prerelease channel "beta" does not support target "app" with "unknown" versioning`,
+			err.Error())
 	})
 }

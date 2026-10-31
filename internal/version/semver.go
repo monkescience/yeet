@@ -196,7 +196,11 @@ func (s *SemVer) parseRef(tag string) (*semver.Version, error) {
 }
 
 func semverPrereleaseAllowed(parsed *semver.Version, identifier string) bool {
-	prerelease := strings.TrimSpace(parsed.Prerelease())
+	return prereleaseAllowed(parsed.Prerelease(), identifier)
+}
+
+func prereleaseAllowed(prerelease, identifier string) bool {
+	prerelease = strings.TrimSpace(prerelease)
 	if identifier == "" {
 		return prerelease == ""
 	}
@@ -320,22 +324,28 @@ func firstPrerelease(baseVersion, prereleaseIdentifier string) string {
 }
 
 func incrementPrerelease(current *semver.Version, prereleaseIdentifier string) (string, bool, error) {
-	prerelease := current.Prerelease()
-	if prerelease == "" {
-		return "", false, nil
+	counter, ok, err := nextPrereleaseCounter(current.Prerelease(), prereleaseIdentifier)
+	if err != nil || !ok {
+		return "", false, err
 	}
 
+	return fmt.Sprintf("%s-%s.%d", versionCore(current), prereleaseIdentifier, counter), true, nil
+}
+
+// nextPrereleaseCounter returns the counter after the one in prerelease, such as 3 for beta.2.
+// It reports false when prerelease has no counter for the identifier.
+func nextPrereleaseCounter(prerelease, prereleaseIdentifier string) (int64, bool, error) {
 	counterText, found := strings.CutPrefix(prerelease, prereleaseIdentifier+".")
 	if !found || counterText == "" {
-		return "", false, nil
+		return 0, false, nil
 	}
 
 	counter, err := parsePrereleaseCounter(counterText)
 	if err != nil {
-		return "", false, err
+		return 0, false, err
 	}
 
-	return fmt.Sprintf("%s-%s.%d", versionCore(current), prereleaseIdentifier, counter+1), true, nil
+	return counter + 1, true, nil
 }
 
 func parsePrereleaseCounter(counterText string) (int64, error) {
@@ -371,11 +381,26 @@ func inferBump(currentVersion, targetVersion *semver.Version) commit.BumpType {
 	return commit.BumpPatch
 }
 
+// ReleaseAsReason tells why a Release-As value is not valid.
+type ReleaseAsReason int
+
+const (
+	// ReleaseAsReasonOther is a problem that has no specific reason.
+	ReleaseAsReasonOther ReleaseAsReason = iota
+	// ReleaseAsReasonFormat means that the value is not in the version format of the target.
+	ReleaseAsReasonFormat
+	// ReleaseAsReasonFuturePeriod means that the calver value is in a later calendar period.
+	ReleaseAsReasonFuturePeriod
+	// ReleaseAsReasonLabel means that the calver value includes a label, which calver.label adds.
+	ReleaseAsReasonLabel
+)
+
 type ReleaseAsError struct {
 	Requested   string
 	Current     string
 	Conflicting string
 	Problem     string
+	Reason      ReleaseAsReason
 	cause       error
 }
 

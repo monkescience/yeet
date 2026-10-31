@@ -531,6 +531,16 @@ func describeReleaseContent(d *diagnostic, failure *release.Failure) bool {
 	}
 
 	if releaseAs, ok := errors.AsType[*version.ReleaseAsError](failure); ok {
+		switch releaseAs.Reason {
+		case version.ReleaseAsReasonFormat:
+			d.hint = "use a version in the version format of the target"
+		case version.ReleaseAsReasonFuturePeriod:
+			d.hint = "use a version from the current calendar period"
+		case version.ReleaseAsReasonLabel:
+			d.hint = "remove the label from the version, calver.label adds it"
+		case version.ReleaseAsReasonOther:
+		}
+
 		d.explain(releaseAs.Problem)
 		d.attrs = appendNonempty(d.attrs, slog.String("requested", releaseAs.Requested),
 			slog.String("current", releaseAs.Current), slog.String("conflicts_with", releaseAs.Conflicting))

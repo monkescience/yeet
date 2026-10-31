@@ -289,6 +289,7 @@ func (b BumpTypesConfig) ToBumpMapping() commit.BumpMapping {
 
 type CalVerConfig struct {
 	Format string `yaml:"format"`
+	Label  string `yaml:"label,omitempty"`
 }
 
 var (

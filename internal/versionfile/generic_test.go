@@ -123,6 +123,21 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.Equal(t, "PATCH=3 # x-yeet-patch", updated)
 	})
 
+	t.Run("replaces a version whose prerelease suffix has a hyphen", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an inline version marker with a hyphen in the prerelease suffix
+		content := `VERSION = "1.2.3-rc-1" # x-yeet-version`
+
+		// when: applying marker replacements with a stable version
+		updated, changed, err := location.Apply(content, "1.2.4", versionfile.SemVerScheme())
+
+		// then: the full old version is replaced, not only the part before the hyphen
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, `VERSION = "1.2.4" # x-yeet-version`, updated)
+	})
+
 	t.Run("empty content returns unchanged", func(t *testing.T) {
 		t.Parallel()
 
@@ -355,6 +370,64 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.Equal(t, expected, updated)
+	})
+
+	t.Run("replaces calver markers with a prerelease version", func(t *testing.T) {
+		t.Parallel()
+
+		// given: full-version, month and micro markers on the default format
+		content := strings.Join([]string{
+			`version = "2026.11.1" # x-yeet-version`,
+			`month = 10 # x-yeet-month`,
+			`micro = 1 # x-yeet-micro`,
+		}, "\n")
+
+		// when: applying marker replacements with a calver prerelease
+		updated, changed, err := location.Apply(content, "2026.11.2-beta.1", defaultScheme)
+
+		// then: the full version keeps the suffix and the segments do not
+		expected := strings.Join([]string{
+			`version = "2026.11.2-beta.1" # x-yeet-version`,
+			`month = 11 # x-yeet-month`,
+			`micro = 2 # x-yeet-micro`,
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
+	})
+
+	t.Run("replaces calver markers with a labeled version and after the label is removed", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct{ name, current, next, micro string }{
+			{name: "labeled", current: "2026.11.1-beta", next: "2026.11.2-beta", micro: "2"},
+			{name: "label removed", current: "2026.11.2-beta", next: "2026.11.3", micro: "3"},
+			{name: "label with a hyphen", current: "2026.11.1-public-beta", next: "2026.11.2-public-beta", micro: "2"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: full-version and micro markers with the current version
+				content := strings.Join([]string{
+					`version = "` + testCase.current + `" # x-yeet-version`,
+					`micro = 1 # x-yeet-micro`,
+				}, "\n")
+
+				// when: applying marker replacements with the next version
+				updated, changed, err := location.Apply(content, testCase.next, defaultScheme)
+
+				// then: the full version replaces the old suffix and micro has no label
+				expected := strings.Join([]string{
+					`version = "` + testCase.next + `" # x-yeet-version`,
+					`micro = ` + testCase.micro + ` # x-yeet-micro`,
+				}, "\n")
+
+				testastic.NoError(t, err)
+				testastic.True(t, changed)
+				testastic.Equal(t, expected, updated)
+			})
+		}
 	})
 
 	t.Run("replaces calver markers in block", func(t *testing.T) {

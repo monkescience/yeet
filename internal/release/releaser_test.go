@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monkescience/testastic"
 	"github.com/monkescience/yeet/internal/changelog"
@@ -275,37 +276,105 @@ func TestReleaserInjectsPublisherIntoLifecycle(t *testing.T) {
 func TestPrereleaseChannels(t *testing.T) {
 	t.Parallel()
 
-	t.Run("calver target is rejected with an actionable error", func(t *testing.T) {
+	t.Run("calver target plans a prerelease", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a prerelease channel with a calver target
-		cfg := config.Default()
-		cfg.Versioning = config.VersioningCalVer
-		cfg.Targets = map[string]config.Target{
-			"default": {
-				Type:       config.TargetTypePath,
-				Path:       ".",
-				TagPrefix:  "v",
-				Versioning: config.VersioningCalVer,
+		november := time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC)
+		december := time.Date(2026, time.December, 1, 12, 0, 0, 0, time.UTC)
+
+		testCases := []struct {
+			name     string
+			channel  string
+			now      time.Time
+			tags     []string
+			boundary string
+			current  string
+			next     string
+		}{
+			{name: "without tags", channel: "beta", now: november, next: "2026.11.1-beta.1"},
+			{
+				name: "after the first beta tag of the period", channel: "beta", now: november,
+				tags: []string{"v2026.10.3", "v2026.11.1-beta.1"}, boundary: "v2026.11.1-beta.1",
+				current: "2026.11.1-beta.1", next: "2026.11.1-beta.2",
+			},
+			{
+				name: "stable run after the first betas of the period", now: november,
+				tags: []string{"v2026.10.3", "v2026.11.1-beta.2"}, boundary: "v2026.10.3",
+				current: "2026.10.3", next: "2026.11.1",
+			},
+			{
+				name: "after a stable tag in the period", channel: "beta", now: november,
+				tags: []string{"v2026.11.1"}, boundary: "v2026.11.1",
+				current: "2026.11.1", next: "2026.11.2-beta.1",
+			},
+			{
+				name: "after a beta tag in the period", channel: "beta", now: november,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.1"}, boundary: "v2026.11.2-beta.1",
+				current: "2026.11.2-beta.1", next: "2026.11.2-beta.2",
+			},
+			{
+				name: "after a beta tag in an earlier period", channel: "beta", now: december,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.1"}, boundary: "v2026.11.2-beta.1",
+				current: "2026.11.2-beta.1", next: "2026.12.1-beta.1",
+			},
+			{
+				name: "stable run after betas takes their base", now: november,
+				tags: []string{"v2026.11.1", "v2026.11.2-beta.3"}, boundary: "v2026.11.1",
+				current: "2026.11.1", next: "2026.11.2",
 			},
 		}
-		cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
-			"beta": {Branch: "beta", Prerelease: "beta"},
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a calver target with a beta channel, its tags and a fixed release time
+				cfg := config.Default()
+				cfg.Versioning = config.VersioningCalVer
+				cfg.Targets = map[string]config.Target{
+					"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+				}
+				cfg.Release.Channels = map[string]config.ReleaseChannelConfig{
+					"beta": {Branch: "beta", Prerelease: "beta"},
+				}
+
+				stub := newProviderStub()
+				stub.tagList = testCase.tags
+				entries := []history.CommitEntry{{Hash: "abcdef1234567890", Message: "feat: add export command"}}
+				stub.commits = entries
+
+				if testCase.boundary != "" {
+					stub.commitsByRef = map[string][]history.CommitEntry{testCase.boundary: entries}
+				}
+
+				branch := cfg.Branch
+				options := Options{}
+
+				if testCase.channel != "" {
+					branch = cfg.Release.Channels[testCase.channel].Branch
+					options.Channel = new(testCase.channel)
+				}
+
+				run, err := resolveRun(cfg, branch, options)
+				testastic.NoError(t, err)
+
+				core, err := newReleaseCoreAt(t.Context(), cfg, stub, run, testCase.now)
+				testastic.NoError(t, err)
+
+				r, err := newReleaser(core, sourceFromTestDeps(branch, stub), stub)
+				testastic.NoError(t, err)
+
+				// when: planning the release
+				result, err := r.Release(t.Context(), true)
+
+				// then: the plan uses the calver base of the period and the channel counter
+				testastic.NoError(t, err)
+				testastic.Len(t, result.Plans, 1)
+				testastic.Equal(t, testCase.current, result.Plans[0].CurrentVersion)
+				testastic.Equal(t, testCase.next, result.Plans[0].NextVersion)
+				testastic.Equal(t, "v"+testCase.next, result.Plans[0].NextTag)
+			})
 		}
-
-		stub := newProviderStub()
-
-		// when: constructing the releaser
-		_, err := newStubReleaser(context.Background(), cfg, stub, Options{Channel: new("beta")})
-
-		// then: the error identifies the incompatible target
-		testastic.ErrorIs(t, err, config.ErrInvalidConfig)
-		testastic.Equal(
-			t,
-			"invalid config: prerelease channel \"beta\" supports semver targets only. "+
-				"Target \"default\" uses \"calver\"",
-			err.Error(),
-		)
 	})
 
 	t.Run("stable release ignores prerelease refs", func(t *testing.T) {
@@ -507,6 +576,115 @@ func TestPrereleaseChannels(t *testing.T) {
 		testastic.Equal(t, "v1.3.0-beta.1", result.Releases[0].Release.TagName)
 		testastic.Equal(t, 1, len(stub.createReleaseOpts))
 		testastic.True(t, stub.createReleaseOpts[0].Prerelease)
+	})
+}
+
+func TestCalVerLabel(t *testing.T) {
+	t.Parallel()
+
+	november := time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC)
+	december := time.Date(2026, time.December, 1, 12, 0, 0, 0, time.UTC)
+
+	newLabelReleaser := func(
+		t *testing.T, label string, now time.Time, tags []string, boundary string, autoMerge bool,
+	) (*releaser, *providerStub) {
+		t.Helper()
+
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.CalVer.Label = label
+		cfg.Release.AutoMerge = autoMerge
+		cfg.Release.AutoMergeMode = config.AutoMergeModeDirect
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = tags
+		entries := []history.CommitEntry{{Hash: "abcdef1234567890", Message: "feat: add export command"}}
+		stub.commits = entries
+
+		if boundary != "" {
+			stub.commitsByRef = map[string][]history.CommitEntry{boundary: entries}
+		}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run, now)
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		return r, stub
+	}
+
+	testCases := []struct {
+		name     string
+		label    string
+		now      time.Time
+		tags     []string
+		boundary string
+		current  string
+		next     string
+	}{
+		{name: "without tags", label: "beta", now: november, next: "2026.11.1-beta"},
+		{
+			name: "after a labeled tag in the period", label: "beta", now: november,
+			tags: []string{"v2026.10.3", "v2026.11.1-beta"}, boundary: "v2026.11.1-beta",
+			current: "2026.11.1-beta", next: "2026.11.2-beta",
+		},
+		{
+			name: "after a labeled tag in an earlier period", label: "beta", now: december,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-beta"}, boundary: "v2026.11.2-beta",
+			current: "2026.11.2-beta", next: "2026.12.1-beta",
+		},
+		{
+			name: "label removed after a labeled tag", now: november,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-beta"}, boundary: "v2026.11.2-beta",
+			current: "2026.11.2-beta", next: "2026.11.3",
+		},
+		{
+			name: "labeled tag after channel prereleases", label: "beta", now: november,
+			tags: []string{"v2026.11.1-beta", "v2026.11.2-rc.1"}, boundary: "v2026.11.1-beta",
+			current: "2026.11.1-beta", next: "2026.11.2-beta",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver target with a label, its tags, and a fixed release time
+			r, _ := newLabelReleaser(t, testCase.label, testCase.now, testCase.tags, testCase.boundary, false)
+
+			// when: planning the release
+			result, err := r.Release(t.Context(), true)
+
+			// then: micro continues from the latest tag and the version carries the configured label
+			testastic.NoError(t, err)
+			testastic.Len(t, result.Plans, 1)
+			testastic.Equal(t, testCase.current, result.Plans[0].CurrentVersion)
+			testastic.Equal(t, testCase.next, result.Plans[0].NextVersion)
+			testastic.Equal(t, "v"+testCase.next, result.Plans[0].NextTag)
+		})
+	}
+
+	t.Run("auto-merged labeled release is not a provider prerelease", func(t *testing.T) {
+		t.Parallel()
+
+		// given: auto-merge enabled for a calver target with a label
+		r, stub := newLabelReleaser(t, "beta", november, []string{"v2026.11.1-beta"}, "v2026.11.1-beta", true)
+
+		// when: running the release flow end-to-end
+		result, err := r.Release(t.Context(), false)
+
+		// then: the labeled release is created as a normal provider release
+		testastic.NoError(t, err)
+		testastic.Equal(t, "v2026.11.2-beta", result.Releases[0].Release.TagName)
+		testastic.Equal(t, 1, len(stub.createReleaseOpts))
+		testastic.False(t, stub.createReleaseOpts[0].Prerelease)
 	})
 }
 
@@ -803,10 +981,147 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 
-	t.Run("ignores override for calver", func(t *testing.T) {
+	t.Run("honours calver override on a derived target when a child bumps higher", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a calver repo with only a Release-As chore commit
+		// given: a calver derived target with a Release-As chore commit and a child with a feature
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{
+				Hash:    "1234567890abcdef",
+				Message: "chore: request release\n\nRelease-As: 2026.11.9",
+				Paths:   []string{"README.md"},
+			},
+		}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the child bump does not replace the requested version of the derived target
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "2026.11.1", result.Plans[0].NextVersion)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "2026.11.9", result.Plans[1].NextVersion)
+	})
+
+	t.Run("honours semver override on a derived target when a child bumps higher", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver derived target with a patch Release-As chore commit and a child with a feature
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:      config.TargetTypePath,
+				Path:      "services/api",
+				TagPrefix: "api-v",
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		entries := []history.CommitEntry{
+			{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+			{
+				Hash:    "1234567890abcdef",
+				Message: "chore: request release\n\nRelease-As: 1.0.1",
+				Paths:   []string{"README.md"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v1.0.0", "api-v1.0.0"}
+		stub.commitsByRef = map[string][]history.CommitEntry{"v1.0.0": entries, "api-v1.0.0": entries}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the derived target takes the requested version, not the child bump
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "api", result.Plans[0].ID)
+		testastic.Equal(t, "1.1.0", result.Plans[0].NextVersion)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "1.0.1", result.Plans[1].NextVersion)
+	})
+
+	t.Run("honours override for calver", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with only a Release-As chore commit and a fixed release time
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 2026.11.5",
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the footer sets the calver version
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 1)
+		testastic.Equal(t, "2026.11.5", result.Plans[0].NextVersion)
+	})
+
+	t.Run("ignores calver override in another format", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with only a chore commit and a semver Release-As footer
 		cfg := config.Default()
 		cfg.Versioning = config.VersioningCalVer
 
@@ -821,9 +1136,90 @@ func TestReleaseAsFooter(t *testing.T) {
 		// when: calculating a release
 		result, err := r.Release(context.Background(), true)
 
-		// then: release-as footer is ignored for calver
+		// then: the footer is ignored and the chore commit does not release
 		testastic.NoError(t, err)
-		testastic.Equal(t, 0, len(result.Plans))
+		testastic.Len(t, result.Plans, 0)
+	})
+
+	t.Run("applies a semver override to the semver target of a mixed repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver target and a calver target that one commit with a semver Release-As footer changes
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:       config.TargetTypePath,
+				Path:       "apps/web",
+				TagPrefix:  "app-v",
+				Versioning: config.VersioningCalVer,
+			},
+			"lib": {
+				Type:      config.TargetTypePath,
+				Path:      "libs/core",
+				TagPrefix: "lib-v",
+			},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: rework the shared api\n\nRelease-As: 2.0.0",
+			Paths:   []string{"apps/web/main.go", "libs/core/api.go"},
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		result, err := r.Release(t.Context(), true)
+
+		// then: the semver target takes the requested version and the calver target releases normally
+		testastic.NoError(t, err)
+		testastic.Len(t, result.Plans, 2)
+		testastic.Equal(t, "app", result.Plans[0].ID)
+		testastic.Equal(t, "2026.11.1", result.Plans[0].NextVersion)
+		testastic.Equal(t, "lib", result.Plans[1].ID)
+		testastic.Equal(t, "2.0.0", result.Plans[1].NextVersion)
+	})
+
+	t.Run("rejects calver override from a future period", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver repo with a Release-As footer in the next month
+		cfg := config.Default()
+		cfg.Versioning = config.VersioningCalVer
+		cfg.Targets = map[string]config.Target{
+			"default": {Type: config.TargetTypePath, Path: ".", TagPrefix: "v"},
+		}
+
+		stub := newProviderStub()
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "chore: request release\n\nRelease-As: 2026.12.1",
+		}}
+
+		run, err := resolveRun(cfg, cfg.Branch, Options{})
+		testastic.NoError(t, err)
+
+		core, err := newReleaseCoreAt(t.Context(), cfg, stub, run,
+			time.Date(2026, time.November, 10, 12, 0, 0, 0, time.UTC))
+		testastic.NoError(t, err)
+
+		r, err := newReleaser(core, sourceFromTestDeps(cfg.Branch, stub), stub)
+		testastic.NoError(t, err)
+
+		// when: calculating a release
+		_, err = r.Release(t.Context(), true)
+
+		// then: a value in the calver format that breaks a rule still fails the release
+		testastic.ErrorIs(t, err, errInvalidReleaseAs)
 	})
 }
 

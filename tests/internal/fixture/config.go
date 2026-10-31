@@ -21,6 +21,7 @@ type ConfigOptions struct {
 	Collection        string
 	Versioning        string
 	CalVerFormat      string
+	CalVerLabel       string
 	VersionFiles      []VersionFileOptions
 	Channels          map[string]ChannelOptions
 	Targets           []TargetOptions
@@ -202,6 +203,14 @@ func writeTop(b *strings.Builder, opts ConfigOptions) {
 
 	b.WriteString("calver:\n  format: ")
 	b.WriteString(opts.CalVerFormat)
+	b.WriteString("\n")
+
+	if opts.CalVerLabel == "" {
+		return
+	}
+
+	b.WriteString("  label: ")
+	b.WriteString(opts.CalVerLabel)
 	b.WriteString("\n")
 }
 

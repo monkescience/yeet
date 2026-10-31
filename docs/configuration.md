@@ -82,6 +82,7 @@ Markers work in `#`, `//`, `/* */`, `--`, `;`, and `<!-- -->` comments, and ever
 | calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` if the format has them |
 
 Use `x-yeet-<scope>` inline, or `x-yeet-start-<scope>` with `x-yeet-end` for a block.
+The `version` scope writes the full version, including a prerelease suffix or a calver [label](versioning.md#version-label).
 
 JSON has no comments, so point at the value instead:
 

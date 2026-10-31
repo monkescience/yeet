@@ -257,44 +257,14 @@ func TestCalVerReleaseControls(t *testing.T) {
 
 	cv := newCalVer(t, "YY.MM.MICRO", "v", nil)
 
-	t.Run("supports neither release-as nor a prerelease channel", func(t *testing.T) {
+	t.Run("supports release-as and a prerelease channel", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a calver target
 		// when: its release controls are queried
-		// then: both are refused, so callers never offer them
-		testastic.Equal(t, false, cv.SupportsReleaseAs())
-		testastic.Equal(t, false, cv.SupportsPrerelease())
-	})
-
-	t.Run("refuses to normalize a release-as value", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a footer asking for an explicit version
-		// when: the scheme is asked to canonicalize it
-		_, err := cv.NormalizeReleaseAs("2.0.0")
-
-		// then: the scheme reports that it has nothing to act on
-		testastic.ErrorIs(t, err, version.ErrInvalidReleaseAs)
-		testastic.ErrorContains(t, err, `calver targets do not support "2.0.0"`)
-	})
-
-	t.Run("ignores release controls it does not support", func(t *testing.T) {
-		t.Parallel()
-
-		// given: a bump offered alongside a release-as value and a channel identifier
-		// when: the next release is resolved both with and without them
-		withControls, withBump, withShould, err := cv.NextRelease("24.01.0", commit.BumpPatch, "9.9.9", "beta")
-		testastic.NoError(t, err)
-
-		plain, plainBump, plainShould, err := cv.NextRelease("24.01.0", commit.BumpPatch, "", "")
-		testastic.NoError(t, err)
-
-		// then: the clock alone decides, so the extra arguments change nothing
-		testastic.Equal(t, plain, withControls)
-		testastic.Equal(t, plainBump, withBump)
-		testastic.Equal(t, plainShould, withShould)
-		testastic.Equal(t, true, withShould)
+		// then: it honours both a Release-As footer and a prerelease channel
+		testastic.Equal(t, true, cv.SupportsReleaseAs())
+		testastic.Equal(t, true, cv.SupportsPrerelease())
 	})
 
 	t.Run("reports nothing due without a bump", func(t *testing.T) {
@@ -311,14 +281,17 @@ func TestCalVerReleaseControls(t *testing.T) {
 		testastic.Equal(t, false, shouldRelease)
 	})
 
-	t.Run("claims a version only while no channel is active", func(t *testing.T) {
+	t.Run("claims stable versions for every run and prereleases for their channel", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a scheme that has no prerelease concept
-		// when: versions are offered to a channel
-		// then: it answers by identifier alone, which is why callers ask
-		// SupportsPrerelease first
+		// given: stable, beta, alpha and invalid versions
+		// when: they are offered to a stable run and to a beta channel
+		// then: stable versions count for both, prereleases only for their own channel
 		testastic.Equal(t, true, cv.PrereleaseAllowed("24.01.0", ""))
-		testastic.Equal(t, false, cv.PrereleaseAllowed("24.01.0", "beta"))
+		testastic.Equal(t, true, cv.PrereleaseAllowed("24.01.0", "beta"))
+		testastic.Equal(t, false, cv.PrereleaseAllowed("24.01.1-beta.1", ""))
+		testastic.Equal(t, true, cv.PrereleaseAllowed("24.01.1-beta.1", "beta"))
+		testastic.Equal(t, false, cv.PrereleaseAllowed("24.01.1-alpha.1", "beta"))
+		testastic.Equal(t, false, cv.PrereleaseAllowed("24.13.1-beta.1", "beta"))
 	})
 }
