@@ -67,6 +67,62 @@ func TestReleaseCalVerFormats(t *testing.T) {
 	}
 }
 
+func TestReleaseCalVerOptionalMicro(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		tag         string
+		versionLine string
+	}{
+		{name: "date-only tag", tag: "v2025.05.14", versionLine: "Version     2025.05.14 → "},
+		{name: "tag with micro", tag: "v2025.05.14.1", versionLine: "Version     2025.05.14.1 → "},
+		{name: "tag with explicit micro 0 is ignored", tag: "v2025.05.14.0", versionLine: "Version      → "},
+	}
+
+	for _, tc := range testCases {
+		t.Run("github "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver project with an optional micro segment and one tagged release
+			repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+				[]fixture.RepoCommit{
+					{Message: "chore: release", Tag: tc.tag},
+					{Message: "feat: add a thing"},
+				})
+
+			server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+				Owner:         "testorg",
+				Repo:          "testrepo",
+				LatestTag:     tc.tag,
+				BoundarySHA:   shas[0],
+				BranchHeadSHA: shas[1],
+			})
+
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider:     "github",
+				Branch:       "main",
+				Host:         "github.com",
+				Owner:        "testorg",
+				Repo:         "testrepo",
+				Versioning:   "calver",
+				CalVerFormat: "YYYY.0M.0D[.MICRO]",
+			})
+
+			// when: invoking `yeet release --dry-run`
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--dry-run", "--config", configPath},
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+			)
+
+			// then: yeet plans from the tag only when it is a canonical version for the format
+			testastic.Equal(t, 0, result.ExitCode)
+			testastic.Contains(t, result.Stdout, tc.versionLine)
+		})
+	}
+}
+
 func TestReleaseCalVerDayFirstFormatUsesLatestTag(t *testing.T) {
 	t.Parallel()
 
@@ -138,6 +194,16 @@ func TestReleaseCalVerInvalidFormats(t *testing.T) {
 			name:         "short month with deprecated alias",
 			format:       "YYYY.M.MM.MICRO",
 			expectedFile: "testdata/release/rejects_short_month_with_deprecated_alias/stderr.expected.txt",
+		},
+		{
+			name:         "optional micro after a year only",
+			format:       "YYYY[.MICRO]",
+			expectedFile: "testdata/release/rejects_optional_micro_after_a_year_only/stderr.expected.txt",
+		},
+		{
+			name:         "brackets around a date token",
+			format:       "YYYY.0M[.0D].MICRO",
+			expectedFile: "testdata/release/rejects_brackets_around_a_date_token/stderr.expected.txt",
 		},
 	}
 

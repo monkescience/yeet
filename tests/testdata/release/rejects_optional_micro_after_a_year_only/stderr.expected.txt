@@ -1,0 +1,1 @@
+ERROR invalid configuration: calver.format: optional MICRO requires a month or week token: "YYYY[.MICRO]" path={{anyString}}

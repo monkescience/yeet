@@ -714,7 +714,7 @@
       "properties": {
         "format": {
           "type": "string",
-          "description": "CalVer format template. Supports dot-separated YYYY, YY, 0Y, M, 0M, W, 0W, D, 0D, and required final MICRO tokens. MM, WW, and DD are deprecated aliases for M, W, and D. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.",
+          "description": "CalVer format template. Supports dot-separated YYYY, YY, 0Y, M, 0M, W, 0W, D, 0D, and required final MICRO tokens. In formats with a month or week token, write the final MICRO as [.MICRO] to omit it from the first release of each period. MM, WW, and DD are deprecated aliases for M, W, and D. Week tokens cannot be combined with month or day tokens, and day tokens require a month token.",
           "minLength": 1,
           "default": "YYYY.0M.MICRO"
         }

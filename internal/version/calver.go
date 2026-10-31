@@ -22,6 +22,8 @@ const (
 	fullYearMinDigits = 4
 	shortYearBase     = 2000
 	shortYearPad      = 2
+
+	optionalMicroParts = 2
 )
 
 type CalVer struct {
@@ -111,10 +113,9 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 
 	now := c.now()
 	nowParts := c.format.partsFromTime(now)
+	nowParts.Micro = c.format.firstMicro()
 
 	if current == "" {
-		nowParts.Micro = 1
-
 		return c.format.render(nowParts), nil
 	}
 
@@ -127,7 +128,6 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", fmt.Errorf("%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
 	}
 
-	nowParts.Micro = 1
 	if c.format.sameCalendarPeriod(parts, nowParts) {
 		nowParts.Micro = parts.Micro + 1
 	}
@@ -175,12 +175,13 @@ const (
 )
 
 type calverFormat struct {
-	raw      string
-	parts    []calverFormatPart
-	tokens   []calverToken
-	hasMonth bool
-	hasWeek  bool
-	hasDay   bool
+	raw           string
+	parts         []calverFormatPart
+	tokens        []calverToken
+	hasMonth      bool
+	hasWeek       bool
+	hasDay        bool
+	optionalMicro bool
 }
 
 type calverFormatPart struct {
@@ -216,10 +217,17 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 	}
 
 	compiled := calverFormat{raw: format}
+
+	pattern, optionalMicro, err := stripOptionalMicro(format)
+	if err != nil {
+		return calverFormat{}, err
+	}
+
+	compiled.optionalMicro = optionalMicro
 	seen := make(map[calverToken]string)
 
-	for idx := 0; idx < len(format); {
-		if spec, ok := matchCalVerToken(format[idx:]); ok {
+	for idx := 0; idx < len(pattern); {
+		if spec, ok := matchCalVerToken(pattern[idx:]); ok {
 			if first, ok := seen[spec.token]; ok {
 				return calverFormat{}, duplicateCalVerTokenError(first, spec.text, format)
 			}
@@ -233,12 +241,12 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 		}
 
 		literalStart := idx
-		for idx < len(format) {
-			if _, ok := matchCalVerToken(format[idx:]); ok {
+		for idx < len(pattern) {
+			if _, ok := matchCalVerToken(pattern[idx:]); ok {
 				break
 			}
 
-			if format[idx] != '.' {
+			if pattern[idx] != '.' {
 				return calverFormat{}, fmt.Errorf(
 					"%w: calver format only supports dots as separators: %q",
 					ErrInvalidVersion,
@@ -249,15 +257,36 @@ func compileCalVerFormat(rawFormat string) (calverFormat, error) {
 			idx++
 		}
 
-		compiled.parts = append(compiled.parts, calverFormatPart{literal: format[literalStart:idx]})
+		compiled.parts = append(compiled.parts, calverFormatPart{literal: pattern[literalStart:idx]})
 	}
 
-	err := validateCompiledCalVerFormat(format, &compiled, seen)
+	err = validateCompiledCalVerFormat(format, &compiled, seen)
 	if err != nil {
 		return calverFormat{}, err
 	}
 
 	return compiled, nil
+}
+
+func stripOptionalMicro(format string) (string, bool, error) {
+	if !strings.ContainsAny(format, "[]") {
+		return format, false, nil
+	}
+
+	base, optional, opened := strings.Cut(format, "[")
+	optional, closed := strings.CutSuffix(optional, "]")
+	separator, hasMicro := strings.CutSuffix(optional, string(calverTokenMicro))
+
+	if !opened || !closed || !hasMicro || separator == "" || strings.Trim(separator, ".") != "" ||
+		strings.HasSuffix(base, ".") || strings.Contains(base, "]") {
+		return "", false, fmt.Errorf(
+			"%w: calver format brackets must wrap a separator and MICRO at the end, as in [.MICRO]: %q",
+			ErrInvalidVersion,
+			format,
+		)
+	}
+
+	return base + optional, true, nil
 }
 
 func duplicateCalVerTokenError(first, second, format string) error {
@@ -319,6 +348,10 @@ func validateCompiledCalVerFormat(format string, compiled *calverFormat, seen ma
 		return fmt.Errorf("%w: day tokens require a month token: %q", ErrInvalidVersion, format)
 	}
 
+	if compiled.optionalMicro && !compiled.hasMonth && !compiled.hasWeek {
+		return fmt.Errorf("%w: optional MICRO requires a month or week token: %q", ErrInvalidVersion, format)
+	}
+
 	for idx := 1; idx < len(compiled.parts); idx++ {
 		if compiled.parts[idx-1].literal == "" && compiled.parts[idx].literal == "" {
 			return fmt.Errorf("%w: calver format tokens must be separated by literals: %q", ErrInvalidVersion, format)
@@ -355,7 +388,13 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 	parts := calverParts{}
 	position := 0
 
+	optionalLiteral := f.optionalMicroLiteralIndex()
+
 	for idx, formatPart := range f.parts {
+		if idx == optionalLiteral && position == len(version) {
+			break
+		}
+
 		if formatPart.literal != "" {
 			if !strings.HasPrefix(version[position:], formatPart.literal) {
 				return calverParts{}, fmt.Errorf("%w: expected literal %q in %q", ErrInvalidVersion, formatPart.literal, version)
@@ -366,14 +405,9 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 			continue
 		}
 
-		valueEnd := len(version)
-		if nextLiteral := nextCalVerLiteral(f.parts[idx+1:]); nextLiteral != "" {
-			nextIdx := strings.Index(version[position:], nextLiteral)
-			if nextIdx < 0 {
-				return calverParts{}, fmt.Errorf("%w: expected literal %q in %q", ErrInvalidVersion, nextLiteral, version)
-			}
-
-			valueEnd = position + nextIdx
+		valueEnd, err := f.tokenValueEnd(version, position, idx)
+		if err != nil {
+			return calverParts{}, err
 		}
 
 		value := version[position:valueEnd]
@@ -381,9 +415,18 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 			return calverParts{}, fmt.Errorf("%w: empty %s segment in %q", ErrInvalidVersion, formatPart.token, version)
 		}
 
-		err := parts.set(formatPart.token, value, version)
+		err = parts.set(formatPart.token, value, version)
 		if err != nil {
 			return calverParts{}, err
+		}
+
+		if f.optionalMicro && formatPart.token == calverTokenMicro && parts.Micro == 0 {
+			return calverParts{}, fmt.Errorf(
+				"%w: micro version 0 must be omitted in %q for calver format %q",
+				ErrInvalidVersion,
+				version,
+				f.raw,
+			)
 		}
 
 		position = valueEnd
@@ -399,6 +442,39 @@ func (f calverFormat) parse(version string) (calverParts, error) {
 	}
 
 	return parts, nil
+}
+
+func (f calverFormat) tokenValueEnd(version string, position, idx int) (int, error) {
+	nextLiteral := nextCalVerLiteral(f.parts[idx+1:])
+	if nextLiteral == "" {
+		return len(version), nil
+	}
+
+	if nextIdx := strings.Index(version[position:], nextLiteral); nextIdx >= 0 {
+		return position + nextIdx, nil
+	}
+
+	if idx+1 == f.optionalMicroLiteralIndex() {
+		return len(version), nil
+	}
+
+	return 0, fmt.Errorf("%w: expected literal %q in %q", ErrInvalidVersion, nextLiteral, version)
+}
+
+func (f calverFormat) optionalMicroLiteralIndex() int {
+	if !f.optionalMicro {
+		return -1
+	}
+
+	return len(f.parts) - optionalMicroParts
+}
+
+func (f calverFormat) firstMicro() int {
+	if f.optionalMicro {
+		return 0
+	}
+
+	return 1
 }
 
 func nextCalVerLiteral(parts []calverFormatPart) string {
@@ -497,7 +573,12 @@ func (f calverFormat) partsFromTime(t time.Time) calverParts {
 func (f calverFormat) render(parts calverParts) string {
 	var builder strings.Builder
 
-	for _, part := range f.parts {
+	formatParts := f.parts
+	if f.optionalMicro && parts.Micro == 0 {
+		formatParts = formatParts[:f.optionalMicroLiteralIndex()]
+	}
+
+	for _, part := range formatParts {
 		if part.literal != "" {
 			builder.WriteString(part.literal)
 

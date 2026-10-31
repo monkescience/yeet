@@ -33,6 +33,10 @@ func TestValidateCalVerFormat(t *testing.T) {
 		"YY.W.MICRO",
 		"YYYY.M.D.MICRO",
 		"D.M.YYYY.MICRO",
+		"YYYY.0M.0D[.MICRO]",
+		"YYYY.0W[.MICRO]",
+		"0D.0M.YYYY[.MICRO]",
+		"  YYYY.M.D[.MICRO]  ",
 	}
 
 	for _, format := range validFormats {
@@ -74,6 +78,22 @@ func TestValidateCalVerFormat(t *testing.T) {
 		"YYYY.YY.0M.MICRO",
 		".YYYY.0M.MICRO",
 		"   ",
+		"YYYY.0M.0D[MICRO]",
+		"YYYY.0M.0D.[MICRO]",
+		"YYYY.0M.0D.[.MICRO]",
+		"YYYY.0M[.0D].MICRO",
+		"YYYY.0M[.0D.MICRO]",
+		"YYYY.0M[.MICRO",
+		"YYYY.0M.MICRO]",
+		"YYYY.0M[[.MICRO]]",
+		"YYYY.0M[.MICRO]]",
+		"YYYY].0M[.MICRO]",
+		"YYYY.0M[.MICRO].",
+		"YYYY.0M[-MICRO]",
+		"[.MICRO]",
+		"YYYY.MICRO[.MICRO]",
+		"YYYY[.MICRO]",
+		"0Y[.MICRO]",
 	}
 
 	for _, format := range invalidFormats {
@@ -775,6 +795,141 @@ func TestCalVerDeprecatedTokenAliases(t *testing.T) {
 			testastic.Equal(t, tc.next, deprecatedNext)
 		})
 	}
+}
+
+func TestCalVerOptionalMicro(t *testing.T) {
+	t.Parallel()
+
+	nextCases := []struct {
+		name    string
+		format  string
+		current string
+		now     func() time.Time
+		next    string
+	}{
+		{
+			name:   "first release omits micro",
+			format: "YYYY.M.D[.MICRO]",
+			now:    fixedDate(2026, time.September, 11),
+			next:   "2026.9.11",
+		},
+		{
+			name:    "second release in the period appends micro 1",
+			format:  "YYYY.M.D[.MICRO]",
+			current: "2026.9.11",
+			now:     fixedDate(2026, time.September, 11),
+			next:    "2026.9.11.1",
+		},
+		{
+			name:    "later release in the period increments micro",
+			format:  "YYYY.M.D[.MICRO]",
+			current: "2026.9.11.1",
+			now:     fixedDate(2026, time.September, 11),
+			next:    "2026.9.11.2",
+		},
+		{
+			name:    "new period drops micro",
+			format:  "YYYY.M.D[.MICRO]",
+			current: "2026.9.11.4",
+			now:     fixedDate(2026, time.September, 12),
+			next:    "2026.9.12",
+		},
+		{
+			name:    "week format omits micro in a new week",
+			format:  "YYYY.0W[.MICRO]",
+			current: "2026.36",
+			now:     fixedDate(2026, time.September, 11),
+			next:    "2026.37",
+		},
+		{
+			name:    "day-first format appends micro after the year",
+			format:  "0D.0M.YYYY[.MICRO]",
+			current: "11.09.2026",
+			now:     fixedDate(2026, time.September, 11),
+			next:    "11.09.2026.1",
+		},
+	}
+
+	for _, tc := range nextCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with an optional micro segment
+			cv := newCalVer(t, tc.format, "v", tc.now)
+
+			// when: calculating the next version
+			next, err := cv.Next(tc.current, commit.BumpPatch)
+
+			// then: micro is omitted for the first release of a period and counts from 1 after it
+			testastic.NoError(t, err)
+			testastic.Equal(t, tc.next, next)
+		})
+	}
+
+	currentCases := []struct {
+		tag  string
+		want string
+	}{
+		{tag: "v2026.09.11", want: "2026.09.11"},
+		{tag: "v2026.09.11.1", want: "2026.09.11.1"},
+		{tag: "v2026.09.11.12", want: "2026.09.11.12"},
+	}
+
+	for _, tc := range currentCases {
+		t.Run("parses "+tc.tag, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with an optional micro segment
+			cv := newCalVer(t, "YYYY.0M.0D[.MICRO]", "v", nil)
+
+			// when: parsing the tag
+			current, err := cv.Current(tc.tag)
+
+			// then: both the date-only and the micro form are accepted
+			testastic.NoError(t, err)
+			testastic.Equal(t, tc.want, current)
+		})
+	}
+
+	invalidTags := []string{
+		"v2026.09.11.0",
+		"v2026.09.11.00",
+		"v2026.09.11.",
+		"v2026.09",
+		"v2026.09.11.1.1",
+		"v2026.09.31",
+	}
+
+	for _, tag := range invalidTags {
+		t.Run("rejects "+tag, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a calver strategy with an optional micro segment
+			cv := newCalVer(t, "YYYY.0M.0D[.MICRO]", "v", nil)
+
+			// when: parsing a tag that is not a canonical version for the format
+			_, err := cv.Current(tag)
+
+			// then: the tag is rejected
+			testastic.ErrorIs(t, err, version.ErrInvalidVersion)
+		})
+	}
+
+	t.Run("required micro still starts at 1", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a format without brackets
+		cv := newCalVer(t, "YYYY.M.D.MICRO", "v", fixedDate(2026, time.September, 11))
+
+		// when: calculating the first release and parsing a date-only tag
+		next, nextErr := cv.Next("", commit.BumpPatch)
+		_, currentErr := cv.Current("v2026.9.11")
+
+		// then: micro stays required and starts at 1
+		testastic.NoError(t, nextErr)
+		testastic.Equal(t, "2026.9.11.1", next)
+		testastic.ErrorIs(t, currentErr, version.ErrInvalidVersion)
+	})
 }
 
 func TestCalVerCurrent_AdditionalFormats(t *testing.T) {

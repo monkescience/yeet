@@ -430,4 +430,45 @@ func TestReleaseCalVerMarkerSuggestions(t *testing.T) {
 		// then: yeet resolves day-aware values and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
 	})
+
+	t.Run("optional micro writes 0 to the micro marker on a date-only release", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a first release with an optional micro segment and an x-yeet-micro marker
+		files := map[string]string{"VERSION.txt": "micro: 7 # x-yeet-micro\n"}
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: bootstrap"},
+				{Message: "feat: add a thing", Files: files},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:                "testorg",
+			Repo:                 "testrepo",
+			BranchHeadSHA:        shas[1],
+			Files:                files,
+			ExpectedUpdatedFiles: map[string]string{"VERSION.txt": "micro: 0 # x-yeet-micro\n"},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			Versioning:   "calver",
+			CalVerFormat: "YYYY.0M.0D[.MICRO]",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet releases the date-only version and writes micro 0
+		testastic.Equal(t, 0, result.ExitCode)
+	})
 }

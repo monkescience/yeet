@@ -105,6 +105,11 @@ func TestCalVerOrderedRefs(t *testing.T) {
 			want: []string{"v26.10.1", "v26.5.1"},
 		},
 		{
+			name: "orders date-only versions before micro 1 and filters explicit micro 0", format: "YYYY.0M.0D[.MICRO]",
+			refs: []string{"v2026.09.11.1", "v2026.09.11", "v2026.09.11.0", "v2026.09.12", "v2026.09.10.2"},
+			want: []string{"v2026.09.12", "v2026.09.11.1", "v2026.09.11", "v2026.09.10.2"},
+		},
+		{
 			name: "filters all invalid refs",
 			refs: []string{"bad", "v2026.13.1"}, want: []string{},
 		},

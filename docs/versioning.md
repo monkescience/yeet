@@ -45,6 +45,9 @@ calver:
 | Counter | `MICRO` |
 
 A format needs exactly one year token and must end with `MICRO`.
+In a format with a month or week token, write the end as `[.MICRO]` to make the counter optional. The first release of a period has no `MICRO` segment, and later releases in that period append `.1`, `.2`, and so on.
+With `YYYY.M.D[.MICRO]`, releases on 11 September 2026 are `2026.9.11`, then `2026.9.11.1`.
+In that mode, a version with an explicit `.0` is not valid, and the `x-yeet-micro` marker is set to `0` for a release without the segment.
 Tokens starting with `0` are zero-padded.
 `MM`, `WW`, and `DD` are deprecated aliases for `M`, `W`, and `D`. They are not zero-padded, and a format cannot use an alias together with its short form.
 Week cannot be combined with month or day, and day requires month.

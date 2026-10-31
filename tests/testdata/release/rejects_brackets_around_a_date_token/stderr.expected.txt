@@ -1,0 +1,1 @@
+ERROR invalid configuration: calver.format: calver format brackets must wrap a separator and MICRO at the end, as in [.MICRO]: "YYYY.0M[.0D].MICRO" path={{anyString}}
