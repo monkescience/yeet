@@ -214,7 +214,14 @@ func prereleaseAllowed(prerelease, identifier string) bool {
 		return true
 	}
 
-	return prerelease == identifier || strings.HasPrefix(prerelease, identifier+".")
+	counterText, found := strings.CutPrefix(prerelease, identifier+".")
+	if !found {
+		return prerelease == identifier
+	}
+
+	_, err := parsePrereleaseCounter(counterText)
+
+	return err == nil
 }
 
 func (s *SemVer) nextPrerelease(

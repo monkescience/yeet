@@ -30,11 +30,12 @@ func TestSemVerOrderedRefs(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 
-			// given: mixed channels, equal versions, invalid and unprefixed refs and duplicate tags
+			// given: mixed channels, non-numeric counters, invalid and unprefixed refs and duplicate tags
 			strategy := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 			refs := []string{
 				" v1.2.3 ", "v1.2.3+aaa", "v1.2.3+zzz", "1.2.3", "v1.10.0", "v1.9.0",
 				"v2.0.0-beta.2", "v2.0.0-beta.10", "v2.0.0-beta", "v9.0.0-alpha.1",
+				"v4.0.0-beta.final", "v4.0.0-beta.next.1",
 				"v2.0.0-betaish.1", "v3.0.0", "v1.2.3", "v1.2", "other/1.2.3", "", " ",
 			}
 			original := slices.Clone(refs)
@@ -55,6 +56,7 @@ func TestCalVerOrderedRefs(t *testing.T) {
 	prereleaseRefs := []string{
 		"v2026.11.1", "v2026.11.2-beta.1", "v2026.11.2-beta.10", "v2026.11.2-beta.2", "v2026.11.2",
 		"v2026.11.3-alpha.1", "v2026.11.2-betaish.1", "v2026.11.2-beta.01",
+		"v2026.11.4-beta.final", "v2026.11.4-beta.next.1",
 	}
 
 	for _, scenario := range []struct {

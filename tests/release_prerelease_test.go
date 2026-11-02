@@ -59,6 +59,56 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		)
 	})
 
+	t.Run("github beta channel ignores tags without a numeric counter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a beta channel whose newest beta-like tags carry non-numeric counters
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "beta",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0-beta.1", Tag: "v1.1.0-beta.1"},
+				{Message: "chore: release v1.1.0-beta.next.1", Tag: "v1.1.0-beta.next.1"},
+				{Message: "chore: tag final beta", Tag: "v1.1.0-beta.final"},
+				{Message: "fix: patch a thing"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:       "testorg",
+			Repo:        "testrepo",
+			LatestTag:   "v1.1.0-beta.final",
+			ExtraTags:   []string{"v1.1.0-beta.next.1", "v1.1.0-beta.1", "v1.0.0"},
+			BoundarySHA: shas[1],
+			TagSHAs: map[string]string{
+				"v1.1.0-beta.final": shas[3], "v1.1.0-beta.next.1": shas[2],
+				"v1.1.0-beta.1": shas[1], "v1.0.0": shas[0],
+			},
+			BranchHeadSHA: shas[4],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+				"next": {Branch: "next", Prerelease: "beta.next"},
+			},
+		})
+
+		// when: invoking `yeet release --dry-run --channel beta`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "beta")...),
+		)
+
+		// then: yeet advances the numeric beta counter and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "1.1.0-beta.1 → 1.1.0-beta.2")
+	})
+
 	t.Run("github beta channel opens a major line for a breaking change", func(t *testing.T) {
 		t.Parallel()
 
