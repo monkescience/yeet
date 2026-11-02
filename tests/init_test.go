@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/monkescience/testastic"
+	"github.com/monkescience/yeet/internal/testsupport/fakeprovider"
 	"github.com/monkescience/yeet/tests/internal/fixture"
 )
 
@@ -70,6 +71,40 @@ func TestInit(t *testing.T) {
 			"testdata/init/writes_config_in_the_working_dir_when___config_is_omitted/config.expected.yaml",
 			string(content),
 		)
+	})
+
+	t.Run("writes a loadable config when the directory name is not a yaml string", func(t *testing.T) {
+		t.Parallel()
+
+		for _, dirName := range []string{"2048", "true", "null", "1e3"} {
+			// given: a git repository checked out into a directory whose name yaml reads as a non-string
+			repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+				[]fixture.RepoCommit{
+					{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+					{Message: "feat: add a thing"},
+				})
+			namedDir := filepath.Join(t.TempDir(), dirName)
+			testastic.NoError(t, os.Rename(repoDir, namedDir))
+
+			server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+				Owner: "testorg", Repo: "testrepo", LatestTag: "v1.0.0", BoundarySHA: shas[0], BranchHeadSHA: shas[1],
+				FailOnMutation: true,
+			})
+
+			// when: initializing the config there and previewing a release with it
+			initResult := binary.RunWithOptions(t, []string{"init"}, testastic.WithRunWorkDir(namedDir))
+			releaseResult := binary.RunWithOptions(t, []string{"release", "--dry-run"},
+				testastic.WithRunWorkDir(namedDir), testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...))
+
+			// then: the target name is quoted and yeet accepts the config it wrote
+			testastic.Equal(t, 0, initResult.ExitCode)
+
+			content, err := os.ReadFile(filepath.Join(namedDir, ".yeet.yaml"))
+			testastic.NoError(t, err)
+			testastic.Contains(t, string(content), "\n  \""+dirName+"\":\n")
+			testastic.Equal(t, 0, releaseResult.ExitCode)
+			testastic.Contains(t, releaseResult.Stdout, "Target      "+dirName)
+		}
 	})
 
 	t.Run("fails when the config already exists", func(t *testing.T) {

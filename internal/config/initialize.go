@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+
+	"go.yaml.in/yaml/v4"
 )
 
 var ErrExists = errors.New("config file already exists")
@@ -49,7 +52,18 @@ targets:
     type: path
     path: .
     tag_prefix: v
-`, SchemaDirective(), targetName)
+`, SchemaDirective(), yamlStringKey(targetName))
+}
+
+func yamlStringKey(name string) string {
+	var decoded any
+
+	err := yaml.Unmarshal([]byte(name), &decoded)
+	if value, ok := decoded.(string); err == nil && ok && value == name {
+		return name
+	}
+
+	return strconv.Quote(name)
 }
 
 func deriveTargetName(configPath string) string {
