@@ -37,6 +37,8 @@ For `release`, the event can also contain:
 |---|---|
 | `Yeet.release.provider` | `auto`, `github`, `gitlab`, or `azuredevops` |
 | `Yeet.release.layout` | `single` or `monorepo` |
+| `Yeet.release.pullRequestMode` | `combined` or `independent` |
+| `Yeet.release.unitCount` | Number of release units the run planned, such as `1` or `3` |
 | `Yeet.release.versioning` | `semver`, `calver`, or `mixed` |
 | `Yeet.release.dryRun` | `true` or `false` |
 | `Yeet.release.channelsConfigured` | `true` or `false` |
