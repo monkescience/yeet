@@ -345,6 +345,10 @@ func incrementPrerelease(current *semver.Version, prereleaseIdentifier string) (
 }
 
 func nextPrereleaseCounter(prerelease, prereleaseIdentifier string) (int64, bool, error) {
+	if prerelease == prereleaseIdentifier {
+		return 1, true, nil
+	}
+
 	counterText, found := strings.CutPrefix(prerelease, prereleaseIdentifier+".")
 	if !found || counterText == "" {
 		return 0, false, nil
