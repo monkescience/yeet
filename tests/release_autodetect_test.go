@@ -243,9 +243,11 @@ func TestReleaseAutoDetect(t *testing.T) {
 			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
 		)
 
-		// then: yeet calls the API with the decoded names and plans the release
+		// then: yeet calls the API with the decoded names and escapes them again in web links
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Contains(t, result.Stdout, "1.0.0 → 1.1.0")
+		testastic.Contains(t, result.Stdout, "/contoso/Fabrikam%20Fiber/_git/Fabrikam%20Fiber/")
+		testastic.NotContains(t, result.Stdout, "Fabrikam Fiber/_git")
 	})
 
 	t.Run("azuredevops legacy visualstudio remote auto-detects coordinates", func(t *testing.T) {

@@ -95,7 +95,13 @@ func systemAccessTokenConnection(connectionURL, token string) *azuredevops.Conne
 }
 
 func (a *AzureDevOps) RepoURL() string {
-	return fmt.Sprintf("%s/%s/%s/_git/%s", a.baseURL, a.collection, a.project, a.repo)
+	collection := strings.Split(a.collection, "/")
+	for index, segment := range collection {
+		collection[index] = url.PathEscape(segment)
+	}
+
+	return fmt.Sprintf("%s/%s/%s/_git/%s",
+		a.baseURL, strings.Join(collection, "/"), url.PathEscape(a.project), url.PathEscape(a.repo))
 }
 
 func (a *AzureDevOps) PathPrefix() string {
