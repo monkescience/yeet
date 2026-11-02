@@ -187,7 +187,12 @@ func (s *SemVer) effectiveBump(v *semver.Version, bump commit.BumpType) commit.B
 }
 
 func (s *SemVer) parseRef(tag string) (*semver.Version, error) {
-	v, err := semver.StrictNewVersion(strings.TrimPrefix(tag, s.prefix))
+	trimmed, ok := strings.CutPrefix(tag, s.prefix)
+	if !ok {
+		return nil, fmt.Errorf("%w: %s: missing tag prefix %q", ErrInvalidVersion, tag, s.prefix)
+	}
+
+	v, err := semver.StrictNewVersion(trimmed)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrInvalidVersion, tag, err)
 	}

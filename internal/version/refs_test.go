@@ -17,20 +17,20 @@ func TestSemVerOrderedRefs(t *testing.T) {
 	}{
 		{
 			name: "stable releases and lexical ties",
-			want: []string{"v3.0.0", "v1.10.0", "v1.9.0", "v1.2.3+zzz", "v1.2.3+aaa", "v1.2.3", "1.2.3"},
+			want: []string{"v3.0.0", "v1.10.0", "v1.9.0", "v1.2.3+zzz", "v1.2.3+aaa", "v1.2.3"},
 		},
 		{
 			name: "beta releases and stable boundaries", channel: "beta",
 			want: []string{
 				"v3.0.0", "v2.0.0-beta.10", "v2.0.0-beta.2", "v2.0.0-beta",
-				"v1.10.0", "v1.9.0", "v1.2.3+zzz", "v1.2.3+aaa", "v1.2.3", "1.2.3",
+				"v1.10.0", "v1.9.0", "v1.2.3+zzz", "v1.2.3+aaa", "v1.2.3",
 			},
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 
-			// given: mixed channels, equal versions, invalid refs and duplicate tags
+			// given: mixed channels, equal versions, invalid and unprefixed refs and duplicate tags
 			strategy := version.NewSemVer(version.SemVerOptions{Prefix: "v"})
 			refs := []string{
 				" v1.2.3 ", "v1.2.3+aaa", "v1.2.3+zzz", "1.2.3", "v1.10.0", "v1.9.0",
@@ -82,7 +82,7 @@ func TestCalVerOrderedRefs(t *testing.T) {
 				" v2026.2.9 ", "v2026.02.9", "2026.02.9", "v2026.10.1", "v2026.2.10",
 				"v2026.2.9", "v2026.13.1", "other/2026.02.1", "v2026.02.-1", "", " ",
 			},
-			want: []string{"v2026.10.1", "v2026.2.10", "v2026.2.9", "v2026.02.9", "2026.02.9"},
+			want: []string{"v2026.10.1", "v2026.2.10", "v2026.2.9", "v2026.02.9"},
 		},
 		{
 			name: "orders calendar periods across years",

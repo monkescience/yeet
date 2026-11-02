@@ -203,7 +203,12 @@ func (c *CalVer) nextPrerelease(current, prereleaseIdentifier string) (string, e
 }
 
 func (c *CalVer) parseRef(ref string) (calverParts, error) {
-	return c.format.parse(strings.TrimPrefix(ref, c.prefix))
+	trimmed, ok := strings.CutPrefix(ref, c.prefix)
+	if !ok {
+		return calverParts{}, fmt.Errorf("%w: %s: missing tag prefix %q", ErrInvalidVersion, ref, c.prefix)
+	}
+
+	return c.format.parse(trimmed)
 }
 
 func (c *CalVer) now() time.Time {

@@ -186,6 +186,48 @@ func TestReleaseDryRunWithExtraTags(t *testing.T) {
 			result.Stdout,
 		)
 	})
+
+	t.Run("ignores tags without the target prefix", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a v-prefixed history plus a newer stray tag that lacks the prefix
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: import legacy release", Tag: "3.0.0"},
+				{Message: "feat: add a thing"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			ExtraTags:     []string{"3.0.0"},
+			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"v1.0.0": shas[0], "3.0.0": shas[1]},
+			BranchHeadSHA: shas[2],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet plans from v1.0.0 and does not treat 3.0.0 as the current version
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "1.0.0 → 1.1.0")
+		testastic.NotContains(t, result.Stdout, "3.1.0")
+	})
 }
 
 func TestReleaseChangelogNonDefaultFile(t *testing.T) {
