@@ -148,7 +148,7 @@ network:
     max_attempts: 5
 ```
 
-Defaults are a 30 second timeout and 4 attempts. Azure DevOps ignores `retry`.
+Defaults are a 30 second timeout and 4 attempts.
 
 ## Related documentation
 
