@@ -26,6 +26,12 @@ func TestReleaseBreakingMarkerDiagnostics(t *testing.T) {
 		{name: "ordinary prose", body: "Breaking changes are listed in the migration guide."},
 		{name: "different token", body: "BREAKING-CHANGELOG: private migration details"},
 		{name: "valid marker", body: "BREAKING CHANGE: private migration details"},
+		{name: "no blank line before footer", body: "Intro\nBREAKING CHANGE: private migration details", rejected: 1},
+		{
+			name:     "footer directly after release-note fence",
+			body:     "```release-note\nNote.\n```\nBREAKING CHANGE: private migration details",
+			rejected: 1,
+		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()

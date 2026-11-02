@@ -184,11 +184,6 @@ func logRejectedBreakingMarkers(ctx context.Context, c *Commit, lines []string) 
 			continue
 		}
 
-		footer, ok := parseFooter(strings.TrimLeftFunc(line, unicode.IsSpace))
-		if ok && IsBreakingFooter(footer.Key) && strings.TrimSpace(footer.Value) != "" {
-			continue
-		}
-
 		slog.DebugContext(ctx, "commit: breaking marker rejected, treating as non-breaking",
 			slog.String("hash", c.Hash),
 			slog.String("marker", marker),
