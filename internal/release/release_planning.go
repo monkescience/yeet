@@ -429,42 +429,14 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 	target config.ResolvedTarget,
 	inputs derivedPlanContext,
 ) (string, commit.BumpType, bool, error) {
-	currentVersion := inputs.history.currentVersion
-	directBumpType := commit.DetermineBump(inputs.directCommits, a.bumpMapping)
-
-	directNextVersion, directNextBumpType, directShouldRelease, err := a.nextVersionPlan(
-		ctx,
-		target,
-		inputs.directCommits,
-		currentVersion,
-		directBumpType,
-	)
-	if err != nil {
-		return "", commit.BumpNone, false, err
-	}
-
-	finalBumpType := directNextBumpType
+	bumpType := commit.DetermineBump(inputs.directCommits, a.bumpMapping)
 	for _, childPlan := range inputs.childPlans {
-		if commit.CompareBump(childPlan.BumpType, finalBumpType) > 0 {
-			finalBumpType = childPlan.BumpType
+		if commit.CompareBump(childPlan.BumpType, bumpType) > 0 {
+			bumpType = childPlan.BumpType
 		}
 	}
 
-	if finalBumpType == commit.BumpNone {
-		return "", commit.BumpNone, false, nil
-	}
-
-	if directShouldRelease && commit.CompareBump(finalBumpType, directNextBumpType) <= 0 {
-		return directNextVersion, finalBumpType, true, nil
-	}
-
-	// Plan again with the higher bump. A Release-As footer in the direct commits still sets the version.
-	nextVersion, _, _, err := a.nextVersionPlan(ctx, target, inputs.directCommits, currentVersion, finalBumpType)
-	if err != nil {
-		return "", commit.BumpNone, false, err
-	}
-
-	return nextVersion, finalBumpType, true, nil
+	return a.nextVersionPlan(ctx, target, inputs.directCommits, inputs.history.currentVersion, bumpType)
 }
 
 func (a *releaseAnalyzer) newDerivedTargetPlan(

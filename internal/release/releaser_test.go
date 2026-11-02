@@ -918,6 +918,7 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.Equal(t, "1.1.0", result.Plans[0].NextVersion)
 		testastic.Equal(t, "root", result.Plans[1].ID)
 		testastic.Equal(t, "1.0.1", result.Plans[1].NextVersion)
+		testastic.Equal(t, commit.BumpPatch, result.Plans[1].BumpType)
 	})
 
 	t.Run("ignores override for calver", func(t *testing.T) {
@@ -942,6 +943,49 @@ func TestReleaseAsFooter(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.Equal(t, 0, len(result.Plans))
 	})
+}
+
+func TestDerivedCalVerReleaseAsWarning(t *testing.T) {
+	// given: a calver derived target with a Release-As chore commit and a child with a feature
+	logs := captureWarnings(t)
+
+	cfg := config.Default()
+	cfg.Versioning = config.VersioningCalVer
+	cfg.Targets = map[string]config.Target{
+		"api": {
+			Type:      config.TargetTypePath,
+			Path:      "services/api",
+			TagPrefix: "api-v",
+			Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
+		},
+		"root": {
+			Type:         config.TargetTypeDerived,
+			Path:         ".",
+			TagPrefix:    "v",
+			ExcludePaths: []string{"services/api"},
+			Includes:     []string{"api"},
+		},
+	}
+
+	stub := newProviderStub()
+	stub.commits = []history.CommitEntry{
+		{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
+		{
+			Hash:    "1234567890abcdef",
+			Message: "chore: request release\n\nRelease-As: 1.0.1",
+			Paths:   []string{"README.md"},
+		},
+	}
+
+	r := newTestReleaser(t, cfg, stub)
+
+	// when: calculating a release
+	result, err := r.Release(t.Context(), true)
+
+	// then: both targets release and the ignored footer is reported once
+	testastic.NoError(t, err)
+	testastic.Len(t, result.Plans, 2)
+	testastic.Equal(t, 1, strings.Count(logs.String(), "ignoring unsupported release override"))
 }
 
 func TestReleaseAfterFinalizeMergedRelease(t *testing.T) {
