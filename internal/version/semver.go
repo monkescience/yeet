@@ -332,8 +332,6 @@ func incrementPrerelease(current *semver.Version, prereleaseIdentifier string) (
 	return fmt.Sprintf("%s-%s.%d", versionCore(current), prereleaseIdentifier, counter), true, nil
 }
 
-// nextPrereleaseCounter returns the counter after the one in prerelease, such as 3 for beta.2.
-// It reports false when prerelease has no counter for the identifier.
 func nextPrereleaseCounter(prerelease, prereleaseIdentifier string) (int64, bool, error) {
 	counterText, found := strings.CutPrefix(prerelease, prereleaseIdentifier+".")
 	if !found || counterText == "" {

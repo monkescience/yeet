@@ -139,8 +139,6 @@ func (c *CalVer) InitialVersion() string {
 	return ""
 }
 
-// nextStable returns the stable version that follows current at the current time.
-// A prerelease does not release its base version, so in the same period that base is next.
 func (c *CalVer) nextStable(current string) (calverParts, error) {
 	nowParts := c.format.partsFromTime(c.now())
 	nowParts.Micro = c.format.firstMicro()
@@ -171,8 +169,6 @@ func (c *CalVer) nextStable(current string) (calverParts, error) {
 	return nowParts, nil
 }
 
-// nextPrerelease returns the next prerelease of the stable version that follows current.
-// The counter continues while that stable version stays the same, and restarts at 1 when it changes.
 func (c *CalVer) nextPrerelease(current, prereleaseIdentifier string) (string, error) {
 	next, err := c.nextStable(current)
 	if err != nil {
@@ -451,11 +447,9 @@ func countSeen(seen map[calverToken]string, tokens ...calverToken) int {
 	return count
 }
 
-// parse reads a version in the format, with an optional semver prerelease suffix such as -beta.1.
 func (f calverFormat) parse(version string) (calverParts, error) {
 	version = strings.TrimSpace(version)
 
-	// The format allows only dots as separators, so the first hyphen starts the prerelease.
 	core, prerelease, hasPrerelease := strings.Cut(version, "-")
 
 	parts, err := f.parseCore(core)
@@ -767,6 +761,5 @@ func compareCalVerParts(format calverFormat, left, right calverParts) int {
 		return micro
 	}
 
-	// A stable version sorts after its prereleases.
 	return semver.New(0, 0, 0, left.Prerelease, "").Compare(semver.New(0, 0, 0, right.Prerelease, ""))
 }
