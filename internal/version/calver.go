@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/monkescience/yeet/internal/commit"
 )
 
@@ -54,7 +55,7 @@ func (c *CalVer) SupportsReleaseAs() bool {
 }
 
 func (c *CalVer) SupportsPrerelease() bool {
-	return false
+	return true
 }
 
 func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
@@ -65,10 +66,19 @@ func (c *CalVer) NormalizeReleaseAs(value string) (string, error) {
 func (c *CalVer) NextRelease(
 	current string,
 	bump commit.BumpType,
-	_, _ string,
+	_, prereleaseIdentifier string,
 ) (string, commit.BumpType, bool, error) {
 	if bump == commit.BumpNone {
 		return "", bump, false, nil
+	}
+
+	if prereleaseIdentifier != "" {
+		next, err := c.nextPrerelease(current, prereleaseIdentifier)
+		if err != nil {
+			return "", commit.BumpNone, false, fmt.Errorf("calculate next prerelease version: %w", err)
+		}
+
+		return next, bump, true, nil
 	}
 
 	next, err := c.Next(current, bump)
@@ -79,8 +89,13 @@ func (c *CalVer) NextRelease(
 	return next, bump, true, nil
 }
 
-func (c *CalVer) PrereleaseAllowed(_, identifier string) bool {
-	return identifier == ""
+func (c *CalVer) PrereleaseAllowed(version, identifier string) bool {
+	parts, err := c.format.parse(version)
+	if err != nil {
+		return false
+	}
+
+	return prereleaseAllowed(parts.Prerelease, identifier)
 }
 
 func ValidateCalVerFormat(format string) error {
@@ -101,8 +116,9 @@ func (c *CalVer) Current(tag string) (string, error) {
 	return c.format.render(parts), nil
 }
 
-func (c *CalVer) OrderedRefs(refs []string, _ string) []string {
-	return orderedRefs(refs, c.parseRef, func(calverParts) bool { return true },
+func (c *CalVer) OrderedRefs(refs []string, prereleaseIdentifier string) []string {
+	return orderedRefs(refs, c.parseRef,
+		func(parts calverParts) bool { return prereleaseAllowed(parts.Prerelease, prereleaseIdentifier) },
 		func(left, right calverParts) int { return compareCalVerParts(c.format, left, right) })
 }
 
@@ -111,12 +127,62 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return current, nil
 	}
 
-	now := c.now()
-	nowParts := c.format.partsFromTime(now)
+	next, err := c.nextStable(current)
+	if err != nil {
+		return "", err
+	}
+
+	return c.format.render(next), nil
+}
+
+func (c *CalVer) InitialVersion() string {
+	return ""
+}
+
+// nextStable returns the stable version that follows current at the current time.
+// A prerelease does not release its base version, so in the same period that base is next.
+func (c *CalVer) nextStable(current string) (calverParts, error) {
+	nowParts := c.format.partsFromTime(c.now())
 	nowParts.Micro = c.format.firstMicro()
 
 	if current == "" {
-		return c.format.render(nowParts), nil
+		return nowParts, nil
+	}
+
+	parts, err := c.format.parse(current)
+	if err != nil {
+		return calverParts{}, err
+	}
+
+	if compareCalVerPeriods(c.format, parts, nowParts) > 0 {
+		return calverParts{}, fmt.Errorf(
+			"%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
+	}
+
+	if !c.format.sameCalendarPeriod(parts, nowParts) {
+		return nowParts, nil
+	}
+
+	nowParts.Micro = parts.Micro
+	if parts.Prerelease == "" {
+		nowParts.Micro++
+	}
+
+	return nowParts, nil
+}
+
+// nextPrerelease returns the next prerelease of the stable version that follows current.
+// The counter continues while that stable version stays the same, and restarts at 1 when it changes.
+func (c *CalVer) nextPrerelease(current, prereleaseIdentifier string) (string, error) {
+	next, err := c.nextStable(current)
+	if err != nil {
+		return "", err
+	}
+
+	next.Prerelease = prereleaseIdentifier + ".1"
+
+	if current == "" {
+		return c.format.render(next), nil
 	}
 
 	parts, err := c.format.parse(current)
@@ -124,19 +190,20 @@ func (c *CalVer) Next(current string, bump commit.BumpType) (string, error) {
 		return "", err
 	}
 
-	if compareCalVerPeriods(c.format, parts, nowParts) > 0 {
-		return "", fmt.Errorf("%w: current calver %q is from a future calendar period", ErrInvalidVersion, current)
+	if parts.Prerelease == "" || parts.Micro != next.Micro || !c.format.sameCalendarPeriod(parts, next) {
+		return c.format.render(next), nil
 	}
 
-	if c.format.sameCalendarPeriod(parts, nowParts) {
-		nowParts.Micro = parts.Micro + 1
+	counter, ok, err := nextPrereleaseCounter(parts.Prerelease, prereleaseIdentifier)
+	if err != nil {
+		return "", err
 	}
 
-	return c.format.render(nowParts), nil
-}
+	if ok {
+		next.Prerelease = fmt.Sprintf("%s.%d", prereleaseIdentifier, counter)
+	}
 
-func (c *CalVer) InitialVersion() string {
-	return ""
+	return c.format.render(next), nil
 }
 
 func (c *CalVer) parseRef(ref string) (calverParts, error) {
@@ -152,11 +219,12 @@ func (c *CalVer) now() time.Time {
 }
 
 type calverParts struct {
-	Year  int
-	Month int
-	Week  int
-	Day   int
-	Micro int
+	Year       int
+	Month      int
+	Week       int
+	Day        int
+	Micro      int
+	Prerelease string
 }
 
 type calverToken string
@@ -383,8 +451,31 @@ func countSeen(seen map[calverToken]string, tokens ...calverToken) int {
 	return count
 }
 
+// parse reads a version in the format, with an optional semver prerelease suffix such as -beta.1.
 func (f calverFormat) parse(version string) (calverParts, error) {
 	version = strings.TrimSpace(version)
+
+	// The format allows only dots as separators, so the first hyphen starts the prerelease.
+	core, prerelease, hasPrerelease := strings.Cut(version, "-")
+
+	parts, err := f.parseCore(core)
+	if err != nil {
+		return calverParts{}, err
+	}
+
+	if hasPrerelease {
+		parsed, semverErr := semver.StrictNewVersion("0.0.0-" + prerelease)
+		if semverErr != nil || parsed.Metadata() != "" {
+			return calverParts{}, fmt.Errorf("%w: invalid prerelease %q in %q", ErrInvalidVersion, prerelease, version)
+		}
+
+		parts.Prerelease = prerelease
+	}
+
+	return parts, nil
+}
+
+func (f calverFormat) parseCore(version string) (calverParts, error) {
 	parts := calverParts{}
 	position := 0
 
@@ -588,6 +679,10 @@ func (f calverFormat) render(parts calverParts) string {
 		builder.WriteString(renderCalVerToken(part.token, parts))
 	}
 
+	if parts.Prerelease != "" {
+		builder.WriteString("-" + parts.Prerelease)
+	}
+
 	return builder.String()
 }
 
@@ -668,5 +763,10 @@ func compareCalVerParts(format calverFormat, left, right calverParts) int {
 		return period
 	}
 
-	return cmp.Compare(left.Micro, right.Micro)
+	if micro := cmp.Compare(left.Micro, right.Micro); micro != 0 {
+		return micro
+	}
+
+	// A stable version sorts after its prereleases.
+	return semver.New(0, 0, 0, left.Prerelease, "").Compare(semver.New(0, 0, 0, right.Prerelease, ""))
 }

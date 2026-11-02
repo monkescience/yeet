@@ -128,7 +128,7 @@ release:
 - yeet fails on branches that are neither `branch` nor a channel branch.
 - `yeet release --dry-run --channel beta` previews a channel from any branch.
 
-Channels require semver.
+For calver prerelease versions, see [Versioning](versioning.md#calver).
 
 ## Related documentation
 
