@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -51,7 +52,8 @@ func NewAzure(t *testing.T, opts AzureOptions) *httptest.Server {
 	t.Helper()
 
 	rootAPI := "/" + opts.Organization + "/_apis"
-	repoAPI := "/" + opts.Organization + "/" + opts.Project + "/_apis/git/repositories/" + opts.Repo
+	repoAPI := "/" + opts.Organization + "/" + url.PathEscape(opts.Project) +
+		"/_apis/git/repositories/" + url.PathEscape(opts.Repo)
 
 	mux := http.NewServeMux()
 	branchCreated := &atomic.Bool{}
@@ -543,7 +545,7 @@ func azureItemsHandler(opts AzureOptions) http.HandlerFunc {
 }
 
 func registerAzureReleases(mux *http.ServeMux, org, project string) {
-	prefix := "/" + org + "/" + project + "/_apis"
+	prefix := "/" + org + "/" + url.PathEscape(project) + "/_apis"
 
 	mux.HandleFunc("GET "+prefix+"/release/releases", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{azureKeyCount: 0, azureKeyValue: []any{}})

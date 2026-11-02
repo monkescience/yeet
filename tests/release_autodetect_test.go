@@ -218,6 +218,36 @@ func TestReleaseAutoDetect(t *testing.T) {
 		)
 	})
 
+	t.Run("azuredevops ssh remote decodes percent-encoded project and repo", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a git repo whose v3 ssh origin percent-encodes spaces in project and repo
+		repoDir, shas := fixture.WriteRepoWithHistory(
+			t, "git@ssh.dev.azure.com:v3/contoso/Fabrikam%20Fiber/Fabrikam%20Fiber", "main", autodetectHistory)
+
+		server := fakeprovider.NewAzure(t, fakeprovider.AzureOptions{
+			Organization:  "contoso",
+			Project:       "Fabrikam Fiber",
+			Repo:          "Fabrikam Fiber",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{Branch: "main"})
+
+		// when: running `yeet release --dry-run` from inside that repo
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.AzureEnv(server, "main")...),
+		)
+
+		// then: yeet calls the API with the decoded names and plans the release
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "1.0.0 → 1.1.0")
+	})
+
 	t.Run("azuredevops legacy visualstudio remote auto-detects coordinates", func(t *testing.T) {
 		t.Parallel()
 

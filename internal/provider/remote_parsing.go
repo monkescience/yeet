@@ -229,9 +229,18 @@ func parseAzureDevOpsSSHRemote(remoteURL string) (*repositoryDescriptor, error) 
 		return nil, ErrUnknownRemote
 	}
 
-	org := strings.TrimSpace(segments[1])
-	project := strings.TrimSpace(segments[2])
-	repo := strings.TrimSpace(segments[3])
+	decoded := make([]string, 0, len(segments)-1)
+
+	for _, segment := range segments[1:] {
+		value, err := url.PathUnescape(segment)
+		if err != nil {
+			return nil, ErrUnknownRemote
+		}
+
+		decoded = append(decoded, strings.TrimSpace(value))
+	}
+
+	org, project, repo := decoded[0], decoded[1], decoded[2]
 
 	if org == "" || project == "" || repo == "" {
 		return nil, ErrUnknownRemote
