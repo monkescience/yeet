@@ -458,16 +458,9 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 		return directNextVersion, finalBumpType, true, nil
 	}
 
-	strategy := a.core.strategies[target.ID]
-
-	nextVersion, _, _, err := strategy.NextRelease(
-		currentVersionWithInitial(strategy, currentVersion),
-		finalBumpType,
-		"",
-		a.core.run.prerelease,
-	)
+	// Plan again with the higher bump. A Release-As footer in the direct commits still sets the version.
+	nextVersion, _, _, err := a.nextVersionPlan(ctx, target, inputs.directCommits, currentVersion, finalBumpType)
 	if err != nil {
-		//nolint:wrapcheck // The scheme owns this wording and it reaches the user verbatim.
 		return "", commit.BumpNone, false, err
 	}
 
