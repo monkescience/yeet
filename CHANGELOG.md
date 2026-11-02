@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.18.1](https://github.com/monkescience/yeet/compare/v0.18.0...v0.18.1) (2026-11-02)
+
+### Features
+
+- **version:** support prerelease channels for calver targets (#347) ([fc8a99c](https://github.com/monkescience/yeet/commit/fc8a99c2433f3cc21ccc65f15fc3f3196911c954))
+
+### Bug Fixes
+
+- **release:** report the Release-As bump on derived targets ([bcda3ae](https://github.com/monkescience/yeet/commit/bcda3ae01e68818d7be3389adc25a343c590ab02))
+- **provider:** escape github label names containing slashes in api paths ([6310e28](https://github.com/monkescience/yeet/commit/6310e284b7439b93c533e6140586a62c22db18c0))
+- **release:** keep Release-As over child bumps on derived targets (#346) ([bf8acd0](https://github.com/monkescience/yeet/commit/bf8acd0e30476dae2994b781fa7cc85bc20ae12d))
+- **versionfile:** keep hyphens in a prerelease suffix (#345) ([1ef2743](https://github.com/monkescience/yeet/commit/1ef2743591be202e33992d2b3100773aeaf9d245))
+
 ## [v0.18.0](https://github.com/monkescience/yeet/compare/v0.17.5...v0.18.0) (2026-10-31)
 
 ### ⚠ BREAKING CHANGES
