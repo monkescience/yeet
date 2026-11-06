@@ -1,7 +1,7 @@
 BINARY  := yeet
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 # renovate: datasource=go depName=github.com/vladopajic/go-test-coverage/v2
-GO_TEST_COVERAGE_VERSION := v2.20.1
+GO_TEST_COVERAGE_VERSION := v2.21.0
 
 .PHONY: help build snapshot image test test-unit test-blackbox coverage check-coverage lint fmt generate clean
 
