@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.18.2](https://github.com/monkescience/yeet/compare/v0.18.1...v0.18.2) (2026-11-13)
+
+### Bug Fixes
+
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.15 (#362) ([be83573](https://github.com/monkescience/yeet/commit/be83573c2a8736c60da8c3531fb7c8e5a08bbb7f))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.13 (#352) ([c0fad3b](https://github.com/monkescience/yeet/commit/c0fad3b0f7708decaa96e641eaaa1e1b5dda64bf))
+
 ## [v0.18.1](https://github.com/monkescience/yeet/compare/v0.18.0...v0.18.1) (2026-11-02)
 
 ### Features
