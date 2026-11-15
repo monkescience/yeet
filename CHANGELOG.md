@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.18.2](https://github.com/monkescience/yeet/compare/v0.18.1...v0.18.2) (2026-11-15)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.40.0 (#354) ([e31e066](https://github.com/monkescience/yeet/commit/e31e0660c844acf9a597e67ade5b955671bb6c92))
+- **commit:** log breaking footers that lack a preceding blank line ([4c2d3ce](https://github.com/monkescience/yeet/commit/4c2d3ced2fee91a9b025ee49fefab2439d31d4d1))
+- **config:** quote init target names that yaml reads as non-strings ([eacda92](https://github.com/monkescience/yeet/commit/eacda92a1b455cde7b004cb3e95208d85f084a70))
+- **provider:** escape azure devops project and repo names in web links ([6449704](https://github.com/monkescience/yeet/commit/644970450bd5796a2baceeba1eb4789ab32c4115))
+- **provider:** decode percent-encoded azure devops ssh remote paths ([e1fd0c8](https://github.com/monkescience/yeet/commit/e1fd0c85959d242adef333412d2534832aea03a9))
+- **version:** continue a counterless prerelease tag on its own version ([6a2d714](https://github.com/monkescience/yeet/commit/6a2d7140bcc2c2a01c17d37dcabe94b24f1513b7))
+- **version:** ignore channel tags without a numeric prerelease counter ([a8ddc19](https://github.com/monkescience/yeet/commit/a8ddc1949899e9c70cb160e5e63b53dc9197cddf))
+- **version:** ignore tags that lack the target tag prefix ([565f0d3](https://github.com/monkescience/yeet/commit/565f0d304e6d6515913f1495398a5a77e17dd891))
+- **deps:** update module charm.land/lipgloss/v2 to v2.1.0 (#369) ([1894d47](https://github.com/monkescience/yeet/commit/1894d473d01ccce94b2787d1476dcb2f0f94d6d7))
+- **deps:** update module go.yaml.in/yaml/v4 to v4.0.0 (#363) ([b00a268](https://github.com/monkescience/yeet/commit/b00a2688f650d99db717b350e20e68dd46801fd8))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.15 (#362) ([be83573](https://github.com/monkescience/yeet/commit/be83573c2a8736c60da8c3531fb7c8e5a08bbb7f))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.13 (#352) ([c0fad3b](https://github.com/monkescience/yeet/commit/c0fad3b0f7708decaa96e641eaaa1e1b5dda64bf))
+
 ## [v0.18.1](https://github.com/monkescience/yeet/compare/v0.18.0...v0.18.1) (2026-11-02)
 
 ### Features
