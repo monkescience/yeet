@@ -170,11 +170,11 @@ func (f *repoFixture) checkoutNewBranch(name string, at plumbing.Hash) {
 	testastic.NoError(f.t, err)
 }
 
-func (f *repoFixture) checkoutBranch(name string) {
+func (f *repoFixture) checkoutReleaseBranch() {
 	f.t.Helper()
 
 	err := f.wt.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.NewBranchReferenceName(name),
+		Branch: plumbing.NewBranchReferenceName(fixtureBranch),
 	})
 	testastic.NoError(f.t, err)
 }
@@ -314,7 +314,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		fx.checkoutNewBranch("hotfix", c1)
 		r1 := fx.commit("fix: hotfix", map[string]string{"hotfix.txt": "fix"})
 		fx.tag("v1.0.1", r1)
-		fx.checkoutBranch(fixtureBranch)
+		fx.checkoutReleaseBranch()
 		c2 := fx.commit("feat: main work", map[string]string{"b.txt": "two"})
 		m1 := fx.commit("chore: merge hotfix", map[string]string{"hotfix.txt": "fix"}, r1)
 		c3 := fx.commit("feat: after merge", map[string]string{"c.txt": "three"})
@@ -342,7 +342,7 @@ func TestSourceLocalRanges(t *testing.T) {
 		fx.checkoutNewBranch("release", c1)
 		s1 := fx.commit("fix: release only", map[string]string{"release.txt": "fix"})
 		fx.tag("v2.0.0", s1)
-		fx.checkoutBranch(fixtureBranch)
+		fx.checkoutReleaseBranch()
 		c2 := fx.commit("feat: main work", map[string]string{"b.txt": "two"})
 
 		source, _ := fx.source()
@@ -511,7 +511,7 @@ func TestSourcePaths(t *testing.T) {
 		c1 := fx.commit("feat: base", map[string]string{"a.txt": "one"})
 		fx.checkoutNewBranch("feature", c1)
 		f1 := fx.commit("feat: side file", map[string]string{"side.txt": "side"})
-		fx.checkoutBranch(fixtureBranch)
+		fx.checkoutReleaseBranch()
 		fx.commit("fix: main work", map[string]string{"a.txt": "two"})
 		m1 := fx.commit("chore: merge feature", map[string]string{"side.txt": "side"}, f1)
 
@@ -834,7 +834,7 @@ func TestSourceUnusableCheckout(t *testing.T) {
 	})
 }
 
-func TestSourceDryRunOtherBranch(t *testing.T) {
+func TestSourceDryRunRemoteHead(t *testing.T) {
 	t.Parallel()
 
 	t.Run("dry run reads the remote branch head from another checkout", func(t *testing.T) {
@@ -884,29 +884,101 @@ func TestSourceDryRunOtherBranch(t *testing.T) {
 		var checkout *history.CheckoutError
 
 		testastic.True(t, errors.As(err, &checkout))
-		testastic.Equal(t, history.CheckoutProblemBranchMissing, checkout.Problem)
+		testastic.Equal(t, history.CheckoutProblemRemoteHeadMissing, checkout.Problem)
 		testastic.Equal(t, fixtureBranch, checkout.Branch)
 		testastic.Equal(t, "feature", checkout.CurrentBranch)
 		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
 	})
 
-	t.Run("dry run on the release branch still requires the remote head", func(t *testing.T) {
+	t.Run("dry run behind an unfetched remote head is superseded", func(t *testing.T) {
 		t.Parallel()
 
-		// given: the release branch checked out behind a differing remote head
+		// given: a remote head that contains the local head but was not fetched
 		fx := newRepoFixture(t)
-		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
 
-		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111"}
+		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111", isAncestor: true}
 
 		// when: a dry-run source is opened
 		_, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
 
-		// then: the existing mismatch check applies
+		// then: the checkout is identified as superseded like a real release
 		var checkout *history.CheckoutError
 
 		testastic.True(t, errors.As(err, &checkout))
-		testastic.Equal(t, history.CheckoutProblemRemoteMismatch, checkout.Problem)
+		testastic.Equal(t, history.CheckoutProblemSuperseded, checkout.Problem)
+		testastic.Equal(t, c1.String(), checkout.LocalHead)
+		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
+	})
+
+	t.Run("dry run on a stale release branch previews the remote head", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the release branch checked out behind a fetched remote head
+		fx := newRepoFixture(t)
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		fx.checkoutNewBranch("fetched", c1)
+		c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
+		fx.checkoutReleaseBranch()
+
+		remote := &remoteStub{branchHead: c2.String()}
+
+		// when: a dry-run source is opened and read
+		source, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+		testastic.NoError(t, err)
+
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, false, nil)
+
+		// then: history comes from the remote head instead of the stale checkout
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{c2.String(), c1.String()}, entryHashes(result.EntriesByRef[""]))
+	})
+
+	t.Run("dry run with unpushed commits previews the remote head", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the release branch checked out ahead of the remote head
+		fx := newRepoFixture(t)
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		fx.commit("fix: unpushed", map[string]string{"a.txt": "unpushed"})
+
+		remote := &remoteStub{branchHead: c1.String()}
+
+		// when: a dry-run source is opened and read
+		source, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+		testastic.NoError(t, err)
+
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, false, nil)
+		testastic.NoError(t, err)
+
+		content, err := source.GetFile(t.Context(), "a.txt")
+
+		// then: unpushed commits and their files are left out of the preview
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{c1.String()}, entryHashes(result.EntriesByRef[""]))
+		testastic.Equal(t, "one", content)
+	})
+
+	t.Run("dry run on a detached head previews the remote head", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a detached checkout at an older commit of the release branch
+		fx := newRepoFixture(t)
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
+		fx.checkoutDetached(c1)
+
+		remote := &remoteStub{branchHead: c2.String()}
+
+		// when: a dry-run source is opened and read
+		source, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+		testastic.NoError(t, err)
+
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, false, nil)
+
+		// then: history comes from the remote head instead of the detached commit
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{c2.String(), c1.String()}, entryHashes(result.EntriesByRef[""]))
 	})
 }
 

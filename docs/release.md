@@ -8,6 +8,9 @@ Every CI run of `yeet release` moves the release one step forward:
 | Release PR/MR is open | Refreshes it with any new commits |
 | Release PR/MR was merged | Creates the tag and provider release, then relabels the PR/MR `autorelease: tagged` |
 
+`yeet release --dry-run` previews the next step without changing anything.
+It plans from the remote head of the release branch, so fetch that branch first. Unpushed local commits are not part of the preview.
+
 Most repositories need no `release:` settings. The options below are all optional.
 To merge release PRs/MRs automatically, see [Auto-merge](auto-merge.md).
 
@@ -126,7 +129,7 @@ release:
 - A channel uses its own changelog, such as `CHANGELOG.beta.md`. Single-target setups can set `changelog_file` instead.
 - Stable releases ignore prerelease tags.
 - yeet fails on branches that are neither `branch` nor a channel branch.
-- `yeet release --dry-run --channel beta` previews a channel from any branch once the channel branch is fetched.
+- `yeet release --dry-run --channel beta` previews a channel from any checkout once the channel branch is fetched.
 
 For calver prerelease versions, see [Versioning](versioning.md#calver).
 

@@ -63,11 +63,11 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 	})
 
-	t.Run("diverged checkout fails with an actionable error", func(t *testing.T) {
+	t.Run("dry run without the fetched remote head asks to fetch it", func(t *testing.T) {
 		t.Parallel()
 
-		// given: a local checkout whose head the provider knows outside the provider branch
-		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
+		// given: a local checkout that lacks the remote branch head commit
+		repoDir, boundarySHA, _ := fixture.WriteRepoWithTaggedHistory(
 			t,
 			"https://github.com/acme/repo.git",
 			"main",
@@ -80,7 +80,6 @@ func TestReleaseLocalHistory(t *testing.T) {
 			LatestTag:     "v1.0.0",
 			BoundarySHA:   boundarySHA,
 			BranchHeadSHA: "1111111111111111111111111111111111111111",
-			OffBranchSHAs: []string{headSHA},
 		})
 
 		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
@@ -91,18 +90,18 @@ func TestReleaseLocalHistory(t *testing.T) {
 			Repo:     "repo",
 		})
 
-		// when: invoking `yeet release --dry-run` inside the diverged checkout
+		// when: invoking `yeet release --dry-run` inside the checkout
 		result := binary.RunWithOptions(t,
 			[]string{"release", "--dry-run", "--config", configPath},
 			testastic.WithRunWorkDir(repoDir),
 			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
 		)
 
-		// then: the run fails telling the user to update the checkout
+		// then: the run fails telling the user to fetch the release branch
 		testastic.NotEqual(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,
-			"testdata/release/diverged_checkout_fails_with_an_actionable_error/"+
+			"testdata/release/dry_run_without_the_fetched_remote_head_asks_to_fetch_it/"+
 				"stderr.expected.txt",
 			result.Stderr,
 		)
@@ -196,6 +195,55 @@ func TestReleaseLocalHistory(t *testing.T) {
 		)
 
 		// then: the run succeeds with a skip warning and no provider mutation
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/checkout_behind_the_remote_branch_skips_the_release/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
+	t.Run("dry run behind an unfetched remote head skips the preview", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a remote branch that moved past the local head to a commit not fetched yet
+		repoDir, boundarySHA, headSHA := fixture.WriteRepoWithTaggedHistory(
+			t,
+			"https://github.com/acme/repo.git",
+			"main",
+			"v1.0.0",
+		)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "acme",
+			Repo:          "repo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   boundarySHA,
+			BranchHeadSHA: "1111111111111111111111111111111111111111",
+			Commits: []fakeprovider.GitHubCommit{
+				{SHA: "1111111111111111111111111111111111111111", Message: "fix: newer push"},
+				{SHA: headSHA, Message: "feat: local head"},
+			},
+			FailOnMutation: true,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "acme",
+			Repo:     "repo",
+		})
+
+		// when: invoking `yeet release --dry-run` inside the stale checkout
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: the dry run skips like a real release instead of failing
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.AssertFile(
 			t,

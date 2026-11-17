@@ -26,7 +26,7 @@ Optional-Footer: value
 By default `feat` bumps the minor version and `fix` or `perf` bumps the patch version.
 See [Versioning](versioning.md) for the full rules.
 
-Run `yeet release --dry-run --verbose` to see why a commit was ignored.
+Run `yeet release --dry-run --verbose` to see why a commit was ignored. Dry runs only see commits on the remote release branch.
 
 ## Breaking changes
 

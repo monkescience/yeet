@@ -2,7 +2,7 @@
 
 Run `yeet release` on every push to the release branch.
 The job needs a full-history checkout (no shallow clone) of the latest commit on that branch.
-yeet refuses to run on pull request and tag checkouts.
+`yeet release` refuses to run on pull request and tag checkouts. A `--dry-run` there previews the release branch, not the pull request.
 
 If a newer push lands while a run is in progress, yeet skips that run with a warning, and the run for the newer commit releases it.
 

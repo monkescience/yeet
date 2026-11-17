@@ -451,7 +451,7 @@ func TestCheckoutHint(t *testing.T) {
 		},
 		{
 			name:     "missing remote branch head",
-			problem:  history.CheckoutProblemBranchMissing,
+			problem:  history.CheckoutProblemRemoteHeadMissing,
 			expected: "fetch the release branch from the remote",
 		},
 	}
