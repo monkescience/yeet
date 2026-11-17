@@ -24,6 +24,7 @@ const (
 	CheckoutProblemNoRepository   = "git repository is unavailable"
 	CheckoutProblemNoHead         = "checkout head is unavailable"
 	CheckoutProblemOtherBranch    = "checkout is on another branch"
+	CheckoutProblemBranchMissing  = "remote branch head is unavailable in checkout"
 	CheckoutProblemRemoteMismatch = "checkout does not match remote branch"
 	CheckoutProblemSuperseded     = "checkout is behind remote branch"
 	CheckoutProblemTagUnavailable = "release tag is unavailable in checkout"
@@ -83,9 +84,10 @@ type Remote interface {
 }
 
 type Source struct {
-	remote Remote
-	branch string
-	dir    string
+	remote           Remote
+	branch           string
+	dir              string
+	allowOtherBranch bool
 
 	local *localHistory
 
@@ -94,8 +96,14 @@ type Source struct {
 }
 
 func Open(ctx context.Context, remote Remote, branch, dir string) (*Source, error) {
-	s := &Source{remote: remote, branch: branch, dir: dir}
+	return open(ctx, &Source{remote: remote, branch: branch, dir: dir})
+}
 
+func OpenDryRun(ctx context.Context, remote Remote, branch, dir string) (*Source, error) {
+	return open(ctx, &Source{remote: remote, branch: branch, dir: dir, allowOtherBranch: true})
+}
+
+func open(ctx context.Context, s *Source) (*Source, error) {
 	local, err := s.openEligibleLocal(ctx)
 	if err != nil {
 		return nil, err
@@ -310,7 +318,8 @@ func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*
 		return nil, headCheckoutError(err)
 	}
 
-	if head.Name().IsBranch() && head.Name().Short() != s.branch {
+	otherBranch := head.Name().IsBranch() && head.Name().Short() != s.branch
+	if otherBranch && !s.allowOtherBranch {
 		return nil, &CheckoutError{
 			Problem:       CheckoutProblemOtherBranch,
 			Branch:        s.branch,
@@ -324,6 +333,11 @@ func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*
 	}
 
 	remoteHead = strings.TrimSpace(remoteHead)
+
+	if otherBranch {
+		return s.otherBranchHistory(ctx, repo, head.Name().Short(), remoteHead)
+	}
+
 	if !strings.EqualFold(head.Hash().String(), remoteHead) {
 		return nil, &CheckoutError{
 			Problem:    s.remoteMismatchProblem(ctx, head.Hash().String(), remoteHead),
@@ -334,6 +348,35 @@ func (s *Source) validateLocalHead(ctx context.Context, repo *git.Repository) (*
 	}
 
 	return newLocalHistory(repo, head.Hash()), nil
+}
+
+func (s *Source) otherBranchHistory(
+	ctx context.Context,
+	repo *git.Repository,
+	currentBranch, remoteHead string,
+) (*localHistory, error) {
+	hash, valid := plumbing.FromHex(remoteHead)
+	if valid {
+		_, err := repo.CommitObject(hash)
+		valid = err == nil
+	}
+
+	if !valid {
+		return nil, &CheckoutError{
+			Problem:       CheckoutProblemBranchMissing,
+			Branch:        s.branch,
+			CurrentBranch: currentBranch,
+			RemoteHead:    remoteHead,
+		}
+	}
+
+	slog.DebugContext(ctx, "reading release history from remote branch head outside the checkout",
+		slog.String("branch", s.branch),
+		slog.String("current_branch", currentBranch),
+		slog.String("remote_head", remoteHead),
+	)
+
+	return newLocalHistory(repo, hash), nil
 }
 
 func (s *Source) remoteMismatchProblem(ctx context.Context, localHead, remoteHead string) string {

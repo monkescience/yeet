@@ -165,6 +165,8 @@ func checkoutHint(checkout *history.CheckoutError) string {
 		return "check out the remote head of the release branch before releasing"
 	case history.CheckoutProblemOtherBranch:
 		return "check out the configured release branch"
+	case history.CheckoutProblemBranchMissing:
+		return "fetch the release branch from the remote"
 	case history.CheckoutProblemNoRepository:
 		return "run yeet from a git checkout"
 	case history.CheckoutProblemShallowUnknown:

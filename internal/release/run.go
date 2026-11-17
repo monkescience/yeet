@@ -65,7 +65,7 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 		return nil, resolvedConfigPath, err
 	}
 
-	historySource, err := history.Open(ctx, p, run.baseBranch, ".")
+	historySource, err := historyOpener(options.DryRun)(ctx, p, run.baseBranch, ".")
 	if err != nil {
 		checkout, ok := errors.AsType[*history.CheckoutError](err)
 		if ok && checkout.Problem == history.CheckoutProblemSuperseded {
@@ -100,6 +100,14 @@ func rawRun(ctx context.Context, configPath string, options Options) (*Result, s
 	result.Provider = resolvedProvider
 
 	return result, resolvedConfigPath, nil
+}
+
+func historyOpener(dryRun bool) func(context.Context, history.Remote, string, string) (*history.Source, error) {
+	if dryRun {
+		return history.OpenDryRun
+	}
+
+	return history.Open
 }
 
 func repositoryOverrides(options Options) provider.RepositoryOverrides {

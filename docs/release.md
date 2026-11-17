@@ -126,7 +126,7 @@ release:
 - A channel uses its own changelog, such as `CHANGELOG.beta.md`. Single-target setups can set `changelog_file` instead.
 - Stable releases ignore prerelease tags.
 - yeet fails on branches that are neither `branch` nor a channel branch.
-- `yeet release --dry-run --channel beta` previews a channel from any branch.
+- `yeet release --dry-run --channel beta` previews a channel from any branch once the channel branch is fetched.
 
 For calver prerelease versions, see [Versioning](versioning.md#calver).
 

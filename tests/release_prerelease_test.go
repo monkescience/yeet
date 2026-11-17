@@ -59,6 +59,99 @@ func TestReleasePrereleaseCounter(t *testing.T) {
 		)
 	})
 
+	t.Run("github beta channel dry run previews from another branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a checkout on main whose objects include the remote beta branch head
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0-beta.1", Tag: "v1.1.0-beta.1", Branch: "beta"},
+				{Message: "feat: add a thing", Branch: "beta"},
+				{Message: "fix: main only change"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.1.0-beta.1",
+			ExtraTags:     []string{"v1.0.0"},
+			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v1.1.0-beta.1": shas[1], "v1.0.0": shas[0]},
+			BranchHeadSHA: shas[2],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+			},
+		})
+
+		// when: invoking `yeet release --dry-run --channel beta` from main
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet plans the beta release from the beta branch history and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Contains(t, result.Stdout, "1.1.0-beta.1 → 1.1.0-beta.2")
+		testastic.Contains(t, result.Stdout, "add a thing")
+		testastic.NotContains(t, result.Stdout, "main only change")
+	})
+
+	t.Run("github beta channel release rejects a checkout of another branch", func(t *testing.T) {
+		t.Parallel()
+
+		// given: CI reports the beta branch while the local checkout is on main
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "chore: release v1.1.0-beta.1", Tag: "v1.1.0-beta.1", Branch: "beta"},
+				{Message: "feat: add a thing", Branch: "beta"},
+				{Message: "fix: main only change"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.1.0-beta.1",
+			ExtraTags:     []string{"v1.0.0"},
+			BoundarySHA:   shas[1],
+			TagSHAs:       map[string]string{"v1.1.0-beta.1": shas[1], "v1.0.0": shas[0]},
+			BranchHeadSHA: shas[2],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Channels: map[string]fixture.ChannelOptions{
+				"beta": {Branch: "beta", Prerelease: "beta"},
+			},
+		})
+
+		// when: invoking `yeet release --channel beta` without --dry-run
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--channel", "beta", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "beta")...),
+		)
+
+		// then: yeet refuses to release from the mismatched checkout
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.Contains(t, result.Stderr, "checkout is on another branch")
+		testastic.NotContains(t, result.Stdout, "release pull request")
+	})
+
 	t.Run("github beta channel ignores tags without a numeric counter", func(t *testing.T) {
 		t.Parallel()
 

@@ -834,6 +834,82 @@ func TestSourceUnusableCheckout(t *testing.T) {
 	})
 }
 
+func TestSourceDryRunOtherBranch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dry run reads the remote branch head from another checkout", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a feature branch checked out while the release branch head exists locally
+		fx := newRepoFixture(t)
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		c2 := fx.commit("fix: two", map[string]string{"a.txt": "two"})
+		fx.checkoutNewBranch("feature", c1)
+		fx.commit("feat: feature only", map[string]string{"a.txt": "feature"})
+
+		remote := &remoteStub{branchHead: c2.String()}
+
+		// when: a dry-run source is opened and read
+		source, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+		testastic.NoError(t, err)
+
+		result, err := source.GetCommitsSinceRefs(t.Context(), []string{""}, false, nil)
+		testastic.NoError(t, err)
+
+		content, err := source.GetFile(t.Context(), "a.txt")
+
+		// then: history and files come from the release branch head, not the checkout
+		testastic.NoError(t, err)
+		testastic.SliceEqual(t, []string{c2.String(), c1.String()}, entryHashes(result.EntriesByRef[""]))
+		testastic.Equal(t, "two", content)
+	})
+
+	t.Run("dry run fails when the remote branch head is not in the checkout", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a feature branch checked out and a release branch head that was never fetched
+		fx := newRepoFixture(t)
+		c1 := fx.commit("feat: one", map[string]string{"a.txt": "one"})
+		fx.checkoutNewBranch("feature", c1)
+
+		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111"}
+
+		// when: a dry-run source is opened
+		_, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+
+		// then: the run fails naming the missing remote head
+		testastic.Error(t, err)
+		testastic.True(t, errors.Is(err, history.ErrCheckoutUnusable))
+
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemBranchMissing, checkout.Problem)
+		testastic.Equal(t, fixtureBranch, checkout.Branch)
+		testastic.Equal(t, "feature", checkout.CurrentBranch)
+		testastic.Equal(t, "1111111111111111111111111111111111111111", checkout.RemoteHead)
+	})
+
+	t.Run("dry run on the release branch still requires the remote head", func(t *testing.T) {
+		t.Parallel()
+
+		// given: the release branch checked out behind a differing remote head
+		fx := newRepoFixture(t)
+		fx.commit("feat: one", map[string]string{"a.txt": "one"})
+
+		remote := &remoteStub{branchHead: "1111111111111111111111111111111111111111"}
+
+		// when: a dry-run source is opened
+		_, err := history.OpenDryRun(t.Context(), remote, fixtureBranch, fx.dir)
+
+		// then: the existing mismatch check applies
+		var checkout *history.CheckoutError
+
+		testastic.True(t, errors.As(err, &checkout))
+		testastic.Equal(t, history.CheckoutProblemRemoteMismatch, checkout.Problem)
+	})
+}
+
 func TestSourceDelegation(t *testing.T) {
 	t.Parallel()
 
