@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.18.3](https://github.com/monkescience/yeet/compare/v0.18.2...v0.18.3) (2026-11-19)
+
+### Bug Fixes
+
+- **release:** warn about invalid release notes in derived target changes ([010ce01](https://github.com/monkescience/yeet/commit/010ce0140fbb16f7dac8d4860d585e23a5aab104))
+- **release:** keep child commits that only change release files in derived targets ([39b3d64](https://github.com/monkescience/yeet/commit/39b3d645de89a2f97e87f359bdfd19ea3e109c21))
+- **release:** keep derived target commits when releasing a child target ([f80835e](https://github.com/monkescience/yeet/commit/f80835e4dbbbd243cdd648882c623749256a0dd9))
+- **release:** count derived target changes since its own latest tag ([1786c22](https://github.com/monkescience/yeet/commit/1786c22c9824cdb40944ad3b5d9b847192976b61))
+- **release:** preview the remote branch head in every dry run ([1ca8f9d](https://github.com/monkescience/yeet/commit/1ca8f9decee614d505c7483fef9ed4e9adf64687))
+- **release:** preview a channel dry run from another branch ([3a10b2c](https://github.com/monkescience/yeet/commit/3a10b2ca10e7ea7703c37d09acd6113703da8c5f))
+
 ## [v0.18.2](https://github.com/monkescience/yeet/compare/v0.18.1...v0.18.2) (2026-11-15)
 
 ### Bug Fixes
