@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/monkescience/yeet/internal/changelog"
 	"github.com/monkescience/yeet/internal/commit"
 	"github.com/monkescience/yeet/internal/config"
 	"github.com/monkescience/yeet/internal/history"
@@ -41,34 +42,65 @@ func (a *releaseAnalyzer) parseCommits(
 ) ([]commit.Commit, error) {
 	commits := make([]commit.Commit, 0, len(entries))
 
-	for _, entry := range entries {
-		parsed, err := a.parseEntry(ctx, entry)
-		if err != nil {
-			return nil, err
+	err := a.eachParsedCommit(ctx, entries, func(candidate parsedCommit) {
+		if candidate.hiddenOverride {
+			slog.WarnContext(ctx, "ignored commit override inside unclosed release note",
+				slog.String("target", target.ID),
+				slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+				logattr.Hint("close the release-note fence before BEGIN_COMMIT_OVERRIDE to restore the override"),
+			)
+		} else if candidate.noteErr != nil && inChangelog(candidate.commit, target.Changelog.Include) {
+			slog.WarnContext(ctx, "skipped invalid release note",
+				slog.String("target", target.ID),
+				slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+				slog.String("problem", candidate.noteErr.Error()),
+				logattr.Hint(releaseNoteHint(candidate.noteErr)+
+					", or add the note to the changelog on the release branch"),
+			)
 		}
 
-		for _, candidate := range parsed {
-			if candidate.hiddenOverride {
-				slog.WarnContext(ctx, "ignored commit override inside unclosed release note",
-					slog.String("target", target.ID),
-					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
-					logattr.Hint("close the release-note fence before BEGIN_COMMIT_OVERRIDE to restore the override"),
-				)
-			} else if candidate.noteErr != nil && inChangelog(candidate.commit, target.Changelog.Include) {
-				slog.WarnContext(ctx, "skipped invalid release note",
-					slog.String("target", target.ID),
-					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
-					slog.String("problem", candidate.noteErr.Error()),
-					logattr.Hint(releaseNoteHint(candidate.noteErr)+
-						", or add the note to the changelog on the release branch"),
-				)
-			}
-
-			commits = append(commits, candidate.commit)
-		}
+		commits = append(commits, candidate.commit)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return commits, nil
+}
+
+func (a *releaseAnalyzer) parseCommitsQuietly(
+	ctx context.Context,
+	entries []history.CommitEntry,
+) ([]commit.Commit, error) {
+	commits := make([]commit.Commit, 0, len(entries))
+
+	err := a.eachParsedCommit(ctx, entries, func(candidate parsedCommit) {
+		commits = append(commits, candidate.commit)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return commits, nil
+}
+
+func (a *releaseAnalyzer) eachParsedCommit(
+	ctx context.Context,
+	entries []history.CommitEntry,
+	visit func(parsedCommit),
+) error {
+	for _, entry := range entries {
+		parsed, err := a.parseEntry(ctx, entry)
+		if err != nil {
+			return err
+		}
+
+		for _, candidate := range parsed {
+			visit(candidate)
+		}
+	}
+
+	return nil
 }
 
 func (a *releaseAnalyzer) parseEntry(ctx context.Context, entry history.CommitEntry) ([]parsedCommit, error) {
@@ -180,6 +212,7 @@ func (a *releaseAnalyzer) planDerivedTargets(
 	ctx context.Context,
 	scan *historyScan,
 	selectedTargets map[string]config.ResolvedTarget,
+	analyzedTargets map[string]config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (map[string]TargetPlan, error) {
 	r := a.core
@@ -200,21 +233,23 @@ func (a *releaseAnalyzer) planDerivedTargets(
 		_, explicitlySelected := selectedTargetIDs[targetID]
 		includeDirectCommits := len(selectedTargetIDs) == 0 || explicitlySelected
 
-		childPlans := make([]TargetPlan, 0, len(target.Includes))
+		children := make([]derivedChildTarget, 0, len(target.Includes))
 		for _, includeID := range target.Includes {
-			childPlan, exists := pathPlans[includeID]
+			childTarget, exists := r.targets[includeID]
 			if !exists {
 				continue
 			}
 
-			childPlans = append(childPlans, childPlan)
+			_, analyzed := analyzedTargets[includeID]
+			children = append(children, derivedChildTarget{target: childTarget, analyzed: analyzed})
 		}
 
 		plan, shouldRelease, err := a.planDerivedTarget(
 			ctx,
 			scan,
 			target,
-			childPlans,
+			children,
+			pathPlans,
 			includeDirectCommits,
 		)
 		if err != nil {
@@ -324,20 +359,33 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 type derivedPlanContext struct {
 	history              targetHistory
 	directEntries        []history.CommitEntry
-	childEntries         []history.CommitEntry
 	directCommits        []commit.Commit
-	childPlans           []TargetPlan
+	children             []derivedChild
 	includeDirectCommits bool
+}
+
+type derivedChildTarget struct {
+	target   config.ResolvedTarget
+	analyzed bool
+}
+
+type derivedChild struct {
+	target      config.ResolvedTarget
+	entries     []history.CommitEntry
+	commitCount int
+	bumpType    commit.BumpType
+	sections    []changelog.Section
 }
 
 func (a *releaseAnalyzer) planDerivedTarget(
 	ctx context.Context,
 	scan *historyScan,
 	target config.ResolvedTarget,
-	childPlans []TargetPlan,
+	childTargets []derivedChildTarget,
+	pathPlans map[string]TargetPlan,
 	includeDirectCommits bool,
 ) (TargetPlan, bool, error) {
-	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childPlans, includeDirectCommits)
+	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childTargets, pathPlans, includeDirectCommits)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
@@ -358,10 +406,11 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	ctx context.Context,
 	scan *historyScan,
 	target config.ResolvedTarget,
-	childPlans []TargetPlan,
+	childTargets []derivedChildTarget,
+	pathPlans map[string]TargetPlan,
 	includeDirectCommits bool,
 ) (derivedPlanContext, error) {
-	targetHist, err := a.loadTargetHistory(ctx, scan, target, target.Path != "" || len(childPlans) > 0)
+	targetHist, err := a.loadTargetHistory(ctx, scan, target, target.Path != "" || len(childTargets) > 0)
 	if err != nil {
 		return derivedPlanContext{}, err
 	}
@@ -376,14 +425,117 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 		return derivedPlanContext{}, err
 	}
 
+	children := make([]derivedChild, 0, len(childTargets))
+	releaseFiles := releaseFilePaths(a.core.targets)
+
+	for _, childTarget := range childTargets {
+		child, releases, err := a.derivedChildInRange(ctx, childTarget, targetHist.entries, releaseFiles, pathPlans)
+		if err != nil {
+			return derivedPlanContext{}, err
+		}
+
+		if releases {
+			children = append(children, child)
+		}
+	}
+
 	return derivedPlanContext{
 		history:              targetHist,
 		directEntries:        directEntries,
-		childEntries:         filterEntriesForPlans(targetHist.entries, childPlans, a.core.targets),
 		directCommits:        directCommits,
-		childPlans:           childPlans,
+		children:             children,
 		includeDirectCommits: includeDirectCommits,
 	}, nil
+}
+
+// derivedChildInRange measures a child by the derived target's own range, because the child's
+// range can start before or after it when the two release in separate PRs/MRs.
+func (a *releaseAnalyzer) derivedChildInRange(
+	ctx context.Context,
+	candidate derivedChildTarget,
+	derivedEntries []history.CommitEntry,
+	releaseFiles map[string]struct{},
+	pathPlans map[string]TargetPlan,
+) (derivedChild, bool, error) {
+	childTarget := candidate.target
+	isReleaseCommit := func(entry history.CommitEntry) bool {
+		return onlyWritesReleaseFiles(entry, releaseFiles)
+	}
+	entries := slices.DeleteFunc(filterEntriesForTarget(derivedEntries, childTarget), isReleaseCommit)
+
+	var (
+		commits []commit.Commit
+		err     error
+	)
+
+	if candidate.analyzed {
+		commits, err = a.parseCommitsQuietly(ctx, entries)
+	} else {
+		commits, err = a.parseCommits(ctx, entries, childTarget)
+	}
+
+	if err != nil {
+		return derivedChild{}, false, err
+	}
+
+	bumpType := commit.DetermineBump(commits, a.bumpMapping)
+	if bumpType == commit.BumpNone {
+		return derivedChild{}, false, nil
+	}
+
+	child := derivedChild{target: childTarget, entries: entries, commitCount: len(commits), bumpType: bumpType}
+
+	if childPlan, exists := pathPlans[childTarget.ID]; exists && sameCommitRange(childPlan, entries) {
+		child.sections = childPlan.Entry.Sections
+
+		return child, true, nil
+	}
+
+	child.sections = newTargetChangelogEntry(
+		ctx,
+		childTarget,
+		"",
+		"",
+		commits,
+		a.core.timestamp(),
+		a.core.metadata,
+	).Sections
+
+	return child, true, nil
+}
+
+func releaseFilePaths(targets map[string]config.ResolvedTarget) map[string]struct{} {
+	paths := make(map[string]struct{})
+
+	for _, target := range targets {
+		paths[target.Changelog.File] = struct{}{}
+
+		for _, versionFile := range target.VersionFiles {
+			paths[versionFile.Path] = struct{}{}
+		}
+	}
+
+	return paths
+}
+
+// onlyWritesReleaseFiles spots release commits of other units, which a derived range can contain
+// because the derived target and its children release in separate PRs/MRs.
+func onlyWritesReleaseFiles(entry history.CommitEntry, releaseFiles map[string]struct{}) bool {
+	if len(entry.Paths) == 0 {
+		return false
+	}
+
+	for _, changedPath := range entry.Paths {
+		if _, exists := releaseFiles[strings.TrimSpace(changedPath)]; !exists {
+			return false
+		}
+	}
+
+	return true
+}
+
+func sameCommitRange(plan TargetPlan, entries []history.CommitEntry) bool {
+	return len(plan.commitHashes) > 0 && slices.Equal(plan.commitHashes, uniqueEntryHashes(entries))
 }
 
 func (a *releaseAnalyzer) loadTargetHistory(
@@ -430,9 +582,9 @@ func (a *releaseAnalyzer) derivedVersionPlan(
 	inputs derivedPlanContext,
 ) (string, commit.BumpType, bool, error) {
 	bumpType := commit.DetermineBump(inputs.directCommits, a.bumpMapping)
-	for _, childPlan := range inputs.childPlans {
-		if commit.CompareBump(childPlan.BumpType, bumpType) > 0 {
-			bumpType = childPlan.BumpType
+	for _, child := range inputs.children {
+		if commit.CompareBump(child.bumpType, bumpType) > 0 {
+			bumpType = child.bumpType
 		}
 	}
 
@@ -456,17 +608,21 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 	plan.PRCompareRef = derivedPRCompareRef(
 		inputs.history.entries,
 		target,
-		inputs.childPlans,
+		inputs.children,
 		inputs.includeDirectCommits,
-		a.core.targets,
 	)
-	plan.commitHashes = uniqueEntryHashes(inputs.directEntries, inputs.childEntries)
-	plan.CommitCount = derivedCommitCount(plan.commitHashes, inputs.directCommits, inputs.childPlans)
-	plan.IncludedTargets = make([]string, 0, len(inputs.childPlans))
 
-	for _, childPlan := range inputs.childPlans {
-		plan.IncludedTargets = append(plan.IncludedTargets, childPlan.ID)
+	entryGroups := make([][]history.CommitEntry, 0, len(inputs.children)+1)
+	entryGroups = append(entryGroups, inputs.directEntries)
+	plan.IncludedTargets = make([]string, 0, len(inputs.children))
+
+	for _, child := range inputs.children {
+		entryGroups = append(entryGroups, child.entries)
+		plan.IncludedTargets = append(plan.IncludedTargets, child.target.ID)
 	}
+
+	plan.commitHashes = uniqueEntryHashes(entryGroups...)
+	plan.CommitCount = derivedCommitCount(plan.commitHashes, inputs.directCommits, inputs.children)
 
 	direct := newTargetChangelogEntry(
 		ctx,
@@ -480,33 +636,31 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 	plan.Entry = derivedChangelogEntry(
 		direct,
 		target.Includes,
-		inputs.childPlans,
+		inputs.children,
 		inputs.history.ref,
-		plan.PRCompareRef,
-		derivedChangelogRelease,
+		plan.NextTag,
 		a.core.metadata,
 	)
 	plan.PREntry = derivedChangelogEntry(
 		direct,
 		target.Includes,
-		inputs.childPlans,
+		inputs.children,
 		inputs.history.ref,
 		plan.PRCompareRef,
-		derivedChangelogPreview,
 		a.core.metadata,
 	)
 
 	return plan
 }
 
-func derivedCommitCount(hashes []string, directCommits []commit.Commit, childPlans []TargetPlan) int {
+func derivedCommitCount(hashes []string, directCommits []commit.Commit, children []derivedChild) int {
 	if len(hashes) > 0 {
 		return len(hashes)
 	}
 
 	count := len(directCommits)
-	for _, childPlan := range childPlans {
-		count += childPlan.CommitCount
+	for _, child := range children {
+		count += child.commitCount
 	}
 
 	return count
@@ -572,23 +726,17 @@ func (a *releaseAnalyzer) newDirectTargetPlan(
 func derivedPRCompareRef(
 	entries []history.CommitEntry,
 	directTarget config.ResolvedTarget,
-	childPlans []TargetPlan,
+	children []derivedChild,
 	includeDirectCommits bool,
-	targets map[string]config.ResolvedTarget,
 ) string {
-	compareTargets := make([]config.ResolvedTarget, 0, len(childPlans)+1)
+	compareTargets := make([]config.ResolvedTarget, 0, len(children)+1)
 
 	if includeDirectCommits && directTarget.Path != "" {
 		compareTargets = append(compareTargets, directTarget)
 	}
 
-	for _, childPlan := range childPlans {
-		childTarget, exists := targets[childPlan.ID]
-		if !exists {
-			continue
-		}
-
-		compareTargets = append(compareTargets, childTarget)
+	for _, child := range children {
+		compareTargets = append(compareTargets, child.target)
 	}
 
 	for _, entry := range entries {
@@ -602,39 +750,6 @@ func derivedPRCompareRef(
 	}
 
 	return ""
-}
-
-func filterEntriesForPlans(
-	entries []history.CommitEntry,
-	plans []TargetPlan,
-	targets map[string]config.ResolvedTarget,
-) []history.CommitEntry {
-	includedTargets := make([]config.ResolvedTarget, 0, len(plans))
-
-	for _, plan := range plans {
-		target, exists := targets[plan.ID]
-		if !exists {
-			continue
-		}
-
-		includedTargets = append(includedTargets, target)
-	}
-
-	return filterEntriesForTargets(entries, includedTargets)
-}
-
-func filterEntriesForTargets(entries []history.CommitEntry, targets []config.ResolvedTarget) []history.CommitEntry {
-	filteredEntries := make([]history.CommitEntry, 0, len(entries))
-
-	for _, entry := range entries {
-		if slices.ContainsFunc(targets, func(target config.ResolvedTarget) bool {
-			return entryBelongsToTarget(entry, target)
-		}) {
-			filteredEntries = append(filteredEntries, entry)
-		}
-	}
-
-	return filteredEntries
 }
 
 func uniqueEntryHashes(entryGroups ...[]history.CommitEntry) []string {

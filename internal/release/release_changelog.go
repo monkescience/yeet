@@ -9,13 +9,6 @@ import (
 	"github.com/monkescience/yeet/internal/config"
 )
 
-type derivedChangelogMode uint8
-
-const (
-	derivedChangelogRelease derivedChangelogMode = iota
-	derivedChangelogPreview
-)
-
 type changelogFileKey struct {
 	branch string
 	path   string
@@ -96,33 +89,19 @@ func changelogEntryWithCompare(
 func derivedChangelogEntry(
 	direct changelog.Entry,
 	includedTargets []string,
-	childPlans []TargetPlan,
-	ref, prCompareRef string,
-	mode derivedChangelogMode,
+	children []derivedChild,
+	ref, compareTarget string,
 	metadata repoMetadataProvider,
 ) changelog.Entry {
-	children := make([]changelog.Section, 0, len(childPlans))
-	for _, childPlan := range childPlans {
-		children = append(children, changelog.Section{
-			Heading:  childPlan.ID,
-			Sections: childChangelogSections(childPlan, mode),
+	sections := make([]changelog.Section, 0, len(children))
+	for _, child := range children {
+		sections = append(sections, changelog.Section{
+			Heading:  child.target.ID,
+			Sections: child.sections,
 		})
 	}
 
-	entry := changelog.DerivedEntry(direct, includedTargets, children)
-
-	compareTarget := direct.Version
-	if mode == derivedChangelogPreview {
-		compareTarget = prCompareRef
-	}
+	entry := changelog.DerivedEntry(direct, includedTargets, sections)
 
 	return changelogEntryWithCompare(entry, ref, compareTarget, metadata)
-}
-
-func childChangelogSections(childPlan TargetPlan, mode derivedChangelogMode) []changelog.Section {
-	if mode == derivedChangelogPreview && len(childPlan.PREntry.Sections) > 0 {
-		return childPlan.PREntry.Sections
-	}
-
-	return childPlan.Entry.Sections
 }

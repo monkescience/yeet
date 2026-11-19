@@ -111,6 +111,38 @@ func TestReleaseNotes(t *testing.T) {
 }
 
 func TestReleaseNoteWarnings(t *testing.T) {
+	t.Run("warns about an unselected child commit a derived target releases", func(t *testing.T) {
+		// given: root includes api and web, and only web has a feature with an unclosed note
+		logs := captureWarnings(t)
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {Type: config.TargetTypePath, Path: "services/api", TagPrefix: "api-v"},
+			"web": {Type: config.TargetTypePath, Path: "apps/web", TagPrefix: "web-v"},
+			"root": {
+				Type:      config.TargetTypeDerived,
+				Includes:  []string{"api", "web"},
+				TagPrefix: "v",
+			},
+		}
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0", "web-v2.0.0"}
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: refresh page\n\n```release-note\nunclosed",
+			Paths:   []string{"apps/web/page.tsx"},
+		}}
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: releasing only the api target
+		result, err := releaseSelectedTargets(context.Background(), r, true, []string{"api"})
+
+		// then: root releases web's feature and warns about its skipped note
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "root", result.Plans[0].ID)
+		testastic.Contains(t, logs.String(), "skipped invalid release note")
+	})
+
 	t.Run("ignores breaking footer text inside an unclosed note", func(t *testing.T) {
 		// given: a feature whose unclosed note contains a breaking-footer example
 		logs := captureWarnings(t)

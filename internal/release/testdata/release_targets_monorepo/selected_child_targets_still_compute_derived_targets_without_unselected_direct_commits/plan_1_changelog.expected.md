@@ -5,3 +5,10 @@
 ### Features
 
 - add token rotation (abcdef1)
+
+
+### web
+
+### Bug Fixes
+
+- patch dashboard (fedcba0)

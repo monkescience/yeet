@@ -130,11 +130,11 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 		r := newTestReleaser(t, cfg, stub)
 		workflow := r.lifecycle
 
-		webPlan := TargetPlan{
-			ID: "web",
-			Entry: changelog.ParseEntry(
+		web := derivedChild{
+			target: r.core.targets["web"],
+			sections: changelog.ParseEntry(
 				"## web-v2.1.5 (2026-03-02)\n\n### Bug Fixes\n\n- patch dashboard again (89abcde)\n",
-			),
+			).Sections,
 		}
 
 		plan := TargetPlan{
@@ -147,10 +147,9 @@ func TestPreserveTargetChangelogEdits(t *testing.T) {
 					t.Context(), r.core.targets["root"], "v3.1.0", "", nil, r.core.timestamp(), r.core.metadata,
 				),
 				r.core.targets["root"].Includes,
-				[]TargetPlan{webPlan},
+				[]derivedChild{web},
 				"",
-				"",
-				derivedChangelogRelease,
+				"v3.1.0",
 				r.core.metadata,
 			),
 		}

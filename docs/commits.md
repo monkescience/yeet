@@ -84,6 +84,7 @@ The version must be stable and greater than the current version.
 All `Release-As` footers in one release must agree.
 On a [prerelease channel](release.md#prerelease-channels), yeet adds the channel suffix, such as `1.0.0-beta.1`.
 Calver targets ignore the footer.
+`Release-As` sets the version of the target whose files the commit changes. Derived targets that include it bump by commit type instead.
 
 ## Commit overrides
 

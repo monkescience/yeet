@@ -48,7 +48,13 @@ func analyze(
 		return nil, err
 	}
 
-	derivedPlans, err := a.planDerivedTargets(ctx, scan, selection.selectedTargets, pathPlans)
+	derivedPlans, err := a.planDerivedTargets(
+		ctx,
+		scan,
+		selection.selectedTargets,
+		selection.pathTargetsToAnalyze,
+		pathPlans,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -1537,6 +1537,68 @@ func TestReleaseDerivedTarget(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 		testastic.Equal(t, 2, strings.Count(result.Stderr, "changelog: generated entry"))
 	})
+
+	t.Run("derived root target keeps an included feature its child released first", func(t *testing.T) {
+		t.Parallel()
+
+		// given: api released its feature before root, and root then got its own fix
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v3.0.0", Tag: "v3.0.0", Files: map[string]string{"CHANGELOG.md": "changelog\n"}},
+				{Message: "feat: add api endpoint", Files: map[string]string{"services/api/handler.go": "api handler\n"}},
+				{
+					Message: "chore: release api-v1.3.0",
+					Tag:     "api-v1.3.0",
+					Files:   map[string]string{"services/api/CHANGELOG.md": "api changelog\n"},
+				},
+				{Message: "fix: tidy repo metadata", Files: map[string]string{"README.md": "repo metadata\n"}},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v3.0.0",
+			ExtraTags:     []string{"api-v1.3.0"},
+			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"v3.0.0": shas[0], "api-v1.3.0": shas[2]},
+			BranchHeadSHA: shas[3],
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			Targets: []fixture.TargetOptions{
+				{Name: "api", Path: "services/api", TagPrefix: "api-v"},
+				{
+					Name:         "root",
+					Type:         "derived",
+					Path:         ".",
+					TagPrefix:    "v",
+					ExcludePaths: []string{"services/api"},
+					Includes:     []string{"api"},
+				},
+			},
+		})
+
+		// when: invoking `yeet release --dry-run`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--dry-run", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: root plans a minor release that still includes the api feature
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/derived_root_target_keeps_an_included_feature_its_child_released_first/"+
+				"stdout.expected.txt",
+			result.Stdout,
+		)
+	})
 }
 
 func TestReleaseMultiTargetCrossProvider(t *testing.T) {

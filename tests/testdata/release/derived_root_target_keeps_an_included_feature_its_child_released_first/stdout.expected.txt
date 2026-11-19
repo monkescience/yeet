@@ -1,0 +1,43 @@
+
+Dry Run
+No changes will be made.
+
+Release Plan
+
+  Target      root
+  Version     3.0.0 → 3.1.0
+  Bump        minor
+  Tag         v3.1.0
+  Commits     3
+
+Pull Request
+
+  Action      create or update
+  Title       chore: release 3.1.0
+  Branch      yeet/release-main → main
+
+Body Preview
+
+  ٩(^ᴗ^)۶ release created
+
+  v3.1.0
+  (http://127.0.0.1:{{regex `\d+`}}/testorg/testrepo/compare/v3.0.0...3da77a3d45a8cdd3ef
+  840f1aa5fde8080a3c85eb) ({{regex `\d{4}-\d{2}-\d{2}`}})
+
+  Bug Fixes
+
+  • tidy repo metadata (3da77a3 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/3da77a3d45a8cdd3ef840f1aa5fde8080a3c85eb))
+
+  api
+
+  Features
+
+  • add api endpoint (85e5d72 (http://127.0.0.
+  1:{{regex `\d+`}}/testorg/testrepo/commit/85e5d72687b6eb9550f340a6b32d32380c91784f))
+
+  Auto-generated preview, edit CHANGELOG.md to customize release notes.
+
+  Made with yeet (https://github.com/monkescience/yeet) - yeet it.
+
+Plan: 1 target, 3 commits, 1 pull request.

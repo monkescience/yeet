@@ -49,7 +49,7 @@ targets:
 ```
 
 A `path` target only picks up commits that touch its path, minus `exclude_paths`.
-A `derived` target releases whenever one of its `includes` releases, and optionally for commits under its own `path`.
+A `derived` target releases for changes in its `includes` since its own latest tag, and optionally for commits under its own `path`.
 Each path must belong to at most one target, so a `derived` target with its own `path` must exclude the paths of its `includes`.
 
 Targets can override `versioning`, `calver`, `changelog`, `version_files`, and the pre-major settings.
