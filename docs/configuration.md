@@ -23,6 +23,7 @@ The [JSON schema](../yeet.schema.json) lists every field and default, and gives 
 A target is something yeet versions and tags.
 By default, all targets with changes share one release PR/MR. For one PR/MR per target, see [Monorepo release units](release.md#monorepo-release-units).
 Use `--target <name>` to release only some targets.
+Selecting a target also plans every `derived` target that includes it, from all of that derived target's changes since its latest tag.
 
 ### Monorepo
 

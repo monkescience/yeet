@@ -230,9 +230,6 @@ func (a *releaseAnalyzer) planDerivedTargets(
 			continue
 		}
 
-		_, explicitlySelected := selectedTargetIDs[targetID]
-		includeDirectCommits := len(selectedTargetIDs) == 0 || explicitlySelected
-
 		children := make([]derivedChildTarget, 0, len(target.Includes))
 		for _, includeID := range target.Includes {
 			childTarget, exists := r.targets[includeID]
@@ -250,7 +247,6 @@ func (a *releaseAnalyzer) planDerivedTargets(
 			target,
 			children,
 			pathPlans,
-			includeDirectCommits,
 		)
 		if err != nil {
 			return nil, err
@@ -357,11 +353,10 @@ func (a *releaseAnalyzer) loadDirectPlanContext(
 }
 
 type derivedPlanContext struct {
-	history              targetHistory
-	directEntries        []history.CommitEntry
-	directCommits        []commit.Commit
-	children             []derivedChild
-	includeDirectCommits bool
+	history       targetHistory
+	directEntries []history.CommitEntry
+	directCommits []commit.Commit
+	children      []derivedChild
 }
 
 type derivedChildTarget struct {
@@ -383,9 +378,8 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	target config.ResolvedTarget,
 	childTargets []derivedChildTarget,
 	pathPlans map[string]TargetPlan,
-	includeDirectCommits bool,
 ) (TargetPlan, bool, error) {
-	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childTargets, pathPlans, includeDirectCommits)
+	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childTargets, pathPlans)
 	if err != nil {
 		return TargetPlan{}, false, err
 	}
@@ -408,7 +402,6 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	target config.ResolvedTarget,
 	childTargets []derivedChildTarget,
 	pathPlans map[string]TargetPlan,
-	includeDirectCommits bool,
 ) (derivedPlanContext, error) {
 	targetHist, err := a.loadTargetHistory(ctx, scan, target, target.Path != "" || len(childTargets) > 0)
 	if err != nil {
@@ -416,7 +409,7 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	}
 
 	directEntries := []history.CommitEntry{}
-	if includeDirectCommits && target.Path != "" {
+	if target.Path != "" {
 		directEntries = filterEntriesForTarget(targetHist.entries, target)
 	}
 
@@ -440,11 +433,10 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	}
 
 	return derivedPlanContext{
-		history:              targetHist,
-		directEntries:        directEntries,
-		directCommits:        directCommits,
-		children:             children,
-		includeDirectCommits: includeDirectCommits,
+		history:       targetHist,
+		directEntries: directEntries,
+		directCommits: directCommits,
+		children:      children,
 	}, nil
 }
 
@@ -609,7 +601,6 @@ func (a *releaseAnalyzer) newDerivedTargetPlan(
 		inputs.history.entries,
 		target,
 		inputs.children,
-		inputs.includeDirectCommits,
 	)
 
 	entryGroups := make([][]history.CommitEntry, 0, len(inputs.children)+1)
@@ -727,11 +718,10 @@ func derivedPRCompareRef(
 	entries []history.CommitEntry,
 	directTarget config.ResolvedTarget,
 	children []derivedChild,
-	includeDirectCommits bool,
 ) string {
 	compareTargets := make([]config.ResolvedTarget, 0, len(children)+1)
 
-	if includeDirectCommits && directTarget.Path != "" {
+	if directTarget.Path != "" {
 		compareTargets = append(compareTargets, directTarget)
 	}
 

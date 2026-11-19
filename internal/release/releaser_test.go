@@ -3263,7 +3263,7 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		testastic.Equal(t, "v3.1.0", result.Plans[1].NextTag)
 	})
 
-	t.Run("selected child targets still compute derived targets without unselected direct commits", func(t *testing.T) {
+	t.Run("selected child target releases derived target with its own direct commits", func(t *testing.T) {
 		t.Parallel()
 
 		// given: a monorepo config with selected api target and an unselected root direct commit
@@ -3301,17 +3301,18 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		// when: planning only the api target
 		result, err := releaseSelectedTargets(context.Background(), r, true, []string{"api"})
 
-		// then: root releases every included change since its tag but ignores unselected direct commits
+		// then: root releases every included change and its own direct commits since its tag
 		testastic.NoError(t, err)
 		testastic.Equal(t, 2, len(result.Plans))
 		testastic.Equal(t, "api", result.Plans[0].ID)
 		testastic.Equal(t, "root", result.Plans[1].ID)
 		testastic.Equal(t, "v3.1.0", result.Plans[1].NextTag)
+		testastic.Equal(t, 3, result.Plans[1].CommitCount)
 		testastic.SliceEqual(t, []string{"api", "web"}, result.Plans[1].IncludedTargets)
 		testastic.AssertFile(
 			t,
 			"testdata/release_targets_monorepo/"+
-				"selected_child_targets_still_compute_derived_targets_without_unselected_direct_commits/"+
+				"selected_child_target_releases_derived_target_with_its_own_direct_commits/"+
 				"plan_1_changelog.expected.md",
 			changelog.Render(result.Plans[1].Entry),
 		)
