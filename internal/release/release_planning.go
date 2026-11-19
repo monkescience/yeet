@@ -419,10 +419,9 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	}
 
 	children := make([]derivedChild, 0, len(childTargets))
-	releaseFiles := releaseFilePaths(a.core.targets)
 
 	for _, childTarget := range childTargets {
-		child, releases, err := a.derivedChildInRange(ctx, childTarget, targetHist.entries, releaseFiles, pathPlans)
+		child, releases, err := a.derivedChildInRange(ctx, childTarget, targetHist.entries, pathPlans)
 		if err != nil {
 			return derivedPlanContext{}, err
 		}
@@ -446,14 +445,10 @@ func (a *releaseAnalyzer) derivedChildInRange(
 	ctx context.Context,
 	candidate derivedChildTarget,
 	derivedEntries []history.CommitEntry,
-	releaseFiles map[string]struct{},
 	pathPlans map[string]TargetPlan,
 ) (derivedChild, bool, error) {
 	childTarget := candidate.target
-	isReleaseCommit := func(entry history.CommitEntry) bool {
-		return onlyWritesReleaseFiles(entry, releaseFiles)
-	}
-	entries := slices.DeleteFunc(filterEntriesForTarget(derivedEntries, childTarget), isReleaseCommit)
+	entries := filterEntriesForTarget(derivedEntries, childTarget)
 
 	var (
 		commits []commit.Commit
@@ -494,36 +489,6 @@ func (a *releaseAnalyzer) derivedChildInRange(
 	).Sections
 
 	return child, true, nil
-}
-
-func releaseFilePaths(targets map[string]config.ResolvedTarget) map[string]struct{} {
-	paths := make(map[string]struct{})
-
-	for _, target := range targets {
-		paths[target.Changelog.File] = struct{}{}
-
-		for _, versionFile := range target.VersionFiles {
-			paths[versionFile.Path] = struct{}{}
-		}
-	}
-
-	return paths
-}
-
-// onlyWritesReleaseFiles spots release commits of other units, which a derived range can contain
-// because the derived target and its children release in separate PRs/MRs.
-func onlyWritesReleaseFiles(entry history.CommitEntry, releaseFiles map[string]struct{}) bool {
-	if len(entry.Paths) == 0 {
-		return false
-	}
-
-	for _, changedPath := range entry.Paths {
-		if _, exists := releaseFiles[strings.TrimSpace(changedPath)]; !exists {
-			return false
-		}
-	}
-
-	return true
 }
 
 func sameCommitRange(plan TargetPlan, entries []history.CommitEntry) bool {

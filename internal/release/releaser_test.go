@@ -3658,21 +3658,17 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		)
 	})
 
-	t.Run("derived target leaves out a child release commit", func(t *testing.T) {
+	t.Run("derived target does not release for a child release commit alone", func(t *testing.T) {
 		t.Parallel()
 
-		// given: api released feature X with a release commit that only writes its changelog,
-		//        api's changelog lists chores, and root then got its own fix
+		// given: root released api feature X as v3.1.0, then api released X with a release commit
 		cfg := config.Default()
 		cfg.Targets = map[string]config.Target{
 			"api": {
 				Type:      config.TargetTypePath,
 				Path:      "services/api",
 				TagPrefix: "api-v",
-				Changelog: config.ChangelogConfig{
-					File:    "services/api/CHANGELOG.md",
-					Include: []string{"feat", "fix", "chore"},
-				},
+				Changelog: config.ChangelogConfig{File: "services/api/CHANGELOG.md"},
 			},
 			"root": {
 				Type:         config.TargetTypeDerived,
@@ -3684,12 +3680,10 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		}
 
 		stub := newProviderStub()
-		stub.tagList = []string{"v3.0.0", "api-v1.3.0", "api-v1.2.0"}
+		stub.tagList = []string{"v3.1.0", "v3.0.0", "api-v1.3.0", "api-v1.2.0"}
 		stub.commitsByRef = map[string][]history.CommitEntry{
-			"v3.0.0": {
-				{Hash: "1234567890abcdef", Message: "fix: tidy repo metadata", Paths: []string{"README.md"}},
+			"v3.1.0": {
 				{Hash: "2222222222222222", Message: "chore: release 1.3.0", Paths: []string{"services/api/CHANGELOG.md"}},
-				{Hash: "abcdef1234567890", Message: "feat: add token rotation", Paths: []string{"services/api/main.go"}},
 			},
 		}
 
@@ -3698,15 +3692,54 @@ func TestReleaseTargetsMonorepo(t *testing.T) {
 		// when: planning a release wave
 		result, err := r.Release(context.Background(), true)
 
-		// then: root lists api's feature but not api's release commit
+		// then: nothing releases
 		testastic.NoError(t, err)
-		testastic.Equal(t, 1, len(result.Plans))
-		testastic.Equal(t, "v3.1.0", result.Plans[0].NextTag)
-		testastic.Equal(t, 2, result.Plans[0].CommitCount)
+		testastic.Equal(t, 0, len(result.Plans))
+	})
 
-		rendered := changelog.Render(result.Plans[0].Entry)
-		testastic.Contains(t, rendered, "add token rotation (abcdef1)")
-		testastic.NotContains(t, rendered, "release 1.3.0")
+	t.Run("derived target releases a child fix that only changes a version file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: api's only change is a fix to its version file
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {
+				Type:         config.TargetTypePath,
+				Path:         "services/api",
+				TagPrefix:    "api-v",
+				VersionFiles: []config.VersionFile{{Path: "services/api/Chart.yaml"}},
+			},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
+		stub.commits = []history.CommitEntry{
+			{
+				Hash:    "abcdef1234567890",
+				Message: "fix(deps): update redis chart to 18.2.0",
+				Paths:   []string{"services/api/Chart.yaml"},
+			},
+		}
+
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning a release wave
+		result, err := r.Release(context.Background(), true)
+
+		// then: root releases the fix with api
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, "api-v1.2.1", result.Plans[0].NextTag)
+		testastic.Equal(t, "root", result.Plans[1].ID)
+		testastic.Equal(t, "v3.0.1", result.Plans[1].NextTag)
+		testastic.SliceEqual(t, []string{"api"}, result.Plans[1].IncludedTargets)
 	})
 
 	t.Run("derived target bumps from child commit types, not child Release-As", func(t *testing.T) {
