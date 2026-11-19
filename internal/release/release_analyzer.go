@@ -12,20 +12,27 @@ import (
 )
 
 type releaseAnalyzer struct {
-	core          *releaseCore
-	history       versionHistoryProvider
-	bumpMapping   commit.BumpMapping
-	parseCache    map[string][]parsedCommit
-	overrideTypes map[string]struct{}
+	core            *releaseCore
+	history         versionHistoryProvider
+	bumpMapping     commit.BumpMapping
+	parseCache      map[string][]parsedCommit
+	parsedForTarget map[targetCommit]struct{}
+	overrideTypes   map[string]struct{}
+}
+
+type targetCommit struct {
+	target string
+	hash   string
 }
 
 func newReleaseAnalyzer(core *releaseCore, history versionHistoryProvider) *releaseAnalyzer {
 	return &releaseAnalyzer{
-		core:          core,
-		history:       history,
-		bumpMapping:   core.cfg.BumpTypes.ToBumpMapping(),
-		parseCache:    make(map[string][]parsedCommit),
-		overrideTypes: knownCommitTypes(core.cfg),
+		core:            core,
+		history:         history,
+		bumpMapping:     core.cfg.BumpTypes.ToBumpMapping(),
+		parseCache:      make(map[string][]parsedCommit),
+		parsedForTarget: make(map[targetCommit]struct{}),
+		overrideTypes:   knownCommitTypes(core.cfg),
 	}
 }
 
@@ -48,13 +55,7 @@ func analyze(
 		return nil, err
 	}
 
-	derivedPlans, err := a.planDerivedTargets(
-		ctx,
-		scan,
-		selection.selectedTargets,
-		selection.pathTargetsToAnalyze,
-		pathPlans,
-	)
+	derivedPlans, err := a.planDerivedTargets(ctx, scan, selection.selectedTargets, pathPlans)
 	if err != nil {
 		return nil, err
 	}

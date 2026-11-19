@@ -42,65 +42,58 @@ func (a *releaseAnalyzer) parseCommits(
 ) ([]commit.Commit, error) {
 	commits := make([]commit.Commit, 0, len(entries))
 
-	err := a.eachParsedCommit(ctx, entries, func(candidate parsedCommit) {
-		if candidate.hiddenOverride {
-			slog.WarnContext(ctx, "ignored commit override inside unclosed release note",
-				slog.String("target", target.ID),
-				slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
-				logattr.Hint("close the release-note fence before BEGIN_COMMIT_OVERRIDE to restore the override"),
-			)
-		} else if candidate.noteErr != nil && inChangelog(candidate.commit, target.Changelog.Include) {
-			slog.WarnContext(ctx, "skipped invalid release note",
-				slog.String("target", target.ID),
-				slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
-				slog.String("problem", candidate.noteErr.Error()),
-				logattr.Hint(releaseNoteHint(candidate.noteErr)+
-					", or add the note to the changelog on the release branch"),
-			)
-		}
-
-		commits = append(commits, candidate.commit)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return commits, nil
-}
-
-func (a *releaseAnalyzer) parseCommitsQuietly(
-	ctx context.Context,
-	entries []history.CommitEntry,
-) ([]commit.Commit, error) {
-	commits := make([]commit.Commit, 0, len(entries))
-
-	err := a.eachParsedCommit(ctx, entries, func(candidate parsedCommit) {
-		commits = append(commits, candidate.commit)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return commits, nil
-}
-
-func (a *releaseAnalyzer) eachParsedCommit(
-	ctx context.Context,
-	entries []history.CommitEntry,
-	visit func(parsedCommit),
-) error {
 	for _, entry := range entries {
 		parsed, err := a.parseEntry(ctx, entry)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
+		warn := a.firstParseForTarget(target, entry)
+
 		for _, candidate := range parsed {
-			visit(candidate)
+			if !warn {
+				commits = append(commits, candidate.commit)
+
+				continue
+			}
+
+			if candidate.hiddenOverride {
+				slog.WarnContext(ctx, "ignored commit override inside unclosed release note",
+					slog.String("target", target.ID),
+					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+					logattr.Hint("close the release-note fence before BEGIN_COMMIT_OVERRIDE to restore the override"),
+				)
+			} else if candidate.noteErr != nil && inChangelog(candidate.commit, target.Changelog.Include) {
+				slog.WarnContext(ctx, "skipped invalid release note",
+					slog.String("target", target.ID),
+					slog.String("commit", strings.TrimSpace(candidate.commit.Hash)),
+					slog.String("problem", candidate.noteErr.Error()),
+					logattr.Hint(releaseNoteHint(candidate.noteErr)+
+						", or add the note to the changelog on the release branch"),
+				)
+			}
+
+			commits = append(commits, candidate.commit)
 		}
 	}
 
-	return nil
+	return commits, nil
+}
+
+func (a *releaseAnalyzer) firstParseForTarget(target config.ResolvedTarget, entry history.CommitEntry) bool {
+	hash := strings.TrimSpace(entry.Hash)
+	if hash == "" {
+		return true
+	}
+
+	key := targetCommit{target: target.ID, hash: hash}
+	if _, seen := a.parsedForTarget[key]; seen {
+		return false
+	}
+
+	a.parsedForTarget[key] = struct{}{}
+
+	return true
 }
 
 func (a *releaseAnalyzer) parseEntry(ctx context.Context, entry history.CommitEntry) ([]parsedCommit, error) {
@@ -212,7 +205,6 @@ func (a *releaseAnalyzer) planDerivedTargets(
 	ctx context.Context,
 	scan *historyScan,
 	selectedTargets map[string]config.ResolvedTarget,
-	analyzedTargets map[string]config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (map[string]TargetPlan, error) {
 	r := a.core
@@ -230,15 +222,14 @@ func (a *releaseAnalyzer) planDerivedTargets(
 			continue
 		}
 
-		children := make([]derivedChildTarget, 0, len(target.Includes))
+		children := make([]config.ResolvedTarget, 0, len(target.Includes))
 		for _, includeID := range target.Includes {
 			childTarget, exists := r.targets[includeID]
 			if !exists {
 				continue
 			}
 
-			_, analyzed := analyzedTargets[includeID]
-			children = append(children, derivedChildTarget{target: childTarget, analyzed: analyzed})
+			children = append(children, childTarget)
 		}
 
 		plan, shouldRelease, err := a.planDerivedTarget(
@@ -359,11 +350,6 @@ type derivedPlanContext struct {
 	children      []derivedChild
 }
 
-type derivedChildTarget struct {
-	target   config.ResolvedTarget
-	analyzed bool
-}
-
 type derivedChild struct {
 	target      config.ResolvedTarget
 	entries     []history.CommitEntry
@@ -376,7 +362,7 @@ func (a *releaseAnalyzer) planDerivedTarget(
 	ctx context.Context,
 	scan *historyScan,
 	target config.ResolvedTarget,
-	childTargets []derivedChildTarget,
+	childTargets []config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (TargetPlan, bool, error) {
 	inputs, err := a.loadDerivedPlanInputs(ctx, scan, target, childTargets, pathPlans)
@@ -400,7 +386,7 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 	ctx context.Context,
 	scan *historyScan,
 	target config.ResolvedTarget,
-	childTargets []derivedChildTarget,
+	childTargets []config.ResolvedTarget,
 	pathPlans map[string]TargetPlan,
 ) (derivedPlanContext, error) {
 	targetHist, err := a.loadTargetHistory(ctx, scan, target, target.Path != "" || len(childTargets) > 0)
@@ -443,24 +429,13 @@ func (a *releaseAnalyzer) loadDerivedPlanInputs(
 // range can start before or after it when the two release in separate PRs/MRs.
 func (a *releaseAnalyzer) derivedChildInRange(
 	ctx context.Context,
-	candidate derivedChildTarget,
+	childTarget config.ResolvedTarget,
 	derivedEntries []history.CommitEntry,
 	pathPlans map[string]TargetPlan,
 ) (derivedChild, bool, error) {
-	childTarget := candidate.target
 	entries := filterEntriesForTarget(derivedEntries, childTarget)
 
-	var (
-		commits []commit.Commit
-		err     error
-	)
-
-	if candidate.analyzed {
-		commits, err = a.parseCommitsQuietly(ctx, entries)
-	} else {
-		commits, err = a.parseCommits(ctx, entries, childTarget)
-	}
-
+	commits, err := a.parseCommits(ctx, entries, childTarget)
 	if err != nil {
 		return derivedChild{}, false, err
 	}

@@ -3,6 +3,7 @@ package release
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -143,6 +144,71 @@ func TestReleaseNoteWarnings(t *testing.T) {
 		testastic.Contains(t, logs.String(), "skipped invalid release note")
 	})
 
+	t.Run("warns about a child commit only its derived target releases", func(t *testing.T) {
+		// given: api already released a feature with an unclosed note, and root releases it later
+		logs := captureWarnings(t)
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {Type: config.TargetTypePath, Path: "services/api", TagPrefix: "api-v"},
+			"root": {
+				Type:         config.TargetTypeDerived,
+				Path:         ".",
+				TagPrefix:    "v",
+				ExcludePaths: []string{"services/api"},
+				Includes:     []string{"api"},
+			},
+		}
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.3.0"}
+		stub.commitsByRef = map[string][]history.CommitEntry{
+			"v3.0.0": {{
+				Hash:    "abcdef1234567890",
+				Message: "feat: add token rotation\n\n```release-note\nunclosed",
+				Paths:   []string{"services/api/main.go"},
+			}},
+		}
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning a release wave
+		result, err := r.Release(context.Background(), true)
+
+		// then: root releases api's feature and warns about its skipped note
+		testastic.NoError(t, err)
+		testastic.Equal(t, 1, len(result.Plans))
+		testastic.Equal(t, "root", result.Plans[0].ID)
+		testastic.Contains(t, logs.String(), "skipped invalid release note")
+	})
+
+	t.Run("warns once about a child commit the child and its derived target release", func(t *testing.T) {
+		// given: api and root both release a feature with an unclosed note
+		logs := captureWarnings(t)
+		cfg := config.Default()
+		cfg.Targets = map[string]config.Target{
+			"api": {Type: config.TargetTypePath, Path: "services/api", TagPrefix: "api-v"},
+			"root": {
+				Type:      config.TargetTypeDerived,
+				Includes:  []string{"api"},
+				TagPrefix: "v",
+			},
+		}
+		stub := newProviderStub()
+		stub.tagList = []string{"v3.0.0", "api-v1.2.0"}
+		stub.commits = []history.CommitEntry{{
+			Hash:    "abcdef1234567890",
+			Message: "feat: add token rotation\n\n```release-note\nunclosed",
+			Paths:   []string{"services/api/main.go"},
+		}}
+		r := newTestReleaser(t, cfg, stub)
+
+		// when: planning a release wave
+		result, err := r.Release(context.Background(), true)
+
+		// then: both release the feature and the note warning appears once
+		testastic.NoError(t, err)
+		testastic.Equal(t, 2, len(result.Plans))
+		testastic.Equal(t, 1, strings.Count(logs.String(), "skipped invalid release note"))
+	})
+
 	t.Run("ignores breaking footer text inside an unclosed note", func(t *testing.T) {
 		// given: a feature whose unclosed note contains a breaking-footer example
 		logs := captureWarnings(t)
@@ -244,7 +310,10 @@ func sectionHeadingsOf(sections []changelog.Section) []string {
 func TestCachedHiddenOverrideWarning(t *testing.T) {
 	// given: a cached excluded commit whose first invalid note precedes an unclosed note hiding an override
 	logs := captureWarnings(t)
-	analyzer := &releaseAnalyzer{parseCache: make(map[string][]parsedCommit)}
+	analyzer := &releaseAnalyzer{
+		parseCache:      make(map[string][]parsedCommit),
+		parsedForTarget: make(map[targetCommit]struct{}),
+	}
 	entries := []history.CommitEntry{{
 		Hash: "abcdef1234567890",
 		Message: "chore: squash\n\n```release-note\n```\n\n```release-note\nstray\n\n" +
