@@ -77,6 +77,114 @@ func TestApplyGenericMarkers_SemVer(t *testing.T) {
 		testastic.AssertFile(t, "testdata/version_block/expected.txt", updated)
 	})
 
+	t.Run("inline marker inside block overrides block scope for that line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a version block containing an inline major marker between unmarked version lines
+		content := strings.Join([]string{
+			"# x-yeet-start-version",
+			"VERSION=1.2.3",
+			"MAJOR=1 # x-yeet-major",
+			"APP=1.2.3",
+			"# x-yeet-end",
+			"OUTSIDE=1.2.3",
+		}, "\n")
+
+		// when: applying marker replacements
+		updated, changed, err := location.Apply(content, "2.0.0", versionfile.SemVerScheme())
+
+		// then: the inline marker uses major while surrounding block lines keep using version
+		expected := strings.Join([]string{
+			"# x-yeet-start-version",
+			"VERSION=2.0.0",
+			"MAJOR=2 # x-yeet-major",
+			"APP=2.0.0",
+			"# x-yeet-end",
+			"OUTSIDE=1.2.3",
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
+	})
+
+	t.Run("inline marker inside numeric block uses inline scope instead of block scope", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a minor block containing an inline major marker
+		content := strings.Join([]string{
+			"# x-yeet-start-minor",
+			"MINOR=2",
+			"MAJOR=1 # x-yeet-major",
+			"# x-yeet-end",
+		}, "\n")
+
+		// when: applying marker replacements
+		updated, changed, err := location.Apply(content, "4.5.6", versionfile.SemVerScheme())
+
+		// then: the unmarked line gets minor and the inline-marked line gets major
+		expected := strings.Join([]string{
+			"# x-yeet-start-minor",
+			"MINOR=5",
+			"MAJOR=4 # x-yeet-major",
+			"# x-yeet-end",
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
+	})
+
+	t.Run("inline marker inside block without matching pattern returns error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an inline major marker inside a version block on a line with no number
+		content := strings.Join([]string{
+			"# x-yeet-start-version",
+			"VERSION=1.2.3",
+			`name = "app" # x-yeet-major`,
+			"# x-yeet-end",
+		}, "\n")
+
+		// when: applying marker replacements
+		updated, changed, err := location.Apply(content, "2.0.0", versionfile.SemVerScheme())
+
+		// then: the missing match surfaces as a config error and leaves content unchanged
+		testastic.ErrorIs(t, err, versionfile.ErrMarkerNoMatch)
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
+	t.Run("invalid inline marker scheme inside block returns mismatch error", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver-only inline marker inside a semver version block
+		content := strings.Join([]string{
+			"# x-yeet-start-version",
+			"VERSION=1.2.3",
+			"DAY=2 # x-yeet-day",
+			"# x-yeet-end",
+		}, "\n")
+
+		// when: applying marker replacements with semver
+		updated, changed, err := location.Apply(content, "2.0.0", versionfile.SemVerScheme())
+
+		// then: the scheme mismatch surfaces with line number and suggestion
+		testastic.ErrorIs(t, err, versionfile.ErrMarkerSchemeMismatch)
+
+		markerErr, ok := errors.AsType[*versionfile.MarkerError](err)
+		testastic.True(t, ok)
+
+		if ok {
+			testastic.Equal(t, "x-yeet-day", markerErr.Name)
+			testastic.DeepEqual(t, []string{"x-yeet-patch"}, markerErr.Suggestions)
+			testastic.Equal(t, 3, markerErr.Line)
+		}
+
+		testastic.False(t, changed)
+		testastic.Equal(t, content, updated)
+	})
+
 	t.Run("returns no markers error for release please markers", func(t *testing.T) {
 		t.Parallel()
 
@@ -411,6 +519,35 @@ func TestApplyGenericMarkers_CalVer(t *testing.T) {
 		testastic.NoError(t, err)
 		testastic.True(t, changed)
 		testastic.AssertFile(t, "testdata/calver_block/expected.txt", updated)
+	})
+
+	t.Run("inline marker inside calver block overrides block scope for that line", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a calver version block containing an inline month marker
+		content := strings.Join([]string{
+			"# x-yeet-start-version",
+			`version = "2026.02.7"`,
+			"month = 02 # x-yeet-month",
+			`app = "2026.02.7"`,
+			"# x-yeet-end",
+		}, "\n")
+
+		// when: applying marker replacements with next calver version
+		updated, changed, err := location.Apply(content, "2026.03.1", defaultScheme)
+
+		// then: the inline month marker uses zero-padded month while block lines use version
+		expected := strings.Join([]string{
+			"# x-yeet-start-version",
+			`version = "2026.03.1"`,
+			"month = 03 # x-yeet-month",
+			`app = "2026.03.1"`,
+			"# x-yeet-end",
+		}, "\n")
+
+		testastic.NoError(t, err)
+		testastic.True(t, changed)
+		testastic.Equal(t, expected, updated)
 	})
 
 	t.Run("replaces version marker for two-segment format", func(t *testing.T) {

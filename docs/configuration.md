@@ -83,6 +83,7 @@ Markers work in `#`, `//`, `/* */`, `--`, `;`, and `<!-- -->` comments, and ever
 | calver | `version`, `year`, `micro`, plus `month`, `week`, or `day` if the format has them |
 
 Use `x-yeet-<scope>` inline, or `x-yeet-start-<scope>` with `x-yeet-end` for a block.
+An inline marker inside a block overrides the block scope for that line.
 
 JSON has no comments, so point at the value instead:
 

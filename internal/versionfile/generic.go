@@ -263,19 +263,7 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 	}
 
 	if scope, isInline := markerScopeFromLine(line, inlineMarkerPattern); isInline {
-		err := p.checkAllowed(scope, lineNo)
-		if err != nil {
-			return line, err
-		}
-
-		p.markerCount++
-
-		newLine, matched := replaceForScope(line, scope, p.values)
-		if !matched {
-			return line, fmt.Errorf("%w: line %d (%s)", ErrMarkerNoMatch, lineNo, scope)
-		}
-
-		return newLine, nil
+		return p.processInlineLine(line, scope, lineNo)
 	}
 
 	if scope, isBlockStart := markerScopeFromLine(line, blockStartPattern); isBlockStart {
@@ -292,6 +280,22 @@ func (p *markerParser) processLine(line string, lineNo int) (string, error) {
 	return line, nil
 }
 
+func (p *markerParser) processInlineLine(line string, scope markerScope, lineNo int) (string, error) {
+	err := p.checkAllowed(scope, lineNo)
+	if err != nil {
+		return line, err
+	}
+
+	p.markerCount++
+
+	newLine, matched := replaceForScope(line, scope, p.values)
+	if !matched {
+		return line, fmt.Errorf("%w: line %d (%s)", ErrMarkerNoMatch, lineNo, scope)
+	}
+
+	return newLine, nil
+}
+
 func (p *markerParser) processBlockLine(line string, lineNo int) (string, error) {
 	if _, isNested := markerScopeFromLine(line, blockStartPattern); isNested {
 		return line, fmt.Errorf(
@@ -304,6 +308,10 @@ func (p *markerParser) processBlockLine(line string, lineNo int) (string, error)
 		p.blockScope = ""
 
 		return line, nil
+	}
+
+	if scope, isInline := markerScopeFromLine(line, inlineMarkerPattern); isInline {
+		return p.processInlineLine(line, scope, lineNo)
 	}
 
 	newLine, _ := replaceForScope(line, p.blockScope, p.values)

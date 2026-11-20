@@ -103,6 +103,106 @@ func TestReleaseVersionFileBlocks(t *testing.T) {
 		testastic.Equal(t, 0, result.ExitCode)
 	})
 
+	t.Run("github applies inline marker override inside an x-yeet-start/end block", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a VERSION.txt with an inline major marker inside an x-yeet-start-version block
+		files := map[string]string{
+			"VERSION.txt": "# x-yeet-start-version\n" +
+				"VERSION=1.0.0\n" +
+				"MAJOR=1 # x-yeet-major\n" +
+				"APP=1.0.0\n" +
+				"# x-yeet-end\n",
+		}
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "feat!: breaking change", Files: files},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         files,
+			ExpectedUpdatedFiles: map[string]string{
+				"VERSION.txt": "# x-yeet-start-version\n" +
+					"VERSION=2.0.0\n" +
+					"MAJOR=2 # x-yeet-major\n" +
+					"APP=2.0.0\n" +
+					"# x-yeet-end\n",
+			},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet updates both the block version lines and the inline major override
+		testastic.Equal(t, 0, result.ExitCode)
+	})
+
+	t.Run("github rejects a scheme-mismatched inline marker inside a block", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a semver VERSION.txt with a calver-only inline marker inside a version block
+		files := map[string]string{
+			"VERSION.txt": "# x-yeet-start-version\n" +
+				"VERSION=1.0.0\n" +
+				"YEAR=2025 # x-yeet-year\n" +
+				"# x-yeet-end\n",
+		}
+		repoDir, shas := versionFileHistory(t, files)
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         files,
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider:     "github",
+			Branch:       "main",
+			Host:         "github.com",
+			Owner:        "testorg",
+			Repo:         "testrepo",
+			VersionFiles: []fixture.VersionFileOptions{{Path: "VERSION.txt"}},
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet exits 1 and stderr reports the invalid marker on line 3 with a suggestion
+		testastic.Equal(t, 1, result.ExitCode)
+		testastic.AssertFile(
+			t,
+			"testdata/release/github_rejects_a_scheme_mismatched_inline_marker_inside_a_block/"+
+				"stderr.expected.txt",
+			result.Stderr,
+		)
+	})
+
 	t.Run("github rejects an unclosed x-yeet-start block", func(t *testing.T) {
 		t.Parallel()
 
