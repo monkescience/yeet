@@ -29,6 +29,7 @@ type AzureOptions struct {
 	ExistingReleaseTag        string
 	Commits                   []AzureCommit
 	MergedPendingRelease      bool
+	UnlabeledMergedRelease    bool
 	MultipleOpenPRs           bool
 	MergeBlocked              bool
 	ExistingOpenReleasePRBody string
@@ -641,9 +642,14 @@ func azurePendingPR(opts AzureOptions, id int) map[string]any {
 
 func azureMergedPendingPR(opts AzureOptions) map[string]any {
 	pr := azurePRBase(opts, azureFakePRID, azureStatusCompleted, false, true)
-	pr["labels"] = []map[string]any{
-		{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
+	if opts.UnlabeledMergedRelease {
+		pr["labels"] = []map[string]any{}
+	} else {
+		pr["labels"] = []map[string]any{
+			{gitlabKeyName: fakePendingReleaseTag, gitlabKeyID: azureFakeLabelID},
+		}
 	}
+
 	pr["description"] = "## release created\n\n" + azureReleaseManifest + "\n"
 
 	pr["lastMergeCommit"] = map[string]any{azureCommitIDKey: opts.BranchHeadSHA}

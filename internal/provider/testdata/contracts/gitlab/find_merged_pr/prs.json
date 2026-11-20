@@ -8,6 +8,7 @@
     "source_project_id": 10,
     "target_project_id": 10,
     "state": "merged",
+    "labels": ["release: waiting"],
     "merge_commit_sha": "6d65726765736861000000000000000000000000"
   }
 ]

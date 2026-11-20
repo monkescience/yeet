@@ -8,6 +8,7 @@
     "source_project_id": 10,
     "target_project_id": 10,
     "state": "merged",
+    "labels": ["autorelease: pending"],
     "merge_commit_sha": "756e64617465643500000000000000000000000",
     "merged_at": null,
     "updated_at": "2024-06-01T00:00:00Z"
@@ -21,6 +22,7 @@
     "source_project_id": 10,
     "target_project_id": 10,
     "state": "merged",
+    "labels": ["autorelease: pending"],
     "merge_commit_sha": "756e64617465643900000000000000000000000",
     "merged_at": null,
     "updated_at": "2024-02-01T00:00:00Z"

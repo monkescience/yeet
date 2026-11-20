@@ -1,0 +1,28 @@
+[
+  {
+    "iid": 41,
+    "title": "chore: release v1.2.2",
+    "description": "older release body",
+    "web_url": "https://example.com/pulls/41",
+    "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
+    "state": "merged",
+    "merged_at": "2026-08-10T10:00:00Z",
+    "labels": [],
+    "merge_commit_sha": "6f6c646572736861000000000000000000000000"
+  },
+  {
+    "iid": 42,
+    "title": "chore: release v1.2.3",
+    "description": "release body",
+    "web_url": "https://example.com/pulls/42",
+    "source_branch": "yeet/release-main",
+    "source_project_id": 10,
+    "target_project_id": 10,
+    "state": "merged",
+    "merged_at": "2026-08-11T10:00:00Z",
+    "labels": ["autorelease: tagged"],
+    "merge_commit_sha": "6d65726765736861000000000000000000000000"
+  }
+]

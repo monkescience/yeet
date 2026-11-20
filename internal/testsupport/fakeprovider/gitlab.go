@@ -22,6 +22,7 @@ type GitLabOptions struct {
 	Commits                   []GitLabCommit
 	Files                     map[string]string
 	MergedPendingRelease      bool
+	UnlabeledMergedRelease    bool
 	AsynchronousMerge         bool
 	FastForwardMerge          bool
 	MultipleOpenPRs           bool
@@ -447,7 +448,14 @@ func gitlabMergeRequestListHandler(
 		}
 
 		if state == fakeStateMerged && (opts.MergedPendingRelease || merged.Load()) {
-			writeJSON(w, []map[string]any{gitlabMergedPendingMR(opts)})
+			mr := gitlabMergedPendingMR(opts)
+			if !gitlabMRMatchesLabelFilter(mr, r.URL.Query().Get("labels")) {
+				writeJSON(w, []any{})
+
+				return
+			}
+
+			writeJSON(w, []map[string]any{mr})
 
 			return
 		}
@@ -704,7 +712,13 @@ func gitlabMergedPendingMR(opts GitLabOptions) map[string]any {
 	mr["state"] = "merged"
 	mr["merged_at"] = fakeMergedAtTimestamp
 	mr["description"] = "## ٩(^ᴗ^)۶ release created\n\n" + gitlabReleaseManifest + "\n"
-	mr["labels"] = []string{fakePendingReleaseTag}
+
+	if opts.UnlabeledMergedRelease {
+		mr["labels"] = []string{}
+	} else {
+		mr["labels"] = []string{fakePendingReleaseTag}
+	}
+
 	mr["merge_commit_sha"] = opts.BranchHeadSHA
 
 	if opts.FastForwardMerge {

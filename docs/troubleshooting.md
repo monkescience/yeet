@@ -18,7 +18,7 @@ yeet finds releases by their labels and does not remember old label names.
 
 | Problem | Fix |
 |---|---|
-| The release PR/MR lost its labels | Rerun yeet. It relabels and reuses the PR/MR |
+| The release PR/MR lost its labels | Rerun yeet. It relabels and reuses an open PR/MR, or finalizes a merged one |
 | Labels were renamed while a release was open | Restore the old names, finish that release, then rename |
 | Several PRs/MRs have the pending label | Close or relabel the stale ones so only one remains per base branch |
 | An extra label is missing | Create it in GitHub or GitLab. GitLab label names are case-sensitive |

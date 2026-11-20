@@ -82,7 +82,13 @@ func newGitHubContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractFindOpenPRsAdoptable:
 			handleGitHubFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
 		case providerContractFindMergedPR:
-			handleGitHubFindMergedPRContract(t, w, r)
+			handleGitHubFindMergedPRFixtureContract(t, w, r, "find_merged_pr")
+		case providerContractFindMergedPRAdoptable:
+			handleGitHubFindMergedPRFixtureContract(t, w, r, "find_merged_pr_adoptable")
+		case providerContractFindMergedPRSupersededUnlabeled:
+			handleGitHubFindMergedPRFixtureContract(t, w, r, "find_merged_pr_superseded_unlabeled")
+		case providerContractFindMergedPRTagged:
+			handleGitHubFindMergedPRFixtureContract(t, w, r, "find_merged_pr_tagged")
 		case providerContractMergeReleasePR:
 			handleGitHubMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
@@ -405,7 +411,7 @@ func handleGitHubFindOpenPRsFixtureContract(
 	fatalUnexpectedProviderRequest(t, "GitHub", r)
 }
 
-func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitHubFindMergedPRFixtureContract(t *testing.T, w http.ResponseWriter, r *http.Request, dir string) {
 	t.Helper()
 
 	switch {
@@ -414,7 +420,7 @@ func handleGitHubFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *ht
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("base"))
 		testastic.Equal(t, "o:"+providerContractPendingBranch, r.URL.Query().Get("head"))
 		testastic.Equal(t, "100", r.URL.Query().Get("per_page"))
-		writeJSONFixture(t, w, "contracts/github/find_merged_pr/prs.json")
+		writeJSONFixture(t, w, "contracts/github/"+dir+"/prs.json")
 	case r.Method == http.MethodGet && r.URL.Path == "/repos/o/r/pulls/42":
 		writeJSONFixture(t, w, "contracts/github/find_merged_pr/pr.json")
 	default:

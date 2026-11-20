@@ -30,6 +30,7 @@ type GitHubOptions struct {
 	Commits                       []GitHubCommit
 	OffBranchSHAs                 []string
 	MergedPendingRelease          bool
+	UnlabeledMergedRelease        bool
 	MergedPendingReleaseBody      string
 	Files                         map[string]string
 	MultipleOpenPRs               bool
@@ -1457,8 +1458,12 @@ func githubMergedPendingPR(opts GitHubOptions) map[string]any {
 	}
 
 	pr["body"] = body
-	pr["labels"] = []map[string]any{
-		{githubKeyName: fakePendingReleaseTag},
+	if opts.UnlabeledMergedRelease {
+		pr["labels"] = []map[string]any{}
+	} else {
+		pr["labels"] = []map[string]any{
+			{githubKeyName: fakePendingReleaseTag},
+		}
 	}
 
 	return pr

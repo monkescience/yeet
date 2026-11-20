@@ -1116,7 +1116,13 @@ func newAzureDevOpsScenarioHandler(
 	case providerContractFindOpenPRsAdoptable:
 		return azureDevOpsFindOpenPRsFixtureHandler(t, "find_open_prs_adoptable")
 	case providerContractFindMergedPR:
-		return azureDevOpsFindMergedPRHandler(t)
+		return azureDevOpsFindMergedPRFixtureHandler(t, "find_merged_pr")
+	case providerContractFindMergedPRAdoptable:
+		return azureDevOpsFindMergedPRFixtureHandler(t, "find_merged_pr_adoptable")
+	case providerContractFindMergedPRSupersededUnlabeled:
+		return azureDevOpsFindMergedPRFixtureHandler(t, "find_merged_pr_superseded_unlabeled")
+	case providerContractFindMergedPRTagged:
+		return azureDevOpsFindMergedPRFixtureHandler(t, "find_merged_pr_tagged")
 	case providerContractMergeReleasePR:
 		return azureDevOpsMergeReleasePRHandler(t)
 	case providerContractAsyncMergeReleasePR:
@@ -1494,7 +1500,7 @@ func writeAzureDevOpsOpenPRDetail(t *testing.T, w http.ResponseWriter, r *http.R
 	return true
 }
 
-func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
+func azureDevOpsFindMergedPRFixtureHandler(t *testing.T, dir string) http.HandlerFunc {
 	t.Helper()
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1506,7 +1512,7 @@ func azureDevOpsFindMergedPRHandler(t *testing.T) http.HandlerFunc {
 				"refs/heads/"+providerContractPendingBranch,
 				r.URL.Query().Get("searchCriteria.sourceRefName"),
 			)
-			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_requests.json"))
+			writeJSONFixture(t, w, azureDevOpsContractFixture(dir, "pull_requests.json"))
 		case r.Method == http.MethodGet && r.URL.Path == azureDevOpsContractPullRequestAPI():
 			writeJSONFixture(t, w, azureDevOpsContractFixture("find_merged_pr", "pull_request.json"))
 		default:

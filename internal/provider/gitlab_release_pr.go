@@ -361,7 +361,6 @@ func (g *GitLab) FindMergedReleasePR(
 	sourceBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
 	orderBy := "updated_at"
 	sortDirection := sortDirectionDesc
-	labels := gitlab.LabelOptions{pendingLabel}
 
 	options := &gitlab.ListProjectMergeRequestsOptions{
 		State:        new(state),
@@ -369,7 +368,6 @@ func (g *GitLab) FindMergedReleasePR(
 		SourceBranch: new(sourceBranch),
 		OrderBy:      new(orderBy),
 		Sort:         new(sortDirection),
-		Labels:       &labels,
 		PerPage:      gitLabPageSize,
 	}
 
@@ -411,7 +409,7 @@ func (g *GitLab) FindMergedReleasePR(
 		return nil, err
 	}
 
-	bestMR, err := resolveLatestMerged(ctx, candidates, mergedCandidates[*gitlab.BasicMergeRequest]{
+	bestMR, err := resolveMergedReleasePR(ctx, candidates, mergedCandidates[*gitlab.BasicMergeRequest]{
 		mergedAt: func(mergeRequest *gitlab.BasicMergeRequest) (time.Time, bool) {
 			if mergeRequest.MergedAt == nil {
 				return time.Time{}, false
@@ -438,6 +436,9 @@ func (g *GitLab) FindMergedReleasePR(
 		},
 		reference: func(mergeRequest *gitlab.BasicMergeRequest) string {
 			return gitLabMergeRequestReference(int(mergeRequest.IID))
+		},
+		labelState: func(mergeRequest *gitlab.BasicMergeRequest) releasePRLabelState {
+			return classifyReleasePRLabels(mergeRequest.Labels, pendingLabel, exactLabelMatch)
 		},
 	})
 	if err != nil {

@@ -82,7 +82,13 @@ func newGitLabContractHandler(t *testing.T, scenario providerContractScenario) h
 		case providerContractFindOpenPRsAdoptable:
 			handleGitLabFindOpenPRsFixtureContract(t, w, r, "find_open_prs_adoptable")
 		case providerContractFindMergedPR:
-			handleGitLabFindMergedPRContract(t, w, r)
+			handleGitLabFindMergedPRFixtureContract(t, w, r, "find_merged_pr")
+		case providerContractFindMergedPRAdoptable:
+			handleGitLabFindMergedPRFixtureContract(t, w, r, "find_merged_pr_adoptable")
+		case providerContractFindMergedPRSupersededUnlabeled:
+			handleGitLabFindMergedPRFixtureContract(t, w, r, "find_merged_pr_superseded_unlabeled")
+		case providerContractFindMergedPRTagged:
+			handleGitLabFindMergedPRFixtureContract(t, w, r, "find_merged_pr_tagged")
 		case providerContractMergeReleasePR:
 			handleGitLabMergeReleasePRContract(t, w, r)
 		case providerContractAsyncMergeReleasePR:
@@ -455,14 +461,15 @@ func handleGitLabFindOpenPRsFixtureContract(
 	fatalUnexpectedProviderRequest(t, "GitLab", r)
 }
 
-func handleGitLabFindMergedPRContract(t *testing.T, w http.ResponseWriter, r *http.Request) {
+func handleGitLabFindMergedPRFixtureContract(t *testing.T, w http.ResponseWriter, r *http.Request, dir string) {
 	t.Helper()
 
 	if r.Method == http.MethodGet && r.URL.EscapedPath() == "/api/v4/projects/o%2Fr/merge_requests" {
 		testastic.Equal(t, "merged", r.URL.Query().Get("state"))
 		testastic.Equal(t, providerContractBaseBranch, r.URL.Query().Get("target_branch"))
 		testastic.Equal(t, providerContractPendingBranch, r.URL.Query().Get("source_branch"))
-		writeJSONFixture(t, w, "contracts/gitlab/find_merged_pr/prs.json")
+		testastic.Equal(t, "", r.URL.Query().Get("labels"))
+		writeJSONFixture(t, w, "contracts/gitlab/"+dir+"/prs.json")
 
 		return
 	}

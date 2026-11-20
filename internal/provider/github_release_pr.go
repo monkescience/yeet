@@ -258,12 +258,12 @@ func (g *GitHub) FindMergedReleasePR(
 ) (*forge.PullRequest, error) {
 	expectedBranch := expectedReleaseBranch(g.releaseBranch, baseBranch, expectedBranches)
 
-	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, pendingLabel, expectedBranch)
+	candidates, err := g.listGitHubMergedCandidates(ctx, baseBranch, expectedBranch)
 	if err != nil {
 		return nil, err
 	}
 
-	best, err := g.resolveLatestGitHubMergedCandidate(ctx, candidates)
+	best, err := g.resolveLatestGitHubMergedCandidate(ctx, candidates, pendingLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (g *GitHub) FindMergedReleasePR(
 
 func (g *GitHub) listGitHubMergedCandidates(
 	ctx context.Context,
-	baseBranch, pendingLabel, expectedBranch string,
+	baseBranch, expectedBranch string,
 ) ([]gitHubMergedCandidate, error) {
 	options := &github.PullRequestListOptions{
 		State:   "closed",
@@ -326,7 +326,7 @@ func (g *GitHub) listGitHubMergedCandidates(
 			return prs, gitHubNextPage(resp), nil
 		},
 		func(pr *github.PullRequest) (bool, error) {
-			if !g.isTrustedReleasePR(pr, baseBranch, expectedBranch) || !gitHubHasLabel(pr.Labels, pendingLabel) {
+			if !g.isTrustedReleasePR(pr, baseBranch, expectedBranch) {
 				return false, nil
 			}
 
@@ -345,8 +345,9 @@ func (g *GitHub) listGitHubMergedCandidates(
 func (g *GitHub) resolveLatestGitHubMergedCandidate(
 	ctx context.Context,
 	candidates []gitHubMergedCandidate,
+	pendingLabel string,
 ) (*gitHubMergedCandidate, error) {
-	best, err := resolveLatestMerged(ctx, candidates, mergedCandidates[gitHubMergedCandidate]{
+	best, err := resolveMergedReleasePR(ctx, candidates, mergedCandidates[gitHubMergedCandidate]{
 		mergedAt: func(candidate gitHubMergedCandidate) (time.Time, bool) {
 			if candidate.listed.MergedAt == nil {
 				return time.Time{}, false
@@ -375,22 +376,15 @@ func (g *GitHub) resolveLatestGitHubMergedCandidate(
 		reference: func(candidate gitHubMergedCandidate) string {
 			return gitHubPullRequestReference(candidate.listed.GetNumber())
 		},
+		labelState: func(candidate gitHubMergedCandidate) releasePRLabelState {
+			return classifyReleasePRLabels(gitHubLabelNames(candidate.listed.Labels), pendingLabel, foldedLabelMatch)
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &best, nil
-}
-
-func gitHubHasLabel(labels []*github.Label, target string) bool {
-	for _, label := range labels {
-		if strings.EqualFold(label.GetName(), target) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func gitHubMergedAt(pr *github.PullRequest) time.Time {

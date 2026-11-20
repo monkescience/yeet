@@ -1,0 +1,12 @@
+[
+  {
+    "number": 42,
+    "merged_at": "2026-08-11T10:00:00Z",
+    "updated_at": "2026-08-11T11:00:00Z",
+    "labels": [{"name": "autorelease: tagged"}],
+    "head": {
+      "ref": "yeet/release-main",
+      "repo": {"full_name": "o/r"}
+    }
+  }
+]

@@ -301,9 +301,9 @@ func (a *AzureDevOps) FindMergedReleasePR(
 		return nil, err
 	}
 
-	candidates := a.azureDevOpsMergedCandidates(prs, baseBranch, pendingLabel, expectedBranch)
+	candidates := a.azureDevOpsMergedCandidates(prs, baseBranch, expectedBranch)
 
-	full, err := a.latestAzureDevOpsMergedPR(ctx, candidates)
+	full, err := a.latestAzureDevOpsMergedPR(ctx, candidates, pendingLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -334,12 +334,12 @@ func (a *AzureDevOps) FindMergedReleasePR(
 
 func (a *AzureDevOps) azureDevOpsMergedCandidates(
 	prs []git.GitPullRequest,
-	baseBranch, pendingLabel, expectedBranch string,
+	baseBranch, expectedBranch string,
 ) []git.GitPullRequest {
 	candidates := make([]git.GitPullRequest, 0)
 
 	for _, pr := range prs {
-		if !a.isTrustedReleasePR(&pr, baseBranch, expectedBranch) || !azureDevOpsHasLabel(pr.Labels, pendingLabel) {
+		if !a.isTrustedReleasePR(&pr, baseBranch, expectedBranch) {
 			continue
 		}
 
@@ -352,10 +352,11 @@ func (a *AzureDevOps) azureDevOpsMergedCandidates(
 func (a *AzureDevOps) latestAzureDevOpsMergedPR(
 	ctx context.Context,
 	candidates []git.GitPullRequest,
+	pendingLabel string,
 ) (*git.GitPullRequest, error) {
 	fullByNumber := make(map[int]*git.GitPullRequest)
 
-	best, err := resolveLatestMerged(ctx, candidates, mergedCandidates[git.GitPullRequest]{
+	best, err := resolveMergedReleasePR(ctx, candidates, mergedCandidates[git.GitPullRequest]{
 		mergedAt: func(pr git.GitPullRequest) (time.Time, bool) {
 			if pr.ClosedDate == nil {
 				return time.Time{}, false
@@ -375,12 +376,19 @@ func (a *AzureDevOps) latestAzureDevOpsMergedPR(
 				return pr, false, mergeTimeMissingError(azureDevOpsPullRequestReference(number))
 			}
 
+			if full.Labels == nil {
+				full.Labels = pr.Labels
+			}
+
 			fullByNumber[number] = full
 
 			return *full, true, nil
 		},
 		reference: func(pr git.GitPullRequest) string {
 			return azureDevOpsPullRequestReference(derefInt(pr.PullRequestId))
+		},
+		labelState: func(pr git.GitPullRequest) releasePRLabelState {
+			return classifyReleasePRLabels(azureDevOpsLabelNames(pr.Labels), pendingLabel, foldedLabelMatch)
 		},
 	})
 	if err != nil {
@@ -826,16 +834,6 @@ func (a *AzureDevOps) getPullRequest(ctx context.Context, number int) (*git.GitP
 
 func azureDevOpsRefToBranch(ref string) string {
 	return strings.TrimPrefix(ref, "refs/heads/")
-}
-
-func azureDevOpsHasLabel(labels *[]core.WebApiTagDefinition, target string) bool {
-	for _, name := range azureDevOpsLabelNames(labels) {
-		if strings.EqualFold(name, target) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func azureDevOpsLabelNames(labels *[]core.WebApiTagDefinition) []string {

@@ -200,73 +200,76 @@ func providerContractPagedTagRefs() []forge.TagRef {
 }
 
 const (
-	providerContractListTags                 providerContractScenario = "list tags"
-	providerContractListTagsPaged            providerContractScenario = "list tags paged"
-	providerContractBranchHead               providerContractScenario = "branch head"
-	providerContractBranchHeadMissing        providerContractScenario = "branch head missing"
-	providerContractAncestor                 providerContractScenario = "ancestor"
-	providerContractNotAncestor              providerContractScenario = "not ancestor"
-	providerContractAncestorUnknownCommit    providerContractScenario = "ancestor unknown commit"
-	providerContractGetReleaseByTag          providerContractScenario = "get release by tag"
-	providerContractCreateReleasePR          providerContractScenario = "create release pr"
-	providerContractCreateReleasePRReviewers providerContractScenario = "create release pr reviewers"
-	providerContractUnknownReviewer          providerContractScenario = "unknown reviewer"
-	providerContractUpdateReleasePR          providerContractScenario = "update release pr"
-	providerContractFindOpenPRs              providerContractScenario = "find open prs"
-	providerContractFindOpenPRsForBase       providerContractScenario = "find open prs for base"
-	providerContractFindOpenPRsUnlabeled     providerContractScenario = "find open prs unlabeled"
-	providerContractFindOpenPRsAdoptable     providerContractScenario = "find open prs adoptable"
-	providerContractFindMergedPR             providerContractScenario = "find merged pr"
-	providerContractMergeReleasePR           providerContractScenario = "merge release pr"
-	providerContractAsyncMergeReleasePR      providerContractScenario = "async merge release pr"
-	providerContractCreateRelease            providerContractScenario = "create release"
-	providerContractGetFile                  providerContractScenario = "get file"
-	providerContractUpdateFiles              providerContractScenario = "update files"
-	providerContractMissingFile              providerContractScenario = "missing file"
-	providerContractMissingRelease           providerContractScenario = "missing release"
-	providerContractMissingPR                providerContractScenario = "missing pr"
-	providerContractBlockedMerge             providerContractScenario = "blocked merge"
-	providerContractUnsupportedMerge         providerContractScenario = "unsupported merge"
-	providerContractTagPaginationLimit       providerContractScenario = "tag pagination limit"
-	providerContractMergeUntrustedSource     providerContractScenario = "merge untrusted source"
-	providerContractMergeConflictedRefused   providerContractScenario = "merge conflicted refused"
-	providerContractMissingExtraLabelName                             = "missing"
-	providerContractUnreachableLabelName                              = "flaky"
-	providerContractReleaseTitle                                      = "chore: release v1.2.3"
-	providerContractReleaseBody                                       = "release body"
-	providerContractUpdatedReleaseBody                                = "updated release body"
-	providerContractReleaseNotes                                      = "release notes"
-	providerContractChangelogContent                                  = "# Changelog\n"
-	providerContractReleaseBranch                                     = "release-main"
-	providerContractPendingBranch                                     = "yeet/release-main"
-	providerContractLookalikeBranch                                   = "yeet/release-main-attacker"
-	providerContractFeatureBranch                                     = "feature/work"
-	providerContractPendingLabel                                      = "release: waiting"
-	providerContractTaggedLabel                                       = "release: complete"
-	providerContractBaseBranch                                        = "main"
-	providerContractTag                                               = "v1.2.3"
-	providerContractTagCommitSHA                                      = "746167636f6d6d69743132330000000000000000"
-	providerContractPreviousTag                                       = "v1.2.2"
-	providerContractPreviousTagCommitSHA                              = "746167636f6d6d69743132320000000000000000"
-	providerContractOlderTag                                          = "v1.1.0"
-	providerContractOlderTagCommitSHA                                 = "746167636f6d6d69743131300000000000000000"
-	providerContractOldestTag                                         = "v1.0.0"
-	providerContractOldestTagCommitSHA                                = "746167636f6d6d69743130300000000000000000"
-	providerContractHeadSHA                                           = "6865616473686100000000000000000000000000"
-	providerContractMergeSHA                                          = "6d65726765736861000000000000000000000000"
-	providerContractReviewerAlice                                     = "alice"
-	providerContractReviewerBob                                       = "bob"
-	providerContractUnknownReviewerName                               = "ghost"
-	providerContractPRNumber                                          = 42
-	providerContractForgedPRNumber                                    = 66
-	providerContractLookalikePRNumber                                 = 67
-	providerContractFeaturePRNumber                                   = 7
-	providerContractForgedTitle                                       = "forged release"
-	providerContractLookalikeTitle                                    = "lookalike release branch"
-	providerContractFeatureTitle                                      = "feature work"
-	providerContractUntrustedBody                                     = "untrusted body"
-	providerContractReleasePRURL                                      = "https://example.com/pulls/42"
-	providerContractReleaseURL                                        = "https://example.com/releases/v1.2.3"
+	providerContractListTags                        providerContractScenario = "list tags"
+	providerContractListTagsPaged                   providerContractScenario = "list tags paged"
+	providerContractBranchHead                      providerContractScenario = "branch head"
+	providerContractBranchHeadMissing               providerContractScenario = "branch head missing"
+	providerContractAncestor                        providerContractScenario = "ancestor"
+	providerContractNotAncestor                     providerContractScenario = "not ancestor"
+	providerContractAncestorUnknownCommit           providerContractScenario = "ancestor unknown commit"
+	providerContractGetReleaseByTag                 providerContractScenario = "get release by tag"
+	providerContractCreateReleasePR                 providerContractScenario = "create release pr"
+	providerContractCreateReleasePRReviewers        providerContractScenario = "create release pr reviewers"
+	providerContractUnknownReviewer                 providerContractScenario = "unknown reviewer"
+	providerContractUpdateReleasePR                 providerContractScenario = "update release pr"
+	providerContractFindOpenPRs                     providerContractScenario = "find open prs"
+	providerContractFindOpenPRsForBase              providerContractScenario = "find open prs for base"
+	providerContractFindOpenPRsUnlabeled            providerContractScenario = "find open prs unlabeled"
+	providerContractFindOpenPRsAdoptable            providerContractScenario = "find open prs adoptable"
+	providerContractFindMergedPR                    providerContractScenario = "find merged pr"
+	providerContractFindMergedPRAdoptable           providerContractScenario = "find merged pr adoptable"
+	providerContractFindMergedPRSupersededUnlabeled providerContractScenario = "find merged pr superseded unlabeled"
+	providerContractFindMergedPRTagged              providerContractScenario = "find merged pr tagged"
+	providerContractMergeReleasePR                  providerContractScenario = "merge release pr"
+	providerContractAsyncMergeReleasePR             providerContractScenario = "async merge release pr"
+	providerContractCreateRelease                   providerContractScenario = "create release"
+	providerContractGetFile                         providerContractScenario = "get file"
+	providerContractUpdateFiles                     providerContractScenario = "update files"
+	providerContractMissingFile                     providerContractScenario = "missing file"
+	providerContractMissingRelease                  providerContractScenario = "missing release"
+	providerContractMissingPR                       providerContractScenario = "missing pr"
+	providerContractBlockedMerge                    providerContractScenario = "blocked merge"
+	providerContractUnsupportedMerge                providerContractScenario = "unsupported merge"
+	providerContractTagPaginationLimit              providerContractScenario = "tag pagination limit"
+	providerContractMergeUntrustedSource            providerContractScenario = "merge untrusted source"
+	providerContractMergeConflictedRefused          providerContractScenario = "merge conflicted refused"
+	providerContractMissingExtraLabelName                                    = "missing"
+	providerContractUnreachableLabelName                                     = "flaky"
+	providerContractReleaseTitle                                             = "chore: release v1.2.3"
+	providerContractReleaseBody                                              = "release body"
+	providerContractUpdatedReleaseBody                                       = "updated release body"
+	providerContractReleaseNotes                                             = "release notes"
+	providerContractChangelogContent                                         = "# Changelog\n"
+	providerContractReleaseBranch                                            = "release-main"
+	providerContractPendingBranch                                            = "yeet/release-main"
+	providerContractLookalikeBranch                                          = "yeet/release-main-attacker"
+	providerContractFeatureBranch                                            = "feature/work"
+	providerContractPendingLabel                                             = "release: waiting"
+	providerContractTaggedLabel                                              = "release: complete"
+	providerContractBaseBranch                                               = "main"
+	providerContractTag                                                      = "v1.2.3"
+	providerContractTagCommitSHA                                             = "746167636f6d6d69743132330000000000000000"
+	providerContractPreviousTag                                              = "v1.2.2"
+	providerContractPreviousTagCommitSHA                                     = "746167636f6d6d69743132320000000000000000"
+	providerContractOlderTag                                                 = "v1.1.0"
+	providerContractOlderTagCommitSHA                                        = "746167636f6d6d69743131300000000000000000"
+	providerContractOldestTag                                                = "v1.0.0"
+	providerContractOldestTagCommitSHA                                       = "746167636f6d6d69743130300000000000000000"
+	providerContractHeadSHA                                                  = "6865616473686100000000000000000000000000"
+	providerContractMergeSHA                                                 = "6d65726765736861000000000000000000000000"
+	providerContractReviewerAlice                                            = "alice"
+	providerContractReviewerBob                                              = "bob"
+	providerContractUnknownReviewerName                                      = "ghost"
+	providerContractPRNumber                                                 = 42
+	providerContractForgedPRNumber                                           = 66
+	providerContractLookalikePRNumber                                        = 67
+	providerContractFeaturePRNumber                                          = 7
+	providerContractForgedTitle                                              = "forged release"
+	providerContractLookalikeTitle                                           = "lookalike release branch"
+	providerContractFeatureTitle                                             = "feature work"
+	providerContractUntrustedBody                                            = "untrusted body"
+	providerContractReleasePRURL                                             = "https://example.com/pulls/42"
+	providerContractReleaseURL                                               = "https://example.com/releases/v1.2.3"
 )
 
 func TestProviderContract(t *testing.T) {
@@ -648,6 +651,69 @@ func TestProviderContract(t *testing.T) {
 				testastic.Equal(t, providerContractPendingBranch, pr.Branch)
 				testastic.Equal(t, providerContractMergeSHA, pr.MergeCommitSHA)
 				testastic.Equal(t, providerContractReleaseBody, pr.Body)
+			})
+
+			t.Run("adopts a merged release pull request that carries no labels at all", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a trusted merged release PR left unlabelled before merge
+				server := harness.newServer(t, harness.handler(t, providerContractFindMergedPRAdoptable))
+
+				p := harness.newProvider(t, server)
+
+				// when: FindMergedReleasePR is invoked for the base branch
+				pr, err := p.FindMergedReleasePR(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the unlabeled merged PR is returned for finalization
+				testastic.NoError(t, err)
+				testastic.Equal(t, 42, pr.Number)
+				testastic.Equal(t, providerContractPendingBranch, pr.Branch)
+				testastic.Equal(t, providerContractMergeSHA, pr.MergeCommitSHA)
+				testastic.Equal(t, providerContractReleaseBody, pr.Body)
+			})
+
+			t.Run("ignores a merged release pull request carrying a non-pending label", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning a trusted merged release PR already marked tagged
+				server := harness.newServer(t, harness.handler(t, providerContractFindMergedPRTagged))
+
+				p := harness.newProvider(t, server)
+
+				// when: FindMergedReleasePR is invoked for the base branch
+				pr, err := p.FindMergedReleasePR(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the tagged merged PR is skipped and ErrNoPR is returned
+				testastic.ErrorIs(t, err, forge.ErrNoPR)
+				testastic.Nil(t, pr)
+			})
+
+			t.Run("ignores an older unlabeled merged release pull request superseded by a tagged one", func(t *testing.T) {
+				t.Parallel()
+
+				// given: a provider server returning an older unlabeled merged PR and a newer tagged merged PR
+				server := harness.newServer(t, harness.handler(t, providerContractFindMergedPRSupersededUnlabeled))
+
+				p := harness.newProvider(t, server)
+
+				// when: FindMergedReleasePR is invoked for the base branch
+				pr, err := p.FindMergedReleasePR(
+					context.Background(),
+					providerContractBaseBranch,
+					providerContractPendingLabel,
+				)
+
+				// then: the older unlabeled PR is not resurrected behind the newer tagged PR
+				testastic.ErrorIs(t, err, forge.ErrNoPR)
+				testastic.Nil(t, pr)
 			})
 
 			t.Run("finds merged release pull requests for multiple expected branches", func(t *testing.T) {
