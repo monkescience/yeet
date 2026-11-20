@@ -185,3 +185,36 @@ func TestPrependEntryIgnoresNestedReleaseHeadings(t *testing.T) {
 		result,
 	)
 }
+
+func TestEntryByTagHandlesFrontMatterAndBOM(t *testing.T) {
+	t.Parallel()
+
+	t.Run("skips heading-shaped comments inside YAML front matter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog with YAML front matter containing a heading-shaped comment
+		document := "---\n## v1.2.3 (example)\ntitle: Changelog\n---\n\n" +
+			"## v1.2.3 (2026-08-10)\n\nReal release notes.\n"
+
+		// when: extracting the release entry
+		entry, err := changelog.EntryByTag(document, "v1.2.3")
+
+		// then: the real release entry after the front matter is returned
+		testastic.NoError(t, err)
+		testastic.Equal(t, "## v1.2.3 (2026-08-10)\n\nReal release notes.", entry)
+	})
+
+	t.Run("extracts a release heading preceded by a UTF-8 BOM", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a BOM-prefixed changelog starting directly with a release heading
+		document := "\xef\xbb\xbf## v1.2.3 (2026-08-10)\n\nReal release notes.\n"
+
+		// when: extracting the release entry
+		entry, err := changelog.EntryByTag(document, "v1.2.3")
+
+		// then: the entry is found without a stray BOM prefix
+		testastic.NoError(t, err)
+		testastic.Equal(t, "## v1.2.3 (2026-08-10)\n\nReal release notes.", entry)
+	})
+}

@@ -1047,6 +1047,319 @@ func TestPrependEntry(t *testing.T) {
 			result,
 		)
 	})
+
+	t.Run("preserves YAML front matter above an H1 title", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog starting with YAML front matter followed by an H1 title
+		existing := "---\ntitle: Changelog\nsidebar_position: 5\n---\n\n" +
+			"# Changelog\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: front matter stays at the top and the existing H1 is not duplicated
+		testastic.Equal(
+			t,
+			"---\ntitle: Changelog\nsidebar_position: 5\n---\n\n# Changelog\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves YAML front matter without an H1 title", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a static-site changelog whose title lives only in YAML front matter
+		existing := "---\ntitle: Changelog\n---\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: front matter remains at the top without injecting an H1 heading
+		testastic.Equal(
+			t,
+			"---\ntitle: Changelog\n---\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves YAML front matter when no release entries exist yet", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog containing only YAML front matter closed with dots
+		existing := "---\ntitle: Changelog\n...\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the first release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the new release is placed below the front matter
+		testastic.Equal(
+			t,
+			"---\ntitle: Changelog\n...\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n",
+			result,
+		)
+	})
+
+	t.Run("ignores heading-shaped YAML comments inside front matter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: YAML front matter containing comment lines shaped like release headings
+		existing := "---\n# generated changelog\n## v0.1.0\ntitle: Changelog\n---\n\n" +
+			"## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: front matter is kept intact and the entry is inserted before the real release
+		testastic.Equal(
+			t,
+			"---\n# generated changelog\n## v0.1.0\ntitle: Changelog\n---\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves empty YAML front matter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog starting with an empty YAML front matter block
+		existing := "---\n---\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the empty front matter stays at the top without adding a heading
+		testastic.Equal(
+			t,
+			"---\n---\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("does not treat markdown horizontal rules around releases as front matter", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			existing string
+		}{
+			{
+				name:     "horizontal rules around release list",
+				existing: "---\n\n## v1.0.0 (2026-08-09)\n\n- previous change\n\n---\n",
+			},
+			{
+				name:     "horizontal rules around heading-only content",
+				existing: "---\n\n## v1.0.0 (2026-08-09)\n\n---\n",
+			},
+			{
+				name:     "unclosed leading horizontal rule",
+				existing: "---\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: an untitled changelog beginning with a horizontal rule rather than YAML front matter
+				newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+				// when: prepending the new release
+				result := changelog.PrependEntry(tc.existing, newEntry)
+
+				// then: the untitled changelog receives a header above the new release
+				testastic.Equal(
+					t,
+					"# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+tc.existing,
+					result,
+				)
+			})
+		}
+	})
+
+	t.Run("detects an H1 title after a leading HTML comment", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog preceded by a markdownlint directive comment
+		existing := "<!-- markdownlint-disable MD024 -->\n\n# Changelog\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the leading comment and existing H1 stay above the new release without duplicating the title
+		testastic.Equal(
+			t,
+			"<!-- markdownlint-disable MD024 -->\n\n# Changelog\n\n"+
+				"## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("detects an H1 title after a leading UTF-8 BOM", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog beginning with a UTF-8 byte order mark before the H1 heading
+		existing := "\xef\xbb\xbf# Changelog\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the BOM stays at byte 0 and the existing H1 is reused
+		testastic.Equal(
+			t,
+			"\xef\xbb\xbf# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves a leading UTF-8 BOM on an untitled changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an untitled changelog beginning with a UTF-8 byte order mark
+		existing := "\xef\xbb\xbf## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the BOM remains at byte 0 before the added header
+		testastic.Equal(
+			t,
+			"\xef\xbb\xbf# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves a leading UTF-8 BOM before YAML front matter", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog starting with both a UTF-8 BOM and YAML front matter
+		existing := "\xef\xbb\xbf---\ntitle: Changelog\n---\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: both the BOM and front matter stay at the top without adding an H1
+		testastic.Equal(
+			t,
+			"\xef\xbb\xbf---\ntitle: Changelog\n---\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("preserves CRLF YAML front matter without splitting releases", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a CRLF changelog starting with YAML front matter
+		existing := "---\r\ntitle: Changelog\r\n---\r\n\r\n## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: front matter stays intact without dangling carriage returns before the new release
+		testastic.Equal(
+			t,
+			"---\r\ntitle: Changelog\r\n---\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+			result,
+		)
+	})
+
+	t.Run("detects an H1 title after leading blank lines", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog starting with a blank line before its H1 title
+		existing := "\n# Changelog\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the existing H1 is reused instead of adding a duplicate title
+		testastic.Equal(
+			t,
+			"\n# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("detects a Setext H1 title", func(t *testing.T) {
+		t.Parallel()
+
+		// given: a changelog titled with a Setext level-one heading
+		existing := "Changelog\n=========\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n"
+		newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+		// when: prepending the new release
+		result := changelog.PrependEntry(existing, newEntry)
+
+		// then: the Setext H1 is reused without adding a second title
+		testastic.Equal(
+			t,
+			"Changelog\n=========\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+				"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			result,
+		)
+	})
+
+	t.Run("does not treat non-title headings as a changelog title", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			existing string
+		}{
+			{
+				name:     "H1 inside HTML comment",
+				existing: "<!-- # Not a title -->\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			},
+			{
+				name:     "H1 inside fenced code block",
+				existing: "```markdown\n# Example\n```\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			},
+			{
+				name:     "H1 after first release heading",
+				existing: "## v1.0.0 (2026-08-09)\n\nPrevious release.\n\n# Appendix\n",
+			},
+			{
+				name:     "empty H1 heading",
+				existing: "# \n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: an untitled changelog whose only H1-like line is not a preamble title
+				newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+				// when: prepending the new release
+				result := changelog.PrependEntry(tc.existing, newEntry)
+
+				// then: a top-level header is added above the new release and existing content
+				testastic.Equal(
+					t,
+					"# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+tc.existing,
+					result,
+				)
+			})
+		}
+	})
 }
 
 func TestGenerateSanitizesCommitText(t *testing.T) {

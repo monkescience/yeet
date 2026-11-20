@@ -104,34 +104,39 @@ func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entr
 func PrependEntry(existing, newEntry string) string {
 	const header = "# Changelog\n\n"
 
-	entry := strings.TrimRight(newEntry, "\n")
+	bom, body := splitUTF8BOM(existing)
+	entry := strings.TrimRight(newEntry, "\r\n")
 
-	if strings.TrimSpace(existing) == "" {
-		return header + entry + "\n"
+	if strings.TrimSpace(body) == "" {
+		return bom + header + entry + "\n"
 	}
 
-	if !strings.HasPrefix(existing, "# ") {
-		return header + entry + "\n\n" + strings.Trim(existing, "\n") + "\n"
+	index := newMarkdownIndex(body)
+	releaseLine := firstReleaseHeadingLine(index)
+
+	if !index.hasHeader(releaseLine) {
+		return bom + header + entry + "\n\n" + strings.Trim(body, "\r\n") + "\n"
 	}
 
-	releaseStart := -1
+	if releaseLine >= 0 {
+		releaseStart := lineStartOffset(body, releaseLine)
+		preamble := strings.TrimRight(body[:releaseStart], "\r\n")
+		releases := strings.TrimLeft(body[releaseStart:], "\r\n")
 
-	for _, heading := range newMarkdownIndex(existing).headingsAtLevel(releaseHeadingLevel) {
+		return bom + preamble + "\n\n" + entry + "\n\n" + releases
+	}
+
+	return bom + strings.TrimRight(body, "\r\n") + "\n\n" + entry + "\n"
+}
+
+func firstReleaseHeadingLine(index markdownIndex) int {
+	for _, heading := range index.headingsAtLevel(releaseHeadingLevel) {
 		if isReleaseHeading(heading.text) {
-			releaseStart = lineStartOffset(existing, heading.line)
-
-			break
+			return heading.line
 		}
 	}
 
-	if releaseStart >= 0 {
-		preamble := strings.TrimRight(existing[:releaseStart], "\n")
-		releases := strings.TrimLeft(existing[releaseStart:], "\n")
-
-		return preamble + "\n\n" + entry + "\n\n" + releases
-	}
-
-	return strings.TrimRight(existing, "\n") + "\n\n" + entry + "\n"
+	return -1
 }
 
 func isReleaseHeading(heading string) bool {

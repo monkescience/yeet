@@ -459,6 +459,85 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 		// then: yeet prepends the new entry beneath the `# Changelog` heading and exits 0
 		testastic.Equal(t, 0, result.ExitCode)
 	})
+
+	cases := []struct {
+		name     string
+		scenario string
+	}{
+		{
+			name:     "github preserves YAML front matter without an H1 title",
+			scenario: "github_preserves_yaml_front_matter",
+		},
+		{
+			name:     "github preserves YAML front matter above an H1 title",
+			scenario: "github_preserves_yaml_front_matter_with_h1",
+		},
+		{
+			name:     "github detects an H1 title after a leading HTML comment",
+			scenario: "github_detects_title_after_html_comment",
+		},
+		{
+			name:     "github detects an H1 title after a leading UTF-8 BOM",
+			scenario: "github_detects_title_after_utf8_bom",
+		},
+		{
+			name:     "github detects an H1 title after a leading blank line",
+			scenario: "github_detects_title_after_leading_blank_line",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a CHANGELOG.md whose title or front matter does not start with `# ` at byte zero
+			dir := "testdata/release/" + tc.scenario + "/"
+			existingChangelog := readTestFile(t, dir+"changelog.input.md")
+
+			repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+				[]fixture.RepoCommit{
+					{
+						Message: "chore: release v1.0.0",
+						Tag:     "v1.0.0",
+						Files:   map[string]string{"CHANGELOG.md": existingChangelog},
+					},
+					{Message: "feat: add a thing"},
+				})
+
+			server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+				Owner:                      "testorg",
+				Repo:                       "testrepo",
+				LatestTag:                  "v1.0.0",
+				BoundarySHA:                shas[0],
+				BranchHeadSHA:              shas[1],
+				Files:                      map[string]string{"CHANGELOG.md": existingChangelog},
+				ExpectedUpdatedFileGoldens: map[string]string{"CHANGELOG.md": dir + "changelog.expected.md"},
+				ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+					Title: "chore: release 1.1.0",
+					Head:  "yeet/release-main",
+					Base:  "main",
+				}},
+			})
+
+			configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+				Provider: "github",
+				Branch:   "main",
+				Host:     "github.com",
+				Owner:    "testorg",
+				Repo:     "testrepo",
+			})
+
+			// when: invoking `yeet release`
+			result := binary.RunWithOptions(t,
+				[]string{"release", "--config", configPath},
+				testastic.WithRunWorkDir(repoDir),
+				testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+			)
+
+			// then: yeet preserves the existing header or front matter without adding a duplicate title
+			testastic.Equal(t, 0, result.ExitCode)
+		})
+	}
 }
 
 func TestReleaseGitLabDirectAutoMergeRejectsDraft(t *testing.T) {
