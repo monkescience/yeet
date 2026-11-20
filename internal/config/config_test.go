@@ -2828,6 +2828,29 @@ func TestResolvedTargets_Merging(t *testing.T) {
 		testastic.Equal(t, "package.json", resolved["app"].VersionFiles[0].Path)
 	})
 
+	t.Run("target empty version_files clears top-level list", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level version files and a target with an explicit empty version_files override
+		cfg := config.Default()
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
+		cfg.Targets = map[string]config.Target{
+			"app": {
+				Type:         config.TargetTypePath,
+				Path:         ".",
+				TagPrefix:    "v",
+				VersionFiles: []config.VersionFile{},
+			},
+		}
+
+		// when: resolving targets
+		resolved, err := cfg.ResolvedTargets(t.Context())
+
+		// then: target clears the inherited version files instead of inheriting them
+		testastic.NoError(t, err)
+		testastic.Equal(t, 0, len(resolved["app"].VersionFiles))
+	})
+
 	t.Run("target inherits top-level versioning when unset", func(t *testing.T) {
 		t.Parallel()
 

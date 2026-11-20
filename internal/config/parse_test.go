@@ -164,6 +164,46 @@ func TestParse(t *testing.T) {
 		testastic.Equal(t, "New Features", cfg.Changelog.Sections["feat"])
 	})
 
+	t.Run("target empty version_files clears inherited top-level list", func(t *testing.T) {
+		t.Parallel()
+
+		// given: top-level version_files with path and derived targets overriding to an empty list
+		data := []byte(`version_files:
+  - README.md
+targets:
+  api:
+    type: path
+    path: services/api
+    tag_prefix: api-v
+    version_files: []
+  web:
+    type: path
+    path: apps/web
+    tag_prefix: web-v
+  bundle:
+    type: derived
+    includes:
+      - api
+      - web
+    tag_prefix: bundle-v
+    version_files: []
+`)
+
+		// when: parsing and resolving the config
+		cfg, err := parse(data)
+		testastic.NoError(t, err)
+
+		resolved, err := cfg.ResolvedTargets(t.Context())
+
+		// then: explicit empty overrides clear inherited version_files while unset targets inherit them
+		testastic.NoError(t, err)
+		testastic.Equal(t, 0, len(resolved["api"].VersionFiles))
+		testastic.Equal(t, 0, len(resolved["bundle"].VersionFiles))
+		testastic.SliceEqual(t, []VersionFile{
+			{Path: "README.md", Format: VersionFileFormatMarkers},
+		}, resolved["web"].VersionFiles)
+	})
+
 	t.Run("config with json version file", func(t *testing.T) {
 		t.Parallel()
 

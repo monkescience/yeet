@@ -205,6 +205,23 @@ func TestIndependentReleaseUnitFileOwnership(t *testing.T) {
 		)
 	})
 
+	t.Run("allows independent target clearing inherited version file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: separate release units where one clears the top-level version file
+		cfg := newConfig(t)
+		cfg.VersionFiles = []config.VersionFile{{Path: "VERSION"}}
+		api := cfg.Targets["api"]
+		api.VersionFiles = []config.VersionFile{}
+		cfg.Targets["api"] = api
+
+		// when: validating the complete independent layout
+		err := cfg.Validate()
+
+		// then: only the inheriting target owns the version file so validation succeeds
+		testastic.NoError(t, err)
+	})
+
 	t.Run("allows shared outputs inside one atomic group", func(t *testing.T) {
 		t.Parallel()
 

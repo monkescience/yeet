@@ -94,3 +94,89 @@ func TestReleaseVersionFilePointerValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestReleaseTargetEmptyVersionFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("grouped target clearing top-level version_files avoids incompatible writes", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an atomic group where api clears top-level VERSION.txt and web inherits it
+		files := map[string]string{"VERSION.txt": "version = 2.0.0 # x-yeet-version\n"}
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore(api): release", Tag: "api-v1.0.0", Files: files},
+				{Message: "chore(web): release", Tag: "web-v2.0.0"},
+				{Message: "feat(api): add endpoint", Files: map[string]string{"api/main.go": "package api\n"}},
+				{Message: "fix(web): repair navigation", Files: map[string]string{"web/main.go": "package web\n"}},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "api-v1.0.0",
+			ExtraTags:     []string{"web-v2.0.0"},
+			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"api-v1.0.0": shas[0], "web-v2.0.0": shas[1]},
+			BranchHeadSHA: shas[3],
+			Files:         files,
+			ExpectedUpdatedFiles: map[string]string{
+				"VERSION.txt": "version = 2.0.1 # x-yeet-version\n",
+			},
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+				Title: "chore: release wave",
+				Head:  "yeet/release-main-group-apps-8e4ec7f388",
+				Base:  "main",
+			}},
+		})
+		configPath := absoluteTestFile(t, "testdata/release/target_empty_version_files/grouped/input.yaml")
+
+		// when: creating the grouped release through the compiled CLI
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: only web updates VERSION.txt and the grouped release succeeds
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stdout)
+	})
+
+	t.Run("combined target clearing top-level version_files skips top-level file", func(t *testing.T) {
+		t.Parallel()
+
+		// given: combined targets where only api changes and api clears top-level VERSION.txt
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore(api): release", Tag: "api-v1.0.0"},
+				{Message: "feat(api): add endpoint", Files: map[string]string{"api/main.go": "package api\n"}},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "api-v1.0.0",
+			BoundarySHA:   shas[0],
+			TagSHAs:       map[string]string{"api-v1.0.0": shas[0]},
+			BranchHeadSHA: shas[1],
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+				Title: "chore: release 1.1.0",
+				Head:  "yeet/release-main",
+				Base:  "main",
+			}},
+		})
+		configPath := absoluteTestFile(t, "testdata/release/target_empty_version_files/combined/input.yaml")
+
+		// when: creating the combined release through the compiled CLI
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: api does not attempt to read or update the top-level VERSION.txt
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.Equal(t, "", result.Stdout)
+	})
+}

@@ -429,7 +429,7 @@ func resolveBool(override *bool, defaultValue bool) bool {
 }
 
 func resolveVersionFiles(overridePaths, defaultPaths []VersionFile) []VersionFile {
-	if len(overridePaths) > 0 {
+	if overridePaths != nil {
 		return slices.Clone(overridePaths)
 	}
 
