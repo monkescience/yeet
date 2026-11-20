@@ -18,7 +18,7 @@ require (
 	github.com/monkescience/testastic v0.4.7
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/yuin/goldmark/v2 v2.1.16
 	gitlab.com/gitlab-org/api/client-go/v3 v3.46.0
 	go.yaml.in/yaml/v4 v4.0.0
