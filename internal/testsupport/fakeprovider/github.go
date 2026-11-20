@@ -48,6 +48,7 @@ type GitHubOptions struct {
 	ExpectCommitSubject           string
 	ExpectedUpdatedFiles          map[string]string
 	ExpectedUpdatedFileGoldens    map[string]string
+	AssertUpdatedFiles            func(t *testing.T, files map[string]string)
 	ExpectedCreatedPullRequests   []GitHubPullRequestExpectation
 	PendingChecks                 bool
 	AutoMergeAlreadyEnabled       bool
@@ -912,7 +913,13 @@ func registerGitHubGitData(
 	mux.HandleFunc("GET "+prefix+"/git/trees/{sha}", githubTreeHandler(t, opts))
 
 	mux.HandleFunc("POST "+prefix+"/git/trees", func(w http.ResponseWriter, r *http.Request) {
-		assertGitHubUpdatedFiles(t, r, opts.ExpectedUpdatedFiles, opts.ExpectedUpdatedFileGoldens)
+		assertGitHubUpdatedFiles(
+			t,
+			r,
+			opts.ExpectedUpdatedFiles,
+			opts.ExpectedUpdatedFileGoldens,
+			opts.AssertUpdatedFiles,
+		)
 		writeJSON(w, map[string]any{githubKeySHA: fakeTreeSHA})
 	})
 
@@ -954,10 +961,15 @@ func githubCreateRefHandler(publication *githubPublicationAssertions) http.Handl
 	}
 }
 
-func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected, goldens map[string]string) {
+func assertGitHubUpdatedFiles(
+	t *testing.T,
+	r *http.Request,
+	expected, goldens map[string]string,
+	assertFn func(t *testing.T, files map[string]string),
+) {
 	t.Helper()
 
-	if len(expected) == 0 && len(goldens) == 0 {
+	if len(expected) == 0 && len(goldens) == 0 && assertFn == nil {
 		return
 	}
 
@@ -986,6 +998,10 @@ func assertGitHubUpdatedFiles(t *testing.T, r *http.Request, expected, goldens m
 
 	for path, golden := range goldens {
 		testastic.AssertFile(t, golden, actual[path])
+	}
+
+	if assertFn != nil {
+		assertFn(t, actual)
 	}
 }
 

@@ -1270,13 +1270,155 @@ func TestPrependEntry(t *testing.T) {
 		// when: prepending the new release
 		result := changelog.PrependEntry(existing, newEntry)
 
-		// then: front matter stays intact without dangling carriage returns before the new release
+		// then: front matter, separators, and prepended entry all preserve CRLF endings
 		testastic.Equal(
 			t,
-			"---\r\ntitle: Changelog\r\n---\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n"+
+			"---\r\ntitle: Changelog\r\n---\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n\r\n"+
 				"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
 			result,
 		)
+	})
+
+	t.Run("preserves CRLF line endings across changelog shapes", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			existing string
+			newEntry string
+			expected string
+		}{
+			{
+				name:     "standard header and release",
+				existing: "# Changelog\r\n\r\n## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\n\n### Features\n\n- add a thing\n",
+				expected: "# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\n### Features\r\n\r\n- add a thing\r\n\r\n" +
+					"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+			},
+			{
+				name:     "header without releases",
+				existing: "# Changelog\r\n\r\nAll notable changes.\r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\n\nNew release.\n",
+				expected: "# Changelog\r\n\r\nAll notable changes.\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n",
+			},
+			{
+				name:     "untitled changelog",
+				existing: "## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\n\nNew release.\n",
+				expected: "# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n\r\n" +
+					"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+			},
+			{
+				name:     "whitespace-only CRLF changelog",
+				existing: "\r\n  \r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\n\nNew release.\n",
+				expected: "# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n",
+			},
+			{
+				name:     "UTF-8 BOM with CRLF changelog",
+				existing: "\xef\xbb\xbf# Changelog\r\n\r\n## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\n\nNew release.\n",
+				expected: "\xef\xbb\xbf# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n\r\n" +
+					"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+			},
+			{
+				name:     "CRLF new entry into CRLF changelog does not double CR",
+				existing: "# Changelog\r\n\r\n## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+				newEntry: "## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n",
+				expected: "# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n\r\n" +
+					"## v1.0.0 (2026-08-09)\r\n\r\nPrevious release.\r\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a CRLF changelog and a release entry to prepend
+				// when: prepending the new release
+				result := changelog.PrependEntry(tc.existing, tc.newEntry)
+
+				// then: the resulting changelog uses CRLF consistently without mixed endings
+				testastic.Equal(t, tc.expected, result)
+			})
+		}
+	})
+
+	t.Run("normalizes CRLF new entry to LF for LF and empty changelogs", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			existing string
+			expected string
+		}{
+			{
+				name:     "empty changelog",
+				existing: "",
+				expected: "# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n",
+			},
+			{
+				name:     "LF changelog",
+				existing: "# Changelog\n\n## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+				expected: "# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n" +
+					"## v1.0.0 (2026-08-09)\n\nPrevious release.\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a new entry with CRLF line endings and an LF or empty changelog
+				newEntry := "## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n"
+
+				// when: prepending the new release
+				result := changelog.PrependEntry(tc.existing, newEntry)
+
+				// then: the prepended entry is normalized to LF to match the file
+				testastic.Equal(t, tc.expected, result)
+			})
+		}
+	})
+
+	t.Run("uses the dominant line ending for mixed-ending changelogs", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			existing string
+			expected string
+		}{
+			{
+				name: "mostly CRLF changelog",
+				existing: "# Changelog\n\n## v1.0.0 (2026-08-09)\r\n\r\n" +
+					"### Features\r\n\r\n- item one\r\n- item two\r\n",
+				expected: "# Changelog\r\n\r\n## v1.1.0 (2026-08-10)\r\n\r\nNew release.\r\n\r\n" +
+					"## v1.0.0 (2026-08-09)\r\n\r\n### Features\r\n\r\n- item one\r\n- item two\r\n",
+			},
+			{
+				name: "mostly LF changelog",
+				existing: "# Changelog\r\n\n## v1.0.0 (2026-08-09)\n\n" +
+					"### Features\n\n- item one\n- item two\n",
+				expected: "# Changelog\n\n## v1.1.0 (2026-08-10)\n\nNew release.\n\n" +
+					"## v1.0.0 (2026-08-09)\n\n### Features\n\n- item one\n- item two\n",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// given: a changelog with mixed line endings and a new LF entry
+				newEntry := "## v1.1.0 (2026-08-10)\n\nNew release.\n"
+
+				// when: prepending the new release
+				result := changelog.PrependEntry(tc.existing, newEntry)
+
+				// then: the prepended entry and separators match the dominant line ending
+				testastic.Equal(t, tc.expected, result)
+			})
+		}
 	})
 
 	t.Run("detects an H1 title after leading blank lines", func(t *testing.T) {

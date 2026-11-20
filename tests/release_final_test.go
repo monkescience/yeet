@@ -1,6 +1,8 @@
 package integration_test
 
 import (
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/monkescience/testastic"
@@ -538,6 +540,74 @@ func TestReleaseChangelogPrepend(t *testing.T) {
 			testastic.Equal(t, 0, result.ExitCode)
 		})
 	}
+
+	t.Run("github preserves CRLF line endings when prepending to a CRLF changelog", func(t *testing.T) {
+		t.Parallel()
+
+		// given: an existing CHANGELOG.md using CRLF line endings
+		existingChangelog := "# Changelog\r\n\r\n## v1.0.0 (2025-12-01)\r\n\r\n### Features\r\n\r\n- prior change\r\n"
+
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{
+					Message: "chore: release v1.0.0",
+					Tag:     "v1.0.0",
+					Files:   map[string]string{"CHANGELOG.md": existingChangelog},
+				},
+				{Message: "feat: add a thing"},
+			})
+
+		var changelogUpdated atomic.Bool
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[1],
+			Files:         map[string]string{"CHANGELOG.md": existingChangelog},
+			AssertUpdatedFiles: func(t *testing.T, files map[string]string) {
+				t.Helper()
+
+				changelogUpdated.Store(true)
+
+				content := files["CHANGELOG.md"]
+				crlfCount := strings.Count(content, "\r\n")
+				testastic.Greater(t, crlfCount, 0)
+				testastic.Equal(t, crlfCount, strings.Count(content, "\n"))
+				testastic.Equal(t, crlfCount, strings.Count(content, "\r"))
+				testastic.AssertFile(
+					t,
+					"testdata/release/github_preserves_crlf_line_endings/changelog.expected.md",
+					strings.ReplaceAll(content, "\r\n", "\n"),
+				)
+			},
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+				Title: "chore: release 1.1.0",
+				Head:  "yeet/release-main",
+				Base:  "main",
+			}},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+		})
+
+		// when: invoking `yeet release`
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: yeet writes the updated changelog with pure CRLF line endings and exits 0
+		testastic.Equal(t, 0, result.ExitCode)
+		testastic.True(t, changelogUpdated.Load())
+	})
 }
 
 func TestReleaseGitLabDirectAutoMergeRejectsDraft(t *testing.T) {

@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-const dateLayout = "2006-01-02"
+const (
+	dateLayout      = "2006-01-02"
+	lineEndingLF    = "\n"
+	lineEndingCRLF  = "\r\n"
+	lineBreakCutset = "\r\n"
+)
 
 type Entry struct {
 	Version       string
@@ -102,31 +107,52 @@ func DerivedEntry(direct Entry, ownedHeadings []string, children []Section) Entr
 }
 
 func PrependEntry(existing, newEntry string) string {
-	const header = "# Changelog\n\n"
-
 	bom, body := splitUTF8BOM(existing)
-	entry := strings.TrimRight(newEntry, "\r\n")
+	eol := detectLineEnding(body)
+	blankLine := eol + eol
+	header := "# Changelog" + blankLine
+	entry := normalizeLineEndings(strings.TrimRight(newEntry, lineBreakCutset), eol)
 
 	if strings.TrimSpace(body) == "" {
-		return bom + header + entry + "\n"
+		return bom + header + entry + eol
 	}
 
 	index := newMarkdownIndex(body)
 	releaseLine := firstReleaseHeadingLine(index)
 
 	if !index.hasHeader(releaseLine) {
-		return bom + header + entry + "\n\n" + strings.Trim(body, "\r\n") + "\n"
+		return bom + header + entry + blankLine + strings.Trim(body, lineBreakCutset) + eol
 	}
 
 	if releaseLine >= 0 {
 		releaseStart := lineStartOffset(body, releaseLine)
-		preamble := strings.TrimRight(body[:releaseStart], "\r\n")
-		releases := strings.TrimLeft(body[releaseStart:], "\r\n")
+		preamble := strings.TrimRight(body[:releaseStart], lineBreakCutset)
+		releases := strings.TrimLeft(body[releaseStart:], lineBreakCutset)
 
-		return bom + preamble + "\n\n" + entry + "\n\n" + releases
+		return bom + preamble + blankLine + entry + blankLine + releases
 	}
 
-	return bom + strings.TrimRight(body, "\r\n") + "\n\n" + entry + "\n"
+	return bom + strings.TrimRight(body, lineBreakCutset) + blankLine + entry + eol
+}
+
+func detectLineEnding(text string) string {
+	crlfCount := strings.Count(text, lineEndingCRLF)
+	lfCount := strings.Count(text, lineEndingLF) - crlfCount
+
+	if crlfCount > lfCount {
+		return lineEndingCRLF
+	}
+
+	return lineEndingLF
+}
+
+func normalizeLineEndings(text, eol string) string {
+	normalized := strings.ReplaceAll(text, lineEndingCRLF, lineEndingLF)
+	if eol == lineEndingLF {
+		return normalized
+	}
+
+	return strings.ReplaceAll(normalized, lineEndingLF, eol)
 }
 
 func firstReleaseHeadingLine(index markdownIndex) int {
