@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.18.5](https://github.com/monkescience/yeet/compare/v0.18.4...v0.18.5) (2026-11-20)
+
+### Bug Fixes
+
+- **changelog:** preserve CRLF line endings when prepending entries ([899df6b](https://github.com/monkescience/yeet/commit/899df6b31f2c8f970993fe07ccbf68ed650841cb))
+
 ## [v0.18.4](https://github.com/monkescience/yeet/compare/v0.18.3...v0.18.4) (2026-11-20)
 
 ### Bug Fixes
