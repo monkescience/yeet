@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.18.4](https://github.com/monkescience/yeet/compare/v0.18.3...v0.18.4) (2026-11-20)
+
+### Bug Fixes
+
+- **deps:** update module gitlab.com/gitlab-org/api/client-go/v3 to v3.50.0 (#376) ([1a40283](https://github.com/monkescience/yeet/commit/1a402833af8a4d148b66e5807fc593f163b5ab19))
+- **changelog:** preserve front matter and leading changelog titles ([75f6451](https://github.com/monkescience/yeet/commit/75f64517f9cbda5c231b1a3cddf38e5661edacf1))
+- **versionfile:** apply inline markers inside version marker blocks ([aeada36](https://github.com/monkescience/yeet/commit/aeada36985833ca86d20e8466cc81cda0cbc5937))
+- **release:** finalize merged release PRs that lost their pending label ([2b6519c](https://github.com/monkescience/yeet/commit/2b6519c61fa4fd48ae4f7e06b1e5e0f9863bc683))
+- **config:** let empty target version_files clear top-level entries ([0c859ba](https://github.com/monkescience/yeet/commit/0c859ba33c69d738e57523849dedb79d5a37c2e5))
+- **deps:** update module github.com/yuin/goldmark/v2 to v2.1.16 (#375) ([357b499](https://github.com/monkescience/yeet/commit/357b49919e95f9906e149a528f4658c7d930211c))
+
 ## [v0.18.3](https://github.com/monkescience/yeet/compare/v0.18.2...v0.18.3) (2026-11-19)
 
 ### Bug Fixes
