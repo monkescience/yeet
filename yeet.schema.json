@@ -692,7 +692,7 @@
             },
             "footers": {
               "type": "object",
-              "description": "Mapping of commit footer keys to URL templates. Matched footers are appended after the commit hash. Use {value} as placeholder for the footer value. Empty string renders as plain text.",
+              "description": "Mapping of commit footer keys to URL templates. Matched footers are appended after the commit hash using the first line and any consecutive indented or comma-continued lines before the next blank line, splitting comma-separated items into separate references. Use {value} as placeholder for each URL-encoded item. Empty string renders as plain text.",
               "propertyNames": {
                 "type": "string",
                 "minLength": 1

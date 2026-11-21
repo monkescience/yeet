@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"regexp"
 	"regexp/syntax"
 	"slices"
@@ -19,7 +20,10 @@ import (
 	"github.com/yuin/goldmark/v2/parser"
 )
 
-const breakingChangesHeading = "⚠ BREAKING CHANGES"
+const (
+	breakingChangesHeading = "⚠ BREAKING CHANGES"
+	referencePlaceholder   = "{value}"
+)
 
 type Generator struct {
 	sections   map[string]string
@@ -49,6 +53,11 @@ type compiledPattern struct {
 	re  *regexp.Regexp
 	url string
 }
+
+var (
+	linkLabelReplacer     = strings.NewReplacer(`\`, `\\`, `[`, `\[`, `]`, `\]`, `<`, `\<`, "`", "\\`")
+	commentMarkerReplacer = strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;")
+)
 
 func New(opts ...Option) *Generator {
 	g := &Generator{}
@@ -324,9 +333,9 @@ func (g *Generator) linkDescription(description string) string {
 
 	for _, cp := range g.compiledPatterns {
 		result = cp.re.ReplaceAllStringFunc(result, func(match string) string {
-			url := strings.ReplaceAll(cp.url, "{value}", match)
+			linkURL := strings.ReplaceAll(cp.url, referencePlaceholder, match)
 
-			return fmt.Sprintf("[%s](%s)", match, url)
+			return fmt.Sprintf("[%s](%s)", match, linkURL)
 		})
 	}
 
@@ -346,16 +355,8 @@ func (g *Generator) footerReferences(c commit.Commit) string {
 			continue
 		}
 
-		value := sanitizeCommitText(strings.TrimSpace(f.Value))
-		if value == "" {
-			continue
-		}
-
-		if pattern == "" {
-			refs = append(refs, value)
-		} else {
-			url := strings.ReplaceAll(pattern, "{value}", value)
-			refs = append(refs, fmt.Sprintf("[%s](%s)", value, url))
+		for _, value := range splitFooterReferences(f.Value) {
+			refs = append(refs, formatFooterReference(value, pattern))
 		}
 	}
 
@@ -376,6 +377,125 @@ func (g *Generator) referencePattern(key string) (string, bool) {
 	return "", false
 }
 
+func splitFooterReferences(raw string) []string {
+	text := footerReferenceText(raw)
+	if text == "" {
+		return nil
+	}
+
+	parts := strings.Split(text, ",")
+	refs := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		item := strings.TrimSpace(stripControlChars(part))
+		if item == "" {
+			continue
+		}
+
+		refs = append(refs, item)
+	}
+
+	return refs
+}
+
+func footerReferenceText(raw string) string {
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+
+	firstLine, rest, hasRest := strings.Cut(normalized, "\n")
+	if !hasRest {
+		return strings.TrimSpace(firstLine)
+	}
+
+	var kept []string
+	if trimmed := strings.TrimSpace(firstLine); trimmed != "" {
+		kept = append(kept, trimmed)
+	}
+
+	for line := range strings.SplitSeq(rest, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			break
+		}
+
+		if !isIndentedLine(line) && !endsWithComma(kept) {
+			break
+		}
+
+		kept = append(kept, trimmed)
+	}
+
+	return strings.Join(kept, " ")
+}
+
+func isIndentedLine(line string) bool {
+	return len(line) > 0 && (line[0] == ' ' || line[0] == '\t')
+}
+
+func endsWithComma(lines []string) bool {
+	return len(lines) > 0 && strings.HasSuffix(lines[len(lines)-1], ",")
+}
+
+func formatFooterReference(value, pattern string) string {
+	display := escapeCommentMarkers(value)
+	if pattern == "" {
+		return display
+	}
+
+	return fmt.Sprintf("[%s](%s)", escapeLinkLabel(display), expandReferenceURL(pattern, value))
+}
+
+func escapeLinkLabel(label string) string {
+	return linkLabelReplacer.Replace(label)
+}
+
+func expandReferenceURL(pattern, value string) string {
+	if !strings.Contains(pattern, referencePlaceholder) {
+		return pattern
+	}
+
+	pathEscaped := url.PathEscape(value)
+	queryEscaped := escapeReferenceQueryValue(value)
+
+	var sb strings.Builder
+
+	rest := pattern
+	inQuery := false
+	inFragment := false
+
+	for {
+		prefix, after, found := strings.Cut(rest, referencePlaceholder)
+		sb.WriteString(prefix)
+
+		if !found {
+			break
+		}
+
+		if !inFragment {
+			if strings.IndexByte(prefix, '#') != -1 {
+				inFragment = true
+				inQuery = false
+			} else if strings.IndexByte(prefix, '?') != -1 {
+				inQuery = true
+			}
+		}
+
+		if inQuery {
+			sb.WriteString(queryEscaped)
+		} else {
+			sb.WriteString(pathEscaped)
+		}
+
+		rest = after
+	}
+
+	return sb.String()
+}
+
+func escapeReferenceQueryValue(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
+}
+
 func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
 	grouped := make(map[string][]commit.Commit)
 
@@ -391,7 +511,11 @@ func groupBySection(commits []commit.Commit) map[string][]commit.Commit {
 }
 
 func sanitizeCommitText(s string) string {
-	stripped := strings.Map(func(r rune) rune {
+	return escapeCommentMarkers(stripControlChars(s))
+}
+
+func stripControlChars(s string) string {
+	return strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\r' {
 			return ' '
 		}
@@ -406,12 +530,10 @@ func sanitizeCommitText(s string) string {
 
 		return r
 	}, s)
-
-	return escapeCommentMarkers(stripped)
 }
 
 func escapeCommentMarkers(s string) string {
-	return strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;").Replace(s)
+	return commentMarkerReplacer.Replace(s)
 }
 
 func escapeFooterMarkdown(text string) string {

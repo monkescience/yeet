@@ -103,4 +103,54 @@ func TestReleaseChangelogReferences(t *testing.T) {
 			result.Stdout,
 		)
 	})
+
+	t.Run("github renders folded comma-separated and encoded footer references", func(t *testing.T) {
+		t.Parallel()
+
+		// given: commits with multi-line squash bodies, wrapped comma-separated references, and URL-special characters
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "fix: handle edge case\n\nCloses #12\n\n## Testing\nRan unit tests."},
+				{Message: "feat: track work\n\nRefs: PROJ-1,\n  PROJ-2\n\n## Notes\nExtra details."},
+				{Message: "feat: link query ref\n\nTicket: team A&B (1)\nExtra unindented line"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[3],
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+				Title:    "chore: release 1.1.0",
+				Head:     "yeet/release-main",
+				Base:     "main",
+				BodyFile: "testdata/release/github_multiline_and_comma_footers/pull_request.expected.md",
+			}},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			ReferenceFooters: map[string]string{
+				"Closes": "",
+				"Refs":   "https://jira.example.test/browse/{value}",
+				"Ticket": "https://tracker.example.test/search?q={value}",
+			},
+		})
+
+		// when: creating the release pull request through the CLI
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: each footer renders its first line and indented or comma-continued lines as valid Markdown references
+		testastic.Equal(t, 0, result.ExitCode)
+	})
 }

@@ -1635,3 +1635,180 @@ func TestReferenceCaseInsensitive(t *testing.T) {
 	testastic.Equal(t, "### Features\n\n- setup (abcdef0) ([123](https://first.example/123), "+
 		"[456](https://first.example/456), [789](https://first.example/789))\n", body)
 }
+
+func TestFooterReferences(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		footers  map[string]string
+		raw      string
+		expected string
+	}{
+		{
+			name:     "ignores continuation lines after a bare squash-body footer",
+			footers:  map[string]string{"Closes": ""},
+			raw:      "fix: handle edge case\n\nCloses #12\n\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- handle edge case (abcdef0) (#12)\n",
+		},
+		{
+			name:     "ignores unindented prose immediately following a footer without blank line",
+			footers:  map[string]string{"Closes": ""},
+			raw:      "fix: handle edge case\n\nCloses #12\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- handle edge case (abcdef0) (#12)\n",
+		},
+		{
+			name:     "keeps indented wrapped comma-separated references for bare footers",
+			footers:  map[string]string{"Closes": ""},
+			raw:      "fix: close wrapped issues\n\nCloses #12,\n  #34",
+			expected: "### Bug Fixes\n\n- close wrapped issues (abcdef0) (#12, #34)\n",
+		},
+		{
+			name:    "keeps indented wrapped comma-separated links before squash body",
+			footers: map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:     "fix: link wrapped issues\n\nRefs: PROJ-1,\n  PROJ-2\n\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- link wrapped issues (abcdef0) " +
+				"([PROJ-1](https://jira.example.com/browse/PROJ-1), " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2))\n",
+		},
+		{
+			name:    "keeps unindented line after trailing comma and stops before unindented heading",
+			footers: map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:     "fix: link comma-continued issues\n\nRefs: PROJ-1,\nPROJ-2\n## Testing",
+			expected: "### Bug Fixes\n\n- link comma-continued issues (abcdef0) " +
+				"([PROJ-1](https://jira.example.com/browse/PROJ-1), " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2))\n",
+		},
+		{
+			name:    "keeps folded references starting on an indented second line",
+			footers: map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:     "fix: link folded references\n\nRefs: \n  PROJ-1, PROJ-2\n\n## Testing",
+			expected: "### Bug Fixes\n\n- link folded references (abcdef0) " +
+				"([PROJ-1](https://jira.example.com/browse/PROJ-1), " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2))\n",
+		},
+		{
+			name:     "ignores CRLF continuation lines after a linked footer",
+			footers:  map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:      "fix: handle edge case\r\n\r\nRefs: PROJ-1\r\n\r\n## Testing\r\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- handle edge case (abcdef0) ([PROJ-1](https://jira.example.com/browse/PROJ-1))\n",
+		},
+		{
+			name:     "skips a footer whose first line is blank before continuation text",
+			footers:  map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:      "fix: handle edge case\n\nRefs: \n\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- handle edge case (abcdef0)\n",
+		},
+		{
+			name:     "skips a footer whose first line is blank before an unindented heading",
+			footers:  map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:      "fix: handle edge case\n\nRefs: \n## Testing",
+			expected: "### Bug Fixes\n\n- handle edge case (abcdef0)\n",
+		},
+		{
+			name:    "splits comma-separated values into separate links",
+			footers: map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:     "fix: link multiple issues\n\nRefs: PROJ-1, PROJ-2\n\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- link multiple issues (abcdef0) " +
+				"([PROJ-1](https://jira.example.com/browse/PROJ-1), " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2))\n",
+		},
+		{
+			name:    "ignores empty comma-separated segments",
+			footers: map[string]string{"Refs": "https://jira.example.com/browse/{value}"},
+			raw:     "fix: trim empty segments\n\nRefs: , PROJ-1 , , PROJ-2 ,",
+			expected: "### Bug Fixes\n\n- trim empty segments (abcdef0) " +
+				"([PROJ-1](https://jira.example.com/browse/PROJ-1), " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2))\n",
+		},
+		{
+			name:     "splits comma-separated values for plain-text footers",
+			footers:  map[string]string{"Closes": ""},
+			raw:      "fix: close two issues\n\nCloses #12, #34\n\n## Testing\nRan unit tests.",
+			expected: "### Bug Fixes\n\n- close two issues (abcdef0) (#12, #34)\n",
+		},
+		{
+			name:    "percent-encodes path segment values and markdown parens",
+			footers: map[string]string{"Refs": "https://tracker.example.com/browse/{value}"},
+			raw:     "fix: encode path ref\n\nRefs: a/b (c) #42",
+			expected: "### Bug Fixes\n\n- encode path ref (abcdef0) " +
+				"([a/b (c) #42](https://tracker.example.com/browse/a%2Fb%20%28c%29%20%2342))\n",
+		},
+		{
+			name:    "percent-encodes query parameter values",
+			footers: map[string]string{"Refs": "https://tracker.example.com/search?q={value}"},
+			raw:     "fix: encode query ref\n\nRefs: a&b=c + d",
+			expected: "### Bug Fixes\n\n- encode query ref (abcdef0) " +
+				"([a&b=c + d](https://tracker.example.com/search?q=a%26b%3Dc%20%2B%20d))\n",
+		},
+		{
+			name:    "percent-encodes fragment values after query parameters",
+			footers: map[string]string{"Refs": "https://tracker.example.com/issues?a=1#{value}"},
+			raw:     "fix: encode fragment ref\n\nRefs: sec (1)",
+			expected: "### Bug Fixes\n\n- encode fragment ref (abcdef0) " +
+				"([sec (1)](https://tracker.example.com/issues?a=1#sec%20%281%29))\n",
+		},
+		{
+			name:    "escapes markdown link label brackets and comment markers",
+			footers: map[string]string{"Refs": "https://tracker.example.com/browse/{value}"},
+			raw:     "fix: escape link label\n\nRefs: PROJ]1, a<!--b-->, a\\b[c]",
+			expected: "### Bug Fixes\n\n- escape link label (abcdef0) " +
+				"([PROJ\\]1](https://tracker.example.com/browse/PROJ%5D1), " +
+				"[a&lt;!--b--&gt;](https://tracker.example.com/browse/a%3C%21--b--%3E), " +
+				"[a\\\\b\\[c\\]](https://tracker.example.com/browse/a%5Cb%5Bc%5D))\n",
+		},
+		{
+			name:    "escapes angle brackets and backticks in markdown link labels",
+			footers: map[string]string{"Reported-by": "https://tracker.example.com/search?q={value}"},
+			raw: "fix: escape autolinks and code spans\n\n" +
+				"Reported-by: Alice <alice@example.com>, <https://example.com/123>, `a, b`, `PROJ-1]`",
+			expected: "### Bug Fixes\n\n- escape autolinks and code spans (abcdef0) " +
+				"([Alice \\<alice@example.com>](https://tracker.example.com/search?q=Alice%20%3Calice%40example.com%3E), " +
+				"[\\<https://example.com/123>](https://tracker.example.com/search?q=%3Chttps%3A%2F%2Fexample.com%2F123%3E), " +
+				"[\\`a](https://tracker.example.com/search?q=%60a), " +
+				"[b\\`](https://tracker.example.com/search?q=b%60), " +
+				"[\\`PROJ-1\\]\\`](https://tracker.example.com/search?q=%60PROJ-1%5D%60))\n",
+		},
+		{
+			name:    "encodes multiple placeholders across path, query, and fragment",
+			footers: map[string]string{"Refs": "https://tracker.example.com/{value}?q={value}#{value}"},
+			raw:     "fix: encode multi-placeholder url\n\nRefs: a/b&c (1)",
+			expected: "### Bug Fixes\n\n- encode multi-placeholder url (abcdef0) " +
+				"([a/b&c (1)](https://tracker.example.com/a%2Fb&c%20%281%29?q=a%2Fb%26c%20%281%29#a%2Fb&c%20%281%29))\n",
+		},
+		{
+			name:    "strips control characters and neutralizes control-split comment markers",
+			footers: map[string]string{"Refs": "https://tracker.example.com/browse/{value}"},
+			raw:     "fix: strip control chars\n\nRefs: a\x07, <\x08!--b--\x08>, \x07",
+			expected: "### Bug Fixes\n\n- strip control chars (abcdef0) " +
+				"([a](https://tracker.example.com/browse/a), " +
+				"[&lt;!--b--&gt;](https://tracker.example.com/browse/%3C%21--b--%3E))\n",
+		},
+		{
+			name:     "keeps static URL template without placeholder",
+			footers:  map[string]string{"Refs": "https://tracker.example.com/issues"},
+			raw:      "fix: static url\n\nRefs: PROJ-1",
+			expected: "### Bug Fixes\n\n- static url (abcdef0) ([PROJ-1](https://tracker.example.com/issues))\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a generator configured with footer reference templates and a parsed commit
+			gen := changelog.New(
+				changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+				changelog.WithInclude([]string{"fix"}),
+				changelog.WithReferences(changelog.References{Footers: tc.footers}),
+			)
+			c := commit.Parse(t.Context(), "abcdef0", tc.raw)
+
+			// when: generating the changelog body
+			body := changelog.RenderBody(gen.Generate(t.Context(), "v1.0.1", "", []commit.Commit{c}))
+
+			// then: the first line and any indented or comma-continued lines are split into safe Markdown references
+			testastic.Equal(t, tc.expected, body)
+		})
+	}
+}

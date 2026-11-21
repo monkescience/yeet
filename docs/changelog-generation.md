@@ -85,7 +85,7 @@ With this config, `feat: add OAuth2 support JIRA-123` becomes:
 
 - `{value}` is replaced with the matched text. An empty URL keeps plain text.
 - Patterns are regular expressions that match substrings, so anchor them with `\b`.
-- Footer names are case-insensitive.
+- Footer names are case-insensitive. Footer references keep the first line and any consecutive indented or comma-continued lines before the next blank line, split comma-separated items into separate entries, and percent-encode `{value}` for its URL position.
 
 ## Related documentation
 
