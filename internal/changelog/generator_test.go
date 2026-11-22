@@ -659,6 +659,178 @@ func TestGenerate(t *testing.T) {
 	})
 }
 
+func TestInlineReferencePatterns(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		patterns    []changelog.ReferencePattern
+		description string
+		expected    string
+	}{
+		{
+			name: "earlier pattern wins on exact overlap without nesting links",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+				{Pattern: `\b[A-Z]+-\d+\b`, URL: "https://other.example.com/{value}"},
+			},
+			description: "fix PROJ-12 and OTHER-34",
+			expected: "### Bug Fixes\n\n- fix [PROJ-12](https://jira.example.com/browse/PROJ-12) and " +
+				"[OTHER-34](https://other.example.com/OTHER-34) (abcdef0)\n",
+		},
+		{
+			name: "sorts replacements when a later pattern matches earlier in the description",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+				{Pattern: `\b[A-Z]+-\d+\b`, URL: "https://other.example.com/{value}"},
+			},
+			description: "fix OTHER-34 and PROJ-12",
+			expected: "### Bug Fixes\n\n- fix [OTHER-34](https://other.example.com/OTHER-34) and " +
+				"[PROJ-12](https://jira.example.com/browse/PROJ-12) (abcdef0)\n",
+		},
+		{
+			name: "later pattern does not match inside earlier pattern URL",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bJIRA-\d+\b`, URL: "https://tracker.example.com/PR-1/{value}"},
+				{Pattern: `\bPR-\d+\b`, URL: "https://github.com/org/repo/pull/{value}"},
+			},
+			description: "fix JIRA-12 and PR-9",
+			expected: "### Bug Fixes\n\n- fix [JIRA-12](https://tracker.example.com/PR-1/JIRA-12) and " +
+				"[PR-9](https://github.com/org/repo/pull/PR-9) (abcdef0)\n",
+		},
+		{
+			name: "earlier pattern wins on partial overlap while later non-overlapping matches still link",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+				{Pattern: `FOO-PROJ`, URL: "https://foo.example.com/{value}"},
+			},
+			description: "update FOO-PROJ-12 and FOO-PROJ",
+			expected: "### Bug Fixes\n\n- update FOO-[PROJ-12](https://jira.example.com/browse/PROJ-12) and " +
+				"[FOO-PROJ](https://foo.example.com/FOO-PROJ) (abcdef0)\n",
+		},
+		{
+			name: "earlier pattern wins when later pattern matches a substring inside it",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+				{Pattern: `\bPROJ\b`, URL: "https://project.example.com/{value}"},
+			},
+			description: "fix PROJ-12 for PROJ",
+			expected: "### Bug Fixes\n\n- fix [PROJ-12](https://jira.example.com/browse/PROJ-12) for " +
+				"[PROJ](https://project.example.com/PROJ) (abcdef0)\n",
+		},
+		{
+			name: "empty URL pattern reserves matched text as plain text against later catch-all",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bINTERNAL-\d+\b`, URL: ""},
+				{Pattern: `\b[A-Z]+-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: "track INTERNAL-1 and PROJ-2",
+			expected: "### Bug Fixes\n\n- track INTERNAL-1 and " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2) (abcdef0)\n",
+		},
+		{
+			name: "skips existing markdown links and autolinks without breaking bracketed references",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `see [PROJ-1](https://existing.example.com/PROJ-1), ` +
+				`[PROJ-2](<https://existing.example.com/PROJ-2> "PROJ-2"), ` +
+				`[PROJ-3](), <https://existing.example.com/PROJ-4>, ` +
+				`![PROJ-5](https://img.example.com/PROJ-5.png), [PROJ-6] and PROJ-7`,
+			expected: `### Bug Fixes` + "\n\n" +
+				`- see [PROJ-1](https://existing.example.com/PROJ-1), ` +
+				`[PROJ-2](<https://existing.example.com/PROJ-2> "PROJ-2"), ` +
+				`[PROJ-3](), <https://existing.example.com/PROJ-4>, ` +
+				`![PROJ-5](https://img.example.com/PROJ-5.png), ` +
+				`[[PROJ-6](https://jira.example.com/browse/PROJ-6)] and ` +
+				`[PROJ-7](https://jira.example.com/browse/PROJ-7) (abcdef0)` + "\n",
+		},
+		{
+			name: "skips existing links at start of description",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `[PROJ-1](https://existing.example.com/PROJ-1) and PROJ-2`,
+			expected: "### Bug Fixes\n\n- [PROJ-1](https://existing.example.com/PROJ-1) and " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2) (abcdef0)\n",
+		},
+		{
+			name: "skips existing links in indented descriptions",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `    [PROJ-1](https://existing.example.com/PROJ-1) and PROJ-2`,
+			expected: "### Bug Fixes\n\n-     [PROJ-1](https://existing.example.com/PROJ-1) and " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2) (abcdef0)\n",
+		},
+		{
+			name: "skips existing links after leading markdown block markers",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `- [PROJ-1](https://existing.example.com/PROJ-1) and PROJ-2`,
+			expected: "### Bug Fixes\n\n- - [PROJ-1](https://existing.example.com/PROJ-1) and " +
+				"[PROJ-2](https://jira.example.com/browse/PROJ-2) (abcdef0)\n",
+		},
+		{
+			name: "skips empty-destination links containing nested images, links, code spans, or raw HTML",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `[![PROJ-1](https://img.example.com/PROJ-1.png)](), ` +
+				`![see [PROJ-2](https://existing.example.com/PROJ-2)](), ` +
+				"[PROJ-3 `a]`](), " +
+				`[PROJ-4 <span title="]">]() and PROJ-5`,
+			expected: "### Bug Fixes\n\n- " +
+				`[![PROJ-1](https://img.example.com/PROJ-1.png)](), ` +
+				`![see [PROJ-2](https://existing.example.com/PROJ-2)](), ` +
+				"[PROJ-3 `a]`](), " +
+				`[PROJ-4 <span title="]">]() and ` +
+				"[PROJ-5](https://jira.example.com/browse/PROJ-5) (abcdef0)\n",
+		},
+		{
+			name: "skips empty destinations, empty titles, escaped brackets, and email autolinks",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: `see [PROJ-1](<>), [PROJ-2](https://existing.example.com/PROJ-2 ""), ` +
+				`[PROJ-3](<> ""), [PROJ-4 *a* \]](), <user@PROJ-5.example.com> and PROJ-6`,
+			expected: "### Bug Fixes\n\n- see " +
+				`[PROJ-1](<>), [PROJ-2](https://existing.example.com/PROJ-2 ""), ` +
+				`[PROJ-3](<> ""), [PROJ-4 *a* \]](), <user@PROJ-5.example.com> and ` +
+				"[PROJ-6](https://jira.example.com/browse/PROJ-6) (abcdef0)\n",
+		},
+		{
+			name: "skips zero-width regex matches",
+			patterns: []changelog.ReferencePattern{
+				{Pattern: `(?:PROJ-\d+)?`, URL: "https://jira.example.com/browse/{value}"},
+			},
+			description: "fix PROJ-12",
+			expected:    "### Bug Fixes\n\n- fix [PROJ-12](https://jira.example.com/browse/PROJ-12) (abcdef0)\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: a generator configured with inline reference patterns and a fix commit
+			gen := changelog.New(
+				changelog.WithSections(map[string]string{"fix": "Bug Fixes"}),
+				changelog.WithInclude([]string{"fix"}),
+				changelog.WithReferences(changelog.References{Patterns: tc.patterns}),
+			)
+			commits := []commit.Commit{{Hash: "abcdef0", Type: "fix", Description: tc.description}}
+
+			// when: generating the changelog body
+			body := changelog.RenderBody(gen.Generate(t.Context(), "v1.0.1", "", commits))
+
+			// then: references are linked cleanly without nesting links inside links
+			testastic.Equal(t, tc.expected, body)
+		})
+	}
+}
+
 func TestRender(t *testing.T) {
 	t.Parallel()
 

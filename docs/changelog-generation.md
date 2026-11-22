@@ -83,8 +83,8 @@ With this config, `feat: add OAuth2 support JIRA-123` becomes:
 - add OAuth2 support [JIRA-123](https://jira.example.com/browse/JIRA-123) (abc1234)
 ```
 
-- `{value}` is replaced with the matched text. An empty URL keeps plain text.
-- Patterns are regular expressions that match substrings, so anchor them with `\b`.
+- `{value}` is replaced with the matched text. An empty or omitted URL keeps plain text and reserves the match against later overlapping patterns.
+- Patterns are regular expressions that match substrings of the original description in configured order, so anchor them with `\b`. Earlier patterns take precedence when matches overlap, and existing inline Markdown links, Markdown images, and `<...>` autolinks are left untouched.
 - Footer names are case-insensitive. Footer references keep the first line and any consecutive indented or comma-continued lines before the next blank line, split comma-separated items into separate entries, and percent-encode `{value}` for its URL position.
 
 ## Related documentation

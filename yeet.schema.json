@@ -669,7 +669,7 @@
           "properties": {
             "patterns": {
               "type": "array",
-              "description": "Regex patterns matched against commit descriptions. Matches are replaced inline with links using the URL template. Use {value} as placeholder for the matched text.",
+              "description": "Regex patterns matched in order against commit descriptions. Matches are replaced inline with links using the URL template without nesting inside earlier matches, existing inline Markdown links, Markdown images, or <...> autolinks. Use {value} as placeholder for the matched text.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -685,7 +685,7 @@
                       "string",
                       "null"
                     ],
-                    "description": "URL template with {value} placeholder. Empty string renders as plain text."
+                    "description": "URL template with {value} placeholder. An empty or omitted value keeps plain text and reserves the match against later overlapping patterns."
                   }
                 }
               }

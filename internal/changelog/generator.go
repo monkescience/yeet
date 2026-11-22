@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -18,11 +19,20 @@ import (
 	"github.com/monkescience/yeet/internal/logattr"
 	"github.com/yuin/goldmark/v2/ast"
 	"github.com/yuin/goldmark/v2/parser"
+	"github.com/yuin/goldmark/v2/text"
+	"github.com/yuin/goldmark/v2/util"
 )
 
 const (
-	breakingChangesHeading = "⚠ BREAKING CHANGES"
-	referencePlaceholder   = "{value}"
+	breakingChangesHeading  = "⚠ BREAKING CHANGES"
+	referencePlaceholder    = "{value}"
+	inlineParsePrefix       = "x "
+	paragraphParserPriority = 1000
+	codeSpanParserPriority  = 100
+	linkParserPriority      = 200
+	autoLinkParserPriority  = 300
+	rawHTMLParserPriority   = 400
+	emphasisParserPriority  = 500
 )
 
 type Generator struct {
@@ -54,9 +64,43 @@ type compiledPattern struct {
 	url string
 }
 
+type textSpan struct {
+	start int
+	end   int
+}
+
+type referenceReplacement struct {
+	span textSpan
+	url  string
+}
+
+type linkSpanRecorder struct {
+	inner parser.InlineParser
+}
+
 var (
 	linkLabelReplacer     = strings.NewReplacer(`\`, `\\`, `[`, `\[`, `]`, `\]`, `<`, `\<`, "`", "\\`")
 	commentMarkerReplacer = strings.NewReplacer("<!--", "&lt;!--", "-->", "--&gt;")
+	inlineLinkSpansKey    = parser.NewContextKey()
+	inlineLinkParser      = parser.New(
+		parser.WithDefaultParsers(false),
+		parser.WithBlockParsers(
+			util.Prioritized(parser.NewParagraphParser(), paragraphParserPriority),
+		),
+		parser.WithInlineParsers(
+			util.Prioritized(parser.NewCodeSpanParser(), codeSpanParserPriority),
+			util.Prioritized[parser.InlineParser](
+				linkSpanRecorder{inner: parser.NewLinkParser()},
+				linkParserPriority,
+			),
+			util.Prioritized[parser.InlineParser](
+				linkSpanRecorder{inner: parser.NewAutoLinkParser()},
+				autoLinkParserPriority,
+			),
+			util.Prioritized(parser.NewRawHTMLParser(), rawHTMLParserPriority),
+			util.Prioritized(parser.NewEmphasisParser(), emphasisParserPriority),
+		),
+	)
 )
 
 func New(opts ...Option) *Generator {
@@ -297,10 +341,6 @@ func (g *Generator) ensureCompiledPatterns(ctx context.Context) {
 	g.compiledPatterns = make([]compiledPattern, 0, len(g.references.Patterns))
 
 	for _, p := range g.references.Patterns {
-		if p.URL == "" {
-			continue
-		}
-
 		re, err := regexp.Compile(p.Pattern)
 		if err != nil {
 			slog.WarnContext(ctx, "skipping invalid changelog reference pattern",
@@ -325,21 +365,125 @@ func patternCompileReason(err error) string {
 }
 
 func (g *Generator) linkDescription(description string) string {
-	if len(g.compiledPatterns) == 0 {
+	if !slices.ContainsFunc(g.compiledPatterns, func(cp compiledPattern) bool { return cp.url != "" }) {
 		return description
 	}
 
-	result := description
+	claimed := existingLinkSpans(description)
+	replacements := make([]referenceReplacement, 0)
 
 	for _, cp := range g.compiledPatterns {
-		result = cp.re.ReplaceAllStringFunc(result, func(match string) string {
-			linkURL := strings.ReplaceAll(cp.url, referencePlaceholder, match)
+		for _, loc := range cp.re.FindAllStringIndex(description, -1) {
+			span := textSpan{start: loc[0], end: loc[1]}
+			if span.start == span.end || overlapsAnySpan(span, claimed) {
+				continue
+			}
 
-			return fmt.Sprintf("[%s](%s)", match, linkURL)
+			claimed = append(claimed, span)
+			if cp.url != "" {
+				replacements = append(replacements, referenceReplacement{span: span, url: cp.url})
+			}
+		}
+	}
+
+	if len(replacements) == 0 {
+		return description
+	}
+
+	return applyReferenceReplacements(description, replacements)
+}
+
+func overlapsAnySpan(candidate textSpan, spans []textSpan) bool {
+	for _, existing := range spans {
+		if candidate.start < existing.end && existing.start < candidate.end {
+			return true
+		}
+	}
+
+	return false
+}
+
+func applyReferenceReplacements(description string, replacements []referenceReplacement) string {
+	slices.SortFunc(replacements, func(a, b referenceReplacement) int {
+		return cmp.Compare(a.span.start, b.span.start)
+	})
+
+	var sb strings.Builder
+	sb.Grow(len(description))
+
+	last := 0
+
+	for _, rep := range replacements {
+		sb.WriteString(description[last:rep.span.start])
+
+		match := description[rep.span.start:rep.span.end]
+		linkURL := strings.ReplaceAll(rep.url, referencePlaceholder, match)
+
+		sb.WriteByte('[')
+		sb.WriteString(match)
+		sb.WriteString("](")
+		sb.WriteString(linkURL)
+		sb.WriteByte(')')
+
+		last = rep.span.end
+	}
+
+	sb.WriteString(description[last:])
+
+	return sb.String()
+}
+
+func existingLinkSpans(description string) []textSpan {
+	if !strings.ContainsAny(description, "[<") {
+		return nil
+	}
+
+	var spans []textSpan
+
+	pc := parser.NewContext()
+	pc.Set(inlineLinkSpansKey, &spans)
+	inlineLinkParser.Parse([]byte(inlineParsePrefix+description), parser.WithContext(pc))
+
+	return spans
+}
+
+func (r linkSpanRecorder) Trigger() []byte {
+	return r.inner.Trigger()
+}
+
+func (r linkSpanRecorder) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
+	node := r.inner.Parse(parent, block, pc)
+	if node == nil {
+		return nil
+	}
+
+	spans, ok := pc.Get(inlineLinkSpansKey).(*[]textSpan)
+	if !ok {
+		return node
+	}
+
+	switch n := node.(type) {
+	case *ast.AutoLink:
+		idx := n.Text.Index()
+		*spans = append(*spans, textSpan{
+			start: idx.Start - len(inlineParsePrefix),
+			end:   idx.Stop - len(inlineParsePrefix),
+		})
+	case *ast.Link, *ast.Image:
+		_, pos := block.Position()
+		*spans = append(*spans, textSpan{
+			start: n.Pos() - len(inlineParsePrefix),
+			end:   pos.Start - len(inlineParsePrefix),
 		})
 	}
 
-	return result
+	return node
+}
+
+func (r linkSpanRecorder) CloseBlock(parent ast.Node, block text.Reader, pc parser.Context) {
+	if cb, ok := r.inner.(parser.CloseBlocker); ok {
+		cb.CloseBlock(parent, block, pc)
+	}
 }
 
 func (g *Generator) footerReferences(c commit.Commit) string {

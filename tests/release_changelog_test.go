@@ -153,4 +153,52 @@ func TestReleaseChangelogReferences(t *testing.T) {
 		// then: each footer renders its first line and indented or comma-continued lines as valid Markdown references
 		testastic.Equal(t, 0, result.ExitCode)
 	})
+
+	t.Run("github does not nest links for overlapping reference patterns", func(t *testing.T) {
+		t.Parallel()
+
+		// given: overlapping inline reference patterns and commits containing overlapping and already-linked references
+		repoDir, shas := fixture.WriteRepoWithHistory(t, "https://github.com/testorg/testrepo.git", "main",
+			[]fixture.RepoCommit{
+				{Message: "chore: release v1.0.0", Tag: "v1.0.0"},
+				{Message: "fix: link PROJ-12 and OTHER-34 without nesting"},
+				{Message: "feat: keep [PROJ-99](https://existing.example.test/PROJ-99) and link PROJ-100"},
+			})
+
+		server := fakeprovider.NewGitHub(t, fakeprovider.GitHubOptions{
+			Owner:         "testorg",
+			Repo:          "testrepo",
+			LatestTag:     "v1.0.0",
+			BoundarySHA:   shas[0],
+			BranchHeadSHA: shas[2],
+			ExpectedCreatedPullRequests: []fakeprovider.GitHubPullRequestExpectation{{
+				Title:    "chore: release 1.1.0",
+				Head:     "yeet/release-main",
+				Base:     "main",
+				BodyFile: "testdata/release/github_overlapping_patterns/pull_request.expected.md",
+			}},
+		})
+
+		configPath := fixture.WriteConfig(t, fixture.ConfigOptions{
+			Provider: "github",
+			Branch:   "main",
+			Host:     "github.com",
+			Owner:    "testorg",
+			Repo:     "testrepo",
+			ReferencePatterns: []fixture.ReferencePatternOptions{
+				{Pattern: `\bPROJ-\d+\b`, URL: "https://jira.example.test/browse/{value}"},
+				{Pattern: `\b[A-Z]+-\d+\b`, URL: "https://other.example.test/{value}"},
+			},
+		})
+
+		// when: creating the release pull request through the CLI
+		result := binary.RunWithOptions(t,
+			[]string{"release", "--config", configPath},
+			testastic.WithRunWorkDir(repoDir),
+			testastic.WithRunEnv(fixture.GitHubEnv(server, "main")...),
+		)
+
+		// then: earlier patterns win on overlap and existing Markdown links remain intact
+		testastic.Equal(t, 0, result.ExitCode)
+	})
 }
