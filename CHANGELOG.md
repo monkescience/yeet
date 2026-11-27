@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.18.5](https://github.com/monkescience/yeet/compare/v0.18.4...v0.18.5) (2026-11-27)
+
+### Bug Fixes
+
+- **deps:** update module github.com/charmbracelet/x/ansi to v0.11.10 (#386) ([d0e74b2](https://github.com/monkescience/yeet/commit/d0e74b2332b7c3e5f4d64b9023db95bd56f8e52a))
+- **deps:** update module charm.land/lipgloss/v2 to v2.1.1 (#385) ([e24f780](https://github.com/monkescience/yeet/commit/e24f78058d18a4987e430ac4b3505b4e6480a4fb))
+- **changelog:** avoid nesting links for overlapping reference patterns ([d13caea](https://github.com/monkescience/yeet/commit/d13caeaf2ace959e12c5712f0dc0966de1f445a5))
+- **changelog:** split footer references and encode links ([f247cd9](https://github.com/monkescience/yeet/commit/f247cd956773fd84cf4b6973bcc3ac3c221270a6))
+- **changelog:** preserve CRLF line endings when prepending entries ([899df6b](https://github.com/monkescience/yeet/commit/899df6b31f2c8f970993fe07ccbf68ed650841cb))
+
 ## [v0.18.4](https://github.com/monkescience/yeet/compare/v0.18.3...v0.18.4) (2026-11-20)
 
 ### Bug Fixes
