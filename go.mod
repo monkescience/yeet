@@ -10,7 +10,7 @@ require (
 	charm.land/log/v2 v2.0.1
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/ansi v0.11.10
 	github.com/go-git/go-git/v6 v6.0.0-beta.1
 	github.com/google/go-github/v93 v93.0.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
